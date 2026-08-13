@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fcf9f5;
+  --foreground: #1c1917;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-outfit);
+}
+
+body {
+  background: #fcf9f5;
+  color: #1c1917;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-outfit), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Custom styling for html5-qrcode library */
+#qr-reader-kiosk {
+  border: none !important;
+  background-color: transparent !important;
+  font-family: inherit !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#qr-reader-kiosk img[alt="Info icon"] {
+  display: none !important;
+}
+
+#qr-reader-kiosk img[alt="Camera icon"] {
+  display: none !important;
+}
+
+#qr-reader-kiosk__dashboard_section_csr {
+  text-align: center !important;
+  margin-top: 1rem !important;
+}
+
+#qr-reader-kiosk button, 
+#qr-reader-kiosk__camera_permission_button,
+.html5-qrcode-element {
+  background-color: #1c6856 !important;
+  color: white !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  padding: 0.65rem 1.25rem !important;
+  border-radius: 0.75rem !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 2px 4px rgba(28, 104, 86, 0.1);
+}
+
+#qr-reader-kiosk button:hover,
+#qr-reader-kiosk__camera_permission_button:hover {
+  background-color: #154f42 !important;
+  transform: translateY(-0.5px);
+}
+
+#qr-reader-kiosk__camera_selection {
+  background-color: #f5f5f4 !important;
+  color: #1c1917 !important;
+  font-size: 12px !important;
+  border: 1px solid #e7e5e4 !important;
+  border-radius: 0.75rem !important;
+  padding: 0.45rem !important;
+  margin: 0.5rem auto !important;
+  display: block !important;
+  max-width: 250px;
+}
+
+#qr-reader-kiosk__scan_region {
+  border: none !important;
+  background-color: transparent !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#qr-reader-kiosk video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  transform: scaleX(-1) !important; /* Mirroring for user experience */
+}
+
+/* Ocultar el enlace de escanear archivo */
+#qr-reader-kiosk__dashboard_section_csr a {
+  display: none !important;
+}
+
+/* Ocultar textos e iconos innecesarios */
+#qr-reader-kiosk__dashboard_section_header {
+  display: none !important;
+}
+
+/* Custom laser animation for scanning */
+@keyframes laser {
+  0%, 100% {
+    top: 5%;
+    opacity: 0.2;
+  }
+  50% {
+    top: 95%;
+    opacity: 0.95;
+  }
+}
+
+.animate-laser {
+  position: absolute;
+  animation: laser 2.2s infinite linear;
+}
+
+/* Glassmorphism utility classes */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.glass-dock {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.shadow-premium {
+  box-shadow: 0 8px 30px rgba(28, 41, 33, 0.03);
+}
+
+.shadow-kiosk {
+  box-shadow: 0 12px 40px rgba(28, 41, 33, 0.05);
+}
