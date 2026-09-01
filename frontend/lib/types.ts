@@ -17,6 +17,8 @@ export interface Empleado {
   tarifa_hora: number | string;
   qr_code_token: string;
   activo: boolean;
+  horas_pendientes?: number | string;
+  periodo_horas_pendientes?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -80,7 +82,7 @@ export interface AutorizacionHorasExtra {
 
 export interface AlertaAsistencia {
   id?: number;
-  tipo: 'TARDANZA' | 'SALIDA_ANTICIPADA' | 'MARCACION_SOSPECHOSA';
+  tipo: 'TARDANZA' | 'SALIDA_ANTICIPADA' | 'MARCACION_SOSPECHOSA' | 'SEGUNDA_AUSENCIA' | 'REGISTRO_INCOMPLETO';
   empleado: number;
   empleado_detalle?: Empleado;
   titulo: string;

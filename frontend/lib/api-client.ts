@@ -222,6 +222,20 @@ export async function updateAlerta(id: number, payload: Partial<AlertaAsistencia
   });
 }
 
+export async function resolverAlerta(id: number, decision: 'JUSTIFICAR' | 'SUMAR_DEUDA'): Promise<{ status: string; mensaje: string; empleado_horas_pendientes?: number }> {
+  return apiRequest<{ status: string; mensaje: string; empleado_horas_pendientes?: number }>(`/alertas/${id}/resolver/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision }),
+  });
+}
+
+export async function marcarTodasAlertasLeidas(): Promise<void> {
+  await apiRequest('/alertas/marcar-todas-leidas/', {
+    method: 'POST',
+  });
+}
+
 // ── BATCH SYNC OFFLINE ─────────────────────────────────────────────────────
 export async function syncBatchAsistencias(payload: Array<{
   qr_code_token: string;

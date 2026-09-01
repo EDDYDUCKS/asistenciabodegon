@@ -222,38 +222,72 @@ export default function NominaAdminPage() {
         }
       });
 
-      // Calcular Horas Debidas recorriendo cada día del período (inasistencias y tardanzas)
+      // ── Detectar días libres y ausencias extra usando lógica semanal ────
+      let diasLibres = 0;
+      let ausenciasExtra = 0;
       horasDebidas = 0;
+
       if (fechaInicio && fechaFin) {
         const start = new Date(fechaInicio + 'T00:00:00');
         const end = new Date(fechaFin + 'T00:00:00');
+        
+        // Iterar semana por semana (Lunes a Domingo)
+        const semanasProcesadas = new Set<string>();
         const curr = new Date(start);
+
         while (curr <= end) {
-          const dayOfWeek = curr.getDay(); // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
-          const dateStr = curr.toISOString().slice(0, 10);
-          if (dayOfWeek !== 0 && !feriadosSet.has(dateStr)) {
-            if (diasMap[dateStr]) {
-              const regs = diasMap[dateStr];
-              regs.sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
-              let entradaTemp: number | null = null;
-              let horasDia = 0;
-              regs.forEach((r) => {
-                if (r.tipo_evento === 'ENTRADA' || r.tipo_evento === 'ENTRADA_QUEBRADA') {
-                  entradaTemp = new Date(r.fecha_hora).getTime();
-                } else if (
-                  (r.tipo_evento === 'SALIDA_QUEBRADA' || r.tipo_evento === 'SALIDA_DEFINITIVA') &&
-                  entradaTemp
-                ) {
-                  const diff = new Date(r.fecha_hora).getTime() - entradaTemp;
-                  if (diff > 0) horasDia += diff / (1000 * 60 * 60);
-                  entradaTemp = null;
+          // Obtener lunes de la semana
+          const dOfWeek = (curr.getDay() + 6) % 7; // Lunes=0, Domingo=6
+          const lunesSemana = new Date(curr);
+          lunesSemana.setDate(curr.getDate() - dOfWeek);
+          const semanaKey = lunesSemana.toISOString().slice(0, 10);
+
+          if (!semanasProcesadas.has(semanaKey)) {
+            semanasProcesadas.add(semanaKey);
+            const domingoSemana = new Date(lunesSemana);
+            domingoSemana.setDate(lunesSemana.getDate() + 6);
+
+            const sInicio = lunesSemana < start ? start : lunesSemana;
+            const sFin = domingoSemana > end ? end : domingoSemana;
+
+            let ausenciasSemana = 0;
+            const sCurr = new Date(sInicio);
+            while (sCurr <= sFin) {
+              const dateStr = sCurr.toISOString().slice(0, 10);
+              if (!feriadosSet.has(dateStr)) {
+                if (!diasMap[dateStr]) {
+                  // Día sin marcaje
+                  if (ausenciasSemana === 0) {
+                    diasLibres++; // 1er día = día libre tomado
+                  } else {
+                    ausenciasExtra++; // 2do+ día = falta
+                    horasDebidas += 8.0;
+                  }
+                  ausenciasSemana++;
+                } else {
+                  // Día trabajado: calcular déficit de horas
+                  const regs = diasMap[dateStr];
+                  regs.sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
+                  let entradaTemp: number | null = null;
+                  let horasDia = 0;
+                  regs.forEach((r) => {
+                    if (r.tipo_evento === 'ENTRADA' || r.tipo_evento === 'ENTRADA_QUEBRADA') {
+                      entradaTemp = new Date(r.fecha_hora).getTime();
+                    } else if (
+                      (r.tipo_evento === 'SALIDA_QUEBRADA' || r.tipo_evento === 'SALIDA_DEFINITIVA') &&
+                      entradaTemp
+                    ) {
+                      const diff = new Date(r.fecha_hora).getTime() - entradaTemp;
+                      if (diff > 0) horasDia += diff / (1000 * 60 * 60);
+                      entradaTemp = null;
+                    }
+                  });
+                  const horasOrd = Math.min(horasDia, 8.0);
+                  const deficit = Math.max(0, 8.0 - horasOrd);
+                  horasDebidas += deficit;
                 }
-              });
-              let horasOrd = Math.min(horasDia, 8.0);
-              horasDebidas += Math.max(0, 8.0 - horasOrd);
-            } else {
-              // Ausencia completa (debe las 8 horas)
-              horasDebidas += 8.0;
+              }
+              sCurr.setDate(sCurr.getDate() + 1);
             }
           }
           curr.setDate(curr.getDate() + 1);
@@ -272,6 +306,8 @@ export default function NominaAdminPage() {
       return {
         emp,
         diasUnicos,
+        diasLibres,
+        ausenciasExtra,
         horasOrdinarias: horasNormalesTrabajadas,
         feriadosTrabajadosDias,
         feriadosDetalle,
@@ -406,23 +442,25 @@ export default function NominaAdminPage() {
                   <tr>
                     <th className="px-6 py-4">Empleado</th>
                     <th className="px-6 py-4">Cargo / Puesto</th>
-                    <th className="px-6 py-4 text-center">Días Asistidos</th>
-                    <th className="px-6 py-4 text-right">Horas Ordinarias (Normales)</th>
+                    <th className="px-6 py-4 text-center">Días Trabajados</th>
+                    <th className="px-6 py-4 text-center">Días Libres (Tomados)</th>
+                    <th className="px-6 py-4 text-center">Ausencias Extra</th>
+                    <th className="px-6 py-4 text-right">Horas Ordinarias</th>
                     <th className="px-6 py-4 text-right">Feriados Trabajados (Días)</th>
                     <th className="px-6 py-4 text-right">Horas Extra Aprobadas</th>
-                    <th className="px-6 py-4 text-right text-rose-700 bg-rose-50/50">Horas Debidas (Faltantes)</th>
+                    <th className="px-6 py-4 text-right text-rose-700 bg-rose-50/50">Horas Debidas (Déficit)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-stone-400">
+                      <td colSpan={9} className="px-6 py-8 text-center text-stone-400">
                         Calculando registros...
                       </td>
                     </tr>
                   ) : resumenEmpleados.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-stone-400 font-normal">
+                      <td colSpan={9} className="px-6 py-8 text-center text-stone-400 font-normal">
                         No hay registros disponibles para este rango.
                       </td>
                     </tr>
@@ -439,6 +477,18 @@ export default function NominaAdminPage() {
                         </td>
                         <td className="px-6 py-4 text-center font-bold text-stone-700">
                           {item.diasUnicos} {item.diasUnicos === 1 ? 'día' : 'días'}
+                        </td>
+                        <td className="px-6 py-4 text-center font-bold text-emerald-700 bg-emerald-50/30">
+                          {item.diasLibres} {item.diasLibres === 1 ? 'libre' : 'libres'}
+                        </td>
+                        <td className="px-6 py-4 text-center font-bold">
+                          {item.ausenciasExtra > 0 ? (
+                            <span className="inline-block px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-mono font-bold">
+                              {item.ausenciasExtra} falta(s)
+                            </span>
+                          ) : (
+                            <span className="text-stone-400 font-mono text-xs">0</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-stone-900">
                           {item.horasOrdinarias.toFixed(2)} hrs
@@ -497,7 +547,7 @@ export default function NominaAdminPage() {
                 </tbody>
                 <tfoot className="bg-stone-50 border-t-2 border-stone-200 font-bold text-stone-900">
                   <tr>
-                    <td colSpan={3} className="px-6 py-4 text-right text-stone-500 uppercase text-xs">
+                    <td colSpan={5} className="px-6 py-4 text-right text-stone-500 uppercase text-xs">
                       Totales del Período:
                     </td>
                     <td className="px-6 py-4 text-right text-stone-950 text-base font-mono font-black">

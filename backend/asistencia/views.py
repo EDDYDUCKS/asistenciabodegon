@@ -112,6 +112,115 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
     serializer_class = AlertaAsistenciaSerializer
     permission_classes = [permissions.AllowAny]
 
+    def list(self, request, *args, **kwargs):
+        # Al listar alertas, verificar ausencias de la semana en curso para generar alertas de SEGUNDA_AUSENCIA si corresponden
+        self._verificar_ausencias_semanales()
+        return super().list(request, *args, **kwargs)
+
+    def _verificar_ausencias_semanales(self):
+        """
+        Revisa la semana en curso (Lunes a hoy). Si un empleado tiene 2 o más días sin marcaje
+        y no es feriado, genera la alerta de SEGUNDA_AUSENCIA para que el admin tome una decisión.
+        """
+        import datetime
+        hoy = timezone.localdate()
+        inicio_semana = hoy - datetime.timedelta(days=hoy.weekday())
+        
+        # Obtener feriados de la semana
+        feriados = set(DiaFeriado.objects.filter(
+            fecha__gte=inicio_semana,
+            fecha__lte=hoy
+        ).values_list('fecha', flat=True))
+
+        empleados = Empleado.objects.filter(activo=True)
+        for emp in empleados:
+            # Obtener días con marcajes en la semana
+            dias_con_marcaje = set(RegistroAsistencia.objects.filter(
+                empleado=emp,
+                fecha_hora__date__gte=inicio_semana,
+                fecha_hora__date__lte=hoy
+            ).dates('fecha_hora', 'day'))
+
+            dias_sin_marcaje = []
+            curr = inicio_semana
+            # Revisar hasta ayer (hoy aún puede marcar durante su turno)
+            while curr < hoy:
+                if curr not in feriados and curr not in dias_con_marcaje:
+                    dias_sin_marcaje.append(curr)
+                curr += datetime.timedelta(days=1)
+
+            # Si tiene 2 o más días sin marcar en la semana
+            if len(dias_sin_marcaje) >= 2:
+                # Verificar si ya existe una alerta de SEGUNDA_AUSENCIA para esta semana
+                titulo_busqueda = f"Segunda Ausencia Semanal: {emp.nombre} {emp.apellido}"
+                alerta_existente = AlertaAsistencia.objects.filter(
+                    empleado=emp,
+                    tipo='SEGUNDA_AUSENCIA',
+                    created_at__date__gte=inicio_semana
+                ).exists()
+
+                if not alerta_existente:
+                    fechas_str = ", ".join(d.strftime('%d/%m') for d in dias_sin_marcaje)
+                    AlertaAsistencia.objects.create(
+                        tipo='SEGUNDA_AUSENCIA',
+                        empleado=emp,
+                        titulo=titulo_busqueda,
+                        mensaje=(
+                            f"El empleado {emp.nombre} {emp.apellido} acumula {len(dias_sin_marcaje)} días sin registrar asistencia "
+                            f"esta semana ({fechas_str}). El 1er día cuenta como día libre. "
+                            f"Decida si autoriza la falta o si suma las 8 horas como deuda pendiente."
+                        ),
+                        leida=False
+                    )
+
+    @action(detail=True, methods=['post'], url_path='resolver')
+    def resolver_alerta(self, request, pk=None):
+        """
+        Resuelve una alerta:
+        decision='JUSTIFICAR': Marca como justificada (no genera deuda)
+        decision='SUMAR_DEUDA': Suma 8 horas al saldo de horas_pendientes del empleado
+        """
+        alerta = self.get_object()
+        decision = request.data.get('decision', 'JUSTIFICAR')  # 'JUSTIFICAR' o 'SUMAR_DEUDA'
+        empleado = alerta.empleado
+
+        if decision == 'SUMAR_DEUDA' and alerta.tipo == 'SEGUNDA_AUSENCIA':
+            hoy = timezone.localdate()
+            primer_dia_mes = hoy.replace(day=1)
+            if empleado.periodo_horas_pendientes != primer_dia_mes:
+                empleado.horas_pendientes = 0.00
+                empleado.periodo_horas_pendientes = primer_dia_mes
+
+            empleado.horas_pendientes = float(empleado.horas_pendientes) + 8.00
+            empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+            
+            BitacoraAccion.objects.create(
+                usuario=request.user if request.user.is_authenticated else None,
+                accion='REGISTRO_MANUAL',
+                descripcion=f"Se sumaron 8.0 hrs de deuda a {empleado.nombre} {empleado.apellido} por ausencia no justificada (Alerta #{alerta.id}).",
+                ip_address=_get_clean_ip(request)
+            )
+        else:
+            BitacoraAccion.objects.create(
+                usuario=request.user if request.user.is_authenticated else None,
+                accion='REGISTRO_MANUAL',
+                descripcion=f"Se justificó la alerta #{alerta.id} de {empleado.nombre} {empleado.apellido} (sin recargo de horas).",
+                ip_address=_get_clean_ip(request)
+            )
+
+        alerta.leida = True
+        alerta.save(update_fields=['leida'])
+        return Response({
+            'status': 'ok',
+            'mensaje': 'Alerta procesada correctamente.',
+            'empleado_horas_pendientes': float(empleado.horas_pendientes)
+        })
+
+    @action(detail=False, methods=['post'], url_path='marcar-todas-leidas')
+    def marcar_todas_leidas(self, request):
+        AlertaAsistencia.objects.filter(leida=False).update(leida=True)
+        return Response({'status': 'ok', 'mensaje': 'Todas las alertas han sido marcadas como leídas.'})
+
 
 # ==========================================
 # 🟢 ENDPOINT PRINCIPAL DEL KIOSCO DE MARCAJE
@@ -227,7 +336,37 @@ def marcar_asistencia_kiosco(request):
 
     horas_netas_hoy = _calcular_horas_netas_dia(registros_actualizados)
 
-    # Si es salida definitiva y excede las 8 horas (jornada ordinaria)
+    # ── ALERTA: ENTRADA sin SALIDA previa del día anterior ─────────────────
+    # Si hoy el empleado marca ENTRADA pero ayer tenía una ENTRADA sin cerrar, alertar al admin
+    if tipo_evento == 'ENTRADA':
+        ayer = hoy - datetime.timedelta(days=1)
+        start_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.min), timezone.get_current_timezone())
+        end_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.max), timezone.get_current_timezone())
+        regs_ayer = list(RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            fecha_hora__range=(start_ayer, end_ayer)
+        ).order_by('fecha_hora'))
+        if regs_ayer:
+            ultimo_ayer = regs_ayer[-1].tipo_evento
+            if ultimo_ayer in ('ENTRADA', 'ENTRADA_QUEBRADA'):
+                # Ayer quedó con entrada sin salida
+                AlertaAsistencia.objects.get_or_create(
+                    tipo='REGISTRO_INCOMPLETO',
+                    empleado=empleado,
+                    titulo=f"Registro incompleto: {empleado.nombre} {empleado.apellido}",
+                    defaults={
+                        'mensaje': (
+                            f"El día {ayer.strftime('%d/%m/%Y')} el empleado registró "
+                            f"{regs_ayer[-1].get_tipo_evento_display()} a las "
+                            f"{regs_ayer[-1].fecha_hora.astimezone(timezone.get_current_timezone()).strftime('%I:%M %p')} "
+                            f"pero nunca registró su Salida. "
+                            f"Por favor, agregue la salida manualmente para calcular correctamente sus horas."
+                        ),
+                        'leida': False
+                    }
+                )
+
+    # ── HORAS EXTRA: día con más de 8h → crear AutorizacionHorasExtra ──────
     if tipo_evento == 'SALIDA_DEFINITIVA' and horas_netas_hoy > 8.0:
         horas_extra = horas_netas_hoy - 8.0
         AutorizacionHorasExtra.objects.update_or_create(
@@ -239,21 +378,30 @@ def marcar_asistencia_kiosco(request):
             }
         )
 
+    # ── HORAS EXTRA: 7mo día trabajado en la semana ─────────────────────────
+    if tipo_evento == 'SALIDA_DEFINITIVA':
+        _verificar_septimo_dia(empleado, hoy, horas_netas_hoy)
+
+    # ── HORAS DEBIDAS: acumular déficit del día en horas_pendientes ─────────
+    if tipo_evento == 'SALIDA_DEFINITIVA':
+        _acumular_horas_pendientes(empleado, hoy, horas_netas_hoy)
+
     # ── DETECCIÓN DE PUNTUALIDAD Y CREACIÓN DE ALERTAS INTERNAS ─────────────
     try:
         hora_actual = registro.fecha_hora.astimezone(timezone.get_current_timezone())
         tipo = registro.tipo_evento
         
         # Determinar el turno según marcajes del día
-        tiene_quebrado = any(r.tipo_evento in ['SALIDA_QUEBRADA', 'REGRESO_QUEBRADA'] for r in registros_actualizados)
-        primera_ent = next((r for r in registros_actualizados if r.tipo_evento in ['ENTRADA', 'ENTRADA_QUEBRADA']), None)
+        tiene_quebrado = any(r.tipo_evento in ['SALIDA_QUEBRADA', 'ENTRADA_QUEBRADA'] for r in registros_actualizados)
+        primera_ent = next((r for r in registros_actualizados if r.tipo_evento in ['ENTRADA']), None)
         
         turno_detectado = 'Desconocido'
         if tiene_quebrado:
             turno_detectado = 'Quebrado'
         elif primera_ent:
             dt_ent = primera_ent.fecha_hora.astimezone(timezone.get_current_timezone())
-            if dt_ent.hour >= 14:
+            # Corrido 2 entra a las 3pm (hora >= 14:00, < 17:00)
+            if 14 <= dt_ent.hour < 17:
                 turno_detectado = 'Corrido 2'
             else:
                 turno_detectado = 'Corrido 1'
@@ -265,46 +413,42 @@ def marcar_asistencia_kiosco(request):
         alerta_mensaje = ''
 
         if tipo == 'ENTRADA':
-            target = 720  # 12:00 md
-            if turno_detectado == 'Corrido 2' or (turno_detectado == 'Desconocido' and mins_marcados > 810):
-                target = 900  # 3:00 pm
-            
+            # Corrido 1 / Quebrado → 12:00pm (720 min) | Corrido 2 → 3:00pm (900 min)
+            target = 900 if turno_detectado == 'Corrido 2' else 720
             diff = mins_marcados - target
             if diff > 10:  # Tolerancia de 10 min
                 alerta_creada = True
                 alerta_tipo = 'TARDANZA'
                 alerta_titulo = f"Tardanza detectada: {empleado.nombre} {empleado.apellido}"
-                alerta_mensaje = f"Llegó {diff} minutos tarde. Marcaje a las {hora_actual.strftime('%I:%M %p')} (Turno {turno_detectado})."
+                alerta_mensaje = f"Llegó {diff} min tarde. Marcaje a las {hora_actual.strftime('%I:%M %p')} (Turno {turno_detectado})."
                 
         elif tipo == 'ENTRADA_QUEBRADA':
-            target = 1080  # 6:00 pm
-            diff = mins_marcados - target
+            # Regreso de pausa → 6:00pm (1080 min)
+            diff = mins_marcados - 1080
             if diff > 10:
                 alerta_creada = True
                 alerta_tipo = 'TARDANZA'
                 alerta_titulo = f"Tardanza en regreso: {empleado.nombre} {empleado.apellido}"
-                alerta_mensaje = f"Regresó de la pausa {diff} minutos tarde. Marcaje a las {hora_actual.strftime('%I:%M %p')}."
+                alerta_mensaje = f"Regresó de la pausa {diff} min tarde. Marcaje a las {hora_actual.strftime('%I:%M %p')}."
                 
         elif tipo == 'SALIDA_QUEBRADA':
-            target = 900  # 3:00 pm
-            diff = target - mins_marcados
+            # Salida a pausa → 3:00pm (900 min)
+            diff = 900 - mins_marcados
             if diff > 5:
                 alerta_creada = True
                 alerta_tipo = 'SALIDA_ANTICIPADA'
-                alerta_titulo = f"Salida anticipada Pausa: {empleado.nombre} {empleado.apellido}"
-                alerta_mensaje = f"Se retiró a la pausa {diff} minutos antes de tiempo. Marcaje a las {hora_actual.strftime('%I:%M %p')}."
+                alerta_titulo = f"Salida anticipada a pausa: {empleado.nombre} {empleado.apellido}"
+                alerta_mensaje = f"Se retiró a la pausa {diff} min antes. Marcaje a las {hora_actual.strftime('%I:%M %p')}."
                 
         elif tipo == 'SALIDA_DEFINITIVA':
-            target = 1380  # 11:00 pm
-            if turno_detectado == 'Corrido 1':
-                target = 1200  # 8:00 pm
-            
+            # Corrido 1 → 8:00pm (1200 min) | Corrido 2 / Quebrado → 11:00pm (1380 min)
+            target = 1200 if turno_detectado == 'Corrido 1' else 1380
             diff = target - mins_marcados
             if diff > 5:
                 alerta_creada = True
                 alerta_tipo = 'SALIDA_ANTICIPADA'
                 alerta_titulo = f"Salida definitiva anticipada: {empleado.nombre} {empleado.apellido}"
-                alerta_mensaje = f"Salió {diff} minutos antes de tiempo. Marcaje a las {hora_actual.strftime('%I:%M %p')} (Turno {turno_detectado})."
+                alerta_mensaje = f"Salió {diff} min antes. Marcaje a las {hora_actual.strftime('%I:%M %p')} (Turno {turno_detectado})."
 
         if alerta_creada:
             AlertaAsistencia.objects.create(
@@ -341,6 +485,61 @@ def _calcular_horas_netas_dia(registros_dia):
             entrada_temp = None
 
     return total_segundos / 3600.0
+
+
+def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
+    """
+    Si el empleado trabajó menos de 8 horas, acumula el déficit en horas_pendientes.
+    Reinicia el saldo si el mes cambió desde el último registro del período.
+    Las horas ordinarias se limitan a 8h por día (el exceso es horas extra, no reduce deuda).
+    """
+    horas_ordinarias = min(horas_trabajadas_dia, 8.0)
+    deficit = max(0.0, 8.0 - horas_ordinarias)
+
+    if deficit <= 0:
+        return  # No hay deuda que acumular este día
+
+    primer_dia_mes = fecha_hoy.replace(day=1)
+
+    # Reiniciar si el período cambió (nuevo mes)
+    if empleado.periodo_horas_pendientes != primer_dia_mes:
+        empleado.horas_pendientes = 0.00
+        empleado.periodo_horas_pendientes = primer_dia_mes
+
+    empleado.horas_pendientes = float(empleado.horas_pendientes) + round(deficit, 2)
+    empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+
+
+def _verificar_septimo_dia(empleado, fecha_hoy, horas_trabajadas_dia):
+    """
+    Detecta si el empleado ya trabajó 6 días anteriores en la misma semana ISO.
+    Si es así, las horas del día actual se generan como solicitud de horas extra.
+    """
+    import datetime
+    # Semana ISO: Lunes=0, Domingo=6
+    inicio_semana = fecha_hoy - datetime.timedelta(days=fecha_hoy.weekday())
+    fin_semana = inicio_semana + datetime.timedelta(days=6)
+
+    # Contar días distintos con al menos una ENTRADA en la semana (excluyendo hoy)
+    dias_trabajados = RegistroAsistencia.objects.filter(
+        empleado=empleado,
+        tipo_evento='ENTRADA',
+        fecha_hora__date__gte=inicio_semana,
+        fecha_hora__date__lt=fecha_hoy,
+    ).dates('fecha_hora', 'day').count()
+
+    if dias_trabajados >= 6:
+        # El empleado ya cumplió sus 6 días — hoy es el 7mo, todo va a extra
+        horas_extra_7mo = min(horas_trabajadas_dia, 8.0)
+        if horas_extra_7mo > 0:
+            AutorizacionHorasExtra.objects.update_or_create(
+                empleado=empleado,
+                fecha=fecha_hoy,
+                defaults={
+                    'horas_extra_solicitadas': round(horas_extra_7mo, 2),
+                    'estado': 'PENDIENTE'
+                }
+            )
 
 
 # ==========================================
@@ -388,35 +587,36 @@ def exportar_reporte_nomina_excel(request):
             bottom=Side(style='thin', color='CCCCCC')
         )
 
-        # Encabezado del documento
-        ws.merge_cells('A1:H1')
+        # Headers — ahora 10 columnas
+        headers = [
+            "ID",
+            "Empleado",
+            "Cargo / Puesto",
+            "Días Trabajados",
+            "Días Libres (Tomados)",
+            "Ausencias Extra",
+            "Horas Ordinarias",
+            "Horas Feriados (Días)",
+            "Horas Extra Aprobadas",
+            "Horas Debidas (Déficit)",
+        ]
+
+        ws.merge_cells('A1:J1')
         ws['A1'] = "RESTAURANTE EL BODEGÓN — REPORTES DE HORAS Y ASISTENCIA"
         ws['A1'].font = font_titulo
         ws['A1'].fill = fill_title
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
-        ws.merge_cells('A2:H2')
+        ws.merge_cells('A2:J2')
         ws['A2'] = f"Período del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')} — Generado el {hoy.strftime('%d/%m/%Y')}"
         ws['A2'].font = font_sub
         ws['A2'].fill = fill_title
         ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
 
-        # Headers
-        headers = [
-            "ID",
-            "Empleado",
-            "Cargo / Puesto",
-            "Días Asistidos",
-            "Horas Ordinarias (Normales)",
-            "Feriados Trabajados (Días)",
-            "Horas Extra Aprobadas",
-            "Horas Debidas (Faltantes)"
-        ]
+        ws.append([])        # Fila 3 vacía
+        ws.append(headers)   # Fila 4 Headers
 
-        ws.append([]) # Fila 3 vacía
-        ws.append(headers) # Fila 4 Headers
-
-        for col in range(1, 9):
+        for col in range(1, 11):
             cell = ws.cell(row=4, column=col)
             cell.font = font_header
             cell.fill = fill_header
@@ -431,18 +631,16 @@ def exportar_reporte_nomina_excel(request):
             fecha__lte=fecha_fin
         ).values_list('fecha', flat=True))
 
-        # Calcular días laborables normales (Lunes a Sábado, no feriados)
-        dias_laborables_normales = 0
+        # El restaurante opera los 7 días — NO se excluye ningún día de la semana
+        # Se calcula un total de días del período sin feriados
+        total_dias_periodo = 0
         curr = fecha_inicio
         while curr <= fecha_fin:
-            if curr.weekday() != 6 and curr not in feriados_set:
-                dias_laborables_normales += 1
+            if curr not in feriados_set:
+                total_dias_periodo += 1
             curr += datetime.timedelta(days=1)
 
-        horas_objetivo_normales = dias_laborables_normales * 8.0
-
         for emp in empleados:
-            # Traer registros usando rango amplio para evitar desfases de zona horaria en la consulta SQL de SQLite
             start_query = timezone.make_aware(datetime.datetime.combine(fecha_inicio, datetime.time.min), timezone.get_current_timezone())
             end_query = timezone.make_aware(datetime.datetime.combine(fecha_fin, datetime.time.max), timezone.get_current_timezone())
             
@@ -451,34 +649,26 @@ def exportar_reporte_nomina_excel(request):
                 fecha_hora__range=(start_query, end_query)
             ).order_by('fecha_hora')
 
-            # Calcular horas por día agrupando en memoria según hora local de Nicaragua
+            # Agrupar registros por día local (Nicaragua)
             horas_normales_trabajadas = 0.0
             feriados_trabajados_dias = 0
             feriados_trabajados_info = []
-            horas_debidas = 0.0
             dias_map = {}
             for reg in registros:
-                # Convertir a hora local de Nicaragua para obtener la fecha correcta
                 reg_local = reg.fecha_hora.astimezone(timezone.get_current_timezone())
                 dia_local = reg_local.date()
-                
-                # Excluir si cae fuera del rango del reporte
                 if dia_local < fecha_inicio or dia_local > fecha_fin:
                     continue
-                    
                 if dia_local not in dias_map:
                     dias_map[dia_local] = []
                 dias_map[dia_local].append(reg)
 
-            dias_unicos = len(dias_map)
+            dias_trabajados = len(dias_map)
 
             for dia, regs in dias_map.items():
                 horas_dia = _calcular_horas_netas_dia(regs)
-                # Jornada ordinaria máxima es de 8 horas
                 horas_ord = min(horas_dia, 8.0)
-                
                 if dia in feriados_set:
-                    # Cuenta como feriado doble únicamente si completa 8.0 horas
                     if horas_ord >= 8.0:
                         feriados_trabajados_dias += 1
                         desc_feriado = DiaFeriado.objects.filter(fecha=dia).first()
@@ -487,28 +677,56 @@ def exportar_reporte_nomina_excel(request):
                             f"- {dia.strftime('%d/%m/%Y')}: {nombre_feriado} ({round(horas_ord, 2)} hrs)"
                         )
                     else:
-                        # Si no completa las 8 horas en feriado, se suman como horas ordinarias simples
                         horas_normales_trabajadas += horas_ord
                 else:
                     horas_normales_trabajadas += horas_ord
 
-            # Calcular horas debidas recorriendo cada día del período para incluir inasistencias y tardanzas
+            # ── Detectar días libres y ausencias extra usando lógica semanal ────
+            # Por cada semana en el período, el primer día sin marcaje = día libre.
+            # El 2do+ día sin marcaje = ausencia extra.
+            dias_libres = 0
+            ausencias_extra = 0
             horas_debidas = 0.0
+
+            # Iterar semana por semana
+            curr_day = fecha_inicio
+            # Ir al inicio de la semana ISO del primer día
+            semana_inicio = curr_day - datetime.timedelta(days=curr_day.weekday())
+            semanas_procesadas = set()
+
             curr_day = fecha_inicio
             while curr_day <= fecha_fin:
-                if curr_day.weekday() != 6 and curr_day not in feriados_set:
-                    if curr_day in dias_map:
-                        regs = dias_map[curr_day]
-                        horas_dia = _calcular_horas_netas_dia(regs)
-                        horas_ord = min(horas_dia, 8.0)
-                        deuda_dia = max(0.0, 8.0 - horas_ord)
-                        horas_debidas += deuda_dia
-                    else:
-                        # Inasistencia completa en día laborable
-                        horas_debidas += 8.0
+                semana_key = curr_day - datetime.timedelta(days=curr_day.weekday())
+                if semana_key not in semanas_procesadas:
+                    semanas_procesadas.add(semana_key)
+                    semana_fin = semana_key + datetime.timedelta(days=6)
+                    # Limitar al rango del reporte
+                    s_inicio = max(semana_key, fecha_inicio)
+                    s_fin = min(semana_fin, fecha_fin)
+
+                    ausencias_semana = 0
+                    d = s_inicio
+                    while d <= s_fin:
+                        if d not in feriados_set:
+                            if d not in dias_map:
+                                # Día sin marcaje
+                                if ausencias_semana == 0:
+                                    dias_libres += 1  # Primera ausencia = día libre
+                                else:
+                                    ausencias_extra += 1  # Segunda+ = ausencia extra
+                                    horas_debidas += 8.0   # Suma 8h de deuda
+                                ausencias_semana += 1
+                            else:
+                                # Día trabajado: calcular déficit de horas
+                                regs_d = dias_map[d]
+                                horas_dia = _calcular_horas_netas_dia(regs_d)
+                                horas_ord = min(horas_dia, 8.0)
+                                deficit = max(0.0, 8.0 - horas_ord)
+                                horas_debidas += deficit
+                        d += datetime.timedelta(days=1)
                 curr_day += datetime.timedelta(days=1)
 
-            # Obtener horas extra aprobadas
+            # Horas extra aprobadas
             from django.db.models import Sum
             horas_extra_aprobadas = AutorizacionHorasExtra.objects.filter(
                 empleado=emp,
@@ -521,28 +739,29 @@ def exportar_reporte_nomina_excel(request):
                 emp.id,
                 f"{emp.nombre} {emp.apellido}",
                 emp.get_cargo_display(),
-                dias_unicos,
+                dias_trabajados,
+                dias_libres,
+                ausencias_extra,
                 round(horas_normales_trabajadas, 2),
                 feriados_trabajados_dias,
                 round(float(horas_extra_aprobadas), 2),
-                round(horas_debidas, 2)
+                round(horas_debidas, 2),
             ]
             ws.append(fila)
 
-            # Agregar comentario de Excel en la celda de feriados si corresponde
             if feriados_trabajados_dias > 0 and feriados_trabajados_info:
                 from openpyxl.comments import Comment
                 comentario_texto = "Detalle de Feriados Laborados:\n" + "\n".join(feriados_trabajados_info)
-                cell_feriado = ws.cell(row=row_idx, column=6)
+                cell_feriado = ws.cell(row=row_idx, column=8)
                 cell_feriado.comment = Comment(comentario_texto, "SGP El Bodegon")
 
-            for col in range(1, 9):
+            for col in range(1, 11):
                 cell = ws.cell(row=row_idx, column=col)
                 cell.font = font_data
                 cell.border = thin_border
                 if row_idx % 2 == 0:
                     cell.fill = fill_zebra
-                if col in [1, 4, 5, 6, 7, 8]:
+                if col in [1, 4, 5, 6, 7, 8, 9, 10]:
                     cell.alignment = Alignment(horizontal='right')
                 else:
                     cell.alignment = Alignment(horizontal='left')
@@ -552,35 +771,17 @@ def exportar_reporte_nomina_excel(request):
         # Fila de Totales
         ws.append([])
         row_idx += 1
-        ws.merge_cells(f'A{row_idx}:D{row_idx}')
+        ws.merge_cells(f'A{row_idx}:F{row_idx}')
         ws[f'A{row_idx}'] = "TOTALES GENERALES:"
         ws[f'A{row_idx}'].font = font_bold
         ws[f'A{row_idx}'].alignment = Alignment(horizontal='right')
 
-        # Calcular sumas de E (Ordinarias), F (Feriadas) y G (Extras) y H (Debidas) usando fórmulas
-        cell_ord = ws[f'E{row_idx}']
-        cell_ord.value = f"=SUM(E5:E{row_idx-2})"
-        cell_ord.font = font_bold
-        cell_ord.border = thin_border
-        cell_ord.alignment = Alignment(horizontal='right')
-
-        cell_fer = ws[f'F{row_idx}']
-        cell_fer.value = f"=SUM(F5:F{row_idx-2})"
-        cell_fer.font = font_bold
-        cell_fer.border = thin_border
-        cell_fer.alignment = Alignment(horizontal='right')
-
-        cell_ext = ws[f'G{row_idx}']
-        cell_ext.value = f"=SUM(G5:G{row_idx-2})"
-        cell_ext.font = font_bold
-        cell_ext.border = thin_border
-        cell_ext.alignment = Alignment(horizontal='right')
-
-        cell_deb = ws[f'H{row_idx}']
-        cell_deb.value = f"=SUM(H5:H{row_idx-2})"
-        cell_deb.font = font_bold
-        cell_deb.border = thin_border
-        cell_deb.alignment = Alignment(horizontal='right')
+        for col_letter, col_num in [('G', 7), ('H', 8), ('I', 9), ('J', 10)]:
+            cell = ws[f'{col_letter}{row_idx}']
+            cell.value = f"=SUM({col_letter}5:{col_letter}{row_idx-2})"
+            cell.font = font_bold
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='right')
 
         # Ajustar ancho de columnas
         for col in ws.columns:
@@ -740,18 +941,50 @@ def sync_batch_asistencia(request):
             fecha_hora__range=(start_dt, end_dt)
         ).order_by('fecha_hora'))
 
-        # Lógica de horas extras
+        # Lógica de horas extras y déficit
         horas_netas_hoy = _calcular_horas_netas_dia(registros_actualizados)
-        if tipo_evento == 'SALIDA_DEFINITIVA' and horas_netas_hoy > 8.0:
-            horas_extra = horas_netas_hoy - 8.0
-            AutorizacionHorasExtra.objects.update_or_create(
+
+        # Si es ENTRADA, revisar si el día previo quedó sin salida
+        if tipo_evento == 'ENTRADA':
+            ayer = dia - datetime.timedelta(days=1)
+            start_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.min), timezone.get_current_timezone())
+            end_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.max), timezone.get_current_timezone())
+            regs_ayer = list(RegistroAsistencia.objects.filter(
                 empleado=empleado,
-                fecha=dia,
-                defaults={
-                    'horas_extra_solicitadas': round(horas_extra, 2),
-                    'estado': 'PENDIENTE'
-                }
-            )
+                fecha_hora__range=(start_ayer, end_ayer)
+            ).order_by('fecha_hora'))
+            if regs_ayer:
+                ultimo_ayer = regs_ayer[-1].tipo_evento
+                if ultimo_ayer in ('ENTRADA', 'ENTRADA_QUEBRADA'):
+                    AlertaAsistencia.objects.get_or_create(
+                        tipo='REGISTRO_INCOMPLETO',
+                        empleado=empleado,
+                        titulo=f"Registro incompleto (Offline): {empleado.nombre} {empleado.apellido}",
+                        defaults={
+                            'mensaje': (
+                                f"El día {ayer.strftime('%d/%m/%Y')} el empleado registró "
+                                f"{regs_ayer[-1].get_tipo_evento_display()} "
+                                f"pero nunca registró su Salida. Por favor, agregue la salida manualmente."
+                            ),
+                            'leida': False
+                        }
+                    )
+
+        if tipo_evento == 'SALIDA_DEFINITIVA':
+            if horas_netas_hoy > 8.0:
+                horas_extra = horas_netas_hoy - 8.0
+                AutorizacionHorasExtra.objects.update_or_create(
+                    empleado=empleado,
+                    fecha=dia,
+                    defaults={
+                        'horas_extra_solicitadas': round(horas_extra, 2),
+                        'estado': 'PENDIENTE'
+                    }
+                )
+            # 7mo día de la semana
+            _verificar_septimo_dia(empleado, dia, horas_netas_hoy)
+            # Horas debidas / pendientes
+            _acumular_horas_pendientes(empleado, dia, horas_netas_hoy)
 
         # Alertas de asistencia
         try:

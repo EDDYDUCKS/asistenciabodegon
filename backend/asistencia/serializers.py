@@ -20,6 +20,8 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'telefono',
             'qr_code_token',
             'activo',
+            'horas_pendientes',
+            'periodo_horas_pendientes',
             'created_at',
             'updated_at',
         ]

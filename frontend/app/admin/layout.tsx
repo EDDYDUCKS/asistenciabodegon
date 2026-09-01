@@ -295,40 +295,85 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       alerts.map((al) => (
                         <div
                           key={al.id}
-                          className={`p-2.5 rounded-xl border transition-all text-left flex gap-2 relative group ${
+                          className={`p-3 rounded-2xl border transition-all text-left flex flex-col gap-2 relative group ${
                             al.leida
                               ? 'bg-stone-50/50 border-stone-150 opacity-70'
-                              : 'bg-rose-50/20 border-rose-150/70 hover:border-rose-250'
+                              : 'bg-rose-50/20 border-rose-200 shadow-sm'
                           }`}
                         >
-                          <div className={`p-1.5 rounded-lg shrink-0 self-start ${
-                            al.tipo === 'TARDANZA'
-                              ? 'bg-rose-100 text-rose-600'
-                              : 'bg-amber-100 text-amber-600'
-                          }`}>
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                          </div>
-                          
-                          <div className="flex-1 min-w-0 pr-4">
-                            <h5 className="font-bold text-[11px] text-stone-900 leading-tight truncate">
-                              {al.titulo}
-                            </h5>
-                            <p className="text-[10px] text-stone-500 mt-0.5 leading-normal">
-                              {al.mensaje}
-                            </p>
-                            <span className="text-[8px] font-mono text-stone-400 block mt-1.5">
-                              {al.created_at ? new Date(al.created_at).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' }) : ''}
-                            </span>
+                          <div className="flex items-start gap-2.5">
+                            <div className={`p-1.5 rounded-lg shrink-0 self-start ${
+                              al.tipo === 'SEGUNDA_AUSENCIA'
+                                ? 'bg-purple-100 text-purple-700'
+                                : al.tipo === 'REGISTRO_INCOMPLETO'
+                                ? 'bg-orange-100 text-orange-700'
+                                : al.tipo === 'TARDANZA'
+                                ? 'bg-rose-100 text-rose-600'
+                                : 'bg-amber-100 text-amber-600'
+                            }`}>
+                              <AlertTriangle className="w-4 h-4" />
+                            </div>
+                            
+                            <div className="flex-1 min-w-0 pr-4">
+                              <h5 className="font-bold text-xs text-stone-900 leading-tight">
+                                {al.titulo}
+                              </h5>
+                              <p className="text-[11px] text-stone-600 mt-1 leading-relaxed">
+                                {al.mensaje}
+                              </p>
+                              <span className="text-[9px] font-mono text-stone-400 block mt-1">
+                                {al.created_at ? new Date(al.created_at).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' }) : ''}
+                              </span>
+                            </div>
+
+                            {!al.leida && al.tipo !== 'SEGUNDA_AUSENCIA' && (
+                              <button
+                                onClick={() => handleMarkAsRead(al.id!)}
+                                className="absolute top-2.5 right-2.5 p-1 rounded-md hover:bg-stone-100 text-stone-400 hover:text-[#1c6856] opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Marcar como leída"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
 
-                          {!al.leida && (
-                            <button
-                              onClick={() => handleMarkAsRead(al.id!)}
-                              className="absolute top-2.5 right-2.5 p-1 rounded-md hover:bg-rose-100 text-stone-400 hover:text-[#1c6856] opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Marcar como leída"
-                            >
-                              <Check className="w-3 h-3" />
-                            </button>
+                          {/* Acciones interactivas para Segunda Ausencia */}
+                          {!al.leida && al.tipo === 'SEGUNDA_AUSENCIA' && (
+                            <div className="flex gap-2 pt-2 border-t border-rose-100">
+                              <button
+                                onClick={async () => {
+                                  const { resolverAlerta } = await import('@/lib/api-client');
+                                  await resolverAlerta(al.id!, 'JUSTIFICAR');
+                                  loadAlerts();
+                                }}
+                                className="flex-1 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors"
+                              >
+                                ✅ Justificar Falta
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  const { resolverAlerta } = await import('@/lib/api-client');
+                                  await resolverAlerta(al.id!, 'SUMAR_DEUDA');
+                                  loadAlerts();
+                                }}
+                                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors shadow-sm"
+                              >
+                                ⏳ Sumar 8h de Deuda
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Acción directa para Registro Incompleto */}
+                          {!al.leida && al.tipo === 'REGISTRO_INCOMPLETO' && (
+                            <div className="pt-1.5 border-t border-orange-100 flex justify-end">
+                              <Link
+                                href="/admin/asistencia"
+                                onClick={() => setShowAlertsDropdown(false)}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-orange-700 hover:underline"
+                              >
+                                Agregar Salida en Asistencia &rarr;
+                              </Link>
+                            </div>
                           )}
                         </div>
                       ))

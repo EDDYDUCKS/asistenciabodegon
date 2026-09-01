@@ -27,6 +27,15 @@ class Empleado(models.Model):
     tarifa_hora = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Tarifa en Córdobas/USD por hora trabajada")
     qr_code_token = models.CharField(max_length=150, unique=True, blank=True)
     activo = models.BooleanField(default=True)
+    # Saldo de horas pendientes (deuda acumulada del período mensual actual)
+    horas_pendientes = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0.00,
+        help_text="Horas debidas acumuladas del período mensual vigente"
+    )
+    periodo_horas_pendientes = models.DateField(
+        null=True, blank=True,
+        help_text="Primer día del mes al que corresponde horas_pendientes (se reinicia al cambiar de mes)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -141,6 +150,8 @@ class AlertaAsistencia(models.Model):
         ('TARDANZA', 'Tardanza'),
         ('SALIDA_ANTICIPADA', 'Salida Anticipada'),
         ('MARCACION_SOSPECHOSA', 'Marcación Sospechosa'),
+        ('SEGUNDA_AUSENCIA', 'Segunda Ausencia en la Semana'),
+        ('REGISTRO_INCOMPLETO', 'Registro Incompleto — Falta Salida'),
     ]
     tipo = models.CharField(max_length=30, choices=TIPOS)
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='alertas')

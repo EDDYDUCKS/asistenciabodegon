@@ -281,6 +281,7 @@ export default function EmpleadosAdminPage() {
                 <th className="px-6 py-4">Empleado</th>
                 <th className="px-6 py-4">Puesto</th>
                 <th className="px-6 py-4">Cédula / Teléfono</th>
+                <th className="px-6 py-4 text-center">Horas Pendientes (Mes)</th>
                 <th className="px-6 py-4 text-center">Estado</th>
                 <th className="px-6 py-4 text-center">Credencial QR</th>
                 <th className="px-6 py-4 text-right">Acciones</th>
@@ -289,75 +290,88 @@ export default function EmpleadosAdminPage() {
             <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-stone-400">
+                  <td colSpan={7} className="px-6 py-8 text-center text-stone-400">
                     Cargando lista de empleados...
                   </td>
                 </tr>
               ) : empleados.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-stone-400 font-normal">
+                  <td colSpan={7} className="px-6 py-8 text-center text-stone-400 font-normal">
                     No hay empleados registrados. Presione "Registrar Nuevo Empleado".
                   </td>
                 </tr>
               ) : (
-                empleados.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-stone-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-stone-900">
-                        {emp.nombre} {emp.apellido}
-                      </div>
-                      <div className="text-[10px] text-stone-400 font-mono mt-0.5">ID #{emp.id}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#1c6856]/5 border border-[#1c6856]/15 text-[11px] font-bold text-[#1c6856]">
-                        {emp.cargo_display}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-stone-600 font-normal space-y-0.5 text-xs">
-                      <div>{emp.cedula_carnet || 'Sin cédula'}</div>
-                      <div className="flex items-center gap-1">
-                        <Phone className="w-3 h-3 text-stone-400" />
-                        {emp.telefono || 'Sin teléfono'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          emp.activo
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                            : 'bg-stone-150 border-stone-300 text-stone-500'
-                        }`}
-                      >
-                        {emp.activo ? 'ACTIVO' : 'INACTIVO'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => setShowQrBadge(emp)}
-                        className="bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5"
-                      >
-                        <QrCode className="w-3.5 h-3.5 text-[#1c6856]" />
-                        Ver Tarjeta
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      <button
-                        onClick={() => openEditModal(emp)}
-                        className="p-2 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-stone-600 transition-colors inline-flex"
-                        title="Editar Empleado"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(emp.id)}
-                        className="p-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-rose-600 transition-colors inline-flex"
-                        title="Eliminar Empleado"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                empleados.map((emp) => {
+                  const deuda = parseFloat(String(emp.horas_pendientes || 0));
+                  return (
+                    <tr key={emp.id} className="hover:bg-stone-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-stone-900">
+                          {emp.nombre} {emp.apellido}
+                        </div>
+                        <div className="text-[10px] text-stone-400 font-mono mt-0.5">ID #{emp.id}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#1c6856]/5 border border-[#1c6856]/15 text-[11px] font-bold text-[#1c6856]">
+                          {emp.cargo_display}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-stone-600 font-normal space-y-0.5 text-xs">
+                        <div>{emp.cedula_carnet || 'Sin cédula'}</div>
+                        <div className="flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-stone-400" />
+                          {emp.telefono || 'Sin teléfono'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {deuda > 0 ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold font-mono">
+                            <AlertTriangle className="w-3 h-3 text-rose-500" />
+                            {deuda.toFixed(2)}h
+                          </span>
+                        ) : (
+                          <span className="text-xs text-stone-400 font-mono">0.00h</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            emp.activo
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                              : 'bg-stone-150 border-stone-300 text-stone-500'
+                          }`}
+                        >
+                          {emp.activo ? 'ACTIVO' : 'INACTIVO'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <button
+                          onClick={() => setShowQrBadge(emp)}
+                          className="bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5"
+                        >
+                          <QrCode className="w-3.5 h-3.5 text-[#1c6856]" />
+                          Ver Tarjeta
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-right space-x-2">
+                        <button
+                          onClick={() => openEditModal(emp)}
+                          className="p-2 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-stone-600 transition-colors inline-flex"
+                          title="Editar Empleado"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(emp.id)}
+                          className="p-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-rose-600 transition-colors inline-flex"
+                          title="Eliminar Empleado"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
