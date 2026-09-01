@@ -130,6 +130,19 @@ export async function fetchAsistencias(): Promise<RegistroAsistencia[]> {
   return [];
 }
 
+export async function createAsistenciaManual(payload: {
+  empleado: number;
+  tipo_evento: string;
+  fecha_hora: string;
+  observacion?: string;
+}): Promise<RegistroAsistencia> {
+  return apiRequest<RegistroAsistencia>('/asistencia/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 // ── BITÁCORA ──────────────────────────────────────────────────────────────
 export async function fetchBitacora(): Promise<BitacoraAccion[]> {
   const data = await apiRequest<BitacoraAccion[] | { results: BitacoraAccion[] }>('/bitacora/');
