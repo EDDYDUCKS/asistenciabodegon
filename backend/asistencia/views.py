@@ -680,6 +680,7 @@ def exportar_reporte_nomina_excel(request):
     Genera una hoja de cálculo Excel (.xlsx) con el resumen de horas ordinarias y extras autorizadas.
     """
     try:
+        import datetime
         from datetime import datetime as dt
         inicio_str = request.GET.get('fecha_inicio')
         fin_str = request.GET.get('fecha_fin')
