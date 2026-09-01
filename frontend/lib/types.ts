@@ -82,9 +82,9 @@ export interface AutorizacionHorasExtra {
 
 export interface AlertaAsistencia {
   id?: number;
-  tipo: 'TARDANZA' | 'SALIDA_ANTICIPADA' | 'MARCACION_SOSPECHOSA' | 'SEGUNDA_AUSENCIA' | 'REGISTRO_INCOMPLETO';
-  empleado: number;
-  empleado_detalle?: Empleado;
+  tipo: 'TARDANZA' | 'SALIDA_ANTICIPADA' | 'MARCACION_SOSPECHOSA' | 'SEGUNDA_AUSENCIA' | 'REGISTRO_INCOMPLETO' | 'MANTENIMIENTO';
+  empleado?: number | null;
+  empleado_detalle?: Empleado | null;
   titulo: string;
   mensaje: string;
   leida: boolean;

@@ -113,9 +113,35 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
     def list(self, request, *args, **kwargs):
-        # Al listar alertas, verificar ausencias de la semana en curso para generar alertas de SEGUNDA_AUSENCIA si corresponden
+        # Al listar alertas, verificar ausencias de la semana y mantenimiento semestral
         self._verificar_ausencias_semanales()
+        self._verificar_mantenimiento_semestral()
         return super().list(request, *args, **kwargs)
+
+    def _verificar_mantenimiento_semestral(self):
+        """
+        Verifica si existen registros de asistencia o fotos de hace más de 180 días (6 meses).
+        Si existen, genera un recordatorio al administrador para ejecutar la depuración semestral.
+        """
+        import datetime
+        limite = timezone.now() - datetime.timedelta(days=180)
+        hay_antiguos = RegistroAsistencia.objects.filter(fecha_hora__lt=limite).exists()
+        if hay_antiguos:
+            ya_notificado = AlertaAsistencia.objects.filter(
+                tipo='MANTENIMIENTO',
+                leida=False
+            ).exists()
+            if not ya_notificado:
+                AlertaAsistencia.objects.create(
+                    tipo='MANTENIMIENTO',
+                    empleado=None,
+                    titulo="Mantenimiento Semestral Sugerido",
+                    mensaje=(
+                        "Existen registros de asistencia y fotografías con más de 6 meses de antigüedad. "
+                        "Puede ejecutar la Depuración Semestral desde el Panel para mantener optimizado el almacenamiento gratuito."
+                    ),
+                    leida=False
+                )
 
     def _verificar_ausencias_semanales(self):
         """
@@ -184,42 +210,93 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
         decision = request.data.get('decision', 'JUSTIFICAR')  # 'JUSTIFICAR' o 'SUMAR_DEUDA'
         empleado = alerta.empleado
 
-        if decision == 'SUMAR_DEUDA' and alerta.tipo == 'SEGUNDA_AUSENCIA':
-            hoy = timezone.localdate()
-            primer_dia_mes = hoy.replace(day=1)
-            if empleado.periodo_horas_pendientes != primer_dia_mes:
-                empleado.horas_pendientes = 0.00
-                empleado.periodo_horas_pendientes = primer_dia_mes
+        if empleado:
+            if decision == 'SUMAR_DEUDA' and alerta.tipo == 'SEGUNDA_AUSENCIA':
+                hoy = timezone.localdate()
+                primer_dia_mes = hoy.replace(day=1)
+                if empleado.periodo_horas_pendientes != primer_dia_mes:
+                    empleado.horas_pendientes = 0.00
+                    empleado.periodo_horas_pendientes = primer_dia_mes
 
-            empleado.horas_pendientes = float(empleado.horas_pendientes) + 8.00
-            empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
-            
-            BitacoraAccion.objects.create(
-                usuario=request.user if request.user.is_authenticated else None,
-                accion='REGISTRO_MANUAL',
-                descripcion=f"Se sumaron 8.0 hrs de deuda a {empleado.nombre} {empleado.apellido} por ausencia no justificada (Alerta #{alerta.id}).",
-                ip_address=_get_clean_ip(request)
-            )
-        else:
-            BitacoraAccion.objects.create(
-                usuario=request.user if request.user.is_authenticated else None,
-                accion='REGISTRO_MANUAL',
-                descripcion=f"Se justificó la alerta #{alerta.id} de {empleado.nombre} {empleado.apellido} (sin recargo de horas).",
-                ip_address=_get_clean_ip(request)
-            )
+                empleado.horas_pendientes = float(empleado.horas_pendientes) + 8.00
+                empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+                
+                BitacoraAccion.objects.create(
+                    usuario=request.user if request.user.is_authenticated else None,
+                    accion='REGISTRO_MANUAL',
+                    descripcion=f"Se sumaron 8.0 hrs de deuda a {empleado.nombre} {empleado.apellido} por ausencia no justificada (Alerta #{alerta.id}).",
+                    ip_address=_get_clean_ip(request)
+                )
+            else:
+                BitacoraAccion.objects.create(
+                    usuario=request.user if request.user.is_authenticated else None,
+                    accion='REGISTRO_MANUAL',
+                    descripcion=f"Se justificó la alerta #{alerta.id} de {empleado.nombre} {empleado.apellido} (sin recargo de horas).",
+                    ip_address=_get_clean_ip(request)
+                )
 
         alerta.leida = True
         alerta.save(update_fields=['leida'])
         return Response({
             'status': 'ok',
             'mensaje': 'Alerta procesada correctamente.',
-            'empleado_horas_pendientes': float(empleado.horas_pendientes)
+            'empleado_horas_pendientes': float(empleado.horas_pendientes) if empleado else 0.0
         })
 
     @action(detail=False, methods=['post'], url_path='marcar-todas-leidas')
     def marcar_todas_leidas(self, request):
         AlertaAsistencia.objects.filter(leida=False).update(leida=True)
         return Response({'status': 'ok', 'mensaje': 'Todas las alertas han sido marcadas como leídas.'})
+
+    @action(detail=False, methods=['post'], url_path='depurar-historial')
+    def depurar_historial(self, request):
+        """
+        Depura fotografías y datos prescindibles con más de 6 meses (180 días) de antigüedad,
+        manteniendo intactos a los empleados, sus carnets y sus saldos de horas.
+        """
+        import datetime
+        meses = int(request.data.get('meses', 6))
+        limite_fecha = timezone.now() - datetime.timedelta(days=meses * 30)
+
+        # 1. Liberar fotografías de registros antiguos (manteniendo el registro de texto)
+        registros_con_foto = RegistroAsistencia.objects.filter(
+            fecha_hora__lt=limite_fecha,
+            foto_verificacion__isnull=False
+        ).exclude(foto_verificacion='')
+        
+        fotos_liberadas = 0
+        for reg in registros_con_foto:
+            try:
+                reg.foto_verificacion.delete(save=False)
+            except Exception:
+                pass
+            reg.foto_verificacion = None
+            reg.save(update_fields=['foto_verificacion'])
+            fotos_liberadas += 1
+
+        # 2. Limpiar bitácora antigua
+        bitacora_eliminada = BitacoraAccion.objects.filter(fecha_hora__lt=limite_fecha).delete()[0]
+
+        # 3. Limpiar alertas antiguas ya leídas
+        alertas_eliminadas = AlertaAsistencia.objects.filter(created_at__lt=limite_fecha, leida=True).delete()[0]
+
+        # Marcar alertas de mantenimiento como leídas
+        AlertaAsistencia.objects.filter(tipo='MANTENIMIENTO').update(leida=True)
+
+        BitacoraAccion.objects.create(
+            usuario=request.user if request.user.is_authenticated else None,
+            accion='MANTENIMIENTO_DEPURACION',
+            descripcion=f"Depuración semestral ejecutada: {fotos_liberadas} fotos liberadas, {bitacora_eliminada} logs de bitácora y {alertas_eliminadas} alertas antiguas depuradas.",
+            ip_address=_get_clean_ip(request)
+        )
+
+        return Response({
+            'status': 'ok',
+            'mensaje': f'Depuración completada exitosamente. Se liberaron {fotos_liberadas} fotografías y se limpiaron {bitacora_eliminada + alertas_eliminadas} registros antiguos.',
+            'fotos_liberadas': fotos_liberadas,
+            'bitacora_eliminada': bitacora_eliminada,
+            'alertas_eliminadas': alertas_eliminadas,
+        })
 
 
 # ==========================================

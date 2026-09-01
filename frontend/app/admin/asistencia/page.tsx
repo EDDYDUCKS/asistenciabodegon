@@ -13,6 +13,7 @@ import {
   AlertCircle,
   CheckCircle,
   Plus,
+  Trash2,
 } from 'lucide-react';
 
 interface AnalisisPuntualidad {
@@ -240,6 +241,21 @@ export default function AsistenciaLogPage() {
           >
             <Plus className="w-4 h-4" />
             Registrar Marcaje Manual
+          </button>
+          <button
+            onClick={async () => {
+              if (confirm('¿Desea ejecutar la Depuración Semestral (liberar fotos y bitácoras de más de 6 meses)?\n\nEsta acción conserva intactos a todos los empleados, carnets y sus horas.')) {
+                const { ejecutarDepuracionSemestral } = await import('@/lib/api-client');
+                const res = await ejecutarDepuracionSemestral(6);
+                alert(res.mensaje);
+                loadData();
+              }
+            }}
+            className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+            title="Liberar fotos y registros de más de 6 meses para optimizar almacenamiento"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-stone-500" />
+            Depuración Semestral
           </button>
           <button
             onClick={loadData}

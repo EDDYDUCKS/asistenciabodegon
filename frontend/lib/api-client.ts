@@ -249,6 +249,20 @@ export async function marcarTodasAlertasLeidas(): Promise<void> {
   });
 }
 
+export async function ejecutarDepuracionSemestral(meses: number = 6): Promise<{
+  status: string;
+  mensaje: string;
+  fotos_liberadas: number;
+  bitacora_eliminada: number;
+  alertas_eliminadas: number;
+}> {
+  return apiRequest('/alertas/depurar-historial/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ meses }),
+  });
+}
+
 // ── BATCH SYNC OFFLINE ─────────────────────────────────────────────────────
 export async function syncBatchAsistencias(payload: Array<{
   qr_code_token: string;

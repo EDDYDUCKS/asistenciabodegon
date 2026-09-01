@@ -144,7 +144,6 @@ class AutorizacionHorasExtra(models.Model):
     def __str__(self):
         return f"{self.fecha.strftime('%d/%m/%Y')} - {self.empleado.nombre}: {self.horas_extra_autorizadas}h ({self.get_estado_display()})"
 
-
 class AlertaAsistencia(models.Model):
     TIPOS = [
         ('TARDANZA', 'Tardanza'),
@@ -152,9 +151,10 @@ class AlertaAsistencia(models.Model):
         ('MARCACION_SOSPECHOSA', 'Marcación Sospechosa'),
         ('SEGUNDA_AUSENCIA', 'Segunda Ausencia en la Semana'),
         ('REGISTRO_INCOMPLETO', 'Registro Incompleto — Falta Salida'),
+        ('MANTENIMIENTO', 'Recordatorio de Mantenimiento Semestral'),
     ]
     tipo = models.CharField(max_length=30, choices=TIPOS)
-    empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='alertas')
+    empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='alertas', null=True, blank=True)
     titulo = models.CharField(max_length=150)
     mensaje = models.TextField()
     leida = models.BooleanField(default=False)

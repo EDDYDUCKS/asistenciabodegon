@@ -363,15 +363,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             </div>
                           )}
 
+                          {/* Acción interactiva para Mantenimiento Semestral */}
+                          {!al.leida && al.tipo === 'MANTENIMIENTO' && (
+                            <div className="pt-2 border-t border-emerald-100 flex justify-end">
+                              <button
+                                onClick={async () => {
+                                  if (confirm('¿Desea ejecutar la depuración semestral ahora? Se liberarán fotos y bitácoras de hace más de 6 meses manteniendo a todos los empleados y sus horas.')) {
+                                    const { ejecutarDepuracionSemestral } = await import('@/lib/api-client');
+                                    const res = await ejecutarDepuracionSemestral(6);
+                                    alert(res.mensaje);
+                                    loadAlerts();
+                                  }
+                                }}
+                                className="bg-[#1c6856] hover:bg-[#154f42] text-white text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors shadow-sm flex items-center gap-1.5 w-full justify-center"
+                              >
+                                🧹 Ejecutar Depuración Semestral
+                              </button>
+                            </div>
+                          )}
+
                           {/* Acción directa para Registro Incompleto */}
                           {!al.leida && al.tipo === 'REGISTRO_INCOMPLETO' && (
                             <div className="pt-1.5 border-t border-orange-100 flex justify-end">
                               <Link
                                 href="/admin/asistencia"
                                 onClick={() => setShowAlertsDropdown(false)}
-                                className="inline-flex items-center gap-1 text-[10px] font-bold text-orange-700 hover:underline"
+                                className="text-[10px] font-bold text-orange-700 hover:underline flex items-center gap-1"
                               >
-                                Agregar Salida en Asistencia &rarr;
+                                📝 Corregir en Historial &rarr;
                               </Link>
                             </div>
                           )}
