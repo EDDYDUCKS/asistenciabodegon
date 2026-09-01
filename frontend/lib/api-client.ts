@@ -91,7 +91,7 @@ export async function regenerarQrEmpleado(id: number): Promise<{ qr_code_token: 
 // ── KIOSCO DE MARCAJE ──────────────────────────────────────────────────────
 export async function marcarAsistenciaKiosco(payload: {
   qr_token: string;
-  tipo_evento: TipoEventoType;
+  tipo_evento?: TipoEventoType;
   fotoFile: Blob | null;
   fecha_hora?: string;
 }): Promise<MarcajeKioscoResponse> {

@@ -196,13 +196,13 @@ export default function KioscoPage() {
     }
   };
 
-  const handleOfflineMarcaje = async (token: string, event: TipoEventoType, photoBase64: string, customTime?: string) => {
+  const handleOfflineMarcaje = async (token: string, event: string, photoBase64: string, customTime?: string) => {
     try {
       const { addOfflineMarcaje } = await import('@/lib/indexed-db');
       const nowStr = customTime || new Date().toISOString();
       await addOfflineMarcaje({
         qr_code_token: token,
-        tipo_evento: event,
+        tipo_evento: event || 'AUTODETECT',
         fecha_hora: nowStr,
         foto: photoBase64 || undefined,
       });
