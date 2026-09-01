@@ -21,6 +21,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   Plus,
   Trash2,
   ThumbsUp,
