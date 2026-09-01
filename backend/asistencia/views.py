@@ -308,8 +308,10 @@ def marcar_asistencia_kiosco(request):
                 'horas_trabajadas_hoy': round(_calcular_horas_netas_dia(list(registros_hoy)), 2)
             })
 
-    # Tipo de evento solicitado o auto-detectado
+    # Tipo de evento solicitado o auto-detectado inteligentemente por franja horaria
     tipo_evento = request.data.get('tipo_evento')
+    dt_local = fecha_hora_registro.astimezone(timezone.get_current_timezone())
+    hora_mins = dt_local.hour * 60 + dt_local.minute
 
     if not tipo_evento:
         if empleado.tipo_turno == 'QUEBRADO':
@@ -318,7 +320,23 @@ def marcar_asistencia_kiosco(request):
             else:
                 ultimo_evento = registros_hoy.last().tipo_evento
                 if ultimo_evento == 'ENTRADA':
-                    tipo_evento = 'SALIDA_QUEBRADA'
+                    # Si el empleado marcó entrada al mediodía y ahora marca después de las 5:30 PM (1050 min),
+                    # omitió marcar salida a pausa de las 3:00 PM y está marcando el retorno de la tarde (6:00 PM)
+                    if hora_mins >= 1050:
+                        tipo_evento = 'ENTRADA_QUEBRADA'
+                        AlertaAsistencia.objects.create(
+                            tipo='REGISTRO_INCOMPLETO',
+                            empleado=empleado,
+                            titulo=f"Omisión de pausa detectada: {empleado.nombre} {empleado.apellido}",
+                            mensaje=(
+                                f"El empleado {empleado.nombre} no registró su salida a pausa (3:00 PM) "
+                                f"y marcó retorno de la tarde a las {dt_local.strftime('%I:%M %p')}. "
+                                f"El sistema ajustó su marcaje a Retorno para preservar sus horas."
+                            ),
+                            leida=False
+                        )
+                    else:
+                        tipo_evento = 'SALIDA_QUEBRADA'
                 elif ultimo_evento == 'SALIDA_QUEBRADA':
                     tipo_evento = 'ENTRADA_QUEBRADA'
                 elif ultimo_evento == 'ENTRADA_QUEBRADA':
@@ -336,6 +354,19 @@ def marcar_asistencia_kiosco(request):
                     tipo_evento = 'ENTRADA'
 
     foto = request.FILES.get('foto')
+
+    # ── DETECCIÓN DE HORARIO INUSUAL / MADRUGADA ───────────────────────────
+    if 1 <= dt_local.hour < 10:
+        AlertaAsistencia.objects.create(
+            tipo='MARCACION_SOSPECHOSA',
+            empleado=empleado,
+            titulo=f"Marcación fuera de horario: {empleado.nombre} {empleado.apellido}",
+            mensaje=(
+                f"Se detectó un marcaje a las {dt_local.strftime('%I:%M %p')} "
+                f"({tipo_evento}), fuera del horario operativo regular del restaurante."
+            ),
+            leida=False
+        )
 
     with transaction.atomic():
         registro = RegistroAsistencia.objects.create(

@@ -613,16 +613,21 @@ export default function KioscoPage() {
               <div className="text-center space-y-2.5 animate-in zoom-in-95 duration-200 w-full">
                 {feedback.status === 'cooldown' ? (
                   <>
-                    <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white mx-auto shadow-sm shadow-amber-500/10">
-                      <Clock className="w-5 h-5" />
+                    <div className="w-11 h-11 rounded-2xl bg-amber-500 flex items-center justify-center text-white mx-auto shadow-md shadow-amber-500/20">
+                      <Clock className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="font-display font-black text-sm text-amber-950">Marcaje Previo Guardado</h4>
-                      <p className="text-[11px] font-semibold text-amber-900 mt-0.5 max-w-md mx-auto">
+                      {feedback.registro?.empleado_detalle && (
+                        <h3 className="font-display font-black text-base text-stone-900 mb-0.5">
+                          {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
+                        </h3>
+                      )}
+                      <h4 className="font-bold text-xs text-amber-800 uppercase tracking-wide">Marcaje Previo Guardado</h4>
+                      <p className="text-xs font-medium text-stone-600 mt-1 max-w-md mx-auto">
                         {feedback.mensaje}
                       </p>
                       {feedback.horas_trabajadas_hoy !== undefined && (
-                        <span className="inline-block bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-md mt-1.5 font-mono">
+                        <span className="inline-block bg-amber-100 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-lg mt-2 font-mono">
                           Horas hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
                         </span>
                       )}
@@ -630,16 +635,21 @@ export default function KioscoPage() {
                   </>
                 ) : (
                   <>
-                    <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white mx-auto shadow-sm shadow-emerald-500/10">
-                      <CheckCircle2 className="w-5 h-5" />
+                    <div className="w-11 h-11 rounded-2xl bg-emerald-500 flex items-center justify-center text-white mx-auto shadow-md shadow-emerald-500/20">
+                      <CheckCircle2 className="w-6 h-6" />
                     </div>
                     <div>
-                      <h4 className="font-display font-black text-sm text-emerald-950">¡Registro Exitoso!</h4>
-                      <p className="text-[11px] font-semibold text-emerald-800 mt-0.5">
+                      {feedback.registro?.empleado_detalle && (
+                        <h3 className="font-display font-black text-base text-stone-900 mb-0.5">
+                          {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
+                        </h3>
+                      )}
+                      <h4 className="font-bold text-xs text-emerald-800 uppercase tracking-wide">¡Registro Exitoso!</h4>
+                      <p className="text-xs font-medium text-stone-600 mt-1">
                         {feedback.mensaje}
                       </p>
                       {feedback.horas_trabajadas_hoy !== undefined && (
-                        <span className="inline-block bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded-md mt-1.5 font-mono">
+                        <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-3 py-1 rounded-lg mt-2 font-mono">
                           Horas hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
                         </span>
                       )}
