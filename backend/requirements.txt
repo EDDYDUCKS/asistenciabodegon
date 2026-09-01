@@ -1,4 +1,4 @@
-django>=4.2,<5.0
+django>=4.2
 djangorestframework
 django-cors-headers
 pillow
@@ -6,3 +6,5 @@ psycopg2-binary
 dj-database-url
 gunicorn
 whitenoise
+openpyxl
+et_xmlfile
