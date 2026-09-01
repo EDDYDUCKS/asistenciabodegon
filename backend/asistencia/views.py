@@ -290,6 +290,24 @@ def marcar_asistencia_kiosco(request):
         fecha_hora__range=(start_dt, end_dt)
     ).order_by('fecha_hora')
 
+    # ── BLOQUEO ANTI-REBOTE (Cooldown de 5 minutos) ────────────────────────
+    if registros_hoy.exists():
+        ultimo_reg = registros_hoy.last()
+        segundos_diff = (fecha_hora_registro - ultimo_reg.fecha_hora).total_seconds()
+        if 0 <= segundos_diff < 300:  # Menos de 5 minutos (300 seg)
+            hora_local_str = ultimo_reg.fecha_hora.astimezone(timezone.get_current_timezone()).strftime('%I:%M %p')
+            minutos_hace = max(1, int(segundos_diff // 60))
+            return Response({
+                'status': 'cooldown',
+                'mensaje': (
+                    f"¡Hola {empleado.nombre}! Tu marcaje de {ultimo_reg.get_tipo_evento_display()} "
+                    f"ya fue registrado a las {hora_local_str} (hace {minutos_hace} min). "
+                    f"No te preocupes, tu registro está guardado."
+                ),
+                'registro': RegistroAsistenciaSerializer(ultimo_reg, context={'request': request}).data,
+                'horas_trabajadas_hoy': round(_calcular_horas_netas_dia(list(registros_hoy)), 2)
+            })
+
     # Tipo de evento solicitado o auto-detectado
     tipo_evento = request.data.get('tipo_evento')
 

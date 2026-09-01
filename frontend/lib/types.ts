@@ -54,7 +54,7 @@ export interface BitacoraAccion {
 }
 
 export interface MarcajeKioscoResponse {
-  status: 'ok' | 'error';
+  status: 'ok' | 'error' | 'cooldown';
   mensaje: string;
   registro?: RegistroAsistencia;
   horas_trabajadas_hoy?: number;

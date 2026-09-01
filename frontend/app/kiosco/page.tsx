@@ -40,6 +40,11 @@ export default function KioscoPage() {
   const [offlineCount, setOfflineCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
 
+  // Estados de cámara y permisos
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const html5QrCodeRef = useRef<any>(null);
+
   // Lock síncrono para evitar múltiples lecturas concurrentes del lector QR / cámara
   const lockRef = useRef(false);
 
@@ -102,8 +107,8 @@ export default function KioscoPage() {
     });
   }, []);
 
-  // ── Sonido de Feedback ──────────────────────────────────────────────────
-  const playAudioFeedback = (success: boolean) => {
+  // ── Sonido de Feedback Auditivo Inteligente ───────────────────────────────
+  const playAudioFeedback = (type: boolean | 'success' | 'error' | 'cooldown') => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const osc = ctx.createOscillator();
@@ -111,13 +116,22 @@ export default function KioscoPage() {
       osc.connect(gain);
       gain.connect(ctx.destination);
 
-      if (success) {
+      if (type === true || type === 'success') {
+        // Ding brillante de confirmación
         osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
         osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
         gain.gain.setValueAtTime(0.15, ctx.currentTime);
         osc.start();
         osc.stop(ctx.currentTime + 0.25);
+      } else if (type === 'cooldown') {
+        // Doble campana suave informativa
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+        osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.12); // E5
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
       } else {
+        // Tono grave de alerta / error
         osc.frequency.setValueAtTime(220, ctx.currentTime); // A3
         osc.frequency.setValueAtTime(164.81, ctx.currentTime + 0.1); // E3
         gain.gain.setValueAtTime(0.2, ctx.currentTime);
@@ -301,11 +315,15 @@ export default function KioscoPage() {
             fecha_hora: undefined,
           });
 
-          playAudioFeedback(true);
+          if (res.status === 'cooldown') {
+            playAudioFeedback('cooldown');
+          } else {
+            playAudioFeedback('success');
+          }
           setFeedback(res);
 
           // Agregar al feed de actividad del Kiosco
-          if (res.registro) {
+          if (res.registro && res.status !== 'cooldown') {
             const localTimeFormatted = new Date(res.registro.fecha_hora).toLocaleTimeString('es-NI', {
               hour: '2-digit',
               minute: '2-digit',
@@ -397,40 +415,68 @@ export default function KioscoPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [processQrScan]);
 
-  // ── Escáner de Cámara Html5Qrcode ─────────────────────────────────────
-  useEffect(() => {
-    let scanner: any = null;
-    async function initScanner() {
-      try {
-        const { Html5QrcodeScanner } = await import('html5-qrcode');
-        scanner = new Html5QrcodeScanner(
-          'qr-reader-kiosk',
-          { fps: 10 },
-          false
-        );
-        scanner.render(
-          (decodedText: string) => {
-            processQrScan(decodedText);
-          },
-          () => {
-            // Ignorar errores de escaneo
-          }
-        );
-      } catch (e) {
-        console.warn('Html5Qrcode scanner failed to render:', e);
-      }
-    }
-    initScanner();
-    return () => {
-      if (scanner) {
+  // ── Escáner de Cámara Directo con Html5Qrcode ─────────────────────────
+  const startCamera = useCallback(async () => {
+    try {
+      setCameraError(null);
+      const { Html5Qrcode } = await import('html5-qrcode');
+
+      if (html5QrCodeRef.current) {
         try {
-          scanner.clear();
-        } catch {
-          // ignore
-        }
+          if (html5QrCodeRef.current.isScanning) {
+            await html5QrCodeRef.current.stop();
+          }
+        } catch {}
+      }
+
+      const scanner = new Html5Qrcode('qr-reader-kiosk');
+      html5QrCodeRef.current = scanner;
+
+      const qrConfig = { fps: 15, qrbox: { width: 250, height: 250 } };
+
+      try {
+        // Intentar primero con cámara frontal (tablet/laptop)
+        await scanner.start(
+          { facingMode: 'user' },
+          qrConfig,
+          (decodedText: string) => processQrScan(decodedText),
+          () => {}
+        );
+        setCameraActive(true);
+      } catch (errUser) {
+        // Fallback a cámara trasera o predeterminada
+        await scanner.start(
+          { facingMode: 'environment' },
+          qrConfig,
+          (decodedText: string) => processQrScan(decodedText),
+          () => {}
+        );
+        setCameraActive(true);
+      }
+    } catch (err: any) {
+      console.warn('Error inicializando cámara:', err);
+      setCameraActive(false);
+      const isDenied = err?.name === 'NotAllowedError' || err?.message?.toLowerCase().includes('permission') || err?.message?.toLowerCase().includes('denied');
+      setCameraError(
+        isDenied
+          ? 'El navegador no tiene permiso para usar la cámara. Haga clic en "Activar Cámara" y seleccione "Permitir" cuando el navegador lo solicite.'
+          : 'No se pudo acceder a la cámara del dispositivo. Verifique que no esté en uso por otra pestaña o app.'
+      );
+    }
+  }, [processQrScan]);
+
+  useEffect(() => {
+    startCamera();
+    return () => {
+      if (html5QrCodeRef.current) {
+        try {
+          if (html5QrCodeRef.current.isScanning) {
+            html5QrCodeRef.current.stop();
+          }
+        } catch {}
       }
     };
-  }, [processQrScan]);
+  }, [startCamera]);
 
   return (
     <main className="min-h-screen bg-[#fcf9f5] text-stone-900 flex flex-col justify-between p-4 sm:p-6 select-none font-sans">
@@ -500,28 +546,54 @@ export default function KioscoPage() {
               </h3>
             </div>
             <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Cámara Activa</span>
+              <span className={`w-2.5 h-2.5 rounded-full ${cameraActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">
+                {cameraActive ? 'Cámara Activa' : 'Cámara Inactiva'}
+              </span>
             </span>
           </div>
 
           {/* Contenedor del Escáner (Html5Qrcode) */}
-          <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-stone-200 bg-stone-950 flex items-center justify-center">
+          <div className="relative aspect-video w-full rounded-2xl overflow-hidden border border-stone-200 bg-stone-950 flex flex-col items-center justify-center">
             <div id="qr-reader-kiosk" className="w-full h-full object-cover" />
             
-            {/* Custom Scanning Target Frame (CSS-only, beautiful and perfectly centered) */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-              <div className="w-60 h-60 border border-white/20 rounded-2xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
-                {/* Esquinas del objetivo */}
-                <div className="absolute -top-1.5 -left-1.5 w-8 h-8 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
-                <div className="absolute -top-1.5 -right-1.5 w-8 h-8 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
-                <div className="absolute -bottom-1.5 -left-1.5 w-8 h-8 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />
-                <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 border-b-4 border-r-4 border-emerald-400 rounded-br-lg" />
-                
-                {/* Línea de escaneo láser pulsante */}
-                <div className="absolute inset-x-2.5 h-[2px] bg-emerald-400 shadow-[0_0_8px_#34d399] animate-laser" />
+            {/* Pantalla de Permisos / Activación de Cámara */}
+            {!cameraActive && (
+              <div className="absolute inset-0 bg-stone-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-white text-center space-y-3 z-30">
+                <div className="w-12 h-12 rounded-2xl bg-[#1c6856] flex items-center justify-center text-white shadow-lg mx-auto">
+                  <Camera className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm">Cámara del Kiosco</h4>
+                  <p className="text-xs text-stone-300 max-w-xs mt-1">
+                    {cameraError || 'Haga clic para activar la cámara y permitir el escaneo de carnets QR.'}
+                  </p>
+                </div>
+                <button
+                  onClick={startCamera}
+                  className="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2"
+                >
+                  <Camera className="w-4 h-4" />
+                  Activar Cámara / Otorgar Permisos
+                </button>
               </div>
-            </div>
+            )}
+
+            {/* Custom Scanning Target Frame (CSS-only, activo cuando hay video) */}
+            {cameraActive && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                <div className="w-60 h-60 border border-white/20 rounded-2xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+                  {/* Esquinas del objetivo */}
+                  <div className="absolute -top-1.5 -left-1.5 w-8 h-8 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
+                  <div className="absolute -top-1.5 -right-1.5 w-8 h-8 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
+                  <div className="absolute -bottom-1.5 -left-1.5 w-8 h-8 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />
+                  <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 border-b-4 border-r-4 border-emerald-400 rounded-br-lg" />
+                  
+                  {/* Línea de escaneo láser pulsante */}
+                  <div className="absolute inset-x-2.5 h-[2px] bg-emerald-400 shadow-[0_0_8px_#34d399] animate-laser" />
+                </div>
+              </div>
+            )}
             
             <div className="absolute inset-0 border-2 border-emerald-500/20 rounded-2xl pointer-events-none z-20" />
           </div>
@@ -539,20 +611,41 @@ export default function KioscoPage() {
 
             {feedback && (
               <div className="text-center space-y-2.5 animate-in zoom-in-95 duration-200 w-full">
-                <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white mx-auto shadow-sm shadow-emerald-500/10">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-display font-black text-sm text-emerald-950">¡Registro Exitoso!</h4>
-                  <p className="text-[11px] font-semibold text-emerald-800 mt-0.5">
-                    {feedback.mensaje}
-                  </p>
-                  {feedback.horas_trabajadas_hoy !== undefined && (
-                    <span className="inline-block bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded-md mt-1.5 font-mono">
-                      Horas hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
-                    </span>
-                  )}
-                </div>
+                {feedback.status === 'cooldown' ? (
+                  <>
+                    <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white mx-auto shadow-sm shadow-amber-500/10">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-display font-black text-sm text-amber-950">Marcaje Previo Guardado</h4>
+                      <p className="text-[11px] font-semibold text-amber-900 mt-0.5 max-w-md mx-auto">
+                        {feedback.mensaje}
+                      </p>
+                      {feedback.horas_trabajadas_hoy !== undefined && (
+                        <span className="inline-block bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-md mt-1.5 font-mono">
+                          Horas hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
+                        </span>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white mx-auto shadow-sm shadow-emerald-500/10">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-display font-black text-sm text-emerald-950">¡Registro Exitoso!</h4>
+                      <p className="text-[11px] font-semibold text-emerald-800 mt-0.5">
+                        {feedback.mensaje}
+                      </p>
+                      {feedback.horas_trabajadas_hoy !== undefined && (
+                        <span className="inline-block bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded-md mt-1.5 font-mono">
+                          Horas hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
