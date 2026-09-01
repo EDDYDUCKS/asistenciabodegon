@@ -36,24 +36,14 @@ export default function KioscoPage() {
   // Estados de marcajes recientes para feedback visual inmediato en panel lateral
   const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
 
-  // Estados offline y de simulación
+  // Estados offline
   const [offlineCount, setOfflineCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
-  const [useSimulatedTime, setUseSimulatedTime] = useState(false);
-  const [simulatedTime, setSimulatedTime] = useState('');
 
   // Lock síncrono para evitar múltiples lecturas concurrentes del lector QR / cámara
   const lockRef = useRef(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  // ── Inicializar simulatedTime con fecha local en Managua (UTC-6) ──────────
-  useEffect(() => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    const localISOTime = new Date(now.getTime() - offset).toISOString().slice(0, 16);
-    setSimulatedTime(localISOTime);
-  }, []);
 
   // ── Reloj en Tiempo Real (Nicaragua UTC-6) ──────────────────────────────
   useEffect(() => {
@@ -283,10 +273,6 @@ export default function KioscoPage() {
       setErrorMsg(null);
       setFeedback(null);
 
-      const targetTimeISO = useSimulatedTime && simulatedTime 
-        ? new Date(simulatedTime).toISOString() 
-        : undefined;
-
       try {
         // Esperar 800ms para capturar rostro en vez de tarjeta QR
         await new Promise((resolve) => setTimeout(resolve, 800));
@@ -303,7 +289,7 @@ export default function KioscoPage() {
         }
 
         if (!navigator.onLine) {
-          await handleOfflineMarcaje(token.trim(), '', photoBase64, targetTimeISO);
+          await handleOfflineMarcaje(token.trim(), '', photoBase64, undefined);
           return;
         }
 
@@ -312,7 +298,7 @@ export default function KioscoPage() {
             qr_token: token.trim(),
             tipo_evento: undefined, // Autodetectar
             fotoFile: photoBlob,
-            fecha_hora: targetTimeISO,
+            fecha_hora: undefined,
           });
 
           playAudioFeedback(true);
@@ -346,7 +332,7 @@ export default function KioscoPage() {
           }, 4000);
         } catch (err: any) {
           if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('network'))) {
-            await handleOfflineMarcaje(token.trim(), '', photoBase64, targetTimeISO);
+            await handleOfflineMarcaje(token.trim(), '', photoBase64, undefined);
           } else {
             playAudioFeedback(false);
             setErrorMsg(err.message || 'Error al procesar el código QR');
@@ -377,7 +363,7 @@ export default function KioscoPage() {
         lockRef.current = false;
       }
     },
-    [capturePhotoBlob, useSimulatedTime, simulatedTime]
+    [capturePhotoBlob]
   );
 
   // ── Listener de Lector QR USB ─────────────────────────────────────────
@@ -677,39 +663,6 @@ export default function KioscoPage() {
               Conexión: {navigator.onLine ? '🟢 En línea' : '🟡 Modo sin conexión local'}
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* MODO SIMULADOR DE TIEMPO (Solo para pruebas de desarrollo) */}
-      <div className="max-w-7xl mx-auto w-full mt-4 bg-amber-50/70 border border-amber-200/60 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center shrink-0">
-            <Clock className="w-4.5 h-4.5" />
-          </div>
-          <div>
-            <h4 className="font-display font-black text-xs text-amber-950">Panel Simulador de Horas (Administración)</h4>
-            <p className="text-[10px] text-stone-500 font-medium leading-normal">
-              Permite simular marcaciones en fechas y horas específicas del día para probar las tardanzas, turnos y alertas sin esperar al reloj real.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
-          <label className="flex items-center gap-1.5 text-xs font-bold text-stone-700 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={useSimulatedTime}
-              onChange={(e) => setUseSimulatedTime(e.target.checked)}
-              className="rounded text-amber-600 focus:ring-amber-500"
-            />
-            Activar Simulación
-          </label>
-          <input
-            type="datetime-local"
-            value={simulatedTime}
-            onChange={(e) => setSimulatedTime(e.target.value)}
-            disabled={!useSimulatedTime}
-            className="bg-white border border-stone-300 rounded-xl px-3 py-1.5 text-xs font-bold text-stone-800 disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-amber-500"
-          />
         </div>
       </div>
 
