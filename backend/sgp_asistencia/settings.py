@@ -11,10 +11,9 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-bodegon-asistencia-2026-ke
 
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['asistenciabodegon-api.onrender.com', '.onrender.com', 'localhost', '127.0.0.1', '*']
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-USE_X_FORWARDED_HOST = True
 
 INSTALLED_APPS = [
     'django.contrib.admin',
