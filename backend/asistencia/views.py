@@ -352,29 +352,17 @@ def marcar_asistencia_kiosco(request):
     """
     qr_token = request.data.get('qr_token') or request.data.get('token')
     if not qr_token:
-        return Response({'detail': 'Código QR no proporcionado.'}, status=400)
+        return Response({'status': 'error', 'mensaje': 'Código QR no proporcionado.'}, status=400)
 
-    # Validar firma HMAC del Código QR
-    import hmac
-    import hashlib
-    from django.conf import settings
+    qr_token = qr_token.strip()
 
-    if not qr_token or '.' not in qr_token:
-        return Response({'status': 'error', 'mensaje': 'Formato de Código QR inválido (sin firma).'}, status=400)
+    # Buscar empleado activo directamente por su token o por el prefijo UUID
+    empleado = Empleado.objects.filter(qr_code_token=qr_token, activo=True).first()
+    if not empleado and '.' in qr_token:
+        raw_uuid = qr_token.split('.', 1)[0]
+        empleado = Empleado.objects.filter(qr_code_token__startswith=raw_uuid, activo=True).first()
 
-    raw_uuid, signature = qr_token.split('.', 1)
-    expected_signature = hmac.new(
-        settings.SECRET_KEY.encode('utf-8'),
-        raw_uuid.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()[:16]
-
-    if not hmac.compare_digest(signature, expected_signature):
-        return Response({'status': 'error', 'mensaje': 'Código QR no válido. Posible copia o falsificación.'}, status=400)
-
-    try:
-        empleado = Empleado.objects.get(qr_code_token=qr_token, activo=True)
-    except Empleado.DoesNotExist:
+    if not empleado:
         return Response({'status': 'error', 'mensaje': 'Código QR no encontrado en base de datos o empleado inactivo.'}, status=400)
 
     # Permite enviar fecha_hora simulada desde el cliente (para testing dinámico)
@@ -1019,21 +1007,13 @@ def sync_batch_asistencia(request):
             respuestas.append({'status': 'error', 'mensaje': 'Formato QR inválido.', 'token': qr_code_token})
             continue
 
-        raw_uuid, signature = qr_code_token.split('.', 1)
-        expected_signature = hmac.new(
-            settings.SECRET_KEY.encode('utf-8'),
-            raw_uuid.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()[:16]
+        # 1. Buscar Empleado por token o prefijo UUID
+        empleado = Empleado.objects.filter(qr_code_token=qr_code_token.strip(), activo=True).first()
+        if not empleado and '.' in qr_code_token:
+            raw_uuid = qr_code_token.split('.', 1)[0]
+            empleado = Empleado.objects.filter(qr_code_token__startswith=raw_uuid, activo=True).first()
 
-        if not hmac.compare_digest(signature, expected_signature):
-            respuestas.append({'status': 'error', 'mensaje': 'Firma QR no válida.', 'token': qr_code_token})
-            continue
-
-        # 2. Buscar Empleado
-        try:
-            empleado = Empleado.objects.get(qr_code_token=qr_code_token, activo=True)
-        except Empleado.DoesNotExist:
+        if not empleado:
             respuestas.append({'status': 'error', 'mensaje': 'Empleado no encontrado o inactivo.', 'token': qr_code_token})
             continue
 

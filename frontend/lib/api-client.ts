@@ -129,7 +129,7 @@ export async function marcarAsistenciaKiosco(payload: {
 
   const json = await response.json();
   if (!response.ok) {
-    throw new Error(json.detail || 'Error registrando asistencia en Kiosco');
+    throw new Error(json.mensaje || json.detail || 'Error registrando asistencia en Kiosco');
   }
   return json;
 }
