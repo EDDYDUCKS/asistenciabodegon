@@ -542,39 +542,21 @@ def marcar_asistencia_kiosco(request):
             # Corrido 1 / Quebrado → 12:00pm (720 min) | Corrido 2 → 3:00pm (900 min)
             target = 900 if turno_detectado == 'Corrido 2' else 720
             diff = mins_marcados - target
-            if diff > 10:  # Tolerancia de 10 min
+            # Alerta solo si es tardanza severa (>30 min) para no saturar al admin con nimiedades
+            if diff > 30:
                 alerta_creada = True
                 alerta_tipo = 'TARDANZA'
-                alerta_titulo = f"Tardanza detectada: {empleado.nombre} {empleado.apellido}"
+                alerta_titulo = f"Tardanza severa: {empleado.nombre} {empleado.apellido}"
                 alerta_mensaje = f"Llegó {diff} min tarde. Marcaje a las {hora_actual.strftime('%I:%M %p')} (Turno {turno_detectado})."
-                
-        elif tipo == 'ENTRADA_QUEBRADA':
-            # Regreso de pausa → 6:00pm (1080 min)
-            diff = mins_marcados - 1080
-            if diff > 10:
-                alerta_creada = True
-                alerta_tipo = 'TARDANZA'
-                alerta_titulo = f"Tardanza en regreso: {empleado.nombre} {empleado.apellido}"
-                alerta_mensaje = f"Regresó de la pausa {diff} min tarde. Marcaje a las {hora_actual.strftime('%I:%M %p')}."
-                
-        elif tipo == 'SALIDA_QUEBRADA':
-            # Salida a pausa → 3:00pm (900 min)
-            diff = 900 - mins_marcados
-            if diff > 5:
-                alerta_creada = True
-                alerta_tipo = 'SALIDA_ANTICIPADA'
-                alerta_titulo = f"Salida anticipada a pausa: {empleado.nombre} {empleado.apellido}"
-                alerta_mensaje = f"Se retiró a la pausa {diff} min antes. Marcaje a las {hora_actual.strftime('%I:%M %p')}."
-                
+
         elif tipo == 'SALIDA_DEFINITIVA':
-            # Corrido 1 → 8:00pm (1200 min) | Corrido 2 / Quebrado → 11:00pm (1380 min)
-            target = 1200 if turno_detectado == 'Corrido 1' else 1380
-            diff = target - mins_marcados
-            if diff > 5:
+            # Filosofía de 8 Horas: Alertar si el trabajador no cumplió al menos 7.5h en el día completo
+            if horas_netas_hoy < 7.5:
+                deficit_hrs = round(8.0 - horas_netas_hoy, 1)
                 alerta_creada = True
                 alerta_tipo = 'SALIDA_ANTICIPADA'
-                alerta_titulo = f"Salida definitiva anticipada: {empleado.nombre} {empleado.apellido}"
-                alerta_mensaje = f"Salió {diff} min antes. Marcaje a las {hora_actual.strftime('%I:%M %p')} (Turno {turno_detectado})."
+                alerta_titulo = f"Jornada incompleta: {empleado.nombre} {empleado.apellido}"
+                alerta_mensaje = f"Se retiró antes de cumplir sus 8 horas. Acumuló {round(horas_netas_hoy, 1)} hrs hoy (Déficit de {deficit_hrs} hrs)."
 
         if alerta_creada:
             AlertaAsistencia.objects.create(
@@ -586,11 +568,30 @@ def marcar_asistencia_kiosco(request):
     except Exception as ex:
         print(f"Error procesando alertas: {ex}")
 
+    horas_restantes_hoy = max(0.0, round(8.0 - horas_netas_hoy, 2))
+    cumplio_meta = horas_netas_hoy >= 7.95
+
+    if tipo_evento == 'ENTRADA':
+        mensaje_kiosco = f"¡Hola {empleado.nombre}! Entrada registrada. Jornada iniciada."
+    elif tipo_evento == 'SALIDA_QUEBRADA':
+        mensaje_kiosco = f"¡Buen descanso, {empleado.nombre}! Llevas {round(horas_netas_hoy, 1)} hrs acumuladas. Te faltan {round(horas_restantes_hoy, 1)} hrs para tus 8h."
+    elif tipo_evento == 'ENTRADA_QUEBRADA':
+        mensaje_kiosco = f"¡Bienvenido de vuelta, {empleado.nombre}! Llevas {round(horas_netas_hoy, 1)} hrs del primer turno. Te restan {round(horas_restantes_hoy, 1)} hrs para tus 8h."
+    elif tipo_evento == 'SALIDA_DEFINITIVA':
+        if cumplio_meta:
+            mensaje_kiosco = f"¡Excelente trabajo, {empleado.nombre}! Completaste {round(horas_netas_hoy, 1)} hrs hoy (Meta de 8 hrs cumplida 🎉). ¡Buen descanso!"
+        else:
+            mensaje_kiosco = f"Jornada finalizada, {empleado.nombre}. Acumulaste {round(horas_netas_hoy, 1)} hrs hoy (Déficit de {round(horas_restantes_hoy, 1)} hrs)."
+    else:
+        mensaje_kiosco = f"¡Hola {empleado.nombre}! Marcaje registrado correctamente."
+
     return Response({
         'status': 'ok',
-        'mensaje': f"¡Hola {empleado.nombre}! Marcaje registrado correctamente.",
+        'mensaje': mensaje_kiosco,
         'registro': RegistroAsistenciaSerializer(registro, context={'request': request}).data,
-        'horas_trabajadas_hoy': round(horas_netas_hoy, 2)
+        'horas_trabajadas_hoy': round(horas_netas_hoy, 2),
+        'horas_restantes_hoy': round(horas_restantes_hoy, 2),
+        'cumplio_meta_8h': cumplio_meta,
     })
 
 

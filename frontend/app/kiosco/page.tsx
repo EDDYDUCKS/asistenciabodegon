@@ -634,9 +634,20 @@ export default function KioscoPage() {
                         {feedback.mensaje}
                       </p>
                       {feedback.horas_trabajadas_hoy !== undefined && (
-                        <span className="inline-block bg-amber-100 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-lg mt-2 font-mono">
-                          Horas hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
-                        </span>
+                        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                          <span className="inline-block bg-amber-100 text-amber-900 text-[11px] font-bold px-3 py-1 rounded-lg font-mono">
+                            ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
+                          </span>
+                          {feedback.cumplio_meta_8h ? (
+                            <span className="inline-block bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg">
+                              🎉 Meta de 8h Cumplida
+                            </span>
+                          ) : feedback.horas_restantes_hoy !== undefined && feedback.horas_restantes_hoy > 0 ? (
+                            <span className="inline-block bg-stone-100 text-stone-700 text-[11px] font-bold px-3 py-1 rounded-lg">
+                              Faltan: {feedback.horas_restantes_hoy.toFixed(1)} hrs
+                            </span>
+                          ) : null}
+                        </div>
                       )}
                     </div>
                   </>
@@ -656,9 +667,20 @@ export default function KioscoPage() {
                         {feedback.mensaje}
                       </p>
                       {feedback.horas_trabajadas_hoy !== undefined && (
-                        <span className="inline-block bg-emerald-100 text-emerald-700 text-[11px] font-bold px-3 py-1 rounded-lg mt-2 font-mono">
-                          Horas hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
-                        </span>
+                        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                          <span className="inline-block bg-emerald-100 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-lg font-mono">
+                            ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
+                          </span>
+                          {feedback.cumplio_meta_8h ? (
+                            <span className="inline-block bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg">
+                              🎉 Meta de 8h Cumplida
+                            </span>
+                          ) : feedback.horas_restantes_hoy !== undefined && feedback.horas_restantes_hoy > 0 ? (
+                            <span className="inline-block bg-amber-100 text-amber-900 text-[11px] font-bold px-3 py-1 rounded-lg">
+                              Faltan: {feedback.horas_restantes_hoy.toFixed(1)} hrs
+                            </span>
+                          ) : null}
+                        </div>
                       )}
                     </div>
                   </>
