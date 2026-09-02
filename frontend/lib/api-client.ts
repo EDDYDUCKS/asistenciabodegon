@@ -49,7 +49,20 @@ async function apiRequest<T = unknown>(
     throw new Error(errorDetail);
   }
 
-  return response.json();
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return {} as T;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {} as T;
+  }
 }
 
 // ── EMPLEADOS ──────────────────────────────────────────────────────────────
