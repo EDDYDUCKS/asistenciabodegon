@@ -257,7 +257,7 @@ export default function KioscoPage() {
         setProcessing(false);
         setManualToken('');
         lockRef.current = false;
-      }, 4000);
+      }, 5000);
     } catch (e: any) {
       playAudioFeedback(false);
       setErrorMsg('Error al guardar fuera de línea: ' + e.message);
@@ -265,7 +265,7 @@ export default function KioscoPage() {
         setErrorMsg(null);
         setProcessing(false);
         lockRef.current = false;
-      }, 4000);
+      }, 5000);
     }
   };
 
@@ -366,14 +366,14 @@ export default function KioscoPage() {
             ]);
           }
 
-          // Mantener visible la alerta y balance durante 4.0 segundos completos
+          // Mantener visible la alerta y balance durante 5.0 segundos completos
           setTimeout(() => {
             setFeedback(null);
             setProcessing(false);
             setManualToken('');
             setEmpleadoDetectado(null);
             lockRef.current = false;
-          }, 4000);
+          }, 5000);
         } catch (err: any) {
           setEmpleadoDetectado(null);
           if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('network'))) {
@@ -399,7 +399,7 @@ export default function KioscoPage() {
               setProcessing(false);
               setEmpleadoDetectado(null);
               lockRef.current = false;
-            }, 4000);
+            }, 5000);
           }
         }
       } catch (err: any) {
@@ -411,7 +411,7 @@ export default function KioscoPage() {
           setProcessing(false);
           setEmpleadoDetectado(null);
           lockRef.current = false;
-        }, 4000);
+        }, 5000);
       }
     },
     [capturePhotoBlob]
@@ -613,7 +613,7 @@ export default function KioscoPage() {
             )}
 
             {/* Custom Scanning Target Frame (CSS-only, activo cuando hay video) */}
-            {cameraActive && (
+            {cameraActive && !processing && !feedback && !errorMsg && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                 <div className="w-60 h-60 border border-white/20 rounded-2xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
                   {/* Esquinas del objetivo */}
@@ -625,6 +625,124 @@ export default function KioscoPage() {
                   {/* Línea de escaneo láser pulsante */}
                   <div className="absolute inset-x-2.5 h-[2px] bg-emerald-400 shadow-[0_0_8px_#34d399] animate-laser" />
                 </div>
+              </div>
+            )}
+
+            {/* ── OVERLAY CENTRAL DE ALTA VISIBILIDAD (MÓVIL & PC) ── */}
+            {processing && !feedback && !errorMsg && (
+              <div className="absolute inset-0 bg-stone-950/85 backdrop-blur-md z-30 flex flex-col items-center justify-center p-4 text-center animate-in fade-in duration-150">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-emerald-300 mx-auto shadow-lg mb-2 animate-pulse">
+                  <Camera className="w-7 h-7" />
+                </div>
+                {empleadoDetectado ? (
+                  <div className="space-y-1">
+                    <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight drop-shadow-md">
+                      ¡Hola {empleadoDetectado.nombre}!
+                    </h2>
+                    <p className="text-xs sm:text-sm font-bold text-emerald-300 drop-shadow flex items-center justify-center gap-1.5">
+                      <span>📸</span> Mire de frente a la pantalla para su foto...
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight drop-shadow-md">
+                      ¡Carnet Reconocido!
+                    </h2>
+                    <p className="text-xs sm:text-sm font-bold text-emerald-300 drop-shadow flex items-center justify-center gap-1.5">
+                      <span>📸</span> Mire de frente a la pantalla para su foto...
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {feedback && (
+              <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-md z-30 flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-in zoom-in-95 duration-200">
+                {feedback.status === 'cooldown' ? (
+                  <div className="space-y-2 max-w-sm sm:max-w-md mx-auto">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500 border-2 border-amber-300 flex items-center justify-center text-white mx-auto shadow-xl">
+                      <Clock className="w-6 h-6 sm:w-7 sm:h-7" />
+                    </div>
+                    {feedback.registro?.empleado_detalle && (
+                      <h2 className="text-lg sm:text-2xl font-display font-black text-white tracking-tight leading-tight">
+                        {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
+                      </h2>
+                    )}
+                    <span className="inline-block px-3 py-0.5 rounded-full bg-amber-500/25 border border-amber-400 text-amber-300 text-[11px] sm:text-xs font-bold uppercase tracking-wider">
+                      Marcaje Previo Guardado
+                    </span>
+                    <p className="text-xs sm:text-sm font-medium text-stone-200 leading-snug">
+                      {feedback.mensaje}
+                    </p>
+                    {feedback.horas_trabajadas_hoy !== undefined && (
+                      <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                        <span className="inline-block bg-white/10 border border-white/20 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl font-mono">
+                          ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
+                        </span>
+                        {feedback.cumplio_meta_8h ? (
+                          <span className="inline-block bg-emerald-500 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl shadow-sm">
+                            🎉 Meta de 8h Cumplida
+                          </span>
+                        ) : feedback.horas_restantes_hoy !== undefined && feedback.horas_restantes_hoy > 0 ? (
+                          <span className="inline-block bg-amber-400 text-stone-950 text-xs sm:text-sm font-bold px-3 py-1 rounded-xl font-mono">
+                            Faltan: {feedback.horas_restantes_hoy.toFixed(1)} hrs
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-w-sm sm:max-w-md mx-auto">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-500 border-2 border-emerald-300 flex items-center justify-center text-white mx-auto shadow-xl">
+                      <CheckCircle2 className="w-6 h-6 sm:w-7 sm:h-7" />
+                    </div>
+                    {feedback.registro?.empleado_detalle && (
+                      <h2 className="text-lg sm:text-2xl font-display font-black text-white tracking-tight leading-tight">
+                        {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
+                      </h2>
+                    )}
+                    <span className="inline-block px-3 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400 text-emerald-300 text-[11px] sm:text-xs font-bold uppercase tracking-wider">
+                      ¡Registro Exitoso!
+                    </span>
+                    <p className="text-xs sm:text-sm font-medium text-stone-200 leading-snug">
+                      {feedback.mensaje}
+                    </p>
+                    {feedback.horas_trabajadas_hoy !== undefined && (
+                      <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                        <span className="inline-block bg-white/10 border border-white/20 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl font-mono">
+                          ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
+                        </span>
+                        {feedback.cumplio_meta_8h ? (
+                          <span className="inline-block bg-emerald-500 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl shadow-sm">
+                            🎉 Meta de 8h Cumplida
+                          </span>
+                        ) : feedback.horas_restantes_hoy !== undefined && feedback.horas_restantes_hoy > 0 ? (
+                          <span className="inline-block bg-amber-400 text-stone-950 text-xs sm:text-sm font-bold px-3 py-1 rounded-xl font-mono">
+                            Faltan: {feedback.horas_restantes_hoy.toFixed(1)} hrs
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Indicador inferior */}
+                <div className="absolute bottom-0 inset-x-0 h-1.5 bg-white/10 overflow-hidden">
+                  <div className="h-full bg-emerald-400 animate-pulse w-full" />
+                </div>
+              </div>
+            )}
+
+            {errorMsg && (
+              <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-md z-30 flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-in zoom-in-95 duration-200">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-rose-500 border-2 border-rose-300 flex items-center justify-center text-white mx-auto shadow-xl mb-2">
+                  <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+                </div>
+                <h3 className="text-base sm:text-xl font-display font-black text-white">
+                  Escaneo No Válido
+                </h3>
+                <p className="text-xs sm:text-sm text-rose-300 max-w-sm mt-1">
+                  {errorMsg}
+                </p>
               </div>
             )}
             
