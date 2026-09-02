@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MarcajeKioscoResponse, TipoEventoType } from '@/lib/types';
-import { marcarAsistenciaKiosco, syncBatchAsistencias } from '@/lib/api-client';
+import { MarcajeKioscoResponse, TipoEventoType, Empleado } from '@/lib/types';
+import { marcarAsistenciaKiosco, syncBatchAsistencias, fetchEmpleados } from '@/lib/api-client';
 import {
   Clock,
   Camera,
@@ -32,6 +32,8 @@ export default function KioscoPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [manualToken, setManualToken] = useState<string>('');
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [empleadosCache, setEmpleadosCache] = useState<Empleado[]>([]);
+  const [empleadoDetectado, setEmpleadoDetectado] = useState<Empleado | null>(null);
 
   // Estados de marcajes recientes para feedback visual inmediato en panel lateral
   const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
@@ -74,6 +76,12 @@ export default function KioscoPage() {
 
     updateClock();
     const interval = setInterval(updateClock, 1000);
+
+    // Precargar lista de empleados para reconocimiento visual instantáneo
+    fetchEmpleados()
+      .then((list) => setEmpleadosCache(list.filter((e) => e.activo)))
+      .catch((e) => console.warn('Error precargando empleados para Kiosco:', e));
+
     return () => clearInterval(interval);
   }, []);
 
@@ -294,10 +302,18 @@ export default function KioscoPage() {
       setErrorMsg(null);
       setFeedback(null);
 
-      try {
-        // Esperar 800ms para capturar rostro en vez de tarjeta QR
-        await new Promise((resolve) => setTimeout(resolve, 800));
+      // 1. Reconocimiento visual instantáneo en el Kiosco
+      const rawUuid = token.trim().split('.')[0];
+      const matchEmp = empleadosCache.find((e) => e.qr_code_token?.startsWith(rawUuid));
+      if (matchEmp) {
+        setEmpleadoDetectado(matchEmp);
+      }
 
+      try {
+        // 2. Esperar 2.0 segundos: El trabajador lee su nombre y mira de frente a la pantalla
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // 3. Capturar fotografía con el rostro despejado
         const photoBlob = await capturePhotoBlob();
         
         let photoBase64 = '';
@@ -328,6 +344,7 @@ export default function KioscoPage() {
             playAudioFeedback('success');
           }
           setFeedback(res);
+          setEmpleadoDetectado(null);
 
           // Agregar al feed de actividad del Kiosco
           if (res.registro && res.status !== 'cooldown') {
@@ -349,13 +366,16 @@ export default function KioscoPage() {
             ]);
           }
 
+          // Mantener visible la alerta y balance durante 4.0 segundos completos
           setTimeout(() => {
             setFeedback(null);
             setProcessing(false);
             setManualToken('');
+            setEmpleadoDetectado(null);
             lockRef.current = false;
           }, 4000);
         } catch (err: any) {
+          setEmpleadoDetectado(null);
           if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('network'))) {
             await handleOfflineMarcaje(token.trim(), '', photoBase64, undefined);
           } else {
@@ -377,15 +397,21 @@ export default function KioscoPage() {
             setTimeout(() => {
               setErrorMsg(null);
               setProcessing(false);
+              setEmpleadoDetectado(null);
               lockRef.current = false;
             }, 4000);
           }
         }
       } catch (err: any) {
+        setEmpleadoDetectado(null);
         playAudioFeedback(false);
-        setErrorMsg('Error de cámara o codificación: ' + err.message);
-        setProcessing(false);
-        lockRef.current = false;
+        setErrorMsg('Error capturando fotografía: ' + err.message);
+        setTimeout(() => {
+          setErrorMsg(null);
+          setProcessing(false);
+          setEmpleadoDetectado(null);
+          lockRef.current = false;
+        }, 4000);
       }
     },
     [capturePhotoBlob]
@@ -608,11 +634,29 @@ export default function KioscoPage() {
           {/* Estado del Marcaje / Feedback */}
           <div className="min-h-[110px] flex items-center justify-center relative bg-stone-50 border border-stone-200/60 rounded-2xl p-4">
             {processing && !feedback && !errorMsg && (
-              <div className="flex flex-col items-center gap-2 text-center animate-pulse">
-                <RefreshCw className="w-6 h-6 text-[#1c6856] animate-spin" />
-                <p className="text-xs font-bold text-stone-600">
-                  Procesando marcaje, por favor espere...
-                </p>
+              <div className="flex flex-col items-center gap-2 text-center animate-in zoom-in-95 duration-200 w-full py-1">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800 mx-auto shadow-sm">
+                  <Camera className="w-5 h-5 animate-pulse" />
+                </div>
+                {empleadoDetectado ? (
+                  <div>
+                    <h3 className="font-display font-black text-base text-stone-900 leading-tight">
+                      ¡Hola {empleadoDetectado.nombre} {empleadoDetectado.apellido}!
+                    </h3>
+                    <p className="text-xs font-bold text-emerald-700 mt-1 flex items-center justify-center gap-1.5 animate-pulse">
+                      <span>📸</span> Mire a la pantalla para su foto de asistencia...
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <h3 className="font-display font-black text-sm text-stone-900 leading-tight">
+                      ¡Carnet Reconocido!
+                    </h3>
+                    <p className="text-xs font-bold text-emerald-700 mt-1 flex items-center justify-center gap-1.5 animate-pulse">
+                      <span>📸</span> Mire a la pantalla para su foto de asistencia...
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
