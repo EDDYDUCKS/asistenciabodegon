@@ -10,8 +10,11 @@ import {
   deleteFeriado,
   fetchHorasExtra,
   updateHoraExtra,
+  fetchPermisos,
+  createPermiso,
+  deletePermiso,
 } from '@/lib/api-client';
-import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra } from '@/lib/types';
+import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType } from '@/lib/types';
 import {
   FileSpreadsheet,
   Download,
@@ -26,15 +29,17 @@ import {
   Trash2,
   ThumbsUp,
   ThumbsDown,
+  Palmtree,
 } from 'lucide-react';
 
 export default function NominaAdminPage() {
-  const [activeTab, setActiveTab] = useState<'reporte' | 'extras' | 'feriados'>('reporte');
+  const [activeTab, setActiveTab] = useState<'reporte' | 'extras' | 'feriados' | 'permisos'>('reporte');
   
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [asistencias, setAsistencias] = useState<RegistroAsistencia[]>([]);
   const [feriados, setFeriados] = useState<DiaFeriado[]>([]);
   const [horasExtra, setHorasExtra] = useState<AutorizacionHorasExtra[]>([]);
+  const [permisos, setPermisos] = useState<PermisoAusencia[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -50,6 +55,13 @@ export default function NominaAdminPage() {
   const [nuevoFeriadoDesc, setNuevoFeriadoDesc] = useState('');
   const [addingFeriado, setAddingFeriado] = useState(false);
 
+  // Form State para Permisos y Vacaciones
+  const [nuevoPermisoEmp, setNuevoPermisoEmp] = useState<number>(0);
+  const [nuevoPermisoTipo, setNuevoPermisoTipo] = useState<TipoPermisoType>('VACACIONES');
+  const [nuevoPermisoInicio, setNuevoPermisoInicio] = useState(hoyStr);
+  const [nuevoPermisoFin, setNuevoPermisoFin] = useState(hoyStr);
+  const [addingPermiso, setAddingPermiso] = useState(false);
+
   // Form State para Horas Extra (temporal para edición en lista)
   const [editingExtraId, setEditingExtraId] = useState<number | null>(null);
   const [tempAutorizadas, setTempAutorizadas] = useState('0.00');
@@ -59,16 +71,21 @@ export default function NominaAdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empList, asisList, feriadosList, extrasList] = await Promise.all([
+      const [empList, asisList, feriadosList, extrasList, permisosList] = await Promise.all([
         fetchEmpleados(),
         fetchAsistencias(),
         fetchFeriados(),
         fetchHorasExtra(),
+        fetchPermisos(),
       ]);
       setEmpleados(empList);
       setAsistencias(asisList);
       setFeriados(feriadosList);
       setHorasExtra(extrasList);
+      setPermisos(permisosList);
+      if (empList.length > 0 && nuevoPermisoEmp === 0) {
+        setNuevoPermisoEmp(empList[0].id);
+      }
     } catch (e) {
       console.error('Error cargando datos administrativos:', e);
     } finally {
@@ -126,6 +143,46 @@ export default function NominaAdminPage() {
     }
   };
 
+  // ── PERMISOS Y VACACIONES ACCIONES ─────────────────────────────────────────
+  const handleAddPermiso = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nuevoPermisoEmp || !nuevoPermisoInicio || !nuevoPermisoFin) {
+      alert('Por favor seleccione el empleado y las fechas.');
+      return;
+    }
+    if (nuevoPermisoInicio > nuevoPermisoFin) {
+      alert('La fecha de inicio no puede ser posterior a la fecha de fin.');
+      return;
+    }
+    setAddingPermiso(true);
+    try {
+      await createPermiso({
+        empleado: nuevoPermisoEmp,
+        tipo: nuevoPermisoTipo,
+        fecha_inicio: nuevoPermisoInicio,
+        fecha_fin: nuevoPermisoFin,
+      });
+      const updated = await fetchPermisos();
+      setPermisos(updated);
+      alert('¡Período registrado con éxito!');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al registrar');
+    } finally {
+      setAddingPermiso(false);
+    }
+  };
+
+  const handleDeletePermiso = async (id: number) => {
+    if (!confirm('¿Seguro que deseas cancelar o eliminar este registro de permiso/vacaciones?')) return;
+    try {
+      await deletePermiso(id);
+      const updated = await fetchPermisos();
+      setPermisos(updated);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar');
+    }
+  };
+
   // ── HORAS EXTRA ACCIONES ──────────────────────────────────────────────────
   const startDecision = (item: AutorizacionHorasExtra) => {
     setEditingExtraId(item.id || null);
@@ -157,6 +214,24 @@ export default function NominaAdminPage() {
   // ── CÁLCULO DE NÓMINA EN PANTALLA (SIN IMPORTES MONETARIOS) ───────────────
   const feriadosSet = new Set(feriados.map((f) => f.fecha));
 
+  // Mapear permisos por empleado
+  const permisosMapPorEmpleado: Record<number, Set<string>> = {};
+  const permisosInfoPorEmpleado: Record<number, string[]> = {};
+  permisos.forEach((p) => {
+    if (!permisosMapPorEmpleado[p.empleado]) {
+      permisosMapPorEmpleado[p.empleado] = new Set();
+      permisosInfoPorEmpleado[p.empleado] = [];
+    }
+    permisosInfoPorEmpleado[p.empleado].push(`${p.tipo_display} (${p.fecha_inicio.slice(5)} al ${p.fecha_fin.slice(5)})`);
+    const dStart = new Date(p.fecha_inicio + 'T00:00:00');
+    const dEnd = new Date(p.fecha_fin + 'T00:00:00');
+    const dCurr = new Date(dStart);
+    while (dCurr <= dEnd) {
+      permisosMapPorEmpleado[p.empleado].add(dCurr.toISOString().slice(0, 10));
+      dCurr.setDate(dCurr.getDate() + 1);
+    }
+  });
+
   const asistenciasFiltradas = asistencias.filter((a) => {
     const fecha = new Date(a.fecha_hora).toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
     return fecha >= fechaInicio && fecha <= fechaFin;
@@ -166,6 +241,7 @@ export default function NominaAdminPage() {
     .filter((emp) => emp.activo)
     .map((emp) => {
       const regEmp = asistenciasFiltradas.filter((a) => a.empleado === emp.id);
+      const diasPermisoEmp = permisosMapPorEmpleado[emp.id] || new Set<string>();
       
       // Agrupar asistencias por día en hora local de Nicaragua
       const diasMap: Record<string, RegistroAsistencia[]> = {};
@@ -224,7 +300,6 @@ export default function NominaAdminPage() {
 
       // ── Detectar días libres y ausencias extra usando lógica semanal ────
       let diasLibres = 0;
-      let ausenciasExtra = 0;
       horasDebidas = 0;
 
       if (fechaInicio && fechaFin) {
@@ -254,14 +329,13 @@ export default function NominaAdminPage() {
             const sCurr = new Date(sInicio);
             while (sCurr <= sFin) {
               const dateStr = sCurr.toISOString().slice(0, 10);
-              if (!feriadosSet.has(dateStr)) {
+              // Si es feriado o tiene permiso/vacaciones autorizadas, se exonera de falta y deuda
+              if (!feriadosSet.has(dateStr) && !diasPermisoEmp.has(dateStr)) {
                 if (!diasMap[dateStr]) {
-                  // Día sin marcaje
                   if (ausenciasSemana === 0) {
                     diasLibres++; // 1er día = día libre tomado
                   } else {
-                    ausenciasExtra++; // 2do+ día = falta
-                    horasDebidas += 8.0;
+                    horasDebidas += 8.0; // 2do+ día = falta
                   }
                   ausenciasSemana++;
                 } else {
@@ -307,12 +381,12 @@ export default function NominaAdminPage() {
         emp,
         diasUnicos,
         diasLibres,
-        ausenciasExtra,
         horasOrdinarias: horasNormalesTrabajadas,
         feriadosTrabajadosDias,
         feriadosDetalle,
         horasExtraAprobadas,
         horasDebidas,
+        permisosInfo: permisosInfoPorEmpleado[emp.id] || [],
       };
     });
 
@@ -351,6 +425,17 @@ export default function NominaAdminPage() {
           )}
         </button>
         <button
+          onClick={() => setActiveTab('permisos')}
+          className={`px-4 py-2.5 font-bold text-xs rounded-t-xl border-t border-x transition-colors flex items-center ${
+            activeTab === 'permisos'
+              ? 'bg-white border-stone-200 text-[#1c6856] -mb-[1px] z-10'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          <Palmtree className="w-3.5 h-3.5 inline-block mr-1.5" />
+          Vacaciones & Permisos
+        </button>
+        <button
           onClick={() => setActiveTab('feriados')}
           className={`px-4 py-2.5 font-bold text-xs rounded-t-xl border-t border-x transition-colors ${
             activeTab === 'feriados'
@@ -363,7 +448,7 @@ export default function NominaAdminPage() {
         </button>
       </div>
 
-      {/* ── TAB 1: REPORTE DE HORAS ────────────────────────────────────────── */}
+      {/* ── TAB 1: REPORTE DE HORAS (7 COLUMNAS EJECUTIVAS) ─────────────────── */}
       {activeTab === 'reporte' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-5">
@@ -373,7 +458,7 @@ export default function NominaAdminPage() {
                 Balance de Jornadas
               </h1>
               <p className="text-xs text-stone-500 font-medium mt-1">
-                Visualice el desglose de horas ordinarias normales, horas físicas en días feriados y extras autorizadas.
+                Visualice el balance ejecutivo de horas ordinarias normales, feriados físicos, extras y horas debidas.
               </p>
             </div>
 
@@ -434,17 +519,15 @@ export default function NominaAdminPage() {
             </div>
           )}
 
-          {/* Tabla de Resumen de Horas */}
+          {/* Tabla de Resumen de Horas (7 Columnas Ejecutivas) */}
           <div className="glass-panel border border-white rounded-3xl overflow-hidden shadow-premium">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs sm:text-sm">
                 <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
                   <tr>
-                    <th className="px-6 py-4">Empleado</th>
-                    <th className="px-6 py-4">Cargo / Puesto</th>
+                    <th className="px-6 py-4">Empleado y Puesto</th>
                     <th className="px-6 py-4 text-center">Días Trabajados</th>
                     <th className="px-6 py-4 text-center">Días Libres (Tomados)</th>
-                    <th className="px-6 py-4 text-center">Ausencias Extra</th>
                     <th className="px-6 py-4 text-right">Horas Ordinarias</th>
                     <th className="px-6 py-4 text-right">Feriados Trabajados (Días)</th>
                     <th className="px-6 py-4 text-right">Horas Extra Aprobadas</th>
@@ -454,41 +537,42 @@ export default function NominaAdminPage() {
                 <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
                   {loading ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-8 text-center text-stone-400">
+                      <td colSpan={7} className="px-6 py-8 text-center text-stone-400">
                         Calculando registros...
                       </td>
                     </tr>
                   ) : resumenEmpleados.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-8 text-center text-stone-400 font-normal">
+                      <td colSpan={7} className="px-6 py-8 text-center text-stone-400 font-normal">
                         No hay registros disponibles para este rango.
                       </td>
                     </tr>
                   ) : (
                     resumenEmpleados.map((item) => (
                       <tr key={item.emp.id} className="hover:bg-stone-50/50 transition-colors">
-                        <td className="px-6 py-4 font-bold text-stone-900">
-                          {item.emp.nombre} {item.emp.apellido}
-                        </td>
-                        <td className="px-6 py-4 text-xs font-bold">
-                          <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#1c6856]/5 border border-[#1c6856]/15 text-[11px] font-bold text-[#1c6856]">
-                            {item.emp.cargo_display}
-                          </span>
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-stone-900 leading-tight">
+                            {item.emp.nombre} {item.emp.apellido}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className="inline-block px-2 py-0.5 rounded-full bg-[#1c6856]/5 border border-[#1c6856]/15 text-[11px] font-bold text-[#1c6856]">
+                              {item.emp.cargo_display}
+                            </span>
+                            {item.permisosInfo.length > 0 && (
+                              <span
+                                className="inline-block px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700"
+                                title={item.permisosInfo.join('\n')}
+                              >
+                                🏖️ {item.permisosInfo[0]}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-center font-bold text-stone-700">
                           {item.diasUnicos} {item.diasUnicos === 1 ? 'día' : 'días'}
                         </td>
                         <td className="px-6 py-4 text-center font-bold text-emerald-700 bg-emerald-50/30">
                           {item.diasLibres} {item.diasLibres === 1 ? 'libre' : 'libres'}
-                        </td>
-                        <td className="px-6 py-4 text-center font-bold">
-                          {item.ausenciasExtra > 0 ? (
-                            <span className="inline-block px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-mono font-bold">
-                              {item.ausenciasExtra} falta(s)
-                            </span>
-                          ) : (
-                            <span className="text-stone-400 font-mono text-xs">0</span>
-                          )}
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-stone-900">
                           {item.horasOrdinarias.toFixed(2)} hrs
@@ -547,7 +631,7 @@ export default function NominaAdminPage() {
                 </tbody>
                 <tfoot className="bg-stone-50 border-t-2 border-stone-200 font-bold text-stone-900">
                   <tr>
-                    <td colSpan={5} className="px-6 py-4 text-right text-stone-500 uppercase text-xs">
+                    <td colSpan={3} className="px-6 py-4 text-right text-stone-500 uppercase text-xs">
                       Totales del Período:
                     </td>
                     <td className="px-6 py-4 text-right text-stone-950 text-base font-mono font-black">
@@ -723,7 +807,163 @@ export default function NominaAdminPage() {
         </div>
       )}
 
-      {/* ── TAB 3: GESTOR DE FERIADOS DINÁMICOS ───────────────────────────────── */}
+      {/* ── TAB 3: VACACIONES Y PERMISOS AUTORIZADOS ─────────────────────────── */}
+      {activeTab === 'permisos' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight flex items-center gap-2">
+              <Palmtree className="w-6 h-6 text-[#1c6856]" />
+              Gestión de Vacaciones & Permisos
+            </h1>
+            <p className="text-xs text-stone-500 font-medium mt-1">
+              Registre ausencias programadas o autorizadas. Durante las fechas asignadas, el trabajador no generará alertas por falta ni horas de deuda.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Formulario Registrar Permiso */}
+            <form onSubmit={handleAddPermiso} className="lg:col-span-4 bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-4">
+              <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5 border-b border-stone-100 pb-2">
+                <Plus className="w-4 h-4" />
+                Registrar Permiso o Vacaciones
+              </h3>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-600 mb-1">Empleado</label>
+                <select
+                  value={nuevoPermisoEmp}
+                  onChange={(e) => setNuevoPermisoEmp(Number(e.target.value))}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-medium"
+                >
+                  {empleados.filter((e) => e.activo).map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.nombre} {emp.apellido} — {emp.cargo_display}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-600 mb-1">Tipo de Ausencia</label>
+                <select
+                  value={nuevoPermisoTipo}
+                  onChange={(e) => setNuevoPermisoTipo(e.target.value as TipoPermisoType)}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-medium"
+                >
+                  <option value="VACACIONES">🏖️ Vacaciones</option>
+                  <option value="VACACIONES_PAGADAS">💰 Vacaciones Pagadas</option>
+                  <option value="INCAPACIDAD_MEDICA">🏥 Incapacidad Médica</option>
+                  <option value="PERMISO_AUTORIZADO">📋 Permiso Autorizado</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-stone-600 mb-1">Fecha Inicio</label>
+                  <input
+                    type="date"
+                    required
+                    value={nuevoPermisoInicio}
+                    onChange={(e) => setNuevoPermisoInicio(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-600 mb-1">Fecha Fin</label>
+                  <input
+                    type="date"
+                    required
+                    value={nuevoPermisoFin}
+                    onChange={(e) => setNuevoPermisoFin(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-mono"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={addingPermiso || !nuevoPermisoEmp || !nuevoPermisoInicio || !nuevoPermisoFin}
+                className="w-full bg-[#1c6856] hover:bg-[#154f42] disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 shadow-sm"
+              >
+                {addingPermiso ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  'Guardar Período Autorizado'
+                )}
+              </button>
+            </form>
+
+            {/* Listado de Permisos Registrados */}
+            <div className="lg:col-span-8 bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-4">
+              <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5 border-b border-stone-100 pb-2">
+                <Palmtree className="w-4 h-4" />
+                Permisos y Vacaciones Registradas
+              </h3>
+
+              {permisos.length === 0 ? (
+                <div className="py-12 text-center text-stone-400 font-normal">
+                  No hay permisos o vacaciones programadas activas.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                  {permisos.map((p) => {
+                    const empObj = p.empleado_detalle || empleados.find((e) => e.id === p.empleado);
+                    const empNombre = empObj ? `${empObj.nombre} ${empObj.apellido}` : `Empleado #${p.empleado}`;
+                    const cargoNombre = empObj?.cargo_display || '';
+
+                    return (
+                      <div
+                        key={p.id}
+                        className="bg-stone-50 border border-stone-200/80 rounded-xl p-3 flex items-center justify-between gap-4"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="bg-white px-3 py-1.5 border border-stone-200 rounded-xl text-center shadow-inner shrink-0 min-w-[75px]">
+                            <span className="text-[10px] text-stone-400 block font-bold uppercase tracking-wider leading-none">
+                              {p.total_dias || 1} {p.total_dias === 1 ? 'Día' : 'Días'}
+                            </span>
+                            <strong className="text-[11px] text-[#1c6856] font-mono block mt-1 leading-none">
+                              {new Date(p.fecha_inicio + 'T00:00:00').toLocaleDateString('es-NI', {
+                                day: '2-digit',
+                                month: '2-digit',
+                              })}
+                            </strong>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-stone-900 text-xs">{empNombre}</h4>
+                              {cargoNombre && (
+                                <span className="text-[10px] text-stone-500 font-medium">({cargoNombre})</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="inline-block px-2 py-0.5 rounded-md bg-[#1c6856]/10 text-[10px] font-bold text-[#1c6856]">
+                                {p.tipo_display}
+                              </span>
+                              <span className="text-[10px] text-stone-400 font-mono">
+                                Del {p.fecha_inicio} al {p.fecha_fin}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleDeletePermiso(p.id)}
+                          className="p-2 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl text-rose-600 transition-colors"
+                          title="Eliminar Permiso"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 4: GESTOR DE FERIADOS DINÁMICOS ───────────────────────────────── */}
       {activeTab === 'feriados' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <div>

@@ -7,6 +7,7 @@ import {
   DiaFeriado,
   AutorizacionHorasExtra,
   AlertaAsistencia,
+  PermisoAusencia,
 } from './types';
 
 const API_BASE_URL =
@@ -289,3 +290,26 @@ export async function syncBatchAsistencias(payload: Array<{
     body: JSON.stringify(payload),
   });
 }
+
+// ── PERMISOS Y VACACIONES ──────────────────────────────────────────────────
+export async function fetchPermisos(): Promise<PermisoAusencia[]> {
+  const data = await apiRequest<PermisoAusencia[] | { results: PermisoAusencia[] }>('/permisos/');
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray((data as { results: PermisoAusencia[] }).results)) {
+    return (data as { results: PermisoAusencia[] }).results;
+  }
+  return [];
+}
+
+export async function createPermiso(payload: Partial<PermisoAusencia>): Promise<PermisoAusencia> {
+  return apiRequest<PermisoAusencia>('/permisos/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePermiso(id: number): Promise<void> {
+  await apiRequest(`/permisos/${id}/`, { method: 'DELETE' });
+}
+

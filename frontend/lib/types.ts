@@ -95,3 +95,21 @@ export interface AlertaAsistencia {
   leida: boolean;
   created_at?: string;
 }
+
+export type TipoPermisoType =
+  | 'VACACIONES'
+  | 'VACACIONES_PAGADAS'
+  | 'INCAPACIDAD_MEDICA'
+  | 'PERMISO_AUTORIZADO';
+
+export interface PermisoAusencia {
+  id: number;
+  empleado: number;
+  empleado_detalle?: Empleado;
+  tipo: TipoPermisoType;
+  tipo_display: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  total_dias: number;
+  created_at?: string;
+}

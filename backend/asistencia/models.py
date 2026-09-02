@@ -168,3 +168,30 @@ class AlertaAsistencia(models.Model):
 
     def __str__(self):
         return f"[{self.tipo}] {self.titulo} - {'Leída' if self.leida else 'Pendiente'}"
+
+
+class PermisoAusencia(models.Model):
+    TIPOS = [
+        ('VACACIONES', 'Vacaciones'),
+        ('VACACIONES_PAGADAS', 'Vacaciones Pagadas'),
+        ('INCAPACIDAD_MEDICA', 'Incapacidad Médica'),
+        ('PERMISO_AUTORIZADO', 'Permiso Autorizado'),
+    ]
+
+    empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='permisos')
+    tipo = models.CharField(max_length=30, choices=TIPOS, default='VACACIONES')
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_inicio']
+
+    def __str__(self):
+        return f"{self.empleado.nombre} {self.empleado.apellido} - {self.get_tipo_display()} ({self.fecha_inicio} a {self.fecha_fin})"
+
+    @property
+    def total_dias(self):
+        if self.fecha_inicio and self.fecha_fin:
+            return (self.fecha_fin - self.fecha_inicio).days + 1
+        return 0

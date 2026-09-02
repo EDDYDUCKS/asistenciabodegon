@@ -11,8 +11,8 @@ from rest_framework.response import Response
 from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia
-from .serializers import EmpleadoSerializer, RegistroAsistenciaSerializer, BitacoraAccionSerializer, DiaFeriadoSerializer, AutorizacionHorasExtraSerializer, AlertaAsistenciaSerializer
+from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia
+from .serializers import EmpleadoSerializer, RegistroAsistenciaSerializer, BitacoraAccionSerializer, DiaFeriadoSerializer, AutorizacionHorasExtraSerializer, AlertaAsistenciaSerializer, PermisoAusenciaSerializer
 
 
 class ExcelBinaryRenderer(BaseRenderer):
@@ -167,15 +167,29 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                 fecha_hora__date__lte=hoy
             ).dates('fecha_hora', 'day'))
 
+            # Obtener días con permiso o vacaciones autorizadas
+            permisos_emp = PermisoAusencia.objects.filter(
+                empleado=emp,
+                fecha_inicio__lte=hoy,
+                fecha_fin__gte=inicio_semana
+            )
+            dias_permiso = set()
+            for p in permisos_emp:
+                d_curr = max(p.fecha_inicio, inicio_semana)
+                d_fin = min(p.fecha_fin, hoy)
+                while d_curr <= d_fin:
+                    dias_permiso.add(d_curr)
+                    d_curr += datetime.timedelta(days=1)
+
             dias_sin_marcaje = []
             curr = inicio_semana
             # Revisar hasta ayer (hoy aún puede marcar durante su turno)
             while curr < hoy:
-                if curr not in feriados and curr not in dias_con_marcaje:
+                if curr not in feriados and curr not in dias_con_marcaje and curr not in dias_permiso:
                     dias_sin_marcaje.append(curr)
                 curr += datetime.timedelta(days=1)
 
-            # Si tiene 2 o más días sin marcar en la semana
+            # Si tiene 2 o más días sin marcar en la semana (excluyendo permisos y vacaciones)
             if len(dias_sin_marcaje) >= 2:
                 # Verificar si ya existe una alerta de SEGUNDA_AUSENCIA para esta semana
                 titulo_busqueda = f"Segunda Ausencia Semanal: {emp.nombre} {emp.apellido}"
@@ -297,6 +311,31 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             'bitacora_eliminada': bitacora_eliminada,
             'alertas_eliminadas': alertas_eliminadas,
         })
+
+
+class PermisoAusenciaViewSet(viewsets.ModelViewSet):
+    queryset = PermisoAusencia.objects.all().select_related('empleado')
+    serializer_class = PermisoAusenciaSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def perform_create(self, serializer):
+        permiso = serializer.save()
+        BitacoraAccion.objects.create(
+            usuario=self.request.user if self.request.user.is_authenticated else None,
+            accion='CREAR_PERMISO',
+            descripcion=f"Permiso/Vacaciones registrado para {permiso.empleado.nombre} {permiso.empleado.apellido}: {permiso.get_tipo_display()} ({permiso.fecha_inicio} a {permiso.fecha_fin}).",
+            ip_address=_get_clean_ip(self.request)
+        )
+
+    def perform_destroy(self, instance):
+        desc = f"Permiso cancelado para {instance.empleado.nombre} {instance.empleado.apellido}: {instance.get_tipo_display()} ({instance.fecha_inicio} a {instance.fecha_fin})."
+        instance.delete()
+        BitacoraAccion.objects.create(
+            usuario=self.request.user if self.request.user.is_authenticated else None,
+            accion='ELIMINAR_PERMISO',
+            descripcion=desc,
+            ip_address=_get_clean_ip(self.request)
+        )
 
 
 # ==========================================
@@ -715,27 +754,24 @@ def exportar_reporte_nomina_excel(request):
             bottom=Side(style='thin', color='CCCCCC')
         )
 
-        # Headers — ahora 10 columnas
+        # Headers — 7 Columnas Ejecutivas
         headers = [
-            "ID",
-            "Empleado",
-            "Cargo / Puesto",
+            "Empleado y Puesto",
             "Días Trabajados",
             "Días Libres (Tomados)",
-            "Ausencias Extra",
             "Horas Ordinarias",
             "Horas Feriados (Días)",
             "Horas Extra Aprobadas",
             "Horas Debidas (Déficit)",
         ]
 
-        ws.merge_cells('A1:J1')
+        ws.merge_cells('A1:G1')
         ws['A1'] = "BODEGÓN PASS — REPORTE DE ASISTENCIA Y PERSONAL"
         ws['A1'].font = font_titulo
         ws['A1'].fill = fill_title
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
-        ws.merge_cells('A2:J2')
+        ws.merge_cells('A2:G2')
         ws['A2'] = f"Período del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')} — Generado el {hoy.strftime('%d/%m/%Y')}"
         ws['A2'].font = font_sub
         ws['A2'].fill = fill_title
@@ -744,7 +780,7 @@ def exportar_reporte_nomina_excel(request):
         ws.append([])        # Fila 3 vacía
         ws.append(headers)   # Fila 4 Headers
 
-        for col in range(1, 11):
+        for col in range(1, 8):
             cell = ws.cell(row=4, column=col)
             cell.font = font_header
             cell.fill = fill_header
@@ -759,14 +795,26 @@ def exportar_reporte_nomina_excel(request):
             fecha__lte=fecha_fin
         ).values_list('fecha', flat=True))
 
-        # El restaurante opera los 7 días — NO se excluye ningún día de la semana
-        # Se calcula un total de días del período sin feriados
-        total_dias_periodo = 0
-        curr = fecha_inicio
-        while curr <= fecha_fin:
-            if curr not in feriados_set:
-                total_dias_periodo += 1
-            curr += datetime.timedelta(days=1)
+        # Obtener permisos y vacaciones autorizadas en el rango
+        permisos_qs = PermisoAusencia.objects.filter(
+            fecha_inicio__lte=fecha_fin,
+            fecha_fin__gte=fecha_inicio
+        ).select_related('empleado')
+
+        permisos_por_empleado = {}
+        permisos_info_por_empleado = {}
+        for p in permisos_qs:
+            if p.empleado_id not in permisos_por_empleado:
+                permisos_por_empleado[p.empleado_id] = set()
+                permisos_info_por_empleado[p.empleado_id] = []
+            curr_p = max(p.fecha_inicio, fecha_inicio)
+            fin_p = min(p.fecha_fin, fecha_fin)
+            permisos_info_por_empleado[p.empleado_id].append(
+                f"{p.get_tipo_display()} ({curr_p.strftime('%d/%m')} a {fin_p.strftime('%d/%m')})"
+            )
+            while curr_p <= fin_p:
+                permisos_por_empleado[p.empleado_id].add(curr_p)
+                curr_p += datetime.timedelta(days=1)
 
         for emp in empleados:
             start_query = timezone.make_aware(datetime.datetime.combine(fecha_inicio, datetime.time.min), timezone.get_current_timezone())
@@ -792,6 +840,7 @@ def exportar_reporte_nomina_excel(request):
                 dias_map[dia_local].append(reg)
 
             dias_trabajados = len(dias_map)
+            dias_permiso_emp = permisos_por_empleado.get(emp.id, set())
 
             for dia, regs in dias_map.items():
                 horas_dia = _calcular_horas_netas_dia(regs)
@@ -811,38 +860,31 @@ def exportar_reporte_nomina_excel(request):
 
             # ── Detectar días libres y ausencias extra usando lógica semanal ────
             # Por cada semana en el período, el primer día sin marcaje = día libre.
-            # El 2do+ día sin marcaje = ausencia extra.
+            # Los días con permiso/vacaciones autorizadas NO suman faltas ni deudas.
             dias_libres = 0
-            ausencias_extra = 0
             horas_debidas = 0.0
 
-            # Iterar semana por semana
             curr_day = fecha_inicio
-            # Ir al inicio de la semana ISO del primer día
-            semana_inicio = curr_day - datetime.timedelta(days=curr_day.weekday())
             semanas_procesadas = set()
 
-            curr_day = fecha_inicio
             while curr_day <= fecha_fin:
                 semana_key = curr_day - datetime.timedelta(days=curr_day.weekday())
                 if semana_key not in semanas_procesadas:
                     semanas_procesadas.add(semana_key)
                     semana_fin = semana_key + datetime.timedelta(days=6)
-                    # Limitar al rango del reporte
                     s_inicio = max(semana_key, fecha_inicio)
                     s_fin = min(semana_fin, fecha_fin)
 
                     ausencias_semana = 0
                     d = s_inicio
                     while d <= s_fin:
-                        if d not in feriados_set:
+                        # Si es feriado o permiso autorizado, se exonera de falta y deuda
+                        if d not in feriados_set and d not in dias_permiso_emp:
                             if d not in dias_map:
-                                # Día sin marcaje
                                 if ausencias_semana == 0:
                                     dias_libres += 1  # Primera ausencia = día libre
                                 else:
-                                    ausencias_extra += 1  # Segunda+ = ausencia extra
-                                    horas_debidas += 8.0   # Suma 8h de deuda
+                                    horas_debidas += 8.0   # Segunda+ = ausencia extra
                                 ausencias_semana += 1
                             else:
                                 # Día trabajado: calcular déficit de horas
@@ -864,12 +906,9 @@ def exportar_reporte_nomina_excel(request):
             ).aggregate(total=Sum('horas_extra_autorizadas'))['total'] or 0.0
 
             fila = [
-                emp.id,
-                f"{emp.nombre} {emp.apellido}",
-                emp.get_cargo_display(),
+                f"{emp.nombre} {emp.apellido} ({emp.get_cargo_display()})",
                 dias_trabajados,
                 dias_libres,
-                ausencias_extra,
                 round(horas_normales_trabajadas, 2),
                 feriados_trabajados_dias,
                 round(float(horas_extra_aprobadas), 2),
@@ -877,19 +916,25 @@ def exportar_reporte_nomina_excel(request):
             ]
             ws.append(fila)
 
-            if feriados_trabajados_dias > 0 and feriados_trabajados_info:
-                from openpyxl.comments import Comment
-                comentario_texto = "Detalle de Feriados Laborados:\n" + "\n".join(feriados_trabajados_info)
-                cell_feriado = ws.cell(row=row_idx, column=8)
-                cell_feriado.comment = Comment(comentario_texto, "SGP El Bodegon")
+            from openpyxl.comments import Comment
+            # Comentario de permisos/vacaciones en la celda del empleado
+            info_permisos = permisos_info_por_empleado.get(emp.id)
+            if info_permisos:
+                cell_emp = ws.cell(row=row_idx, column=1)
+                cell_emp.comment = Comment("Permisos/Vacaciones:\n" + "\n".join(info_permisos), "BodegónPass")
 
-            for col in range(1, 11):
+            if feriados_trabajados_dias > 0 and feriados_trabajados_info:
+                comentario_texto = "Detalle de Feriados Laborados:\n" + "\n".join(feriados_trabajados_info)
+                cell_feriado = ws.cell(row=row_idx, column=5)
+                cell_feriado.comment = Comment(comentario_texto, "BodegónPass")
+
+            for col in range(1, 8):
                 cell = ws.cell(row=row_idx, column=col)
                 cell.font = font_data
                 cell.border = thin_border
                 if row_idx % 2 == 0:
                     cell.fill = fill_zebra
-                if col in [1, 4, 5, 6, 7, 8, 9, 10]:
+                if col in [2, 3, 4, 5, 6, 7]:
                     cell.alignment = Alignment(horizontal='right')
                 else:
                     cell.alignment = Alignment(horizontal='left')
@@ -899,12 +944,12 @@ def exportar_reporte_nomina_excel(request):
         # Fila de Totales
         ws.append([])
         row_idx += 1
-        ws.merge_cells(f'A{row_idx}:F{row_idx}')
+        ws.merge_cells(f'A{row_idx}:C{row_idx}')
         ws[f'A{row_idx}'] = "TOTALES GENERALES:"
         ws[f'A{row_idx}'].font = font_bold
         ws[f'A{row_idx}'].alignment = Alignment(horizontal='right')
 
-        for col_letter, col_num in [('G', 7), ('H', 8), ('I', 9), ('J', 10)]:
+        for col_letter in ['D', 'E', 'F', 'G']:
             cell = ws[f'{col_letter}{row_idx}']
             cell.value = f"=SUM({col_letter}5:{col_letter}{row_idx-2})"
             cell.font = font_bold
