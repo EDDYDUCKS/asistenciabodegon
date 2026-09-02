@@ -18,7 +18,6 @@ import {
   Trash2,
   Printer,
   X,
-  Phone,
   Utensils,
   RefreshCw,
   AlertTriangle,
@@ -41,12 +40,10 @@ export default function EmpleadosAdminPage() {
   const [showQrBadge, setShowQrBadge] = useState<Empleado | null>(null);
   const [showBulkPrint, setShowBulkPrint] = useState(false);
 
-  // Form State (Tarifa por hora removida)
+  // Form State (Simplificado: Nombre, Apellido y Cargo)
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [cargo, setCargo] = useState<CargoType>('MESERO');
-  const [cedula, setCedula] = useState('');
-  const [telefono, setTelefono] = useState('');
   const [activo, setActivo] = useState(true);
   const [regeneratingToken, setRegeneratingToken] = useState(false);
 
@@ -71,8 +68,6 @@ export default function EmpleadosAdminPage() {
     setNombre('');
     setApellido('');
     setCargo('MESERO');
-    setCedula('');
-    setTelefono('');
     setActivo(true);
     setShowModal(true);
   };
@@ -82,8 +77,6 @@ export default function EmpleadosAdminPage() {
     setNombre(emp.nombre);
     setApellido(emp.apellido);
     setCargo(emp.cargo);
-    setCedula(emp.cedula_carnet || '');
-    setTelefono(emp.telefono || '');
     setActivo(emp.activo);
     setShowModal(true);
   };
@@ -101,8 +94,8 @@ export default function EmpleadosAdminPage() {
         nombre: nombreClean,
         apellido: apellidoClean,
         cargo,
-        cedula_carnet: cedula.trim(),
-        telefono: telefono.trim(),
+        cedula_carnet: '',
+        telefono: '',
         activo,
       };
 
@@ -280,7 +273,6 @@ export default function EmpleadosAdminPage() {
               <tr>
                 <th className="px-6 py-4">Empleado</th>
                 <th className="px-6 py-4">Puesto</th>
-                <th className="px-6 py-4">Cédula / Teléfono</th>
                 <th className="px-6 py-4 text-center">Horas Pendientes (Mes)</th>
                 <th className="px-6 py-4 text-center">Estado</th>
                 <th className="px-6 py-4 text-center">Credencial QR</th>
@@ -290,13 +282,13 @@ export default function EmpleadosAdminPage() {
             <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-stone-400">
+                  <td colSpan={6} className="px-6 py-8 text-center text-stone-400">
                     Cargando lista de empleados...
                   </td>
                 </tr>
               ) : empleados.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-stone-400 font-normal">
+                  <td colSpan={6} className="px-6 py-8 text-center text-stone-400 font-normal">
                     No hay empleados registrados. Presione "Registrar Nuevo Empleado".
                   </td>
                 </tr>
@@ -315,13 +307,6 @@ export default function EmpleadosAdminPage() {
                         <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#1c6856]/5 border border-[#1c6856]/15 text-[11px] font-bold text-[#1c6856]">
                           {emp.cargo_display}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-stone-600 font-normal space-y-0.5 text-xs">
-                        <div>{emp.cedula_carnet || 'Sin cédula'}</div>
-                        <div className="flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-stone-400" />
-                          {emp.telefono || 'Sin teléfono'}
-                        </div>
                       </td>
                       <td className="px-6 py-4 text-center">
                         {deuda > 0 ? (
@@ -434,28 +419,7 @@ export default function EmpleadosAdminPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-stone-600 mb-1">Cédula</label>
-                  <input
-                    type="text"
-                    placeholder="001-XXXXXX-XXXX"
-                    value={cedula}
-                    onChange={(e) => setCedula(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-stone-600 mb-1">Teléfono</label>
-                  <input
-                    type="text"
-                    placeholder="8888-8888"
-                    value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                  />
-                </div>
-              </div>
+
 
               <div>
                 <label className="block text-xs font-bold text-stone-600 mb-1">Estado</label>
