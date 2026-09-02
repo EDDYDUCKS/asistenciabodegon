@@ -548,7 +548,7 @@ export default function EmpleadosAdminPage() {
                   <div className="flex items-center gap-1 border-b border-[#1c6856]/20 pb-1.5 mb-2">
                     <Utensils className="w-4 h-4 text-[#1c6856] shrink-0" />
                     <span className="font-black text-sm tracking-tight text-[#1c6856]">
-                      El Bodegón
+                      BodegónPass
                     </span>
                   </div>
                   
@@ -639,7 +639,7 @@ export default function EmpleadosAdminPage() {
                           <div className="flex items-center gap-1 border-b border-[#1c6856]/20 pb-1.5 mb-2">
                             <Utensils className="w-4 h-4 text-[#1c6856] shrink-0" />
                             <span className="font-black text-sm tracking-tight text-[#1c6856]">
-                              El Bodegón
+                              BodegónPass
                             </span>
                           </div>
                           

@@ -222,7 +222,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
               <div>
                 <span className="font-black text-lg text-[#1c6856] tracking-tight flex items-center gap-1.5">
-                  El Bodegón
+                  BodegónPass
                   <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-[#1c6856]/10 text-[#1c6856]">
                     Admin
                   </span>

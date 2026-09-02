@@ -13,10 +13,10 @@ export default function LandingPortalPage() {
             <Utensils className="w-10 h-10" />
           </div>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-[#1c6856]">
-            El Bodegón
+            BodegónPass
           </h1>
           <p className="text-sm sm:text-base text-stone-500 font-bold max-w-xl mx-auto uppercase tracking-wide">
-            Sistema de Control de Asistencia & Nómina
+            Restaurante El Bodegón — Control de Asistencia & Personal
           </p>
         </div>
 

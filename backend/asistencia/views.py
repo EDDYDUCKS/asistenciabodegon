@@ -691,7 +691,7 @@ def exportar_reporte_nomina_excel(request):
 
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = "Reporte de Asistencia"
+        ws.title = "BodegónPass"
         ws.views.sheetView[0].showGridLines = True
 
         # Estilos de Excel (Basado en el Verde Institucional de El Bodegón)
@@ -729,7 +729,7 @@ def exportar_reporte_nomina_excel(request):
         ]
 
         ws.merge_cells('A1:J1')
-        ws['A1'] = "RESTAURANTE EL BODEGÓN — REPORTES DE HORAS Y ASISTENCIA"
+        ws['A1'] = "BODEGÓN PASS — REPORTE DE ASISTENCIA Y PERSONAL"
         ws['A1'].font = font_titulo
         ws['A1'].fill = fill_title
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
@@ -921,7 +921,7 @@ def exportar_reporte_nomina_excel(request):
         wb.save(buffer)
         buffer.seek(0)
 
-        nombre_archivo = f"Reporte_Horas_Bodegon_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.xlsx"
+        nombre_archivo = f"BodegonPass_Reporte_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.xlsx"
         response = HttpResponse(buffer.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
         response['X-Filename'] = nombre_archivo

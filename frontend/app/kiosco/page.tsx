@@ -517,13 +517,13 @@ export default function KioscoPage() {
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-display font-black tracking-tight text-[#1c6856] flex items-center gap-2">
-              El Bodegón
+              BodegónPass
               <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#1c6856]/10 text-[#1c6856]">
                 Kiosco
               </span>
             </h1>
             <p className="text-[10px] sm:text-xs text-stone-500 font-medium font-sans">
-              Estación de Registro de Asistencia
+              Restaurante El Bodegón — Estación de Asistencia
             </p>
           </div>
         </div>

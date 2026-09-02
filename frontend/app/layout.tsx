@@ -3,8 +3,8 @@ import { outfit, inter } from "./font";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Asistencia El Bodegón",
-  description: "Sistema de Marcación y Asistencia de El Bodegón",
+  title: "BodegónPass | Sistema de Asistencia",
+  description: "BodegónPass — Sistema Inteligente de Control de Asistencia y Personal",
 };
 
 export default function RootLayout({
