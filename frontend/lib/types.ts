@@ -1,10 +1,13 @@
 export type CargoType =
-  | 'COCINA'
-  | 'MESERO'
-  | 'CAJERO'
-  | 'BARMAN'
+  | 'JEFE_COCINA'
+  | 'COCINERO'
+  | 'ASISTENTE_COCINA'
+  | 'ATENCION_CLIENTE'
+  | 'BARRA'
   | 'LIMPIEZA'
-  | 'ADMINISTRACION';
+  | 'LAVANDERIA'
+  | 'ADMINISTRACION'
+  | 'ASISTENTE_ADMON';
 
 export interface Empleado {
   id: number;

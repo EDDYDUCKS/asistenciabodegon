@@ -24,12 +24,15 @@ import {
 } from 'lucide-react';
 
 const CARGOS_OPCIONES: { value: CargoType; label: string }[] = [
-  { value: 'COCINA', label: 'Cocinero / Ayudante de Cocina' },
-  { value: 'MESERO', label: 'Mesero / Garzón' },
-  { value: 'CAJERO', label: 'Cajero' },
-  { value: 'BARMAN', label: 'Barman' },
-  { value: 'LIMPIEZA', label: 'Mantenimiento y Limpieza' },
-  { value: 'ADMINISTRACION', label: 'Administración / Gerencia' },
+  { value: 'JEFE_COCINA', label: 'Jefe de Cocina' },
+  { value: 'COCINERO', label: 'Cocinero' },
+  { value: 'ASISTENTE_COCINA', label: 'Asistente de Cocina' },
+  { value: 'ATENCION_CLIENTE', label: 'Atención al Cliente' },
+  { value: 'BARRA', label: 'Barra' },
+  { value: 'LIMPIEZA', label: 'Limpieza' },
+  { value: 'LAVANDERIA', label: 'Lavandería' },
+  { value: 'ADMINISTRACION', label: 'Administración' },
+  { value: 'ASISTENTE_ADMON', label: 'Asistente de Administración' },
 ];
 
 export default function EmpleadosAdminPage() {
@@ -43,7 +46,7 @@ export default function EmpleadosAdminPage() {
   // Form State (Simplificado: Nombre, Apellido y Cargo)
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
-  const [cargo, setCargo] = useState<CargoType>('MESERO');
+  const [cargo, setCargo] = useState<CargoType>('ATENCION_CLIENTE');
   const [activo, setActivo] = useState(true);
   const [regeneratingToken, setRegeneratingToken] = useState(false);
 
@@ -67,7 +70,7 @@ export default function EmpleadosAdminPage() {
     setEditingEmp(null);
     setNombre('');
     setApellido('');
-    setCargo('MESERO');
+    setCargo('ATENCION_CLIENTE');
     setActivo(true);
     setShowModal(true);
   };

@@ -6,17 +6,20 @@ from django.utils import timezone
 
 class Empleado(models.Model):
     CARGOS_CHOICES = [
-        ('COCINA', 'Cocinero / Ayudante de Cocina'),
-        ('MESERO', 'Mesero / Garzón'),
-        ('CAJERO', 'Cajero'),
-        ('BARMAN', 'Barman'),
-        ('LIMPIEZA', 'Mantenimiento y Limpieza'),
-        ('ADMINISTRACION', 'Administración / Gerencia'),
+        ('JEFE_COCINA', 'Jefe de Cocina'),
+        ('COCINERO', 'Cocinero'),
+        ('ASISTENTE_COCINA', 'Asistente de Cocina'),
+        ('ATENCION_CLIENTE', 'Atención al Cliente'),
+        ('BARRA', 'Barra'),
+        ('LIMPIEZA', 'Limpieza'),
+        ('LAVANDERIA', 'Lavandería'),
+        ('ADMINISTRACION', 'Administración'),
+        ('ASISTENTE_ADMON', 'Asistente de Administración'),
     ]
 
     nombre = models.CharField(max_length=100)
     apellido = models.CharField(max_length=100)
-    cargo = models.CharField(max_length=50, choices=CARGOS_CHOICES, default='MESERO')
+    cargo = models.CharField(max_length=50, choices=CARGOS_CHOICES, default='ATENCION_CLIENTE')
     TURNO_CHOICES = [
         ('CORRIDO', 'Horario Corrido'),
         ('QUEBRADO', 'Horario Quebrado'),
