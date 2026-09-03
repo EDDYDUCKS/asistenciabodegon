@@ -143,3 +143,66 @@ h1, h2, h3, h4, .font-display {
 .shadow-kiosk {
   box-shadow: 0 12px 40px rgba(28, 41, 33, 0.05);
 }
+
+/* ── MICRO-ANIMACIONES GLOBALES SUTILES (PREMIUM UI) ─────────────────────── */
+
+/* Transición suave para todos los botones, enlaces e inputs interactivos */
+button, a, input, select, textarea {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+button:active {
+  transform: scale(0.975);
+}
+
+/* Suavizado de Entrada para Páginas y Secciones */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Suavizado para vistas y páginas principales */
+main {
+  animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Elevación sutil en hover para tarjetas y paneles */
+.card-hover {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(28, 41, 33, 0.06);
+}
+
+/* Respiración suave para badges y estados activos */
+@keyframes breathGlow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.03);
+  }
+}
+
+.animate-breath {
+  animation: breathGlow 2.5s ease-in-out infinite;
+}
+
+/* Suavizado de filas de tablas */
+tbody tr {
+  transition: background-color 0.15s ease;
+}
