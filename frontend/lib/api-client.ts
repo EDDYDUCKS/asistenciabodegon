@@ -267,6 +267,12 @@ export async function marcarTodasAlertasLeidas(): Promise<void> {
   });
 }
 
+export async function limpiarAlertasLeidas(): Promise<{ status: string; mensaje: string; eliminadas: number }> {
+  return apiRequest('/alertas/limpiar-leidas/', {
+    method: 'POST',
+  });
+}
+
 export async function ejecutarDepuracionSemestral(meses: number = 6): Promise<{
   status: string;
   mensaje: string;

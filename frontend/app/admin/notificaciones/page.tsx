@@ -7,6 +7,7 @@ import {
   updateAlerta,
   resolverAlerta,
   marcarTodasAlertasLeidas,
+  limpiarAlertasLeidas,
 } from '@/lib/api-client';
 import BoletaIncidenciaModal from '@/components/BoletaIncidenciaModal';
 import {
@@ -21,6 +22,7 @@ import {
   RefreshCw,
   FileText,
   Filter,
+  Trash2,
 } from 'lucide-react';
 
 type FiltroTipo = 'TODAS' | 'SEGUNDA_AUSENCIA' | 'TARDANZA' | 'REGISTRO_INCOMPLETO' | 'LEIDAS';
@@ -78,6 +80,18 @@ export default function NotificacionesDetalladasPage() {
       loadData();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleLimpiarLeidas = async () => {
+    if (!confirm('¿Borrar permanentemente todas las notificaciones ya leídas/resueltas?\n\nLas notificaciones pendientes NO serán eliminadas.')) return;
+    try {
+      const res = await limpiarAlertasLeidas();
+      alert(res.mensaje);
+      loadData();
+    } catch (e) {
+      console.error(e);
+      alert('Error al limpiar el historial.');
     }
   };
 
@@ -175,6 +189,17 @@ export default function NotificacionesDetalladasPage() {
             >
               <Check className="w-4 h-4" />
               Marcar Todo Leído
+            </button>
+          )}
+
+          {counts.leidas > 0 && (
+            <button
+              onClick={handleLimpiarLeidas}
+              className="bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 text-rose-700 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5"
+              title="Eliminar permanentemente las notificaciones ya leídas o resueltas"
+            >
+              <Trash2 className="w-4 h-4" />
+              Limpiar Leídas ({counts.leidas})
             </button>
           )}
 

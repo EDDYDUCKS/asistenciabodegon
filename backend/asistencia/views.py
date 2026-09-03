@@ -350,6 +350,25 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
         AlertaAsistencia.objects.filter(leida=False).update(leida=True)
         return Response({'status': 'ok', 'mensaje': 'Todas las alertas han sido marcadas como leídas.'})
 
+    @action(detail=False, methods=['post'], url_path='limpiar-leidas')
+    def limpiar_leidas(self, request):
+        """
+        Elimina permanentemente todas las alertas que ya fueron leídas/resueltas.
+        Mantiene intactas las alertas pendientes (leida=False).
+        """
+        eliminadas, _ = AlertaAsistencia.objects.filter(leida=True).delete()
+        BitacoraAccion.objects.create(
+            usuario=request.user if request.user.is_authenticated else None,
+            accion='MANTENIMIENTO_DEPURACION',
+            descripcion=f"Historial de notificaciones leídas limpiado manualmente. {eliminadas} alerta(s) eliminada(s).",
+            ip_address=_get_clean_ip(request)
+        )
+        return Response({
+            'status': 'ok',
+            'mensaje': f'Se eliminaron {eliminadas} notificación(es) leída(s) del historial.',
+            'eliminadas': eliminadas,
+        })
+
     @action(detail=False, methods=['post'], url_path='depurar-historial')
     def depurar_historial(self, request):
         """
