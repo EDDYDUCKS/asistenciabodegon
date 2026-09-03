@@ -138,28 +138,37 @@ h1, h2, h3, h4, .font-display {
 
 .shadow-premium {
   box-shadow: 0 8px 30px rgba(28, 41, 33, 0.03);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+}
+
+.shadow-premium:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px -4px rgba(28, 41, 33, 0.08);
 }
 
 .shadow-kiosk {
   box-shadow: 0 12px 40px rgba(28, 41, 33, 0.05);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ── MICRO-ANIMACIONES GLOBALES SUTILES (PREMIUM UI) ─────────────────────── */
+/* ── MICRO-ANIMACIONES GLOBALES VISIBLES & FLUIDAS (PREMIUM UI) ───────────── */
 
 /* Transición suave para todos los botones, enlaces e inputs interactivos */
 button, a, input, select, textarea {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
 }
 
-button:active {
-  transform: scale(0.975);
+/* Efecto elástico táctil de pulsación visible (tipo iOS) */
+button:active, a:active {
+  transform: scale(0.95) !important;
 }
 
-/* Suavizado de Entrada para Páginas y Secciones */
+/* Suavizado de Entrada para Páginas y Vistas Principales */
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
@@ -168,22 +177,27 @@ button:active {
 }
 
 .animate-fade-in {
-  animation: fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Suavizado para vistas y páginas principales */
+/* Suavizado para todas las vistas principales */
 main {
-  animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Elevación sutil en hover para tarjetas y paneles */
-.card-hover {
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+/* Elevación táctil automática en tarjetas glassmorphism */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
 }
 
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 35px rgba(28, 41, 33, 0.06);
+.glass-panel:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px -6px rgba(28, 41, 33, 0.09);
+  border-color: rgba(28, 104, 86, 0.25);
 }
 
 /* Respiración suave para badges y estados activos */
@@ -193,16 +207,20 @@ main {
     transform: scale(1);
   }
   50% {
-    opacity: 0.8;
-    transform: scale(1.03);
+    opacity: 0.7;
+    transform: scale(1.06);
   }
 }
 
 .animate-breath {
-  animation: breathGlow 2.5s ease-in-out infinite;
+  animation: breathGlow 2.2s ease-in-out infinite;
 }
 
-/* Suavizado de filas de tablas */
+/* Suavizado y realce al pasar sobre filas de tablas */
 tbody tr {
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+tbody tr:hover {
+  background-color: rgba(28, 104, 86, 0.04) !important;
 }
