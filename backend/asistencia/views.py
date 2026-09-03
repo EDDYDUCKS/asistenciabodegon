@@ -88,6 +88,62 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
+    @action(detail=False, methods=['post'], url_path='purgar-dia-cero')
+    def purgar_dia_cero(self, request):
+        pin = str(request.data.get('pin', '')).strip()
+        if pin != '2322':
+            return Response(
+                {'status': 'error', 'mensaje': 'PIN de Gerencia incorrecto. No autorizado.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        with transaction.atomic():
+            # 1. Liberar fotos y borrar asistencias
+            registros = RegistroAsistencia.objects.all()
+            for r in registros:
+                try:
+                    if r.foto_verificacion:
+                        r.foto_verificacion.delete(save=False)
+                except Exception:
+                    pass
+            reg_count = registros.delete()[0]
+
+            # 2. Borrar alertas
+            alerta_count = AlertaAsistencia.objects.all().delete()[0]
+
+            # 3. Borrar horas extra de prueba
+            extra_count = AutorizacionHorasExtra.objects.all().delete()[0]
+
+            # 4. Borrar permisos de prueba
+            perm_count = PermisoAusencia.objects.all().delete()[0]
+
+            # 5. Resetear horas_pendientes a 0.00 para todos los empleados
+            hoy = timezone.localdate()
+            Empleado.objects.all().update(
+                horas_pendientes=0.00,
+                periodo_horas_pendientes=hoy.replace(day=1)
+            )
+
+            # 6. Registrar en bitácora
+            BitacoraAccion.objects.create(
+                usuario=request.user if request.user.is_authenticated else None,
+                accion='CONFIGURACION_SISTEMA',
+                descripcion=(
+                    f"Purga oficial Día 0 ejecutada con PIN 2322: "
+                    f"{reg_count} asistencias, {alerta_count} alertas y {extra_count} horas extra eliminadas. "
+                    f"Balances reseteados a 0.00 hrs."
+                ),
+                ip_address=_get_clean_ip(request)
+            )
+
+        return Response({
+            'status': 'ok',
+            'mensaje': (
+                f"Limpieza de Día 0 exitosa: {reg_count} marcajes eliminados, "
+                f"{alerta_count} alertas limpiadas y todos los colaboradores en 0.00 hrs."
+            )
+        })
+
 
 class BitacoraViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = BitacoraAccion.objects.all()

@@ -313,3 +313,12 @@ export async function deletePermiso(id: number): Promise<void> {
   await apiRequest(`/permisos/${id}/`, { method: 'DELETE' });
 }
 
+// ── PURGA OFICIAL DÍA 0 (REINICIO LIMPIO) ──────────────────────────────────
+export async function purgarDiaCero(pin: string): Promise<{ status: string; mensaje: string }> {
+  return apiRequest<{ status: string; mensaje: string }>('/asistencias/purgar-dia-cero/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin }),
+  });
+}
+
