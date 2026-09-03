@@ -158,8 +158,17 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             fecha__lte=hoy
         ).values_list('fecha', flat=True))
 
+        # Si no hay registros de asistencia en la semana (sistema recién estrenado o purgado), no generar falsas alertas
+        if not RegistroAsistencia.objects.filter(fecha_hora__date__gte=inicio_semana).exists():
+            return
+
         empleados = Empleado.objects.filter(activo=True)
         for emp in empleados:
+            # Si el empleado nunca ha marcado en el sistema, no evaluar ausencias previas a su inicio
+            primer_registro = RegistroAsistencia.objects.filter(empleado=emp).order_by('fecha_hora').first()
+            if not primer_registro:
+                continue
+
             # Obtener días con marcajes en la semana
             dias_con_marcaje = set(RegistroAsistencia.objects.filter(
                 empleado=emp,
@@ -182,7 +191,8 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                     d_curr += datetime.timedelta(days=1)
 
             dias_sin_marcaje = []
-            curr = inicio_semana
+            fecha_inicio_eval = max(inicio_semana, primer_registro.fecha_hora.date())
+            curr = fecha_inicio_eval
             # Revisar hasta ayer (hoy aún puede marcar durante su turno)
             while curr < hoy:
                 if curr not in feriados and curr not in dias_con_marcaje and curr not in dias_permiso:
