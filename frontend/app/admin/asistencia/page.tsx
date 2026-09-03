@@ -14,6 +14,7 @@ import {
   CheckCircle,
   Plus,
   Trash2,
+  Pencil,
 } from 'lucide-react';
 
 interface AnalisisPuntualidad {
@@ -197,6 +198,11 @@ export default function AsistenciaLogPage() {
   const [recordToDelete, setRecordToDelete] = useState<RegistroAsistencia | null>(null);
   const [deletingRecord, setDeletingRecord] = useState(false);
 
+  // ── ESTADO PARA CORREGIR EL TIPO DE EVENTO DE UN REGISTRO ──────────────────
+  const [editEventoRecord, setEditEventoRecord] = useState<RegistroAsistencia | null>(null);
+  const [editNuevoTipo, setEditNuevoTipo] = useState<string>('ENTRADA');
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const handleConfirmDelete = async () => {
     if (!recordToDelete) return;
     setDeletingRecord(true);
@@ -208,6 +214,29 @@ export default function AsistenciaLogPage() {
       alert(err.message || 'Error al eliminar el registro de asistencia.');
     } finally {
       setDeletingRecord(false);
+    }
+  };
+
+  const handleEditTipoEvento = async () => {
+    if (!editEventoRecord) return;
+    setSavingEdit(true);
+    try {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+      const res = await fetch(`${API_BASE_URL}/asistencia/${editEventoRecord.id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipo_evento: editNuevoTipo }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Error al actualizar el tipo de evento.');
+      }
+      setEditEventoRecord(null);
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Error al actualizar el tipo de evento.');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -415,14 +444,27 @@ export default function AsistenciaLogPage() {
                       </td>
 
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => setRecordToDelete(asis)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-250 text-stone-600 hover:text-rose-700 transition-all font-bold text-xs active:scale-95 shadow-xs"
-                          title="Eliminar este marcaje (si marcó por error o carnet equivocado)"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-stone-400" />
-                          <span>Borrar</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => {
+                              setEditEventoRecord(asis);
+                              setEditNuevoTipo(asis.tipo_evento);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-amber-50 border border-stone-200 hover:border-amber-300 text-stone-600 hover:text-amber-700 transition-all font-bold text-xs active:scale-95 shadow-xs"
+                            title="Corregir el tipo de evento auto-detectado (ej: SALIDA_DEFINITIVA → SALIDA_QUEBRADA)"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-stone-400" />
+                            <span>Corregir</span>
+                          </button>
+                          <button
+                            onClick={() => setRecordToDelete(asis)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-250 text-stone-600 hover:text-rose-700 transition-all font-bold text-xs active:scale-95 shadow-xs"
+                            title="Eliminar este marcaje (si marcó por error o carnet equivocado)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-stone-400" />
+                            <span>Borrar</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -567,6 +609,109 @@ export default function AsistenciaLogPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CORREGIR TIPO DE EVENTO ── */}
+      {editEventoRecord && (
+        <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setEditEventoRecord(null)}
+              className="absolute top-5 right-5 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shadow-sm shrink-0">
+                <Pencil className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-stone-900 text-base leading-tight">
+                  Corregir Tipo de Evento
+                </h3>
+                <p className="text-xs text-stone-500 font-medium mt-0.5">
+                  Úsalo cuando el sistema auto-detectó el tipo de marcaje incorrecto.
+                </p>
+              </div>
+            </div>
+
+            {/* Ficha del registro afectado */}
+            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 text-xs space-y-2">
+              <div className="flex justify-between items-center border-b border-stone-200/60 pb-1.5">
+                <span className="text-stone-500 font-bold uppercase text-[10px]">Colaborador:</span>
+                <span className="font-black text-stone-800">
+                  {editEventoRecord.empleado_detalle.nombre} {editEventoRecord.empleado_detalle.apellido}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-stone-200/60 pb-1.5">
+                <span className="text-stone-500 font-bold uppercase text-[10px]">Evento Actual:</span>
+                <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200">
+                  {editEventoRecord.tipo_evento_display}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-stone-500 font-bold uppercase text-[10px]">Fecha y Hora:</span>
+                <span className="font-mono font-bold text-stone-700">
+                  {new Date(editEventoRecord.fecha_hora).toLocaleString('es-NI', {
+                    hour12: true,
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })}
+                </span>
+              </div>
+            </div>
+
+            {/* Selector del nuevo tipo */}
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
+                Cambiar a:
+              </label>
+              <select
+                value={editNuevoTipo}
+                onChange={(e) => setEditNuevoTipo(e.target.value)}
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 font-bold focus:outline-none focus:ring-2 focus:ring-amber-400"
+              >
+                <option value="ENTRADA">🟢 ENTRADA — Inicio de Turno</option>
+                <option value="SALIDA_QUEBRADA">🟡 SALIDA_QUEBRADA — Salida a Pausa (3:00 PM)</option>
+                <option value="ENTRADA_QUEBRADA">🔵 ENTRADA_QUEBRADA — Retorno de Pausa (6:00 PM)</option>
+                <option value="SALIDA_DEFINITIVA">🔴 SALIDA_DEFINITIVA — Fin de Jornada</option>
+              </select>
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2 mt-2 font-medium">
+                ⚠️ Esto corrige únicamente este registro. Los marcajes siguientes del colaborador en el mismo día continuarán la secuencia desde el tipo corregido.
+              </p>
+            </div>
+
+            <div className="flex gap-2.5">
+              <button
+                type="button"
+                onClick={() => setEditEventoRecord(null)}
+                disabled={savingEdit}
+                className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs py-2.5 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleEditTipoEvento}
+                disabled={savingEdit || editNuevoTipo === editEventoRecord.tipo_evento}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingEdit ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Aplicar Corrección</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
