@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { RegistroAsistencia } from '@/lib/types';
-import { fetchAsistencias, purgarDiaCero } from '@/lib/api-client';
+import { fetchAsistencias, purgarDiaCero, deleteAsistencia } from '@/lib/api-client';
 import {
   CalendarCheck,
   RefreshCw,
@@ -290,6 +290,24 @@ export default function AsistenciaLogPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showPurgeModal, purging, handlePurgePinKeyPress, handlePurgePinBackspace]);
 
+  // ── ESTADO PARA ELIMINAR UN REGISTRO INDIVIDUAL ERRÓNEO ────────────────────
+  const [recordToDelete, setRecordToDelete] = useState<RegistroAsistencia | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!recordToDelete) return;
+    setDeletingRecord(true);
+    try {
+      await deleteAsistencia(recordToDelete.id);
+      setRecordToDelete(null);
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar el registro de asistencia.');
+    } finally {
+      setDeletingRecord(false);
+    }
+  };
+
   // Agrupar marcajes por empleado y día para autodetección de turno
   const marcajesAgrupadosPorEmpleadoDia: Record<string, RegistroAsistencia[]> = {};
   
@@ -401,19 +419,20 @@ export default function AsistenciaLogPage() {
                 <th className="px-6 py-4 text-center">Turno Autodetectado</th>
                 <th className="px-6 py-4 text-center">Puntualidad</th>
                 <th className="px-6 py-4">Fecha & Hora</th>
-                <th className="px-6 py-4 text-right">IP Address</th>
+                <th className="px-6 py-4 text-center">IP Address</th>
+                <th className="px-6 py-4 text-right">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-stone-400">
+                  <td colSpan={8} className="px-6 py-8 text-center text-stone-400">
                     Cargando historial de asistencia...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-stone-400 font-normal">
+                  <td colSpan={8} className="px-6 py-8 text-center text-stone-400 font-normal">
                     No se encontraron registros de asistencia.
                   </td>
                 </tr>
@@ -500,8 +519,19 @@ export default function AsistenciaLogPage() {
                         })}
                       </td>
 
-                      <td className="px-6 py-4 text-right font-mono text-xs text-stone-400 font-normal">
+                      <td className="px-6 py-4 text-center font-mono text-xs text-stone-400 font-normal">
                         {asis.ip_address || '127.0.0.1'}
+                      </td>
+
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => setRecordToDelete(asis)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-250 text-stone-600 hover:text-rose-700 transition-all font-bold text-xs active:scale-95 shadow-xs"
+                          title="Eliminar este marcaje (si marcó por error o carnet equivocado)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-stone-400" />
+                          <span>Borrar</span>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -755,6 +785,82 @@ export default function AsistenciaLogPage() {
                 </p>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DE CONFIRMACIÓN: ELIMINAR REGISTRO ERRÓNEO ── */}
+      {recordToDelete && (
+        <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-700 mx-auto shadow-sm">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center">
+              <h3 className="font-display font-black text-lg text-stone-900">
+                ¿Eliminar marcaje erróneo?
+              </h3>
+              <p className="text-xs text-stone-500 font-medium mt-1">
+                Utiliza esto si un empleado tomó por error el carnet de un compañero o marcó por equivocación.
+              </p>
+            </div>
+
+            <div className="bg-stone-50 border border-stone-200/80 rounded-2xl p-4 text-xs space-y-2">
+              <div className="flex justify-between items-center border-b border-stone-200/60 pb-1.5">
+                <span className="text-stone-500 font-bold uppercase text-[10px]">Colaborador:</span>
+                <span className="font-black text-stone-800">
+                  {recordToDelete.empleado_detalle.nombre} {recordToDelete.empleado_detalle.apellido}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-stone-200/60 pb-1.5">
+                <span className="text-stone-500 font-bold uppercase text-[10px]">Evento:</span>
+                <span className="font-bold text-stone-800">{recordToDelete.tipo_evento_display}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-stone-500 font-bold uppercase text-[10px]">Fecha y Hora:</span>
+                <span className="font-mono font-bold text-stone-700">
+                  {new Date(recordToDelete.fecha_hora).toLocaleString('es-NI', {
+                    hour12: true,
+                    dateStyle: 'short',
+                    timeStyle: 'medium',
+                  })}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-rose-700 bg-rose-50 p-2.5 rounded-xl border border-rose-200 text-center font-medium">
+              ⚠️ Al borrar este registro, el colaborador correcto podrá acercarse al Kiosco y registrar su marcaje real sin conflictos.
+            </p>
+
+            <div className="flex gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setRecordToDelete(null)}
+                disabled={deletingRecord}
+                className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs py-2.5 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deletingRecord}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
+              >
+                {deletingRecord ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Borrando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Sí, Eliminar Marcaje</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

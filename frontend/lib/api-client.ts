@@ -157,6 +157,10 @@ export async function createAsistenciaManual(payload: {
   });
 }
 
+export async function deleteAsistencia(id: number): Promise<void> {
+  await apiRequest(`/asistencia/${id}/`, { method: 'DELETE' });
+}
+
 // ── BITÁCORA ──────────────────────────────────────────────────────────────
 export async function fetchBitacora(): Promise<BitacoraAccion[]> {
   const data = await apiRequest<BitacoraAccion[] | { results: BitacoraAccion[] }>('/bitacora/');
@@ -315,7 +319,7 @@ export async function deletePermiso(id: number): Promise<void> {
 
 // ── PURGA OFICIAL DÍA 0 (REINICIO LIMPIO) ──────────────────────────────────
 export async function purgarDiaCero(pin: string): Promise<{ status: string; mensaje: string }> {
-  return apiRequest<{ status: string; mensaje: string }>('/asistencias/purgar-dia-cero/', {
+  return apiRequest<{ status: string; mensaje: string }>('/asistencia/purgar-dia-cero/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pin }),

@@ -88,6 +88,28 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
+    def perform_destroy(self, instance):
+        if instance.foto_verificacion:
+            try:
+                instance.foto_verificacion.delete(save=False)
+            except Exception:
+                pass
+        emp_nombre = f"{instance.empleado.nombre} {instance.empleado.apellido}"
+        evento_str = instance.get_tipo_evento_display()
+        fecha_str = instance.fecha_hora.strftime("%d/%m/%Y %I:%M %p")
+
+        instance.delete()
+
+        try:
+            BitacoraAccion.objects.create(
+                usuario=self.request.user if self.request.user.is_authenticated else None,
+                accion='REGISTRO_MANUAL',
+                descripcion=f"Marcaje de {evento_str} ({fecha_str}) para {emp_nombre} eliminado por el administrador por corrección.",
+                ip_address=_get_clean_ip(self.request)
+            )
+        except Exception:
+            pass
+
     @action(detail=False, methods=['post'], url_path='purgar-dia-cero')
     def purgar_dia_cero(self, request):
         pin = str(request.data.get('pin', '')).strip()
