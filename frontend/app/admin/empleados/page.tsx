@@ -35,6 +35,65 @@ const CARGOS_OPCIONES: { value: CargoType; label: string }[] = [
   { value: 'ASISTENTE_ADMON', label: 'Asistente de Administración' },
 ];
 
+function CarnetCardItem({ emp }: { emp: Empleado }) {
+  return (
+    <div className="print-card-cr80 flex border-[1.5pt] border-[#1c6856] rounded-[4.5mm] p-[3mm] bg-[#fdfbf7] text-[#1c1917] w-[85.6mm] h-[54mm] box-border relative text-left font-sans select-none items-center justify-between shadow-xs">
+      {/* Lado Izquierdo: QR con alto contraste */}
+      <div className="w-[37mm] h-[37mm] bg-white p-[1.5mm] rounded-[3mm] border border-stone-200 flex flex-col items-center justify-center shrink-0 shadow-inner">
+        <QRCodeSVG
+          value={emp.qr_code_token}
+          size={116}
+          level="M"
+          includeMargin={false}
+        />
+      </div>
+
+      {/* Lado Derecho: Datos y Marca */}
+      <div className="flex flex-col justify-between h-full w-[41mm] pl-[3mm] py-[0.5mm]">
+        <div>
+          {/* Header Marca */}
+          <div className="flex items-center gap-1.5 border-b border-[#1c6856]/20 pb-1 mb-1">
+            <div className="w-4 h-4 rounded-md bg-[#1c6856] flex items-center justify-center text-white shrink-0">
+              <Utensils className="w-2.5 h-2.5 text-white" />
+            </div>
+            <div className="leading-tight">
+              <span className="font-black text-[10.5px] tracking-tight text-[#1c6856] block leading-none">
+                BodegónPass
+              </span>
+              <span className="text-[6.5px] font-bold text-stone-400 uppercase tracking-widest block leading-none mt-0.5">
+                Restaurante El Bodegón
+              </span>
+            </div>
+          </div>
+
+          {/* Nombre Completo */}
+          <div className="mt-1">
+            <h3 className="font-black text-[12px] text-stone-900 leading-tight uppercase truncate">
+              {emp.nombre}
+            </h3>
+            <h4 className="font-black text-[12px] text-stone-900 leading-tight uppercase truncate">
+              {emp.apellido}
+            </h4>
+          </div>
+
+          {/* Cargo Badge */}
+          <div className="mt-1.5 inline-block bg-[#1c6856]/10 border border-[#1c6856]/20 rounded-md px-2 py-0.5">
+            <span className="text-[8px] font-black text-[#1c6856] uppercase tracking-wide block leading-none">
+              {emp.cargo_display}
+            </span>
+          </div>
+        </div>
+
+        {/* Footer Código */}
+        <div className="border-t border-stone-200/80 pt-1 flex justify-between items-center text-[7px] font-mono text-stone-400">
+          <span>ID: {emp.qr_code_token.slice(0, 14)}</span>
+          <span className="font-sans font-bold text-[#1c6856] text-[6.5px] uppercase">Oficial</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EmpleadosAdminPage() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +101,15 @@ export default function EmpleadosAdminPage() {
   const [editingEmp, setEditingEmp] = useState<Empleado | null>(null);
   const [showQrBadge, setShowQrBadge] = useState<Empleado | null>(null);
   const [showBulkPrint, setShowBulkPrint] = useState(false);
+
+  // Paginación de Carnets Masivos (8 por hoja Carta/A4 para corte óptimo)
+  const CARNETS_POR_HOJA = 8;
+  const empleadosActivos = empleados.filter((e) => e.activo);
+  const totalHojas = Math.max(1, Math.ceil(empleadosActivos.length / CARNETS_POR_HOJA));
+  const hojasCarnets: Empleado[][] = [];
+  for (let i = 0; i < empleadosActivos.length; i += CARNETS_POR_HOJA) {
+    hojasCarnets.push(empleadosActivos.slice(i, i + CARNETS_POR_HOJA));
+  }
 
   // Form State (Simplificado: Nombre, Apellido y Cargo)
   const [nombre, setNombre] = useState('');
@@ -157,19 +225,27 @@ export default function EmpleadosAdminPage() {
 
   return (
     <div className="space-y-6 select-none">
-      {/* Estilos CSS Específicos para Impresión */}
+      {/* Estilos CSS Específicos para Impresión Paginada CR80 */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          /* Ocultar toda la interfaz administrativa normal y contenedores padres */
-          body {
+          @page {
+            size: letter portrait;
+            margin: 10mm 15mm 10mm 15mm;
+          }
+
+          html, body {
             background: white !important;
             color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
-          .print-hide, header, nav, aside, footer, table, button, .fixed:not(.print-modal-wrapper) {
+
+          /* Ocultar elementos de la interfaz administrativa */
+          .print-hide, header, nav, aside, footer, table, button, input, .fixed:not(.print-modal-wrapper) {
             display: none !important;
           }
-          
-          /* Modificar el modal fixed para que sea visible y estático en el lienzo de impresión */
+
+          /* Contenedor Modal de Impresión */
           .print-modal-wrapper {
             position: absolute !important;
             left: 0 !important;
@@ -181,11 +257,11 @@ export default function EmpleadosAdminPage() {
             box-shadow: none !important;
             border: none !important;
             padding: 0 !important;
-            z-index: 9999 !important;
+            margin: 0 !important;
             overflow: visible !important;
+            z-index: 9999 !important;
           }
 
-          /* Asegurar que el modal content ocupe el espacio sin backdrops oscuros */
           .print-modal-content {
             background: white !important;
             border: none !important;
@@ -194,45 +270,83 @@ export default function EmpleadosAdminPage() {
             margin: 0 !important;
             max-width: none !important;
             width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
           }
 
-          /* Ocultar botones de cerrar e imprimir dentro del modal */
-          .print-modal-content button, 
-          .print-modal-content .print-hide,
-          .print-modal-wrapper .print-hide {
-            display: none !important;
+          .print-scroll-container {
+            overflow: visible !important;
+            height: auto !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: white !important;
           }
 
-          /* Carnet individual CR80 exacto */
+          /* Hoja física individual de impresión */
+          .print-sheet-page {
+            page-break-after: always !important;
+            break-after: page !important;
+            width: 100% !important;
+            min-height: 248mm !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: flex-start !important;
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            padding: 2mm 0 8mm 0 !important;
+            background: white !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+
+          .print-sheet-page:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
+          }
+
+          .print-sheet-header {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            font-size: 7.5pt !important;
+            color: #78716c !important;
+            border-bottom: 0.5pt dashed #d6d3d1 !important;
+            padding-bottom: 2mm !important;
+            margin-bottom: 5mm !important;
+            font-family: sans-serif !important;
+          }
+
+          .print-sheet-grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, 85.6mm) !important;
+            grid-auto-rows: 54mm !important;
+            gap: 5mm 8mm !important;
+            justify-content: center !important;
+            align-content: start !important;
+          }
+
           .print-card-cr80 {
             display: flex !important;
             width: 85.6mm !important;
             height: 54mm !important;
-            border: 1.5px solid #1c6856 !important;
-            border-radius: 6mm !important;
+            border: 1.5pt solid #1c6856 !important;
+            border-radius: 4mm !important;
             box-sizing: border-box !important;
-            padding: 4mm !important;
-            background: #fbf9f6 !important;
-            color: #1a1a1a !important;
+            padding: 3mm !important;
+            background: #fdfbf7 !important;
+            color: #1c1917 !important;
             page-break-inside: avoid !important;
-            margin: 10px auto !important;
-            font-family: sans-serif !important;
-            position: relative !important;
+            break-inside: avoid !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            overflow: hidden !important;
           }
 
-          /* Cuadrícula para impresión masiva */
-          .print-bulk-grid {
-            display: grid !important;
-            grid-template-columns: repeat(2, 85.6mm) !important;
-            gap: 15px !important;
-            justify-content: center !important;
-            padding: 20px !important;
-          }
-
-          .print-bulk-grid .print-card-cr80 {
-            margin: 0 !important;
+          .print-cut-wrapper {
+            border: 1px dashed #94a3b8 !important;
+            padding: 1.2mm !important;
+            border-radius: 5mm !important;
+            background: white !important;
           }
         }
       `}} />
@@ -486,60 +600,29 @@ export default function EmpleadosAdminPage() {
       {/* MODAL IMPRESIÓN CARNET QR INDIVIDUAL */}
       {showQrBadge && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 print-modal-wrapper">
-          <div className="bg-white border border-stone-200 w-full max-w-sm rounded-3xl p-5 shadow-2xl text-center relative flex flex-col items-center print-modal-content">
+          <div className="bg-white border border-stone-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center relative flex flex-col items-center print-modal-content">
             <button
               onClick={() => setShowQrBadge(null)}
-              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1 rounded-lg hover:bg-stone-100 transition-colors print-hide"
+              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors print-hide"
             >
               <X className="w-5 h-5" />
             </button>
 
-            {/* Carnet Físico Plastificable CR80 */}
-            <div
-              id="printable-badge"
-              className="print-card-cr80 flex border-2 border-[#1c6856] rounded-[6mm] p-[4mm] bg-[#fbf9f6] text-[#1a1a1a] shadow-md w-[85.6mm] h-[54mm] box-border relative text-left font-sans select-none items-center justify-between"
-            >
-              {/* Lado Izquierdo: QR */}
-              <div className="w-[38mm] h-[38mm] bg-white p-[2mm] rounded-[3mm] border border-stone-200/80 flex items-center justify-center shadow-inner">
-                <QRCodeSVG
-                  value={showQrBadge.qr_code_token}
-                  size={120}
-                  level="H"
-                  includeMargin={false}
-                />
-              </div>
-
-              {/* Lado Derecho: Datos */}
-              <div className="flex flex-col justify-between h-full w-[38mm] pl-[2mm] py-[1mm]">
-                <div>
-                  <div className="flex items-center gap-1 border-b border-[#1c6856]/20 pb-1.5 mb-2">
-                    <Utensils className="w-4 h-4 text-[#1c6856] shrink-0" />
-                    <span className="font-black text-sm tracking-tight text-[#1c6856]">
-                      BodegónPass
-                    </span>
-                  </div>
-                  
-                  <h3 className="font-black text-xs text-stone-900 leading-tight">
-                    {showQrBadge.nombre}
-                  </h3>
-                  <h3 className="font-black text-xs text-stone-900 leading-tight">
-                    {showQrBadge.apellido}
-                  </h3>
-                  
-                  <p className="text-[9px] font-bold text-[#1c6856] uppercase tracking-wider mt-1.5 leading-none">
-                    {showQrBadge.cargo_display}
-                  </p>
-                </div>
-
-                <div className="border-t border-[#1c6856]/20 pt-1">
-                  <p className="text-[8px] font-mono text-stone-500 leading-none">
-                    ID: {showQrBadge.qr_code_token.slice(0, 18)}
-                  </p>
-                </div>
-              </div>
+            <div className="text-center mb-4 print-hide">
+              <h3 className="font-display font-black text-base text-stone-900">
+                Carnet de Empleado (CR80)
+              </h3>
+              <p className="text-[11px] text-stone-500 font-medium">
+                Tamaño estándar oficial (8.56cm x 5.4cm) con guía de corte.
+              </p>
             </div>
 
-            <div className="flex gap-2.5 mt-5 w-full print-hide">
+            {/* Carnet Físico Plastificable CR80 */}
+            <div className="print-cut-wrapper p-[1.5mm] border border-dashed border-stone-300 rounded-[5.5mm] bg-white inline-block shadow-xs">
+              <CarnetCardItem emp={showQrBadge} />
+            </div>
+
+            <div className="flex gap-2.5 mt-6 w-full print-hide">
               <button
                 onClick={() => setShowQrBadge(null)}
                 className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 py-2.5 rounded-xl text-xs font-bold transition-colors"
@@ -548,7 +631,7 @@ export default function EmpleadosAdminPage() {
               </button>
               <button
                 onClick={handlePrint}
-                className="flex-1 bg-[#1c6856] hover:bg-[#154f42] text-white py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                className="flex-1 bg-[#1c6856] hover:bg-[#154f42] text-white py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
               >
                 <Printer className="w-4 h-4" />
                 Imprimir Carnet
@@ -558,95 +641,92 @@ export default function EmpleadosAdminPage() {
         </div>
       )}
 
-      {/* MODAL / DIÁLOGO DE IMPRESIÓN MASIVA DE TODOS LOS CARNETS */}
+      {/* MODAL / DIÁLOGO DE IMPRESIÓN MASIVA DE TODOS LOS CARNETS (PAGINADO) */}
       {showBulkPrint && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 print-modal-wrapper">
-          <div className="bg-white border border-stone-200 w-full max-w-5xl h-[85vh] rounded-3xl p-6 shadow-2xl flex flex-col print-modal-content">
-            <div className="flex items-center justify-between border-b border-stone-200 pb-4 print-hide">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print-modal-wrapper">
+          <div className="bg-stone-50 border border-stone-200 w-full max-w-5xl h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden print-modal-content">
+            {/* Header del Modal (Oculto en Impresión) */}
+            <div className="bg-white px-6 py-4 border-b border-stone-200 flex items-center justify-between shrink-0 print-hide">
               <div>
-                <h2 className="text-lg font-black text-[#1c6856] flex items-center gap-2">
-                  <Printer className="w-5 h-5" />
-                  Impresión Masiva de Carnets (Tamaño CR80)
+                <h2 className="text-lg font-black text-stone-900 flex items-center gap-2">
+                  <Printer className="w-5 h-5 text-[#1c6856]" />
+                  Impresión Masiva de Carnets (CR80)
                 </h2>
-                <p className="text-[11px] text-stone-500 font-medium">
-                  Se listarán todos los empleados activos formateados en tarjetas estándar de 8.56cm x 5.4cm.
+                <p className="text-xs text-stone-500 font-medium mt-0.5">
+                  {empleadosActivos.length} colaboradores activos organizados en {totalHojas} hojas Carta / A4 (8 carnets por hoja con guías de corte).
                 </p>
               </div>
-              <button
-                onClick={() => setShowBulkPrint(false)}
-                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            {/* Contenedor del Preview Grid */}
-            <div className="flex-1 overflow-y-auto my-4 p-4 bg-stone-100 rounded-2xl print:bg-white print:p-0">
-              <div className="print-bulk-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 justify-items-center">
-                {empleados
-                  .filter((emp) => emp.activo)
-                  .map((emp) => (
-                    <div
-                      key={emp.id}
-                      className="print-card-cr80 flex border-2 border-[#1c6856] rounded-[6mm] p-[4mm] bg-[#fbf9f6] text-[#1a1a1a] w-[85.6mm] h-[54mm] box-border relative text-left font-sans select-none items-center justify-between"
-                    >
-                      {/* Lado Izquierdo: QR */}
-                      <div className="w-[38mm] h-[38mm] bg-white p-[2mm] rounded-[3mm] border border-stone-200/80 flex items-center justify-center shadow-inner">
-                        <QRCodeSVG
-                          value={emp.qr_code_token}
-                          size={120}
-                          level="H"
-                          includeMargin={false}
-                        />
-                      </div>
-
-                      {/* Lado Derecho: Datos */}
-                      <div className="flex flex-col justify-between h-full w-[38mm] pl-[2mm] py-[1mm]">
-                        <div>
-                          <div className="flex items-center gap-1 border-b border-[#1c6856]/20 pb-1.5 mb-2">
-                            <Utensils className="w-4 h-4 text-[#1c6856] shrink-0" />
-                            <span className="font-black text-sm tracking-tight text-[#1c6856]">
-                              BodegónPass
-                            </span>
-                          </div>
-                          
-                          <h3 className="font-black text-xs text-stone-900 leading-tight">
-                            {emp.nombre}
-                          </h3>
-                          <h3 className="font-black text-xs text-stone-900 leading-tight">
-                            {emp.apellido}
-                          </h3>
-                          
-                          <p className="text-[9px] font-bold text-[#1c6856] uppercase tracking-wider mt-1.5 leading-none">
-                            {emp.cargo_display}
-                          </p>
-                        </div>
-
-                        <div className="border-t border-[#1c6856]/20 pt-1">
-                          <p className="text-[8px] font-mono text-stone-500 leading-none">
-                            ID: {emp.qr_code_token.slice(0, 18)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={handlePrint}
+                  className="bg-[#1c6856] hover:bg-[#154f42] text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm active:scale-95"
+                >
+                  <Printer className="w-4 h-4" />
+                  Imprimir Todo ({totalHojas} Hojas)
+                </button>
+                <button
+                  onClick={() => setShowBulkPrint(false)}
+                  className="text-stone-400 hover:text-stone-600 p-2 rounded-xl hover:bg-stone-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-stone-200 print-hide">
-              <button
-                onClick={() => setShowBulkPrint(false)}
-                className="px-4 py-2 rounded-xl bg-stone-100 text-stone-700 text-xs font-bold hover:bg-stone-200 transition-colors"
-              >
-                Cerrar Preview
-              </button>
-              <button
-                onClick={handlePrint}
-                className="px-5 py-2 rounded-xl bg-[#1c6856] text-white text-xs font-bold hover:bg-[#154f42] transition-colors flex items-center gap-1.5 shadow-sm"
-              >
-                <Printer className="w-4 h-4" />
-                Imprimir Todos los Carnets
-              </button>
+            {/* Contenedor con Scroll para Visualizar las Hojas */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-8 print-scroll-container">
+              {hojasCarnets.map((pagina, pagIdx) => (
+                <div
+                  key={pagIdx}
+                  className="print-sheet-page bg-white rounded-2xl p-6 sm:p-8 shadow-md border border-stone-200 max-w-[210mm] mx-auto"
+                >
+                  {/* Encabezado de la Hoja */}
+                  <div className="print-sheet-header flex items-center justify-between border-b border-dashed border-stone-300 pb-2 mb-4 text-stone-500 text-[10px] font-bold uppercase tracking-wider">
+                    <span className="flex items-center gap-1.5 text-[#1c6856]">
+                      <Utensils className="w-3.5 h-3.5" />
+                      Restaurante El Bodegón — Carnets Oficiales BodegónPass
+                    </span>
+                    <span>
+                      Hoja {pagIdx + 1} de {totalHojas} ({pagina.length} {pagina.length === 1 ? 'carnet' : 'carnets'})
+                    </span>
+                  </div>
+
+                  {/* Cuadrícula 2 columnas x 4 filas */}
+                  <div className="print-sheet-grid grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 justify-items-center">
+                    {pagina.map((emp) => (
+                      <div
+                        key={emp.id}
+                        className="print-cut-wrapper p-[1mm] border border-dashed border-stone-300 rounded-[5.5mm] bg-white inline-block"
+                      >
+                        <CarnetCardItem emp={emp} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer del Modal (Oculto en Impresión) */}
+            <div className="bg-white px-6 py-3.5 border-t border-stone-200 flex items-center justify-between shrink-0 print-hide">
+              <span className="text-xs text-stone-500 font-medium">
+                💡 <strong>Consejo de Impresión:</strong> En la ventana de tu impresora, selecciona tamaño <strong>Carta (Letter)</strong> o <strong>A4</strong> y activa <strong>"Gráficos de fondo"</strong> para que salgan los colores oficiales.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowBulkPrint(false)}
+                  className="px-4 py-2 rounded-xl bg-stone-100 text-stone-700 text-xs font-bold hover:bg-stone-200 transition-colors"
+                >
+                  Cerrar
+                </button>
+                <button
+                  onClick={handlePrint}
+                  className="px-5 py-2 rounded-xl bg-[#1c6856] text-white text-xs font-bold hover:bg-[#154f42] transition-colors flex items-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-4 h-4" />
+                  Imprimir {totalHojas} Hojas
+                </button>
+              </div>
             </div>
           </div>
         </div>
