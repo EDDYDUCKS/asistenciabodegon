@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AlertaAsistencia } from '@/lib/types';
@@ -17,6 +17,9 @@ import {
   Check,
   BellOff,
   AlertTriangle,
+  Lock,
+  LogOut,
+  KeyRound,
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -37,6 +40,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Nómina & Horas', href: '/admin/nomina', icon: <FileSpreadsheet className="w-4 h-4" /> },
   ];
 
+  const handleLogout = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('admin_auth_pin_verified');
+    }
+    setAuthorized(false);
+    setPin('');
+    setPinError(false);
+  }, []);
+
   const loadAlerts = async () => {
     try {
       const list = await fetchAlertas();
@@ -55,7 +67,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
       setCheckingAuth(false);
     }
+
+    // Al salir de /admin hacia cualquier otra ruta o cerrar la vista, asegurar cierre de sesión
+    return () => {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('admin_auth_pin_verified');
+      }
+    };
   }, []);
+
+  // Temporizador de auto-bloqueo por inactividad (5 minutos)
+  useEffect(() => {
+    if (!authorized) return;
+    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutos
+    let timer = setTimeout(handleLogout, INACTIVITY_TIMEOUT);
+
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(handleLogout, INACTIVITY_TIMEOUT);
+    };
+
+    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('keydown', resetTimer);
+    window.addEventListener('click', resetTimer);
+    window.addEventListener('touchstart', resetTimer);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('click', resetTimer);
+      window.removeEventListener('touchstart', resetTimer);
+    };
+  }, [authorized, handleLogout]);
 
   // Encuestas periódicas para alertas si está autorizado
   useEffect(() => {
@@ -97,16 +141,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     } catch {}
   };
 
-  const handleKeyPress = (num: string) => {
+  const handleKeyPress = useCallback((num: string) => {
     setPinError(false);
-    if (pin.length < 4) {
-      const newPin = pin + num;
-      setPin(newPin);
-      if (newPin === '1012') {
-        sessionStorage.setItem('admin_auth_pin_verified', 'true');
+    setPin((prevPin) => {
+      if (prevPin.length >= 4) return prevPin;
+      const newPin = prevPin + num;
+      if (newPin === '4512') {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('admin_auth_pin_verified', 'true');
+        }
         setAuthorized(true);
-        setPin('');
         loadAlerts();
+        return '';
       } else if (newPin.length === 4) {
         setTimeout(() => {
           setPinError(true);
@@ -114,13 +160,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           playFailSound();
         }, 200);
       }
-    }
-  };
+      return newPin;
+    });
+  }, []);
 
-  const handleBackspace = () => {
-    setPin(pin.slice(0, -1));
+  const handleBackspace = useCallback(() => {
+    setPin((prev) => prev.slice(0, -1));
     setPinError(false);
-  };
+  }, []);
+
+  // Soporte de Teclado Físico en PC para PIN 4512
+  useEffect(() => {
+    if (authorized) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        handleKeyPress(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleBackspace();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setPin('');
+        setPinError(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [authorized, handleKeyPress, handleBackspace]);
 
   const unreadCount = alerts.filter(a => !a.leida).length;
 
@@ -196,11 +265,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* Cancel/Home */}
             <Link
               href="/"
+              onClick={handleLogout}
               className="w-16 h-16 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase tracking-wide"
             >
               Salir
             </Link>
           </div>
+
+          <p className="text-[11px] text-stone-400 font-medium hidden sm:block">
+            💡 Puedes escribir el PIN directamente con tu teclado numérico (0-9)
+          </p>
         </div>
         
         <footer className="text-center text-[10px] text-stone-400 font-medium">
@@ -216,7 +290,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <header className="glass-dock sticky top-0 z-50 shadow-premium border-b border-stone-200/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+            <Link href="/" onClick={handleLogout} className="flex items-center gap-3 hover:opacity-90 transition-opacity">
               <div className="w-10 h-10 rounded-xl bg-[#1c6856] flex items-center justify-center text-white shadow-sm">
                 <Utensils className="w-5 h-5" />
               </div>
@@ -404,32 +478,52 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             <Link
               href="/kiosco"
+              onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1c6856]/5 border border-[#1c6856]/20 hover:bg-[#1c6856]/10 text-xs font-bold text-[#1c6856] transition-colors"
             >
               <QrCode className="w-4 h-4" />
-              Abrir Kiosco
+              <span className="hidden sm:inline">Abrir Kiosco</span>
             </Link>
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 border border-rose-250 hover:bg-rose-100 text-xs font-bold text-rose-700 transition-colors shadow-sm active:scale-95"
+              title="Bloquear Panel Administrativo y Cerrar Sesión"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Bloquear</span>
+            </button>
           </div>
         </div>
       </header>
 
       {/* Navegación Mobile */}
-      <div className="md:hidden bg-white border-b border-stone-200 px-4 py-2 flex items-center justify-around overflow-x-auto shadow-sm">
-        {navItems.map((item) => {
-          const active = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap transition-colors ${
-                active ? 'text-[#1c6856]' : 'text-stone-500 hover:text-stone-800'
-              }`}
-            >
-              {item.icon}
-              {item.label}
-            </Link>
-          );
-        })}
+      <div className="md:hidden bg-white border-b border-stone-200 px-3 py-2 flex items-center justify-between gap-1 overflow-x-auto shadow-sm">
+        <div className="flex items-center gap-1">
+          {navItems.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex flex-col items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap transition-colors ${
+                  active ? 'text-[#1c6856]' : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                {item.icon}
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+        <button
+          onClick={handleLogout}
+          className="flex flex-col items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-rose-600 hover:bg-rose-50 whitespace-nowrap transition-colors shrink-0"
+          title="Bloquear Panel"
+        >
+          <Lock className="w-4 h-4" />
+          <span>Bloquear</span>
+        </button>
       </div>
 
       {/* Contenido Principal */}

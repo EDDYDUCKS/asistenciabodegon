@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   fetchEmpleados,
   fetchAsistencias,
@@ -30,6 +30,9 @@ import {
   ThumbsUp,
   ThumbsDown,
   Palmtree,
+  KeyRound,
+  ShieldCheck,
+  Lock,
 } from 'lucide-react';
 
 export default function NominaAdminPage() {
@@ -43,6 +46,18 @@ export default function NominaAdminPage() {
   
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+
+  // Form State para Modal PIN de Horas Extra (PIN 2322)
+  const [showExtraPinModal, setShowExtraPinModal] = useState(false);
+  const [pendingExtraAction, setPendingExtraAction] = useState<{
+    id: number;
+    decision: 'APROBADO' | 'RECHAZADO';
+    horas: number;
+    comentario: string;
+    empNombre?: string;
+  } | null>(null);
+  const [extraPin, setExtraPin] = useState('');
+  const [extraPinError, setExtraPinError] = useState(false);
 
   // Rango de fechas por defecto: primer día del mes a hoy
   const hoyStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
@@ -183,21 +198,47 @@ export default function NominaAdminPage() {
     }
   };
 
-  // ── HORAS EXTRA ACCIONES ──────────────────────────────────────────────────
+  // ── HORAS EXTRA ACCIONES CON PIN 2322 ─────────────────────────────────────
+  const playExtraPinSound = (success: boolean) => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      if (success) {
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.25);
+      } else {
+        osc.frequency.setValueAtTime(150, ctx.currentTime);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+      }
+    } catch {}
+  };
+
   const startDecision = (item: AutorizacionHorasExtra) => {
     setEditingExtraId(item.id || null);
     setTempAutorizadas(String(item.horas_extra_solicitadas));
     setTempComentario(item.comentario || '');
   };
 
-  const handleOvertimeDecision = async (id: number, decision: 'APROBADO' | 'RECHAZADO') => {
+  const executeOvertimeDecision = async (
+    id: number,
+    decision: 'APROBADO' | 'RECHAZADO',
+    horasVal: number,
+    comentarioStr: string
+  ) => {
     setSavingExtra(true);
     try {
-      const horasVal = decision === 'APROBADO' ? parseFloat(tempAutorizadas) || 0 : 0;
       await updateHoraExtra(id, {
         horas_extra_autorizadas: horasVal,
         estado: decision,
-        comentario: tempComentario.trim() || (decision === 'APROBADO' ? 'Horas autorizadas' : 'Horas rechazadas'),
+        comentario: comentarioStr,
       });
       setEditingExtraId(null);
       setTempComentario('');
@@ -210,6 +251,93 @@ export default function NominaAdminPage() {
       setSavingExtra(false);
     }
   };
+
+  const initiateDecision = (item: AutorizacionHorasExtra, decision: 'APROBADO' | 'RECHAZADO') => {
+    if (decision === 'RECHAZADO') {
+      if (confirm('¿Seguro que desea rechazar estas horas extra?')) {
+        executeOvertimeDecision(item.id!, 'RECHAZADO', 0, tempComentario.trim() || 'Horas rechazadas');
+      }
+      return;
+    }
+
+    const emp = empleados.find((e) => e.id === item.empleado);
+    const empName = emp ? `${emp.nombre} ${emp.apellido}` : `Empleado #${item.empleado}`;
+    const horasVal = parseFloat(tempAutorizadas) || 0;
+
+    setPendingExtraAction({
+      id: item.id!,
+      decision: 'APROBADO',
+      horas: horasVal,
+      comentario: tempComentario.trim() || 'Horas autorizadas',
+      empNombre: empName,
+    });
+    setExtraPin('');
+    setExtraPinError(false);
+    setShowExtraPinModal(true);
+  };
+
+  const handleExtraPinKeyPress = useCallback((num: string) => {
+    setExtraPinError(false);
+    setExtraPin((prev) => {
+      if (prev.length >= 4) return prev;
+      const newPin = prev + num;
+      if (newPin === '2322') {
+        playExtraPinSound(true);
+        setTimeout(() => {
+          setPendingExtraAction((currentAction) => {
+            if (currentAction) {
+              executeOvertimeDecision(
+                currentAction.id,
+                currentAction.decision,
+                currentAction.horas,
+                currentAction.comentario
+              );
+            }
+            return null;
+          });
+          setShowExtraPinModal(false);
+          setExtraPin('');
+        }, 180);
+        return newPin;
+      } else if (newPin.length === 4) {
+        setTimeout(() => {
+          setExtraPinError(true);
+          setExtraPin('');
+          playExtraPinSound(false);
+        }, 200);
+      }
+      return newPin;
+    });
+  }, []);
+
+  const handleExtraPinBackspace = useCallback(() => {
+    setExtraPin((prev) => prev.slice(0, -1));
+    setExtraPinError(false);
+  }, []);
+
+  // Soporte de Teclado Físico para el Modal PIN 2322
+  useEffect(() => {
+    if (!showExtraPinModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        handleExtraPinKeyPress(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleExtraPinBackspace();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowExtraPinModal(false);
+        setPendingExtraAction(null);
+        setExtraPin('');
+        setExtraPinError(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showExtraPinModal, handleExtraPinKeyPress, handleExtraPinBackspace]);
 
   // ── CÁLCULO DE NÓMINA EN PANTALLA (SIN IMPORTES MONETARIOS) ───────────────
   const feriadosSet = new Set(feriados.map((f) => f.fecha));
@@ -759,14 +887,14 @@ export default function NominaAdminPage() {
                                 />
                                 <div className="flex gap-1 justify-end">
                                   <button
-                                    onClick={() => handleOvertimeDecision(item.id!, 'RECHAZADO')}
+                                    onClick={() => initiateDecision(item, 'RECHAZADO')}
                                     disabled={savingExtra}
                                     className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
                                   >
                                     <ThumbsDown className="w-3.5 h-3.5" /> Rechazar
                                   </button>
                                   <button
-                                    onClick={() => handleOvertimeDecision(item.id!, 'APROBADO')}
+                                    onClick={() => initiateDecision(item, 'APROBADO')}
                                     disabled={savingExtra}
                                     className="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
                                   >
@@ -1066,6 +1194,109 @@ export default function NominaAdminPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DE AUTORIZACIÓN CON PIN 2322 PARA HORAS EXTRA ── */}
+      {showExtraPinModal && pendingExtraAction && (
+        <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center space-y-5 animate-in zoom-in-95 duration-200 select-none">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-[#1c6856] mx-auto shadow-md">
+              <KeyRound className="w-7 h-7" />
+            </div>
+
+            <div>
+              <h3 className="font-display font-black text-xl text-stone-900 tracking-tight">
+                Autorizar Horas Extra
+              </h3>
+              <p className="text-xs text-stone-500 font-medium mt-1">
+                Ingrese el PIN de Gerencia para autorizar el pago de horas extra en nómina.
+              </p>
+            </div>
+
+            {/* Ficha Resumen de la Solicitud */}
+            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3 text-left space-y-1 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-stone-500 font-bold">Colaborador:</span>
+                <span className="font-black text-stone-900">{pendingExtraAction.empNombre}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-stone-500 font-bold">Horas a Aprobar:</span>
+                <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                  +{pendingExtraAction.horas.toFixed(2)} hrs
+                </span>
+              </div>
+            </div>
+
+            {/* Indicador de 4 Puntos PIN */}
+            <div className="flex justify-center gap-4 py-2">
+              {[0, 1, 2, 3].map((idx) => (
+                <div
+                  key={idx}
+                  className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
+                    extraPinError
+                      ? 'bg-rose-500 border-rose-500 animate-bounce'
+                      : idx < extraPin.length
+                      ? 'bg-[#1c6856] border-[#1c6856] scale-110'
+                      : 'border-stone-300 bg-stone-50'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {extraPinError && (
+              <p className="text-xs text-rose-600 font-bold animate-pulse">
+                PIN de Aprobación incorrecto. Intente de nuevo.
+              </p>
+            )}
+
+            {/* Teclado Numérico */}
+            <div className="grid grid-cols-3 gap-2.5 max-w-[220px] mx-auto pt-1">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => handleExtraPinKeyPress(num)}
+                  className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center"
+                >
+                  {num}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={handleExtraPinBackspace}
+                className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 active:bg-stone-200 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase"
+              >
+                Borrar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleExtraPinKeyPress('0')}
+                className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center"
+              >
+                0
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowExtraPinModal(false);
+                  setPendingExtraAction(null);
+                  setExtraPin('');
+                  setExtraPinError(false);
+                }}
+                className="w-14 h-14 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase"
+              >
+                Cancelar
+              </button>
+            </div>
+
+            <p className="text-[11px] text-stone-400 font-medium hidden sm:block pt-1">
+              💡 Puedes ingresar el PIN con el teclado numérico de tu PC (0-9)
+            </p>
           </div>
         </div>
       )}
