@@ -20,7 +20,9 @@ import {
   Lock,
   LogOut,
   KeyRound,
+  Printer,
 } from 'lucide-react';
+import BoletaIncidenciaModal from '@/components/BoletaIncidenciaModal';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -32,12 +34,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Estados de Alertas
   const [alerts, setAlerts] = useState<AlertaAsistencia[]>([]);
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
+  const [selectedBoletaAlerta, setSelectedBoletaAlerta] = useState<AlertaAsistencia | null>(null);
 
   const navItems = [
     { label: 'Dashboard', href: '/admin', icon: <LayoutDashboard className="w-4 h-4" /> },
     { label: 'Empleados & Carnets', href: '/admin/empleados', icon: <Users className="w-4 h-4" /> },
     { label: 'Asistencia & Fotos', href: '/admin/asistencia', icon: <CalendarCheck className="w-4 h-4" /> },
     { label: 'Nómina & Horas', href: '/admin/nomina', icon: <FileSpreadsheet className="w-4 h-4" /> },
+    { label: 'Notificaciones Detalladas', href: '/admin/notificaciones', icon: <Bell className="w-4 h-4" /> },
   ];
 
   const handleLogout = useCallback(() => {
@@ -395,9 +399,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                               <p className="text-[11px] text-stone-600 mt-1 leading-relaxed">
                                 {al.mensaje}
                               </p>
-                              <span className="text-[9px] font-mono text-stone-400 block mt-1">
-                                {al.created_at ? new Date(al.created_at).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' }) : ''}
-                              </span>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-[9px] font-mono text-stone-400 block">
+                                  {al.created_at ? new Date(al.created_at).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setSelectedBoletaAlerta(al);
+                                    setShowAlertsDropdown(false);
+                                  }}
+                                  className="text-[9px] font-bold text-[#1c6856] hover:underline flex items-center gap-1"
+                                >
+                                  <Printer className="w-2.5 h-2.5" />
+                                  Boleta
+                                </button>
+                              </div>
                             </div>
 
                             {!al.leida && al.tipo !== 'SEGUNDA_AUSENCIA' && (
@@ -472,6 +488,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       ))
                     )}
                   </div>
+
+                  <div className="pt-2 border-t border-stone-100 text-center">
+                    <Link
+                      href="/admin/notificaciones"
+                      onClick={() => setShowAlertsDropdown(false)}
+                      className="text-[11px] font-bold text-[#1c6856] hover:underline flex items-center justify-center gap-1 py-1"
+                    >
+                      Ver todas en Notificaciones Detalladas &rarr;
+                    </Link>
+                  </div>
                 </div>
               )}
             </div>
@@ -530,6 +556,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 print:p-0 print:m-0 print:max-w-none print:w-full">
         {children}
       </main>
+
+      {/* Modal de Emisión de Boleta para Expediente Físico */}
+      <BoletaIncidenciaModal
+        alerta={selectedBoletaAlerta}
+        onClose={() => setSelectedBoletaAlerta(null)}
+      />
     </div>
   );
 }
