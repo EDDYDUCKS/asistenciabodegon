@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Empleado, CargoType } from '@/lib/types';
 import {
   fetchEmpleados,
@@ -100,16 +101,6 @@ export default function EmpleadosAdminPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Empleado | null>(null);
   const [showQrBadge, setShowQrBadge] = useState<Empleado | null>(null);
-  const [showBulkPrint, setShowBulkPrint] = useState(false);
-
-  // Paginación de Carnets Masivos (8 por hoja Carta/A4 para corte óptimo)
-  const CARNETS_POR_HOJA = 8;
-  const empleadosActivos = empleados.filter((e) => e.activo);
-  const totalHojas = Math.max(1, Math.ceil(empleadosActivos.length / CARNETS_POR_HOJA));
-  const hojasCarnets: Empleado[][] = [];
-  for (let i = 0; i < empleadosActivos.length; i += CARNETS_POR_HOJA) {
-    hojasCarnets.push(empleadosActivos.slice(i, i + CARNETS_POR_HOJA));
-  }
 
   // Form State (Simplificado: Nombre, Apellido y Cargo)
   const [nombre, setNombre] = useState('');
@@ -364,13 +355,13 @@ export default function EmpleadosAdminPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setShowBulkPrint(true)}
-            className="bg-[#1c6856]/10 border border-[#1c6856]/20 hover:bg-[#1c6856]/20 text-[#1c6856] px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5"
+          <Link
+            href="/admin/empleados/imprimir"
+            className="bg-[#1c6856]/10 border border-[#1c6856]/20 hover:bg-[#1c6856]/20 text-[#1c6856] px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 active:scale-95"
           >
             <Printer className="w-4 h-4" />
             Imprimir Todo el Personal
-          </button>
+          </Link>
           
           <button
             onClick={openCreateModal}
@@ -641,96 +632,6 @@ export default function EmpleadosAdminPage() {
         </div>
       )}
 
-      {/* MODAL / DIÁLOGO DE IMPRESIÓN MASIVA DE TODOS LOS CARNETS (PAGINADO) */}
-      {showBulkPrint && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print-modal-wrapper">
-          <div className="bg-stone-50 border border-stone-200 w-full max-w-5xl h-[92vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden print-modal-content">
-            {/* Header del Modal (Oculto en Impresión) */}
-            <div className="bg-white px-6 py-4 border-b border-stone-200 flex items-center justify-between shrink-0 print-hide">
-              <div>
-                <h2 className="text-lg font-black text-stone-900 flex items-center gap-2">
-                  <Printer className="w-5 h-5 text-[#1c6856]" />
-                  Impresión Masiva de Carnets (CR80)
-                </h2>
-                <p className="text-xs text-stone-500 font-medium mt-0.5">
-                  {empleadosActivos.length} colaboradores activos organizados en {totalHojas} hojas Carta / A4 (8 carnets por hoja con guías de corte).
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2.5">
-                <button
-                  onClick={handlePrint}
-                  className="bg-[#1c6856] hover:bg-[#154f42] text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm active:scale-95"
-                >
-                  <Printer className="w-4 h-4" />
-                  Imprimir Todo ({totalHojas} Hojas)
-                </button>
-                <button
-                  onClick={() => setShowBulkPrint(false)}
-                  className="text-stone-400 hover:text-stone-600 p-2 rounded-xl hover:bg-stone-100 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Contenedor con Scroll para Visualizar las Hojas */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-8 print-scroll-container">
-              {hojasCarnets.map((pagina, pagIdx) => (
-                <div
-                  key={pagIdx}
-                  className="print-sheet-page bg-white rounded-2xl p-6 sm:p-8 shadow-md border border-stone-200 max-w-[210mm] mx-auto"
-                >
-                  {/* Encabezado de la Hoja */}
-                  <div className="print-sheet-header flex items-center justify-between border-b border-dashed border-stone-300 pb-2 mb-4 text-stone-500 text-[10px] font-bold uppercase tracking-wider">
-                    <span className="flex items-center gap-1.5 text-[#1c6856]">
-                      <Utensils className="w-3.5 h-3.5" />
-                      Restaurante El Bodegón — Carnets Oficiales BodegónPass
-                    </span>
-                    <span>
-                      Hoja {pagIdx + 1} de {totalHojas} ({pagina.length} {pagina.length === 1 ? 'carnet' : 'carnets'})
-                    </span>
-                  </div>
-
-                  {/* Cuadrícula 2 columnas x 4 filas */}
-                  <div className="print-sheet-grid grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 justify-items-center">
-                    {pagina.map((emp) => (
-                      <div
-                        key={emp.id}
-                        className="print-cut-wrapper p-[1mm] border border-dashed border-stone-300 rounded-[5.5mm] bg-white inline-block"
-                      >
-                        <CarnetCardItem emp={emp} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Footer del Modal (Oculto en Impresión) */}
-            <div className="bg-white px-6 py-3.5 border-t border-stone-200 flex items-center justify-between shrink-0 print-hide">
-              <span className="text-xs text-stone-500 font-medium">
-                💡 <strong>Consejo de Impresión:</strong> En la ventana de tu impresora, selecciona tamaño <strong>Carta (Letter)</strong> o <strong>A4</strong> y activa <strong>"Gráficos de fondo"</strong> para que salgan los colores oficiales.
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowBulkPrint(false)}
-                  className="px-4 py-2 rounded-xl bg-stone-100 text-stone-700 text-xs font-bold hover:bg-stone-200 transition-colors"
-                >
-                  Cerrar
-                </button>
-                <button
-                  onClick={handlePrint}
-                  className="px-5 py-2 rounded-xl bg-[#1c6856] text-white text-xs font-bold hover:bg-[#154f42] transition-colors flex items-center gap-1.5 shadow-sm"
-                >
-                  <Printer className="w-4 h-4" />
-                  Imprimir {totalHojas} Hojas
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
