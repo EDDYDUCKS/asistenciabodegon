@@ -253,22 +253,16 @@ export default function NominaAdminPage() {
   };
 
   const initiateDecision = (item: AutorizacionHorasExtra, decision: 'APROBADO' | 'RECHAZADO') => {
-    if (decision === 'RECHAZADO') {
-      if (confirm('¿Seguro que desea rechazar estas horas extra?')) {
-        executeOvertimeDecision(item.id!, 'RECHAZADO', 0, tempComentario.trim() || 'Horas rechazadas');
-      }
-      return;
-    }
-
     const emp = empleados.find((e) => e.id === item.empleado);
     const empName = emp ? `${emp.nombre} ${emp.apellido}` : `Empleado #${item.empleado}`;
-    const horasVal = parseFloat(tempAutorizadas) || 0;
+    const horasVal = decision === 'APROBADO' ? parseFloat(tempAutorizadas) || 0 : 0;
+    const defaultComment = decision === 'APROBADO' ? 'Horas autorizadas' : 'Horas rechazadas';
 
     setPendingExtraAction({
       id: item.id!,
-      decision: 'APROBADO',
+      decision: decision,
       horas: horasVal,
-      comentario: tempComentario.trim() || 'Horas autorizadas',
+      comentario: tempComentario.trim() || defaultComment,
       empNombre: empName,
     });
     setExtraPin('');
@@ -1202,30 +1196,44 @@ export default function NominaAdminPage() {
       {showExtraPinModal && pendingExtraAction && (
         <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center space-y-5 animate-in zoom-in-95 duration-200 select-none">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-[#1c6856] mx-auto shadow-md">
+            <div
+              className={`w-14 h-14 rounded-2xl border flex items-center justify-center mx-auto shadow-md transition-colors ${
+                pendingExtraAction.decision === 'APROBADO'
+                  ? 'bg-emerald-100 border-emerald-300 text-[#1c6856]'
+                  : 'bg-rose-100 border-rose-300 text-rose-700'
+              }`}
+            >
               <KeyRound className="w-7 h-7" />
             </div>
 
             <div>
               <h3 className="font-display font-black text-xl text-stone-900 tracking-tight">
-                Autorizar Horas Extra
+                {pendingExtraAction.decision === 'APROBADO' ? 'Autorizar Horas Extra' : 'Rechazar Horas Extra'}
               </h3>
               <p className="text-xs text-stone-500 font-medium mt-1">
-                Ingrese el PIN de Gerencia para autorizar el pago de horas extra en nómina.
+                {pendingExtraAction.decision === 'APROBADO'
+                  ? 'Ingrese el PIN de Gerencia (2322) para autorizar el pago de horas extra en nómina.'
+                  : 'Ingrese el PIN de Gerencia (2322) para confirmar el rechazo de esta solicitud.'}
               </p>
             </div>
 
             {/* Ficha Resumen de la Solicitud */}
-            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3 text-left space-y-1 text-xs">
+            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3 text-left space-y-1.5 text-xs">
               <div className="flex justify-between items-center">
                 <span className="text-stone-500 font-bold">Colaborador:</span>
                 <span className="font-black text-stone-900">{pendingExtraAction.empNombre}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-stone-500 font-bold">Horas a Aprobar:</span>
-                <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                  +{pendingExtraAction.horas.toFixed(2)} hrs
-                </span>
+                <span className="text-stone-500 font-bold">Decisión a Registrar:</span>
+                {pendingExtraAction.decision === 'APROBADO' ? (
+                  <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                    Aprobar +{pendingExtraAction.horas.toFixed(2)} hrs
+                  </span>
+                ) : (
+                  <span className="font-mono font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200">
+                    Rechazar Solicitud (0.00 hrs)
+                  </span>
+                )}
               </div>
             </div>
 
