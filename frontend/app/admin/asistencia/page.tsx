@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RegistroAsistencia } from '@/lib/types';
-import { fetchAsistencias, purgarDiaCero, deleteAsistencia } from '@/lib/api-client';
+import { fetchAsistencias, deleteAsistencia } from '@/lib/api-client';
 import {
   CalendarCheck,
   RefreshCw,
@@ -14,9 +14,6 @@ import {
   CheckCircle,
   Plus,
   Trash2,
-  KeyRound,
-  Lock,
-  ShieldAlert,
 } from 'lucide-react';
 
 interface AnalisisPuntualidad {
@@ -196,100 +193,6 @@ export default function AsistenciaLogPage() {
     }
   };
 
-  // ── ESTADOS Y LÓGICA PARA PURGA DÍA 0 (PIN 2322) ──────────────────────────
-  const [showPurgeModal, setShowPurgeModal] = useState(false);
-  const [purgePin, setPurgePin] = useState('');
-  const [purgePinError, setPurgePinError] = useState(false);
-  const [purging, setPurging] = useState(false);
-
-  const playPurgeSound = (success: boolean) => {
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      if (success) {
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.25);
-      } else {
-        osc.frequency.setValueAtTime(150, ctx.currentTime);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.3);
-      }
-    } catch {}
-  };
-
-  const handleExecutePurge = async () => {
-    setPurging(true);
-    try {
-      const res = await purgarDiaCero('2322');
-      playPurgeSound(true);
-      alert(res.mensaje);
-      setShowPurgeModal(false);
-      setPurgePin('');
-      loadData();
-    } catch (err: any) {
-      alert(err.message || 'Error al ejecutar la purga de Día 0');
-    } finally {
-      setPurging(false);
-    }
-  };
-
-  const handlePurgePinKeyPress = useCallback((num: string) => {
-    setPurgePinError(false);
-    setPurgePin((prev) => {
-      if (prev.length >= 4) return prev;
-      const newPin = prev + num;
-      if (newPin === '2322') {
-        playPurgeSound(true);
-        setTimeout(() => {
-          handleExecutePurge();
-        }, 150);
-        return newPin;
-      } else if (newPin.length === 4) {
-        setTimeout(() => {
-          setPurgePinError(true);
-          setPurgePin('');
-          playPurgeSound(false);
-        }, 200);
-      }
-      return newPin;
-    });
-  }, []);
-
-  const handlePurgePinBackspace = useCallback(() => {
-    setPurgePin((prev) => prev.slice(0, -1));
-    setPurgePinError(false);
-  }, []);
-
-  // Soporte de Teclado Físico para Modal PIN 2322
-  useEffect(() => {
-    if (!showPurgeModal || purging) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key >= '0' && e.key <= '9') {
-        e.preventDefault();
-        handlePurgePinKeyPress(e.key);
-      } else if (e.key === 'Backspace') {
-        e.preventDefault();
-        handlePurgePinBackspace();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        setShowPurgeModal(false);
-        setPurgePin('');
-        setPurgePinError(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showPurgeModal, purging, handlePurgePinKeyPress, handlePurgePinBackspace]);
-
   // ── ESTADO PARA ELIMINAR UN REGISTRO INDIVIDUAL ERRÓNEO ────────────────────
   const [recordToDelete, setRecordToDelete] = useState<RegistroAsistencia | null>(null);
   const [deletingRecord, setDeletingRecord] = useState(false);
@@ -371,18 +274,6 @@ export default function AsistenciaLogPage() {
           >
             <Trash2 className="w-3.5 h-3.5 text-stone-500" />
             Depuración Semestral
-          </button>
-          <button
-            onClick={() => {
-              setShowPurgeModal(true);
-              setPurgePin('');
-              setPurgePinError(false);
-            }}
-            className="bg-rose-50 hover:bg-rose-100 border border-rose-250 text-rose-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-            title="Limpiar registros de prueba y reiniciar saldos a 0.00 hrs para el estreno (Requiere PIN 2322)"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-            <span>Purgar Pruebas (Día 0)</span>
           </button>
           <button
             onClick={loadData}
@@ -676,115 +567,6 @@ export default function AsistenciaLogPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── MODAL DE PURGA DÍA 0 CON PIN 2322 ── */}
-      {showPurgeModal && (
-        <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center space-y-4 animate-in zoom-in-95 duration-200 select-none">
-            <div className="w-14 h-14 rounded-2xl bg-rose-100 border border-rose-300 flex items-center justify-center text-rose-700 mx-auto shadow-md">
-              <KeyRound className="w-7 h-7" />
-            </div>
-
-            <div>
-              <h3 className="font-display font-black text-xl text-stone-900 tracking-tight">
-                Limpieza Oficial — Día 0
-              </h3>
-              <p className="text-xs text-stone-500 font-medium mt-1">
-                Ingrese el PIN de Gerencia (2322) para purgar todos los registros de prueba y dejar el sistema listo para el estreno.
-              </p>
-            </div>
-
-            <div className="bg-rose-50/80 border border-rose-200/80 rounded-2xl p-3 text-left space-y-1 text-[11px] text-rose-900 leading-relaxed">
-              <p className="font-bold flex items-center gap-1 text-rose-700">
-                <ShieldAlert className="w-3.5 h-3.5 shrink-0" /> Alcance de la limpieza:
-              </p>
-              <ul className="list-disc pl-4 space-y-0.5 text-stone-600 text-[10.5px]">
-                <li>Elimina marcajes de asistencia y fotos de prueba.</li>
-                <li>Elimina alertas y horas extra acumuladas.</li>
-                <li>Reinicia el saldo de horas de todos a <strong>0.00 hrs</strong>.</li>
-                <li><strong>Conserva intactos</strong> los 13 empleados, sus carnets y los feriados.</li>
-              </ul>
-            </div>
-
-            {/* Indicador de 4 Puntos PIN */}
-            <div className="flex justify-center gap-4 py-1">
-              {[0, 1, 2, 3].map((idx) => (
-                <div
-                  key={idx}
-                  className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
-                    purgePinError
-                      ? 'bg-rose-500 border-rose-500 animate-bounce'
-                      : idx < purgePin.length
-                      ? 'bg-rose-600 border-rose-600 scale-110'
-                      : 'border-stone-300 bg-stone-50'
-                  }`}
-                />
-              ))}
-            </div>
-
-            {purgePinError && (
-              <p className="text-xs text-rose-600 font-bold animate-pulse">
-                PIN de Gerencia incorrecto. Intente de nuevo.
-              </p>
-            )}
-
-            {purging ? (
-              <div className="py-4 flex flex-col items-center gap-2">
-                <RefreshCw className="w-6 h-6 text-rose-600 animate-spin" />
-                <span className="text-xs font-bold text-stone-700">Ejecutando limpieza oficial en la base de datos...</span>
-              </div>
-            ) : (
-              <>
-                {/* Teclado Numérico */}
-                <div className="grid grid-cols-3 gap-2.5 max-w-[220px] mx-auto pt-1">
-                  {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => handlePurgePinKeyPress(num)}
-                      className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center"
-                    >
-                      {num}
-                    </button>
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={handlePurgePinBackspace}
-                    className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 active:bg-stone-200 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase"
-                  >
-                    Borrar
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handlePurgePinKeyPress('0')}
-                    className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center"
-                  >
-                    0
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPurgeModal(false);
-                      setPurgePin('');
-                      setPurgePinError(false);
-                    }}
-                    className="w-14 h-14 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-
-                <p className="text-[11px] text-stone-400 font-medium hidden sm:block pt-1">
-                  💡 Puedes ingresar el PIN con el teclado numérico de tu PC (0-9)
-                </p>
-              </>
-            )}
           </div>
         </div>
       )}
