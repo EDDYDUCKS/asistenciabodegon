@@ -128,6 +128,7 @@ export default function AsistenciaLogPage() {
   const [loading, setLoading] = useState(true);
   const [filterText, setFilterText] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [failedPhotoIds, setFailedPhotoIds] = useState<Record<number, boolean>>({});
 
   // Estado para Modal de Marcaje Manual
   const [showManualModal, setShowManualModal] = useState(false);
@@ -365,7 +366,7 @@ export default function AsistenciaLogPage() {
                   return (
                     <tr key={asis.id} className="hover:bg-stone-50/50 transition-colors">
                       <td className="px-6 py-4">
-                        {asis.foto_verificacion_url ? (
+                        {asis.foto_verificacion_url && !failedPhotoIds[asis.id] ? (
                           <button
                             onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
                             className="relative group block"
@@ -373,11 +374,12 @@ export default function AsistenciaLogPage() {
                             <img
                               src={asis.foto_verificacion_url}
                               alt="Foto Marcaje"
+                              onError={() => setFailedPhotoIds((prev) => ({ ...prev, [asis.id]: true }))}
                               className="w-12 h-12 rounded-xl object-cover border border-stone-200 group-hover:opacity-85 transition-opacity"
                             />
                           </button>
                         ) : (
-                          <div className="w-12 h-12 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-400">
+                          <div className="w-12 h-12 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-400" title="Foto no disponible">
                             <ImageIcon className="w-5 h-5" />
                           </div>
                         )}
