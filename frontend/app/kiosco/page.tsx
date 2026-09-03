@@ -32,7 +32,6 @@ export default function KioscoPage() {
   const [processing, setProcessing] = useState(false);
   const [feedback, setFeedback] = useState<MarcajeKioscoResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [manualToken, setManualToken] = useState<string>('');
   const [showAdminPinModal, setShowAdminPinModal] = useState(false);
   const [adminPin, setAdminPin] = useState('');
   const [adminPinError, setAdminPinError] = useState(false);
@@ -315,7 +314,6 @@ export default function KioscoPage() {
       setTimeout(() => {
         setFeedback(null);
         setProcessing(false);
-        setManualToken('');
         lockRef.current = false;
       }, 5000);
     } catch (e: any) {
@@ -430,7 +428,6 @@ export default function KioscoPage() {
           setTimeout(() => {
             setFeedback(null);
             setProcessing(false);
-            setManualToken('');
             setEmpleadoDetectado(null);
             lockRef.current = false;
           }, 5000);
@@ -941,30 +938,6 @@ export default function KioscoPage() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Ingreso manual */}
-          <div className="pt-3 border-t border-stone-100 flex flex-col gap-2">
-            <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider font-sans">
-              Ingreso manual (Contingencia)
-            </span>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Introduce el código del carnet..."
-                value={manualToken}
-                onChange={(e) => setManualToken(e.target.value)}
-                disabled={processing}
-                className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-mono font-bold"
-              />
-              <button
-                onClick={() => processQrScan(manualToken)}
-                disabled={processing || !manualToken.trim()}
-                className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 disabled:opacity-50 text-white px-5 rounded-xl text-xs font-bold transition-all shadow-sm"
-              >
-                Registrar
-              </button>
-            </div>
           </div>
         </div>
 
