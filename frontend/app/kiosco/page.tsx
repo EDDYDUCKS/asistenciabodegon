@@ -13,6 +13,8 @@ import {
   Utensils,
   ArrowLeft,
   RefreshCw,
+  Lock,
+  KeyRound,
 } from 'lucide-react';
 
 interface RecentScan {
@@ -31,7 +33,9 @@ export default function KioscoPage() {
   const [feedback, setFeedback] = useState<MarcajeKioscoResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [manualToken, setManualToken] = useState<string>('');
-  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [showAdminPinModal, setShowAdminPinModal] = useState(false);
+  const [adminPin, setAdminPin] = useState('');
+  const [adminPinError, setAdminPinError] = useState(false);
   const [empleadosCache, setEmpleadosCache] = useState<Empleado[]>([]);
   const [empleadoDetectado, setEmpleadoDetectado] = useState<Empleado | null>(null);
 
@@ -157,6 +161,62 @@ export default function KioscoPage() {
       // ignore
     }
   };
+
+  // ── PIN DE GERENCIA (4512) PARA TÚNEL DIRECTO A ADMINISTRACIÓN ────────────
+  const handleAdminPinKeyPress = useCallback((num: string) => {
+    setAdminPinError(false);
+    setAdminPin((prev) => {
+      if (prev.length >= 4) return prev;
+      const newPin = prev + num;
+      if (newPin === '4512') {
+        playAudioFeedback('success');
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('admin_auth_pin_verified', 'true');
+        }
+        setTimeout(() => {
+          setShowAdminPinModal(false);
+          setAdminPin('');
+          router.push('/admin');
+        }, 150);
+        return newPin;
+      } else if (newPin.length === 4) {
+        setTimeout(() => {
+          setAdminPinError(true);
+          setAdminPin('');
+          playAudioFeedback('error');
+        }, 200);
+      }
+      return newPin;
+    });
+  }, [router]);
+
+  const handleAdminPinBackspace = useCallback(() => {
+    setAdminPin((prev) => prev.slice(0, -1));
+    setAdminPinError(false);
+  }, []);
+
+  // Soporte de teclado físico para el modal de PIN del Kiosco
+  useEffect(() => {
+    if (!showAdminPinModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        handleAdminPinKeyPress(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleAdminPinBackspace();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowAdminPinModal(false);
+        setAdminPin('');
+        setAdminPinError(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showAdminPinModal, handleAdminPinKeyPress, handleAdminPinBackspace]);
 
   // ── IndexedDB Offline Queue Helpers ─────────────────────────────────────
   const checkOfflineQueue = async () => {
@@ -530,12 +590,16 @@ export default function KioscoPage() {
       <header className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-stone-200/80 pb-5 bg-white/70 backdrop-blur-md px-6 py-4 rounded-3xl shadow-premium border border-white/60">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowExitConfirm(true)}
-            className="p-2.5 rounded-xl hover:bg-stone-100 border border-stone-200 text-stone-600 transition-all active:scale-95 flex items-center gap-1.5"
-            title="Volver al Portal"
+            onClick={() => {
+              setShowAdminPinModal(true);
+              setAdminPin('');
+              setAdminPinError(false);
+            }}
+            className="p-2.5 rounded-xl bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-600 hover:text-stone-900 transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
+            title="Acceso Administrativo"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-xs font-bold hidden sm:inline">Portal</span>
+            <Lock className="w-4 h-4 text-[#1c6856]" />
+            <span className="text-xs font-bold text-[#1c6856] hidden sm:inline">Admin</span>
           </button>
           
           <div className="w-10 h-10 rounded-xl bg-[#1c6856] flex items-center justify-center text-white shadow-md shadow-[#1c6856]/10">
@@ -965,36 +1029,88 @@ export default function KioscoPage() {
         Restaurante El Bodegón © 2026 — Estación Kiosco Registrada
       </footer>
 
-      {/* DIÁLOGO CONFIRMACIÓN RETORNO PORTAL */}
-      {showExitConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-stone-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-amber-500 flex items-center justify-center text-white mx-auto shadow-md shadow-amber-500/10 animate-pulse">
-              <AlertCircle className="w-6 h-6" />
+      {/* ── MODAL DE ACCESO ADMINISTRATIVO CON PIN 4512 ── */}
+      {showAdminPinModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-stone-200 w-full max-w-sm rounded-3xl p-6 sm:p-8 shadow-2xl text-center space-y-5 animate-in zoom-in-95 duration-200 select-none">
+            <div className="w-14 h-14 rounded-2xl bg-[#1c6856]/10 border border-[#1c6856]/25 flex items-center justify-center text-[#1c6856] mx-auto shadow-md">
+              <Lock className="w-7 h-7" />
             </div>
+
             <div>
-              <h3 className="font-display font-black text-stone-900 text-base">¿Salir del Kiosco?</h3>
-              <p className="text-xs text-stone-500 font-medium mt-1.5 leading-relaxed">
-                Esta pantalla está diseñada para permanecer abierta en la tablet de la pared. ¿Está seguro que desea salir al portal?
+              <h3 className="font-display font-black text-stone-900 text-xl tracking-tight">Acceso Administrativo</h3>
+              <p className="text-xs text-stone-500 font-medium mt-1">
+                Ingrese el PIN de Gerencia para abrir el panel de control.
               </p>
             </div>
-            <div className="flex gap-2.5 pt-2">
+
+            {/* Indicador de 4 Puntos PIN */}
+            <div className="flex justify-center gap-4 py-2">
+              {[0, 1, 2, 3].map((idx) => (
+                <div
+                  key={idx}
+                  className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
+                    adminPinError
+                      ? 'bg-rose-500 border-rose-500 animate-bounce'
+                      : idx < adminPin.length
+                      ? 'bg-[#1c6856] border-[#1c6856] scale-110'
+                      : 'border-stone-300 bg-stone-50'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {adminPinError && (
+              <p className="text-xs text-rose-600 font-bold animate-pulse">
+                PIN incorrecto. Intente de nuevo.
+              </p>
+            )}
+
+            {/* Teclado Numérico */}
+            <div className="grid grid-cols-3 gap-2.5 max-w-[220px] mx-auto pt-1">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => handleAdminPinKeyPress(num)}
+                  className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center"
+                >
+                  {num}
+                </button>
+              ))}
+
               <button
-                onClick={() => setShowExitConfirm(false)}
-                className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 py-2.5 rounded-xl text-xs font-bold transition-colors border border-stone-200"
+                type="button"
+                onClick={handleAdminPinBackspace}
+                className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 active:bg-stone-200 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase"
               >
-                Permanecer
+                Borrar
               </button>
+
               <button
-                onClick={() => {
-                  setShowExitConfirm(false);
-                  router.push('/');
-                }}
-                className="flex-1 bg-[#1c6856] hover:bg-[#154f42] text-white py-2.5 rounded-xl text-xs font-bold transition-colors shadow-sm"
+                type="button"
+                onClick={() => handleAdminPinKeyPress('0')}
+                className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center"
               >
-                Salir
+                0
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAdminPinModal(false);
+                  setAdminPin('');
+                  setAdminPinError(false);
+                }}
+                className="w-14 h-14 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase"
+              >
+                Cancelar
               </button>
             </div>
+
+            <p className="text-[11px] text-stone-400 font-medium hidden sm:block pt-1">
+              💡 Puedes ingresar el PIN con el teclado numérico de tu PC (0-9)
+            </p>
           </div>
         </div>
       )}
