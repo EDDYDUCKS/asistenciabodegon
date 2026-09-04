@@ -22,7 +22,6 @@ import {
   Utensils,
   RefreshCw,
   AlertTriangle,
-  CheckCircle,
 } from 'lucide-react';
 
 const CARGOS_OPCIONES: { value: CargoType; label: string }[] = [
@@ -250,7 +249,6 @@ export default function EmpleadosAdminPage() {
   }, [showModal, showQrBadge]);
 
   const renderTarjetaEmpleadoMobile = (emp: Empleado) => {
-    const deuda = parseFloat(String(emp.horas_pendientes || 0));
     const isSelected = selectedEmpIds.has(emp.id);
     const iniciales = `${emp.nombre?.[0] || ''}${emp.apellido?.[0] || ''}`.toUpperCase();
 
@@ -304,22 +302,6 @@ export default function EmpleadosAdminPage() {
               </span>
             )}
           </div>
-        </div>
-
-        {/* Indicador de Horas Pendientes */}
-        <div className="flex items-center justify-between pt-1 border-t border-stone-100 text-xs">
-          <span className="text-[11px] text-stone-500 font-medium">Deuda de horas:</span>
-          {deuda > 0 ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold font-mono">
-              <AlertTriangle className="w-3 h-3 text-rose-500" />
-              Debe {deuda.toFixed(2)} hrs ⚠️
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-              <CheckCircle className="w-3 h-3" />
-              Al día (0.00h)
-            </span>
-          )}
         </div>
 
         {/* Botones de acción táctiles en móvil */}
@@ -564,7 +546,6 @@ export default function EmpleadosAdminPage() {
                 </th>
                 <th className="px-6 py-4">Empleado</th>
                 <th className="px-6 py-4">Puesto</th>
-                <th className="px-6 py-4 text-center">Horas Pendientes (Mes)</th>
                 <th className="px-6 py-4 text-center">Estado</th>
                 <th className="px-6 py-4 text-center">Credencial QR</th>
                 <th className="px-6 py-4 text-right">Acciones</th>
@@ -573,19 +554,18 @@ export default function EmpleadosAdminPage() {
             <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-stone-400">
+                  <td colSpan={6} className="px-6 py-8 text-center text-stone-400">
                     Cargando lista de empleados...
                   </td>
                 </tr>
               ) : empleados.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-stone-400 font-normal">
+                  <td colSpan={6} className="px-6 py-8 text-center text-stone-400 font-normal">
                     No hay empleados registrados. Presione "Registrar Nuevo Empleado".
                   </td>
                 </tr>
               ) : (
                 empleados.map((emp) => {
-                  const deuda = parseFloat(String(emp.horas_pendientes || 0));
                   const isSelected = selectedEmpIds.has(emp.id);
                   return (
                     <tr
@@ -614,16 +594,6 @@ export default function EmpleadosAdminPage() {
                         <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#1c6856]/5 border border-[#1c6856]/15 text-[11px] font-bold text-[#1c6856]">
                           {emp.cargo_display}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {deuda > 0 ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold font-mono">
-                            <AlertTriangle className="w-3 h-3 text-rose-500" />
-                            {deuda.toFixed(2)}h
-                          </span>
-                        ) : (
-                          <span className="text-xs text-stone-400 font-mono">0.00h</span>
-                        )}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span
