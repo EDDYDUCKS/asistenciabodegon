@@ -37,6 +37,7 @@ import {
   Lock,
   Search,
   Scale,
+  Layers,
 } from 'lucide-react';
 
 const MESES_NOMBRES: Record<number, string> = {
@@ -55,6 +56,8 @@ export default function NominaAdminPage() {
   const [compensaciones, setCompensaciones] = useState<CompensacionHoras[]>([]);
   const [subTabExtras, setSubTabExtras] = useState<'pendientes' | 'compensaciones'>('pendientes');
   const [searchCompensacion, setSearchCompensacion] = useState('');
+  const [searchExtra, setSearchExtra] = useState('');
+  const [separarPorDiaExtras, setSepararPorDiaExtras] = useState(true);
   
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -596,6 +599,168 @@ export default function NominaAdminPage() {
     });
   }, [compensaciones, searchCompensacion, empleados]);
 
+  const horasExtraFiltradas = useMemo(() => {
+    let list = [...horasExtra];
+    if (searchExtra.trim()) {
+      const term = searchExtra.toLowerCase().trim();
+      list = list.filter((item) => {
+        const emp = item.empleado_detalle || empleados.find((e) => e.id === item.empleado);
+        const nombre = emp ? `${emp.nombre} ${emp.apellido}`.toLowerCase() : '';
+        const cargo = (emp?.cargo_display || '').toLowerCase();
+        return nombre.includes(term) || cargo.includes(term);
+      });
+    }
+    return list;
+  }, [horasExtra, searchExtra, empleados]);
+
+  const gruposPorDiaExtras = useMemo(() => {
+    const hoyNi = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    const ayerDate = new Date();
+    ayerDate.setDate(ayerDate.getDate() - 1);
+    const ayerNi = ayerDate.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+
+    const gruposMap: Record<string, AutorizacionHorasExtra[]> = {};
+    const ordenDias: string[] = [];
+
+    const sorted = [...horasExtraFiltradas].sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+    sorted.forEach((item) => {
+      const dia = item.fecha;
+      if (!gruposMap[dia]) {
+        gruposMap[dia] = [];
+        ordenDias.push(dia);
+      }
+      gruposMap[dia].push(item);
+    });
+
+    return ordenDias.map((dia) => {
+      const regs = gruposMap[dia];
+      const [y, m, d] = dia.split('-').map(Number);
+      const dtObj = new Date(y, m - 1, d);
+      const labelBase = dtObj.toLocaleDateString('es-NI', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+      const fechaLabel = labelBase.charAt(0).toUpperCase() + labelBase.slice(1);
+
+      return {
+        diaKey: dia,
+        fechaLabel,
+        esHoy: dia === hoyNi,
+        esAyer: dia === ayerNi,
+        registros: regs,
+      };
+    });
+  }, [horasExtraFiltradas]);
+
+  const renderFilaExtra = (item: AutorizacionHorasExtra) => {
+    const isEditing = editingExtraId === item.id;
+    return (
+      <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
+        <td className="px-6 py-4 font-mono font-bold text-stone-600">
+          {new Date(item.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          })}
+        </td>
+        <td className="px-6 py-4">
+          <div className="font-bold text-stone-900">
+            {item.empleado_detalle?.nombre} {item.empleado_detalle?.apellido}
+          </div>
+          <span className="text-[10px] text-stone-400 block font-medium">
+            {item.empleado_detalle?.cargo_display}
+          </span>
+        </td>
+        <td className="px-6 py-4 text-right font-mono font-bold text-rose-500">
+          +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(2)} hrs
+        </td>
+        <td className="px-6 py-4 text-right font-mono font-bold">
+          {isEditing ? (
+            <input
+              type="number"
+              step="0.10"
+              max={String(item.horas_extra_solicitadas)}
+              value={tempAutorizadas}
+              onChange={(e) => setTempAutorizadas(e.target.value)}
+              className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+            />
+          ) : (
+            <span>
+              {item.estado === 'APROBADO'
+                ? `${parseFloat(String(item.horas_extra_autorizadas)).toFixed(2)} hrs`
+                : '0.00 hrs'}
+            </span>
+          )}
+        </td>
+        <td className="px-6 py-4">
+          <span
+            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+              item.estado === 'APROBADO'
+                ? 'bg-emerald-50 border-emerald-250 text-emerald-700'
+                : item.estado === 'RECHAZADO'
+                ? 'bg-rose-50 border-rose-250 text-rose-700'
+                : 'bg-amber-50 border-amber-250 text-amber-700 animate-pulse'
+            }`}
+          >
+            {item.estado}
+          </span>
+        </td>
+        <td className="px-6 py-4 text-right">
+          {isEditing ? (
+            <div className="flex flex-col gap-2 max-w-xs ml-auto">
+              <input
+                type="text"
+                placeholder="Nota/comentario..."
+                value={tempComentario}
+                onChange={(e) => setTempComentario(e.target.value)}
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              />
+              <div className="flex gap-1 justify-end">
+                <button
+                  onClick={() => initiateDecision(item, 'RECHAZADO')}
+                  disabled={savingExtra}
+                  className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                >
+                  <ThumbsDown className="w-3.5 h-3.5" /> Rechazar
+                </button>
+                <button
+                  onClick={() => initiateDecision(item, 'APROBADO')}
+                  disabled={savingExtra}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                >
+                  <ThumbsUp className="w-3.5 h-3.5" /> Aprobar
+                </button>
+                <button
+                  onClick={() => setEditingExtraId(null)}
+                  className="border border-stone-200 hover:bg-stone-50 px-2 py-1.5 rounded-lg text-xs"
+                >
+                  X
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-end gap-3">
+              {item.estado !== 'PENDIENTE' && (
+                <span className="text-xs text-stone-500 font-normal italic max-w-[160px] truncate block" title={item.comentario || ''}>
+                  {item.comentario}
+                </span>
+              )}
+              <button
+                onClick={() => startDecision(item)}
+                className="bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors"
+              >
+                {item.estado === 'PENDIENTE' ? 'Evaluar' : 'Modificar'}
+              </button>
+            </div>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <div className="space-y-6 select-none font-sans">
       {/* Pestañas de Navegación */}
@@ -925,7 +1090,7 @@ export default function NominaAdminPage() {
               }`}
             >
               <Clock className="w-4 h-4" />
-              <span>Solicitudes para Pago de Nómina</span>
+              <span>Solicitudes de Horas Extra</span>
               {horasExtra.filter((h) => h.estado === 'PENDIENTE').length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
                   subTabExtras === 'pendientes' ? 'bg-white text-[#1c6856]' : 'bg-rose-500 text-white'
@@ -956,141 +1121,114 @@ export default function NominaAdminPage() {
           </div>
 
           {subTabExtras === 'pendientes' && (
-            <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm animate-in fade-in duration-150">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs sm:text-sm">
-                  <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
-                    <tr>
-                      <th className="px-6 py-4">Fecha</th>
-                      <th className="px-6 py-4">Empleado</th>
-                      <th className="px-6 py-4 text-right">Exceso Detectado</th>
-                      <th className="px-6 py-4 text-right">Horas Aprobadas</th>
-                      <th className="px-6 py-4">Estado</th>
-                      <th className="px-6 py-4 text-right">Decisión / Comentario</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
-                    {loading ? (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Barra de Filtros: Buscador por empleado + Toggle de Separadores por Día */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Buscar por colaborador o cargo en horas extra..."
+                    value={searchExtra}
+                    onChange={(e) => setSearchExtra(e.target.value)}
+                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm font-medium"
+                  />
+                  <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  {searchExtra && (
+                    <button
+                      onClick={() => setSearchExtra('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSepararPorDiaExtras(!separarPorDiaExtras)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 shadow-2xs ${
+                      separarPorDiaExtras
+                        ? 'bg-[#1c6856]/10 border-[#1c6856]/30 text-[#1c6856]'
+                        : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                    }`}
+                    title="Alternar entre ver separadores de fecha por día o lista continua"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>{separarPorDiaExtras ? 'Separadores por Día: ACTIVADOS' : 'Lista Continua'}</span>
+                  </button>
+                  <span className="text-xs text-stone-500 font-medium whitespace-nowrap">
+                    Mostrando <strong className="text-stone-800">{horasExtraFiltradas.length}</strong> solicitud{horasExtraFiltradas.length !== 1 ? 'es' : ''}
+                  </span>
+                </div>
+              </div>
+
+              {/* Tabla de Solicitudes */}
+              <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs sm:text-sm">
+                    <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
                       <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center text-stone-400">
-                          Cargando solicitudes...
-                        </td>
+                        <th className="px-6 py-4">Fecha</th>
+                        <th className="px-6 py-4">Empleado</th>
+                        <th className="px-6 py-4 text-right">Exceso Detectado</th>
+                        <th className="px-6 py-4 text-right">Horas Aprobadas</th>
+                        <th className="px-6 py-4">Estado</th>
+                        <th className="px-6 py-4 text-right">Decisión / Comentario</th>
                       </tr>
-                    ) : horasExtra.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-8 text-center text-stone-400 font-normal">
-                          No hay solicitudes de horas extra registradas en el sistema.
-                        </td>
-                      </tr>
-                    ) : (
-                      horasExtra.map((item) => {
-                        const isEditing = editingExtraId === item.id;
-                        return (
-                          <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
-                            <td className="px-6 py-4 font-mono font-bold text-stone-600">
-                              {new Date(item.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                              })}
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="font-bold text-stone-900">
-                                {item.empleado_detalle?.nombre} {item.empleado_detalle?.apellido}
-                              </div>
-                              <span className="text-[10px] text-stone-400 block font-medium">
-                                {item.empleado_detalle?.cargo_display}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-right font-mono font-bold text-rose-500">
-                              +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(2)} hrs
-                            </td>
-                            <td className="px-6 py-4 text-right font-mono font-bold">
-                              {isEditing ? (
-                                <input
-                                  type="number"
-                                  step="0.10"
-                                  max={String(item.horas_extra_solicitadas)}
-                                  value={tempAutorizadas}
-                                  onChange={(e) => setTempAutorizadas(e.target.value)}
-                                  className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                                />
-                              ) : (
-                                <span>
-                                  {item.estado === 'APROBADO'
-                                    ? `${parseFloat(String(item.horas_extra_autorizadas)).toFixed(2)} hrs`
-                                    : '0.00 hrs'}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span
-                                className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  item.estado === 'APROBADO'
-                                    ? 'bg-emerald-50 border-emerald-250 text-emerald-700'
-                                    : item.estado === 'RECHAZADO'
-                                    ? 'bg-rose-50 border-rose-250 text-rose-700'
-                                    : 'bg-amber-50 border-amber-250 text-amber-700 animate-pulse'
-                                }`}
-                              >
-                                {item.estado}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              {isEditing ? (
-                                <div className="flex flex-col gap-2 max-w-xs ml-auto">
-                                  <input
-                                    type="text"
-                                    placeholder="Nota/comentario..."
-                                    value={tempComentario}
-                                    onChange={(e) => setTempComentario(e.target.value)}
-                                    className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                                  />
-                                  <div className="flex gap-1 justify-end">
-                                    <button
-                                      onClick={() => initiateDecision(item, 'RECHAZADO')}
-                                      disabled={savingExtra}
-                                      className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
-                                    >
-                                      <ThumbsDown className="w-3.5 h-3.5" /> Rechazar
-                                    </button>
-                                    <button
-                                      onClick={() => initiateDecision(item, 'APROBADO')}
-                                      disabled={savingExtra}
-                                      className="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
-                                    >
-                                      <ThumbsUp className="w-3.5 h-3.5" /> Aprobar
-                                    </button>
-                                    <button
-                                      onClick={() => setEditingExtraId(null)}
-                                      className="border border-stone-200 hover:bg-stone-50 px-2 py-1.5 rounded-lg text-xs"
-                                    >
-                                      X
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-end gap-3">
-                                  {item.estado !== 'PENDIENTE' && (
-                                    <span className="text-xs text-stone-500 font-normal italic max-w-[160px] truncate block" title={item.comentario || ''}>
-                                      {item.comentario}
+                    </thead>
+                    <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
+                      {loading ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-stone-400">
+                            Cargando solicitudes...
+                          </td>
+                        </tr>
+                      ) : horasExtraFiltradas.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-stone-400 font-normal">
+                            No hay solicitudes de horas extra registradas en el sistema.
+                          </td>
+                        </tr>
+                      ) : separarPorDiaExtras ? (
+                        gruposPorDiaExtras.map((grupo) => (
+                          <React.Fragment key={`grupo-extra-${grupo.diaKey}`}>
+                            {/* Separador Visual de Día */}
+                            <tr className="bg-stone-100/95 border-y-2 border-[#1c6856]/20">
+                              <td colSpan={6} className="px-6 py-2.5">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-lg bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                                      <Calendar className="w-4 h-4" />
+                                    </div>
+                                    <span className="font-black text-xs sm:text-sm text-stone-900 tracking-tight">
+                                      {grupo.fechaLabel}
                                     </span>
-                                  )}
-                                  <button
-                                    onClick={() => startDecision(item)}
-                                    className="bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors"
-                                  >
-                                    {item.estado === 'PENDIENTE' ? 'Evaluar' : 'Modificar'}
-                                  </button>
+                                    {grupo.esHoy && (
+                                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-300">
+                                        Hoy
+                                      </span>
+                                    )}
+                                    {grupo.esAyer && (
+                                      <span className="bg-stone-200 text-stone-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                                        Ayer
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[11px] font-bold text-[#1c6856] bg-white px-2.5 py-1 rounded-lg border border-stone-200 shadow-2xs">
+                                    {grupo.registros.length} solicitud{grupo.registros.length !== 1 ? 'es' : ''}
+                                  </span>
                                 </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                              </td>
+                            </tr>
+                            {grupo.registros.map((item) => renderFilaExtra(item))}
+                          </React.Fragment>
+                        ))
+                      ) : (
+                        horasExtraFiltradas.map((item) => renderFilaExtra(item))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
