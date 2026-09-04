@@ -638,10 +638,10 @@ export default function AsistenciaLogPage() {
                   onChange={(e) => setManualTipo(e.target.value)}
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
                 >
-                  <option value="ENTRADA">ENTRADA (Inicio de Turno)</option>
-                  <option value="SALIDA_QUEBRADA">SALIDA_QUEBRADA (Salida a Pausa 3:00 PM)</option>
-                  <option value="ENTRADA_QUEBRADA">ENTRADA_QUEBRADA (Retorno de Pausa 6:00 PM)</option>
-                  <option value="SALIDA_DEFINITIVA">SALIDA_DEFINITIVA (Fin de Jornada)</option>
+                  <option value="ENTRADA">🟢 ENTRADA — Inicio de Jornada (Corrido o Quebrado)</option>
+                  <option value="SALIDA_QUEBRADA">🟡 SALIDA_QUEBRADA — Salida a Pausa (Descanso Intermedio)</option>
+                  <option value="ENTRADA_QUEBRADA">🔵 ENTRADA_QUEBRADA — Retorno de Pausa (6:00 PM o 7:00 PM)</option>
+                  <option value="SALIDA_DEFINITIVA">🔴 SALIDA_DEFINITIVA — Salida Definitiva (Cierre de Turno)</option>
                 </select>
               </div>
 
@@ -767,10 +767,10 @@ export default function AsistenciaLogPage() {
                 onChange={(e) => setEditNuevoTipo(e.target.value)}
                 className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 font-bold focus:outline-none focus:ring-2 focus:ring-amber-400"
               >
-                <option value="ENTRADA">🟢 ENTRADA — Inicio de Turno</option>
-                <option value="SALIDA_QUEBRADA">🟡 SALIDA_QUEBRADA — Salida a Pausa (3:00 PM)</option>
-                <option value="ENTRADA_QUEBRADA">🔵 ENTRADA_QUEBRADA — Retorno de Pausa (6:00 PM)</option>
-                <option value="SALIDA_DEFINITIVA">🔴 SALIDA_DEFINITIVA — Fin de Jornada</option>
+                <option value="ENTRADA">🟢 ENTRADA — Inicio de Jornada (Corrido o Quebrado)</option>
+                <option value="SALIDA_QUEBRADA">🟡 SALIDA_QUEBRADA — Salida a Pausa (Descanso Intermedio)</option>
+                <option value="ENTRADA_QUEBRADA">🔵 ENTRADA_QUEBRADA — Retorno de Pausa (6:00 PM o 7:00 PM)</option>
+                <option value="SALIDA_DEFINITIVA">🔴 SALIDA_DEFINITIVA — Salida Definitiva (Cierre de Turno)</option>
               </select>
               <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2 mt-2 font-medium">
                 ⚠️ Esto corrige únicamente este registro. Los marcajes siguientes del colaborador en el mismo día continuarán la secuencia desde el tipo corregido.
