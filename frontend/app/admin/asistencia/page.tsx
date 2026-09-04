@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { RegistroAsistencia } from '@/lib/types';
 import { fetchAsistencias, deleteAsistencia } from '@/lib/api-client';
 import {
@@ -15,6 +15,8 @@ import {
   Plus,
   Trash2,
   Pencil,
+  Calendar,
+  Layers,
 } from 'lucide-react';
 
 interface AnalisisPuntualidad {
@@ -227,6 +229,8 @@ export default function AsistenciaLogPage() {
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterText, setFilterText] = useState('');
+  const [filterFecha, setFilterFecha] = useState('');
+  const [separarPorDia, setSepararPorDia] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [failedPhotoIds, setFailedPhotoIds] = useState<Record<number, boolean>>({});
 
@@ -365,8 +369,186 @@ export default function AsistenciaLogPage() {
     const nombre = `${a.empleado_detalle.nombre} ${a.empleado_detalle.apellido}`.toLowerCase();
     const cargo = a.empleado_detalle.cargo_display.toLowerCase();
     const evento = a.tipo_evento_display.toLowerCase();
-    return nombre.includes(search) || cargo.includes(search) || evento.includes(search);
+    const matchesText = nombre.includes(search) || cargo.includes(search) || evento.includes(search);
+
+    if (filterFecha) {
+      const diaA = new Date(a.fecha_hora).toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+      return matchesText && diaA === filterFecha;
+    }
+    return matchesText;
   });
+
+  // Agrupar registros por día para mostrar los separadores visuales
+  const gruposPorDia = useMemo(() => {
+    const hoyNi = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    const ayerDate = new Date();
+    ayerDate.setDate(ayerDate.getDate() - 1);
+    const ayerNi = ayerDate.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+
+    const gruposMap: Record<string, RegistroAsistencia[]> = {};
+    const ordenDias: string[] = [];
+
+    filtered.forEach((asis) => {
+      const dia = new Date(asis.fecha_hora).toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+      if (!gruposMap[dia]) {
+        gruposMap[dia] = [];
+        ordenDias.push(dia);
+      }
+      gruposMap[dia].push(asis);
+    });
+
+    return ordenDias.map((dia) => {
+      const regs = gruposMap[dia];
+      const [y, m, d] = dia.split('-').map(Number);
+      const dtObj = new Date(y, m - 1, d);
+      const labelBase = dtObj.toLocaleDateString('es-NI', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+      const fechaLabel = labelBase.charAt(0).toUpperCase() + labelBase.slice(1);
+
+      return {
+        diaKey: dia,
+        fechaLabel,
+        esHoy: dia === hoyNi,
+        esAyer: dia === ayerNi,
+        registros: regs,
+      };
+    });
+  }, [filtered]);
+
+  const renderFilaAsistencia = (asis: RegistroAsistencia) => {
+    const key = `${asis.empleado}_${asis.fecha_hora.slice(0, 10)}`;
+    const marcajesDia = marcajesAgrupadosPorEmpleadoDia[key] || [];
+    const analisis = calcularPuntualidadRecord(asis, marcajesDia);
+
+    return (
+      <tr key={asis.id} className="hover:bg-stone-50/50 transition-colors">
+        <td className="px-6 py-4">
+          {asis.foto_verificacion_url && !failedPhotoIds[asis.id] ? (
+            <button
+              onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
+              className="relative group block"
+            >
+              <img
+                src={asis.foto_verificacion_url}
+                alt="Foto Marcaje"
+                onError={() => setFailedPhotoIds((prev) => ({ ...prev, [asis.id]: true }))}
+                className="w-12 h-12 rounded-xl object-cover border border-stone-200 group-hover:opacity-85 transition-opacity"
+              />
+            </button>
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-400" title="Foto no disponible">
+              <ImageIcon className="w-5 h-5" />
+            </div>
+          )}
+        </td>
+
+        <td className="px-6 py-4">
+          <div className="font-bold text-stone-900">
+            {asis.empleado_detalle.nombre} {asis.empleado_detalle.apellido}
+          </div>
+          <span className="text-[10px] text-stone-400 font-medium">
+            {asis.empleado_detalle.cargo_display}
+          </span>
+        </td>
+
+        <td className="px-6 py-4">
+          <span className="inline-block px-2.5 py-0.5 rounded-full bg-white border border-stone-200 text-xs font-bold text-stone-700">
+            {asis.tipo_evento_display}
+          </span>
+        </td>
+
+        <td className="px-6 py-4 text-center">
+          <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
+            analisis.turno === 'Quebrado'
+              ? 'bg-amber-50 text-amber-800 border border-amber-200'
+              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+          }`}>
+            {analisis.turno}
+          </span>
+        </td>
+
+        <td className="px-6 py-4 text-center">
+          {analisis.estado === 'A Tiempo' ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-250 text-[10px] font-bold text-emerald-700">
+              <CheckCircle className="w-3 h-3" />
+              A tiempo
+            </span>
+          ) : analisis.estado === 'Jornada Cumplida 8h' ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-250 text-[10px] font-bold text-emerald-700">
+              <CheckCircle className="w-3 h-3" />
+              Jornada 8h
+            </span>
+          ) : analisis.estado === 'Retraso Leve' ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700" title="Dentro de los 10 minutos de gracia. No se alerta al administrador.">
+              <Clock className="w-3 h-3" />
+              Gracia (+{analisis.desviacionMinutos} min)
+            </span>
+          ) : analisis.estado === 'Tardanza' ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-250 text-[10px] font-bold text-rose-700 animate-pulse">
+              <Clock className="w-3 h-3" />
+              Tardanza (+{analisis.desviacionMinutos} min)
+            </span>
+          ) : analisis.estado === 'Salida Anticipada' ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-250 text-[10px] font-bold text-amber-700">
+              <AlertCircle className="w-3 h-3" />
+              Anticipado (-{analisis.desviacionMinutos} min)
+            </span>
+          ) : analisis.estado === 'Horas Extra' ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-250 text-[10px] font-bold text-blue-700">
+              <CheckCircle className="w-3 h-3" />
+              Extra (+{analisis.desviacionMinutos} min)
+            </span>
+          ) : (
+            <span className="text-stone-400 text-xs">-</span>
+          )}
+        </td>
+
+        <td className="px-6 py-4 font-mono text-xs text-stone-600 font-semibold">
+          {new Date(asis.fecha_hora).toLocaleString('es-NI', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+          })}
+        </td>
+
+        <td className="px-6 py-4 text-center font-mono text-xs text-stone-400 font-normal">
+          {asis.ip_address || '127.0.0.1'}
+        </td>
+
+        <td className="px-6 py-4 text-right">
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              onClick={() => {
+                setEditEventoRecord(asis);
+                setEditNuevoTipo(asis.tipo_evento);
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-amber-50 border border-stone-200 hover:border-amber-300 text-stone-600 hover:text-amber-700 transition-all font-bold text-xs active:scale-95 shadow-xs"
+              title="Corregir el tipo de evento auto-detectado (ej: SALIDA_DEFINITIVA → SALIDA_QUEBRADA)"
+            >
+              <Pencil className="w-3.5 h-3.5 text-stone-400" />
+              <span>Corregir</span>
+            </button>
+            <button
+              onClick={() => setRecordToDelete(asis)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-250 text-stone-600 hover:text-rose-700 transition-all font-bold text-xs active:scale-95 shadow-xs"
+              title="Eliminar este marcaje (si marcó por error o carnet equivocado)"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-stone-400" />
+              <span>Borrar</span>
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
 
   return (
     <div className="space-y-6 select-none font-sans">
@@ -416,16 +598,55 @@ export default function AsistenciaLogPage() {
         </div>
       </div>
 
-      {/* Barra de Filtro */}
-      <div className="relative max-w-md">
-        <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
-        <input
-          type="text"
-          placeholder="Buscar por empleado, cargo o evento..."
-          value={filterText}
-          onChange={(e) => setFilterText(e.target.value)}
-          className="w-full bg-white border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm font-medium"
-        />
+      {/* Barra de Filtros: Buscador + Selector de Día + Toggle de Separadores */}
+      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-2.5 flex-1 max-w-2xl">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
+            <input
+              type="text"
+              placeholder="Buscar por empleado, cargo o evento..."
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              className="w-full bg-white border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm font-medium"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-3 py-1.5 shadow-sm">
+            <Calendar className="w-4 h-4 text-[#1c6856] flex-shrink-0" />
+            <span className="text-[11px] font-bold text-stone-500 whitespace-nowrap">Ver Día:</span>
+            <input
+              type="date"
+              value={filterFecha}
+              onChange={(e) => setFilterFecha(e.target.value)}
+              className="text-xs font-mono text-stone-800 bg-transparent focus:outline-none cursor-pointer"
+            />
+            {filterFecha && (
+              <button
+                onClick={() => setFilterFecha('')}
+                className="text-[11px] text-stone-500 hover:text-stone-800 font-bold ml-1 px-1.5 py-0.5 rounded-md hover:bg-stone-100 transition-colors"
+                title="Ver todos los días"
+              >
+                ✕ Todos
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          <button
+            onClick={() => setSepararPorDia(!separarPorDia)}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border shadow-sm ${
+              separarPorDia
+                ? 'bg-[#1c6856]/10 border-[#1c6856]/30 text-[#1c6856]'
+                : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+            }`}
+            title="Alternar entre ver separadores de fecha por día o lista continua"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>{separarPorDia ? 'Separadores por Día: ACTIVADOS' : 'Lista Continua'}</span>
+          </button>
+        </div>
       </div>
 
       {/* Tabla de Historial */}
@@ -457,137 +678,43 @@ export default function AsistenciaLogPage() {
                     No se encontraron registros de asistencia.
                   </td>
                 </tr>
-              ) : (
-                filtered.map((asis) => {
-                  const key = `${asis.empleado}_${asis.fecha_hora.slice(0, 10)}`;
-                  const marcajesDia = marcajesAgrupadosPorEmpleadoDia[key] || [];
-                  const analisis = calcularPuntualidadRecord(asis, marcajesDia);
-
-                  return (
-                    <tr key={asis.id} className="hover:bg-stone-50/50 transition-colors">
-                      <td className="px-6 py-4">
-                        {asis.foto_verificacion_url && !failedPhotoIds[asis.id] ? (
-                          <button
-                            onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
-                            className="relative group block"
-                          >
-                            <img
-                              src={asis.foto_verificacion_url}
-                              alt="Foto Marcaje"
-                              onError={() => setFailedPhotoIds((prev) => ({ ...prev, [asis.id]: true }))}
-                              className="w-12 h-12 rounded-xl object-cover border border-stone-200 group-hover:opacity-85 transition-opacity"
-                            />
-                          </button>
-                        ) : (
-                          <div className="w-12 h-12 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-400" title="Foto no disponible">
-                            <ImageIcon className="w-5 h-5" />
+              ) : separarPorDia ? (
+                gruposPorDia.map((grupo) => (
+                  <React.Fragment key={`grupo-${grupo.diaKey}`}>
+                    {/* Separador Visual de Día */}
+                    <tr className="bg-stone-100/95 border-y-2 border-[#1c6856]/20">
+                      <td colSpan={8} className="px-6 py-2.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                              <Calendar className="w-4 h-4" />
+                            </div>
+                            <span className="font-black text-xs sm:text-sm text-stone-900 tracking-tight">
+                              {grupo.fechaLabel}
+                            </span>
+                            {grupo.esHoy && (
+                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-300">
+                                Hoy
+                              </span>
+                            )}
+                            {grupo.esAyer && (
+                              <span className="bg-stone-200 text-stone-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                                Ayer
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <div className="font-bold text-stone-900">
-                          {asis.empleado_detalle.nombre} {asis.empleado_detalle.apellido}
-                        </div>
-                        <span className="text-[10px] text-stone-400 font-medium">
-                          {asis.empleado_detalle.cargo_display}
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-white border border-stone-200 text-xs font-bold text-stone-700">
-                          {asis.tipo_evento_display}
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-4 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                          analisis.turno === 'Quebrado'
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                        }`}>
-                          {analisis.turno}
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-4 text-center">
-                        {analisis.estado === 'A Tiempo' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-250 text-[10px] font-bold text-emerald-700">
-                            <CheckCircle className="w-3 h-3" />
-                            A tiempo
+                          <span className="text-[11px] font-bold text-[#1c6856] bg-white px-2.5 py-1 rounded-lg border border-stone-200 shadow-2xs">
+                            {grupo.registros.length} marcaje{grupo.registros.length !== 1 ? 's' : ''} registrado{grupo.registros.length !== 1 ? 's' : ''}
                           </span>
-                        ) : analisis.estado === 'Jornada Cumplida 8h' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-250 text-[10px] font-bold text-emerald-700">
-                            <CheckCircle className="w-3 h-3" />
-                            Jornada 8h
-                          </span>
-                        ) : analisis.estado === 'Retraso Leve' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700" title="Dentro de los 10 minutos de gracia. No se alerta al administrador.">
-                            <Clock className="w-3 h-3" />
-                            Gracia (+{analisis.desviacionMinutos} min)
-                          </span>
-                        ) : analisis.estado === 'Tardanza' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-250 text-[10px] font-bold text-rose-700 animate-pulse">
-                            <Clock className="w-3 h-3" />
-                            Tardanza (+{analisis.desviacionMinutos} min)
-                          </span>
-                        ) : analisis.estado === 'Salida Anticipada' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-250 text-[10px] font-bold text-amber-700">
-                            <AlertCircle className="w-3 h-3" />
-                            Anticipado (-{analisis.desviacionMinutos} min)
-                          </span>
-                        ) : analisis.estado === 'Horas Extra' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-250 text-[10px] font-bold text-blue-700">
-                            <CheckCircle className="w-3 h-3" />
-                            Extra (+{analisis.desviacionMinutos} min)
-                          </span>
-                        ) : (
-                          <span className="text-stone-400 text-xs">-</span>
-                        )}
-                      </td>
-
-                      <td className="px-6 py-4 font-mono text-xs text-stone-600 font-semibold">
-                        {new Date(asis.fecha_hora).toLocaleString('es-NI', {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                          hour12: true,
-                        })}
-                      </td>
-
-                      <td className="px-6 py-4 text-center font-mono text-xs text-stone-400 font-normal">
-                        {asis.ip_address || '127.0.0.1'}
-                      </td>
-
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => {
-                              setEditEventoRecord(asis);
-                              setEditNuevoTipo(asis.tipo_evento);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-amber-50 border border-stone-200 hover:border-amber-300 text-stone-600 hover:text-amber-700 transition-all font-bold text-xs active:scale-95 shadow-xs"
-                            title="Corregir el tipo de evento auto-detectado (ej: SALIDA_DEFINITIVA → SALIDA_QUEBRADA)"
-                          >
-                            <Pencil className="w-3.5 h-3.5 text-stone-400" />
-                            <span>Corregir</span>
-                          </button>
-                          <button
-                            onClick={() => setRecordToDelete(asis)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-250 text-stone-600 hover:text-rose-700 transition-all font-bold text-xs active:scale-95 shadow-xs"
-                            title="Eliminar este marcaje (si marcó por error o carnet equivocado)"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-stone-400" />
-                            <span>Borrar</span>
-                          </button>
                         </div>
                       </td>
                     </tr>
-                  );
-                })
+                    {/* Registros del día */}
+                    {grupo.registros.map((asis) => renderFilaAsistencia(asis))}
+                  </React.Fragment>
+                ))
+              ) : (
+                filtered.map((asis) => renderFilaAsistencia(asis))
               )}
             </tbody>
           </table>

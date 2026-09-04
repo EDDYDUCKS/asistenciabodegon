@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   fetchEmpleados,
   fetchAsistencias,
@@ -33,6 +33,7 @@ import {
   KeyRound,
   ShieldCheck,
   Lock,
+  Search,
 } from 'lucide-react';
 
 export default function NominaAdminPage() {
@@ -64,6 +65,7 @@ export default function NominaAdminPage() {
   const primerDiaMes = hoyStr.slice(0, 8) + '01';
   const [fechaInicio, setFechaInicio] = useState(primerDiaMes);
   const [fechaFin, setFechaFin] = useState(hoyStr);
+  const [searchColaborador, setSearchColaborador] = useState('');
 
   // Form State para Feriados
   const [nuevoFeriadoFecha, setNuevoFeriadoFecha] = useState('');
@@ -523,10 +525,20 @@ export default function NominaAdminPage() {
       };
     });
 
-  const totalOrdinariasPeriodo = resumenEmpleados.reduce((acc, item) => acc + item.horasOrdinarias, 0);
-  const totalFeriadasPeriodo = resumenEmpleados.reduce((acc, item) => acc + item.feriadosTrabajadosDias, 0);
-  const totalExtrasPeriodo = resumenEmpleados.reduce((acc, item) => acc + item.horasExtraAprobadas, 0);
-  const totalDebidasPeriodo = resumenEmpleados.reduce((acc, item) => acc + item.horasDebidas, 0);
+  const resumenFiltrado = useMemo(() => {
+    if (!searchColaborador.trim()) return resumenEmpleados;
+    const term = searchColaborador.toLowerCase().trim();
+    return resumenEmpleados.filter((item) => {
+      const nombreCompleto = `${item.emp.nombre} ${item.emp.apellido}`.toLowerCase();
+      const cargo = (item.emp.cargo_display || item.emp.cargo || '').toLowerCase();
+      return nombreCompleto.includes(term) || cargo.includes(term);
+    });
+  }, [resumenEmpleados, searchColaborador]);
+
+  const totalOrdinariasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasOrdinarias, 0);
+  const totalFeriadasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.feriadosTrabajadosDias, 0);
+  const totalExtrasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasExtraAprobadas, 0);
+  const totalDebidasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasDebidas, 0);
 
   return (
     <div className="space-y-6 select-none font-sans">
@@ -609,9 +621,9 @@ export default function NominaAdminPage() {
             </button>
           </div>
 
-          {/* Filtros Rango Fechas */}
-          <div className="glass-panel border border-white rounded-3xl p-5 shadow-premium flex flex-col sm:flex-row items-end gap-4 print-hide">
-            <div className="flex-1 w-full">
+          {/* Filtros Rango Fechas y Buscador */}
+          <div className="glass-panel border border-white rounded-3xl p-5 shadow-premium flex flex-col md:flex-row items-end gap-4 print-hide">
+            <div className="w-full md:w-44">
               <label className="block text-xs font-bold text-stone-600 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
                 <Calendar className="w-4 h-4 text-[#1c6856]" />
                 Desde:
@@ -624,7 +636,7 @@ export default function NominaAdminPage() {
               />
             </div>
 
-            <div className="flex-1 w-full">
+            <div className="w-full md:w-44">
               <label className="block text-xs font-bold text-stone-600 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
                 <Calendar className="w-4 h-4 text-[#1c6856]" />
                 Hasta:
@@ -637,13 +649,53 @@ export default function NominaAdminPage() {
               />
             </div>
 
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
+                <Search className="w-4 h-4 text-[#1c6856]" />
+                Buscar Colaborador:
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Escriba el nombre o cargo del trabajador..."
+                  value={searchColaborador}
+                  onChange={(e) => setSearchColaborador(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                />
+                <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                {searchColaborador && (
+                  <button
+                    onClick={() => setSearchColaborador('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5"
+                    title="Limpiar búsqueda"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             <button
               onClick={loadData}
-              className="w-full sm:w-auto bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all border border-stone-200"
+              className="w-full md:w-auto bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all border border-stone-200 whitespace-nowrap"
             >
               Recalcular Balance
             </button>
           </div>
+
+          {searchColaborador && (
+            <div className="flex items-center justify-between px-2 text-xs text-stone-500 font-medium">
+              <span>
+                Filtrando por: <strong className="text-stone-800">&quot;{searchColaborador}&quot;</strong> ({resumenFiltrado.length} de {resumenEmpleados.length} colaboradores)
+              </span>
+              <button
+                onClick={() => setSearchColaborador('')}
+                className="text-[#1c6856] hover:underline font-bold"
+              >
+                Mostrar todos
+              </button>
+            </div>
+          )}
 
           {fechaInicio > fechaFin && (
             <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3.5 rounded-xl text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top-1 duration-200">
@@ -680,8 +732,14 @@ export default function NominaAdminPage() {
                         No hay registros disponibles para este rango.
                       </td>
                     </tr>
+                  ) : resumenFiltrado.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-8 text-center text-stone-400 font-normal">
+                        No se encontró ningún trabajador que coincida con &quot;{searchColaborador}&quot;.
+                      </td>
+                    </tr>
                   ) : (
-                    resumenEmpleados.map((item) => (
+                    resumenFiltrado.map((item) => (
                       <tr key={item.emp.id} className="hover:bg-stone-50/50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="font-bold text-stone-900 leading-tight">
