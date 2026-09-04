@@ -379,20 +379,24 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
         meses = int(request.data.get('meses', 6))
         limite_fecha = timezone.now() - datetime.timedelta(days=meses * 30)
 
-        # 1. Liberar fotografías de registros antiguos (manteniendo el registro de texto)
+        # 1. Liberar fotografías de registros antiguos (tanto en disco como en Supabase)
+        from django.db.models import Q
         registros_con_foto = RegistroAsistencia.objects.filter(
-            fecha_hora__lt=limite_fecha,
-            foto_verificacion__isnull=False
-        ).exclude(foto_verificacion='')
+            fecha_hora__lt=limite_fecha
+        ).filter(
+            Q(foto_verificacion__isnull=False) | Q(foto_base64__isnull=False)
+        )
         
         fotos_liberadas = 0
         for reg in registros_con_foto:
-            try:
-                reg.foto_verificacion.delete(save=False)
-            except Exception:
-                pass
-            reg.foto_verificacion = None
-            reg.save(update_fields=['foto_verificacion'])
+            if reg.foto_verificacion:
+                try:
+                    reg.foto_verificacion.delete(save=False)
+                except Exception:
+                    pass
+                reg.foto_verificacion = None
+            reg.foto_base64 = None
+            reg.save(update_fields=['foto_verificacion', 'foto_base64'])
             fotos_liberadas += 1
 
         # 2. Limpiar bitácora antigua
@@ -443,6 +447,32 @@ class PermisoAusenciaViewSet(viewsets.ModelViewSet):
             descripcion=desc,
             ip_address=_get_clean_ip(self.request)
         )
+
+
+def _procesar_foto_a_base64(foto):
+    """
+    Comprime la fotografía facial a 320x320 JPEG calidad 55% y genera un Data-URI
+    ultra-ligero (~12-15 KB) que se almacena permanentemente en Supabase (PostgreSQL).
+    """
+    if not foto:
+        return None
+    try:
+        import base64
+        import io
+        from PIL import Image
+        foto.seek(0)
+        img = Image.open(foto)
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+        img.thumbnail((320, 320), Image.Resampling.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format='JPEG', quality=55, optimize=True)
+        encoded = base64.b64encode(buf.getvalue()).decode('utf-8')
+        foto.seek(0)
+        return f"data:image/jpeg;base64,{encoded}"
+    except Exception as e:
+        print(f"Error procesando foto a base64: {e}")
+        return None
 
 
 def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro):
@@ -661,6 +691,7 @@ def marcar_asistencia_kiosco(request):
         tipo_evento = _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro)
 
     foto = request.FILES.get('foto')
+    foto_b64 = _procesar_foto_a_base64(foto)
 
     # ── DETECCIÓN DE HORARIO INUSUAL / MADRUGADA ───────────────────────────
     if 1 <= dt_local.hour < 10:
@@ -680,6 +711,7 @@ def marcar_asistencia_kiosco(request):
             empleado=empleado,
             tipo_evento=tipo_evento,
             foto_verificacion=foto if foto else None,
+            foto_base64=foto_b64,
             fecha_hora=fecha_hora_registro,
             ip_address=_get_clean_ip(request)
         )
@@ -1174,7 +1206,9 @@ def sync_batch_asistencia(request):
         import datetime
 
         foto_file = None
+        foto_b64 = None
         if foto and ',' in foto:
+            foto_b64 = foto
             try:
                 format, imgstr = foto.split(';base64,')
                 ext = format.split('/')[-1]
@@ -1207,6 +1241,7 @@ def sync_batch_asistencia(request):
                 empleado=empleado,
                 tipo_evento=tipo_evento,
                 foto_verificacion=foto_file,
+                foto_base64=foto_b64,
                 fecha_hora=fecha_hora,
                 ip_address=_get_clean_ip(request)
             )

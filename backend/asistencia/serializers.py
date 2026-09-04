@@ -42,12 +42,15 @@ class RegistroAsistenciaSerializer(serializers.ModelSerializer):
             'tipo_evento_display',
             'fecha_hora',
             'foto_verificacion',
+            'foto_base64',
             'foto_verificacion_url',
             'observacion',
             'ip_address',
         ]
 
     def get_foto_verificacion_url(self, obj):
+        if obj.foto_base64:
+            return obj.foto_base64
         if obj.foto_verificacion:
             request = self.context.get('request')
             if request:

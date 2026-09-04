@@ -78,6 +78,7 @@ class RegistroAsistencia(models.Model):
     tipo_evento = models.CharField(max_length=30, choices=TIPO_EVENTO_CHOICES)
     fecha_hora = models.DateTimeField(default=timezone.now)
     foto_verificacion = models.ImageField(upload_to='asistencia_fotos/', blank=True, null=True)
+    foto_base64 = models.TextField(blank=True, null=True, help_text="Fotografía en Base64 persistente en Supabase")
     observacion = models.TextField(blank=True, null=True)
     ip_address = models.CharField(max_length=45, blank=True, null=True)
 
