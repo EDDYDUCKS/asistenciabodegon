@@ -304,9 +304,10 @@ export default function AsistenciaLogPage() {
   const [recordToDelete, setRecordToDelete] = useState<RegistroAsistencia | null>(null);
   const [deletingRecord, setDeletingRecord] = useState(false);
 
-  // ── ESTADO PARA CORREGIR EL TIPO DE EVENTO DE UN REGISTRO ──────────────────
+  // ── ESTADO PARA CORREGIR UN REGISTRO (TIPO DE EVENTO O EMPLEADO) ──────────
   const [editEventoRecord, setEditEventoRecord] = useState<RegistroAsistencia | null>(null);
   const [editNuevoTipo, setEditNuevoTipo] = useState<string>('ENTRADA');
+  const [editEmpleadoId, setEditEmpleadoId] = useState<number | ''>('');
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Bloquear el desplazamiento de la página de fondo cuando cualquier modal esté abierto
@@ -336,23 +337,26 @@ export default function AsistenciaLogPage() {
   };
 
   const handleEditTipoEvento = async () => {
-    if (!editEventoRecord) return;
+    if (!editEventoRecord || !editEmpleadoId) return;
     setSavingEdit(true);
     try {
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
       const res = await fetch(`${API_BASE_URL}/asistencia/${editEventoRecord.id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo_evento: editNuevoTipo }),
+        body: JSON.stringify({
+          empleado: Number(editEmpleadoId),
+          tipo_evento: editNuevoTipo,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Error al actualizar el tipo de evento.');
+        throw new Error(err.detail || 'Error al actualizar el marcaje.');
       }
       setEditEventoRecord(null);
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Error al actualizar el tipo de evento.');
+      alert(err.message || 'Error al actualizar el marcaje.');
     } finally {
       setSavingEdit(false);
     }
@@ -542,9 +546,10 @@ export default function AsistenciaLogPage() {
               onClick={() => {
                 setEditEventoRecord(asis);
                 setEditNuevoTipo(asis.tipo_evento);
+                setEditEmpleadoId(asis.empleado);
               }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-amber-50 border border-stone-200 hover:border-amber-300 text-stone-600 hover:text-amber-700 transition-all font-bold text-xs active:scale-95 shadow-xs"
-              title="Corregir el tipo de evento auto-detectado (ej: SALIDA_DEFINITIVA → SALIDA_QUEBRADA)"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-amber-50 border border-stone-200 hover:border-amber-300 text-stone-600 hover:text-amber-700 transition-all font-bold text-xs active:scale-95 shadow-xs cursor-pointer"
+              title="Corregir el colaborador asignado o el tipo de evento ante confusiones de carnet"
             >
               <Pencil className="w-3.5 h-3.5 text-stone-400" />
               <span>Corregir</span>
@@ -683,9 +688,10 @@ export default function AsistenciaLogPage() {
               onClick={() => {
                 setEditEventoRecord(asis);
                 setEditNuevoTipo(asis.tipo_evento);
+                setEditEmpleadoId(asis.empleado);
               }}
               className="p-1.5 rounded-lg bg-stone-50 hover:bg-amber-50 border border-stone-200 text-stone-600 hover:text-amber-700 transition-colors cursor-pointer"
-              title="Corregir Marcaje"
+              title="Corregir Marcaje (Colaborador o Tipo)"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
@@ -1128,10 +1134,10 @@ export default function AsistenciaLogPage() {
               </div>
               <div>
                 <h3 className="font-black text-stone-900 text-base leading-tight">
-                  Corregir Tipo de Evento
+                  Corregir Marcaje de Asistencia
                 </h3>
                 <p className="text-xs text-stone-500 font-medium mt-0.5">
-                  Úsalo cuando el sistema auto-detectó el tipo de marcaje incorrecto.
+                  Modifica el colaborador asignado o el tipo de evento ante confusiones de carnet.
                 </p>
               </div>
             </div>
@@ -1139,18 +1145,6 @@ export default function AsistenciaLogPage() {
             {/* Ficha del registro afectado */}
             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 text-xs space-y-2">
               <div className="flex justify-between items-center border-b border-stone-200/60 pb-1.5">
-                <span className="text-stone-500 font-bold uppercase text-[10px]">Colaborador:</span>
-                <span className="font-black text-stone-800">
-                  {editEventoRecord.empleado_detalle.nombre} {editEventoRecord.empleado_detalle.apellido}
-                </span>
-              </div>
-              <div className="flex justify-between items-center border-b border-stone-200/60 pb-1.5">
-                <span className="text-stone-500 font-bold uppercase text-[10px]">Evento Actual:</span>
-                <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200">
-                  {editEventoRecord.tipo_evento_display}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
                 <span className="text-stone-500 font-bold uppercase text-[10px]">Fecha y Hora:</span>
                 <span className="font-mono font-bold text-stone-700">
                   {new Date(editEventoRecord.fecha_hora).toLocaleString('es-NI', {
@@ -1160,12 +1154,42 @@ export default function AsistenciaLogPage() {
                   })}
                 </span>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="text-stone-500 font-bold uppercase text-[10px]">Asignado Originalmente:</span>
+                <span className="font-bold text-stone-700">
+                  {editEventoRecord.empleado_detalle.nombre} {editEventoRecord.empleado_detalle.apellido}
+                </span>
+              </div>
             </div>
 
-            {/* Selector del nuevo tipo */}
+            {/* Selector de Colaborador */}
             <div>
               <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
-                Cambiar a:
+                Colaborador Asignado:
+              </label>
+              <select
+                value={editEmpleadoId}
+                onChange={(e) => setEditEmpleadoId(Number(e.target.value))}
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm text-stone-900 font-bold focus:outline-none focus:ring-2 focus:ring-amber-400"
+              >
+                {empleados
+                  .slice()
+                  .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                  .map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.nombre} {emp.apellido} — {emp.cargo_display || emp.cargo}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-[10.5px] text-stone-500 mt-1 font-medium">
+                ¿Confusión de carnet? Selecciona a quién correspondía realmente este marcaje.
+              </p>
+            </div>
+
+            {/* Selector del tipo de marcaje */}
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
+                Tipo de Marcaje:
               </label>
               <select
                 value={editNuevoTipo}
@@ -1178,7 +1202,7 @@ export default function AsistenciaLogPage() {
                 <option value="SALIDA_DEFINITIVA">🔴 SALIDA_DEFINITIVA — Salida Definitiva (Cierre de Turno)</option>
               </select>
               <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2 mt-2 font-medium">
-                ⚠️ Esto corrige únicamente este registro. Los marcajes siguientes del colaborador en el mismo día continuarán la secuencia desde el tipo corregido.
+                ⚠️ Al cambiar el colaborador o tipo de evento, el sistema recalcula automáticamente las horas y balances de los involucrados.
               </p>
             </div>
 
@@ -1187,15 +1211,19 @@ export default function AsistenciaLogPage() {
                 type="button"
                 onClick={() => setEditEventoRecord(null)}
                 disabled={savingEdit}
-                className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs py-2.5 rounded-xl transition-colors"
+                className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs py-2.5 rounded-xl transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleEditTipoEvento}
-                disabled={savingEdit || editNuevoTipo === editEventoRecord.tipo_evento}
-                className="flex-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={
+                  savingEdit ||
+                  (editNuevoTipo === editEventoRecord.tipo_evento &&
+                    Number(editEmpleadoId) === editEventoRecord.empleado)
+                }
+                className="flex-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {savingEdit ? (
                   <>

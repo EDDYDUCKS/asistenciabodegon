@@ -120,10 +120,26 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
             pass
 
     def perform_update(self, serializer):
+        empleado_anterior = serializer.instance.empleado
         instance = serializer.save()
         try:
             fecha_instancia = instance.fecha_hora.astimezone(timezone.get_current_timezone()).date()
             _recalcular_horas_pendientes_empleado(instance.empleado, fecha_instancia)
+            if empleado_anterior and empleado_anterior.id != instance.empleado.id:
+                _recalcular_horas_pendientes_empleado(empleado_anterior, fecha_instancia)
+        except Exception:
+            pass
+
+        try:
+            BitacoraAccion.objects.create(
+                usuario=self.request.user if self.request.user.is_authenticated else None,
+                accion='REGISTRO_MANUAL',
+                descripcion=(
+                    f"Marcaje #{instance.id} corregido por administrador: "
+                    f"Asignado a {instance.empleado.nombre} {instance.empleado.apellido} ({instance.get_tipo_evento_display()})."
+                ),
+                ip_address=_get_clean_ip(self.request)
+            )
         except Exception:
             pass
 
