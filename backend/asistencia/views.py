@@ -445,6 +445,139 @@ class PermisoAusenciaViewSet(viewsets.ModelViewSet):
         )
 
 
+def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro):
+    """
+    Auto-detección inteligente de eventos para El Bodegón:
+    - Primer evento del día -> siempre ENTRADA.
+    - Cierre nocturno (después de las 9:30 PM / 1290 min) -> siempre SALIDA_DEFINITIVA.
+    - Segundo evento:
+      * Si han transcurrido >= 6.8 horas (ej: 9am-5pm, o 3pm-11pm) -> SALIDA_DEFINITIVA.
+      * Si han transcurrido < 6.8 horas y es mediodía/tarde -> SALIDA_QUEBRADA (Pausa).
+    - Tercer evento (después de SALIDA_QUEBRADA) -> ENTRADA_QUEBRADA (Retorno).
+    - Cuarto evento (después de ENTRADA_QUEBRADA) -> SALIDA_DEFINITIVA (Cierre).
+    """
+    if not registros_hoy.exists():
+        return 'ENTRADA'
+
+    dt_local = fecha_hora_registro.astimezone(timezone.get_current_timezone())
+    hora_mins = dt_local.hour * 60 + dt_local.minute
+    cant = registros_hoy.count()
+    ultimo = registros_hoy.last()
+    primero = registros_hoy.first()
+
+    # Regla de Cierre: Después de las 9:30 PM (21:30 = 1290 min) cualquier salida es definitiva
+    if hora_mins >= 1290:
+        return 'SALIDA_DEFINITIVA'
+
+    if cant == 1:
+        # Segundo evento del día
+        segundos = (fecha_hora_registro - primero.fecha_hora).total_seconds()
+        horas_transcurridas = segundos / 3600.0
+        # Si ya completó jornada corrida (>= 6.8h) es salida definitiva (ej: 9am-5pm)
+        if horas_transcurridas >= 6.8:
+            return 'SALIDA_DEFINITIVA'
+        # Si lleva menos tiempo y estamos entre 12:30 PM y 6:30 PM, es salida a pausa
+        if 750 <= hora_mins <= 1140:
+            return 'SALIDA_QUEBRADA'
+        return 'SALIDA_DEFINITIVA'
+
+    elif cant == 2:
+        # Tercer evento del día: si el último fue una salida a pausa (o salida), es retorno de pausa
+        if ultimo.tipo_evento in ('SALIDA_QUEBRADA', 'SALIDA_DEFINITIVA'):
+            return 'ENTRADA_QUEBRADA'
+        return 'SALIDA_DEFINITIVA'
+
+    elif cant == 3:
+        # Cuarto evento del día: tras retornar de pausa, el siguiente es salida definitiva
+        return 'SALIDA_DEFINITIVA'
+
+    else:
+        if ultimo.tipo_evento in ('SALIDA_DEFINITIVA', 'SALIDA_QUEBRADA'):
+            return 'ENTRADA'
+        return 'SALIDA_DEFINITIVA'
+
+
+def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=False):
+    """
+    Evalúa puntualidad con la regla de gracia de 10 min de El Bodegón:
+    - 4 Franjas Base de Entrada: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900).
+    - Margen de gracia: 10 minutos (1 a 10 min retraso leve informativo, NO alerta al admin).
+    - Tardanza severa: > 10 minutos (genera alerta en campanita y acta imprimible).
+    - Salida definitiva: alerta solo si déficit > 10 minutos de las 8 horas (horas_netas_hoy < 7.83).
+    """
+    try:
+        hora_actual = registro.fecha_hora.astimezone(timezone.get_current_timezone())
+        mins_marcados = hora_actual.hour * 60 + hora_actual.minute
+        tipo = registro.tipo_evento
+        tag_offline = " (Offline)" if es_offline else ""
+
+        alerta_creada = False
+        alerta_tipo = ''
+        alerta_titulo = ''
+        alerta_mensaje = ''
+
+        if tipo == 'ENTRADA':
+            FRANJAS = [540, 660, 720, 900]
+            franja_base = min(FRANJAS, key=lambda b: abs(mins_marcados - b))
+            diff = mins_marcados - franja_base
+            HORA_LABELS = {540: '9:00 AM', 660: '11:00 AM', 720: '12:00 PM', 900: '3:00 PM'}
+            
+            # Solo alertar si excede los 10 minutos de gracia
+            if diff > 10:
+                alerta_creada = True
+                alerta_tipo = 'TARDANZA'
+                alerta_titulo = f"Tardanza severa{tag_offline}: {empleado.nombre} {empleado.apellido}"
+                alerta_mensaje = (
+                    f"Llegó {diff} min tarde respecto a su turno ({HORA_LABELS[franja_base]}). "
+                    f"Marcaje a las {hora_actual.strftime('%I:%M %p')}."
+                )
+
+        elif tipo == 'ENTRADA_QUEBRADA':
+            # Hora esperada de retorno: 7:00 PM (1140) si el primer bloque fue de ~4 horas (ej. 11am a 3pm),
+            # o 6:00 PM (1080) si fue de ~3 horas (ej. 12pm a 3pm)
+            primera_ent = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA'), None)
+            primera_pausa = next((r for r in registros_actualizados if r.tipo_evento == 'SALIDA_QUEBRADA'), None)
+            hora_esperada = 1080  # 6:00 PM
+            if primera_ent and primera_pausa:
+                duracion_b1 = (primera_pausa.fecha_hora - primera_ent.fecha_hora).total_seconds() / 3600.0
+                if duracion_b1 >= 3.6:
+                    hora_esperada = 1140  # 7:00 PM
+
+            diff_ret = mins_marcados - hora_esperada
+            ret_label = '7:00 PM' if hora_esperada == 1140 else '6:00 PM'
+            if diff_ret > 10:
+                alerta_creada = True
+                alerta_tipo = 'TARDANZA'
+                alerta_titulo = f"Tardanza Retorno de Pausa{tag_offline}: {empleado.nombre} {empleado.apellido}"
+                alerta_mensaje = (
+                    f"Regresó de la pausa {diff_ret} min tarde respecto a su horario ({ret_label}). "
+                    f"Marcaje a las {hora_actual.strftime('%I:%M %p')}."
+                )
+
+        elif tipo == 'SALIDA_DEFINITIVA':
+            # Solo alertar si el déficit supera los 10 minutos de la jornada de 8 horas (menos de 7.83h)
+            if horas_netas_hoy < 7.83:
+                deficit_mins = int(round((8.0 - horas_netas_hoy) * 60))
+                if deficit_mins > 10:
+                    alerta_creada = True
+                    alerta_tipo = 'SALIDA_ANTICIPADA'
+                    alerta_titulo = f"Jornada incompleta{tag_offline}: {empleado.nombre} {empleado.apellido}"
+                    alerta_mensaje = (
+                        f"Se retiró antes de cumplir sus 8 horas. Acumuló {round(horas_netas_hoy, 2)} hrs "
+                        f"(Déficit de {deficit_mins} min)."
+                    )
+
+        if alerta_creada:
+            AlertaAsistencia.objects.create(
+                tipo=alerta_tipo,
+                empleado=empleado,
+                titulo=alerta_titulo,
+                mensaje=alerta_mensaje
+            )
+    except Exception as ex:
+        print(f"Error evaluando alertas: {ex}")
+
+
 # ==========================================
 # 🟢 ENDPOINT PRINCIPAL DEL KIOSCO DE MARCAJE
 # ==========================================
@@ -525,44 +658,7 @@ def marcar_asistencia_kiosco(request):
     hora_mins = dt_local.hour * 60 + dt_local.minute
 
     if not tipo_evento:
-        if empleado.tipo_turno == 'QUEBRADO':
-            if not registros_hoy.exists():
-                tipo_evento = 'ENTRADA'
-            else:
-                ultimo_evento = registros_hoy.last().tipo_evento
-                if ultimo_evento == 'ENTRADA':
-                    # Si el empleado marcó entrada al mediodía y ahora marca después de las 5:30 PM (1050 min),
-                    # omitió marcar salida a pausa de las 3:00 PM y está marcando el retorno de la tarde (6:00 PM)
-                    if hora_mins >= 1050:
-                        tipo_evento = 'ENTRADA_QUEBRADA'
-                        AlertaAsistencia.objects.create(
-                            tipo='REGISTRO_INCOMPLETO',
-                            empleado=empleado,
-                            titulo=f"Omisión de pausa detectada: {empleado.nombre} {empleado.apellido}",
-                            mensaje=(
-                                f"El empleado {empleado.nombre} no registró su salida a pausa (3:00 PM) "
-                                f"y marcó retorno de la tarde a las {dt_local.strftime('%I:%M %p')}. "
-                                f"El sistema ajustó su marcaje a Retorno para preservar sus horas."
-                            ),
-                            leida=False
-                        )
-                    else:
-                        tipo_evento = 'SALIDA_QUEBRADA'
-                elif ultimo_evento == 'SALIDA_QUEBRADA':
-                    tipo_evento = 'ENTRADA_QUEBRADA'
-                elif ultimo_evento == 'ENTRADA_QUEBRADA':
-                    tipo_evento = 'SALIDA_DEFINITIVA'
-                else:
-                    tipo_evento = 'ENTRADA'
-        else:  # CORRIDO
-            if not registros_hoy.exists():
-                tipo_evento = 'ENTRADA'
-            else:
-                ultimo_evento = registros_hoy.last().tipo_evento
-                if ultimo_evento == 'ENTRADA':
-                    tipo_evento = 'SALIDA_DEFINITIVA'
-                else:
-                    tipo_evento = 'ENTRADA'
+        tipo_evento = _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro)
 
     foto = request.FILES.get('foto')
 
@@ -647,60 +743,7 @@ def marcar_asistencia_kiosco(request):
         _acumular_horas_pendientes(empleado, hoy, horas_netas_hoy)
 
     # ── DETECCIÓN DE PUNTUALIDAD Y CREACIÓN DE ALERTAS INTERNAS ─────────────
-    try:
-        hora_actual = registro.fecha_hora.astimezone(timezone.get_current_timezone())
-        tipo = registro.tipo_evento
-        
-        # Determinar el turno según marcajes del día
-        tiene_quebrado = any(r.tipo_evento in ['SALIDA_QUEBRADA', 'ENTRADA_QUEBRADA'] for r in registros_actualizados)
-        primera_ent = next((r for r in registros_actualizados if r.tipo_evento in ['ENTRADA']), None)
-        
-        turno_detectado = 'Desconocido'
-        if tiene_quebrado:
-            turno_detectado = 'Quebrado'
-        elif primera_ent:
-            dt_ent = primera_ent.fecha_hora.astimezone(timezone.get_current_timezone())
-            # Corrido 2 entra a las 3pm (hora >= 14:00, < 17:00)
-            if 14 <= dt_ent.hour < 17:
-                turno_detectado = 'Corrido 2'
-            else:
-                turno_detectado = 'Corrido 1'
-
-        mins_marcados = hora_actual.hour * 60 + hora_actual.minute
-        alerta_creada = False
-        alerta_tipo = ''
-        alerta_titulo = ''
-        alerta_mensaje = ''
-
-        if tipo == 'ENTRADA':
-            # Corrido 1 / Quebrado → 12:00pm (720 min) | Corrido 2 → 3:00pm (900 min)
-            target = 900 if turno_detectado == 'Corrido 2' else 720
-            diff = mins_marcados - target
-            # Alerta solo si es tardanza severa (>30 min) para no saturar al admin con nimiedades
-            if diff > 30:
-                alerta_creada = True
-                alerta_tipo = 'TARDANZA'
-                alerta_titulo = f"Tardanza severa: {empleado.nombre} {empleado.apellido}"
-                alerta_mensaje = f"Llegó {diff} min tarde. Marcaje a las {hora_actual.strftime('%I:%M %p')} (Turno {turno_detectado})."
-
-        elif tipo == 'SALIDA_DEFINITIVA':
-            # Filosofía de 8 Horas: Alertar si el trabajador no cumplió al menos 7.5h en el día completo
-            if horas_netas_hoy < 7.5:
-                deficit_hrs = round(8.0 - horas_netas_hoy, 1)
-                alerta_creada = True
-                alerta_tipo = 'SALIDA_ANTICIPADA'
-                alerta_titulo = f"Jornada incompleta: {empleado.nombre} {empleado.apellido}"
-                alerta_mensaje = f"Se retiró antes de cumplir sus 8 horas. Acumuló {round(horas_netas_hoy, 1)} hrs hoy (Déficit de {deficit_hrs} hrs)."
-
-        if alerta_creada:
-            AlertaAsistencia.objects.create(
-                tipo=alerta_tipo,
-                empleado=empleado,
-                titulo=alerta_titulo,
-                mensaje=alerta_mensaje
-            )
-    except Exception as ex:
-        print(f"Error procesando alertas: {ex}")
+    _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=False)
 
     horas_restantes_hoy = max(0.0, round(8.0 - horas_netas_hoy, 2))
     cumplio_meta = horas_netas_hoy >= 7.95
@@ -1156,28 +1199,8 @@ def sync_batch_asistencia(request):
                 fecha_hora__range=(start_dt, end_dt)
             ).order_by('fecha_hora')
 
-            if empleado.tipo_turno == 'QUEBRADO':
-                if not registros_hoy.exists():
-                    tipo_evento = 'ENTRADA'
-                else:
-                    ultimo_evento = registros_hoy.last().tipo_evento
-                    if ultimo_evento == 'ENTRADA':
-                        tipo_evento = 'SALIDA_QUEBRADA'
-                    elif ultimo_evento == 'SALIDA_QUEBRADA':
-                        tipo_evento = 'ENTRADA_QUEBRADA'
-                    elif ultimo_evento == 'ENTRADA_QUEBRADA':
-                        tipo_evento = 'SALIDA_DEFINITIVA'
-                    else:
-                        tipo_evento = 'ENTRADA'
-            else:  # CORRIDO
-                if not registros_hoy.exists():
-                    tipo_evento = 'ENTRADA'
-                else:
-                    ultimo_evento = registros_hoy.last().tipo_evento
-                    if ultimo_evento == 'ENTRADA':
-                        tipo_evento = 'SALIDA_DEFINITIVA'
-                    else:
-                        tipo_evento = 'ENTRADA'
+            if not tipo_evento or tipo_evento == 'AUTODETECT':
+                tipo_evento = _autodetectar_tipo_evento(registros_hoy, fecha_hora)
 
         with transaction.atomic():
             registro = RegistroAsistencia.objects.create(
@@ -1246,74 +1269,8 @@ def sync_batch_asistencia(request):
             # Horas debidas / pendientes
             _acumular_horas_pendientes(empleado, dia, horas_netas_hoy)
 
-        # Alertas de asistencia
-        try:
-            tiene_quebrado = any(r.tipo_evento in ['SALIDA_QUEBRADA', 'ENTRADA_QUEBRADA'] for r in registros_actualizados)
-            primera_ent = next((r for r in registros_actualizados if r.tipo_evento in ['ENTRADA', 'ENTRADA_QUEBRADA']), None)
-            
-            turno_detectado = 'Desconocido'
-            if tiene_quebrado:
-                turno_detectado = 'Quebrado'
-            elif primera_ent:
-                dt_ent = primera_ent.fecha_hora.astimezone(timezone.get_current_timezone())
-                if dt_ent.hour >= 14:
-                    turno_detectado = 'Corrido 2'
-                else:
-                    turno_detectado = 'Corrido 1'
-
-            hora_actual = registro.fecha_hora.astimezone(timezone.get_current_timezone())
-            mins_marcados = hora_actual.hour * 60 + hora_actual.minute
-            alerta_creada = False
-            alerta_tipo = ''
-            alerta_titulo = ''
-            alerta_mensaje = ''
-
-            if tipo_evento == 'ENTRADA':
-                target = 720
-                if turno_detectado == 'Corrido 2' or (turno_detectado == 'Desconocido' and mins_marcados > 810):
-                    target = 900
-                diff = mins_marcados - target
-                if diff > 10:
-                    alerta_creada = True
-                    alerta_tipo = 'TARDANZA'
-                    alerta_titulo = f"Tardanza (Offline): {empleado.nombre} {empleado.apellido}"
-                    alerta_mensaje = f"Llegó {diff} minutos tarde. Marcaje offline a las {hora_actual.strftime('%I:%M %p')} (Turno {turno_detectado})."
-            elif tipo_evento == 'ENTRADA_QUEBRADA':
-                target = 1080
-                diff = mins_marcados - target
-                if diff > 10:
-                    alerta_creada = True
-                    alerta_tipo = 'TARDANZA'
-                    alerta_titulo = f"Tardanza Regreso (Offline): {empleado.nombre} {empleado.apellido}"
-                    alerta_mensaje = f"Regresó de la pausa {diff} minutos tarde. Marcaje offline a las {hora_actual.strftime('%I:%M %p')}."
-            elif tipo_evento == 'SALIDA_QUEBRADA':
-                target = 900
-                diff = target - mins_marcados
-                if diff > 5:
-                    alerta_creada = True
-                    alerta_tipo = 'SALIDA_ANTICIPADA'
-                    alerta_titulo = f"Salida anticipada Pausa (Offline): {empleado.nombre} {empleado.apellido}"
-                    alerta_mensaje = f"Se retiró a la pausa {diff} minutos antes. Marcaje offline a las {hora_actual.strftime('%I:%M %p')}."
-            elif tipo_evento == 'SALIDA_DEFINITIVA':
-                target = 1380
-                if turno_detectado == 'Corrido 1':
-                    target = 1200
-                diff = target - mins_marcados
-                if diff > 5:
-                    alerta_creada = True
-                    alerta_tipo = 'SALIDA_ANTICIPADA'
-                    alerta_titulo = f"Salida definitiva anticipada (Offline): {empleado.nombre} {empleado.apellido}"
-                    alerta_mensaje = f"Salió {diff} minutos antes de su turno. Marcaje offline a las {hora_actual.strftime('%I:%M %p')} (Turno {turno_detectado})."
-
-            if alerta_creada:
-                AlertaAsistencia.objects.create(
-                    tipo=alerta_tipo,
-                    empleado=empleado,
-                    titulo=alerta_titulo,
-                    mensaje=alerta_mensaje
-                )
-        except Exception as ex:
-            print(f"Error procesando alertas batch: {ex}")
+        # Alertas de asistencia (Regla de gracia 10 min de El Bodegón)
+        _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=True)
 
         respuestas.append({'status': 'ok', 'id': registro.id, 'empleado': empleado.nombre})
 

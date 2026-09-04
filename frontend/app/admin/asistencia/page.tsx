@@ -18,52 +18,19 @@ import {
 } from 'lucide-react';
 
 interface AnalisisPuntualidad {
-  turno: 'Quebrado' | 'Corrido 1' | 'Corrido 2' | 'Desconocido';
-  estado: 'A Tiempo' | 'Tardanza' | 'Salida Anticipada' | 'N/A';
+  turno: string;
+  estado: 'A Tiempo' | 'Retraso Leve' | 'Tardanza' | 'Salida Anticipada' | 'Jornada Cumplida 8h' | 'Horas Extra' | 'N/A';
   desviacionMinutos: number;
 }
 
-// Lógica de cálculo de puntualidad dinámica
+// Lógica de cálculo de puntualidad inteligente y flexible para El Bodegón
 function calcularPuntualidadRecord(
   asis: RegistroAsistencia,
   marcajesDelDia: RegistroAsistencia[]
 ): AnalisisPuntualidad {
-  const horaMarcaje = new Date(asis.fecha_hora);
   const tipo = asis.tipo_evento;
 
-  // 1. Clasificación del turno del día
-  const tieneQuebrado = marcajesDelDia.some(
-    (m) => m.tipo_evento === 'SALIDA_QUEBRADA' || m.tipo_evento === 'ENTRADA_QUEBRADA'
-  );
-
-  const primeraEntrada = marcajesDelDia.find(
-    (m) => m.tipo_evento === 'ENTRADA' || m.tipo_evento === 'ENTRADA_QUEBRADA'
-  );
-
-  let turno: 'Quebrado' | 'Corrido 1' | 'Corrido 2' | 'Desconocido' = 'Desconocido';
-  let horaPrimeraEntrada = 12;
-  
-  if (primeraEntrada) {
-    const niTimeStr = new Date(primeraEntrada.fecha_hora).toLocaleTimeString('en-US', {
-      timeZone: 'America/Managua',
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    const [heStr, meStr] = niTimeStr.split(':');
-    const hour = parseInt(heStr, 10) + parseInt(meStr, 10) / 60;
-    if (hour >= 14) {
-      horaPrimeraEntrada = 15;
-    }
-  }
-
-  if (tieneQuebrado) {
-    turno = 'Quebrado';
-  } else if (primeraEntrada) {
-    turno = horaPrimeraEntrada === 15 ? 'Corrido 2' : 'Corrido 1';
-  }
-
-  // Horas teóricas en minutos en zona horaria de Nicaragua
+  // Horas en minutos en zona horaria de Nicaragua
   const nicaraguaTimeStr = new Date(asis.fecha_hora).toLocaleTimeString('en-US', {
     timeZone: 'America/Managua',
     hour12: false,
@@ -73,50 +40,111 @@ function calcularPuntualidadRecord(
   const [hStr, mStr] = nicaraguaTimeStr.split(':');
   const minsMarcados = parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
 
+  // 1. Identificar franja según la primera entrada del día
+  const primeraEntrada = marcajesDelDia.find((m) => m.tipo_evento === 'ENTRADA');
+  let minsPrimeraEntrada = minsMarcados;
+  if (primeraEntrada) {
+    const niEntStr = new Date(primeraEntrada.fecha_hora).toLocaleTimeString('en-US', {
+      timeZone: 'America/Managua',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const [hE, mE] = niEntStr.split(':');
+    minsPrimeraEntrada = parseInt(hE, 10) * 60 + parseInt(mE, 10);
+  }
+
+  // 4 Franjas Base: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900)
+  const FRANJAS = [540, 660, 720, 900];
+  const franjaBaseEntrada = FRANJAS.reduce((prev, curr) =>
+    Math.abs(curr - minsPrimeraEntrada) < Math.abs(prev - minsPrimeraEntrada) ? curr : prev
+  );
+
+  const tieneQuebrado = marcajesDelDia.some(
+    (m) => m.tipo_evento === 'SALIDA_QUEBRADA' || m.tipo_evento === 'ENTRADA_QUEBRADA'
+  );
+
+  let turno = 'Tarde (3 PM)';
+  if (tieneQuebrado) {
+    turno = franjaBaseEntrada === 660 ? 'Quebrado (11 AM)' : 'Quebrado (12 PM)';
+  } else if (franjaBaseEntrada === 540) {
+    turno = 'Mañana (9 AM)';
+  } else if (franjaBaseEntrada === 720) {
+    turno = 'Almuerzo (12 PM)';
+  } else if (franjaBaseEntrada === 660) {
+    turno = 'Cocina (11 AM)';
+  }
+
+  // ── ENTRADA INICIAL ──
   if (tipo === 'ENTRADA') {
-    let target = 720; // 12:00 md
-    if (turno === 'Corrido 2' || (turno === 'Desconocido' && minsMarcados > 810)) {
-      target = 900; // 3:00 pm
-    }
+    const franjaBaseEsta = FRANJAS.reduce((prev, curr) =>
+      Math.abs(curr - minsMarcados) < Math.abs(prev - minsMarcados) ? curr : prev
+    );
+    const diff = minsMarcados - franjaBaseEsta;
 
-    const diff = minsMarcados - target;
-    if (diff > 0) {
+    if (diff <= 0) {
+      return { turno, estado: 'A Tiempo', desviacionMinutos: 0 };
+    } else if (diff <= 10) {
+      return { turno, estado: 'Retraso Leve', desviacionMinutos: diff };
+    } else {
       return { turno, estado: 'Tardanza', desviacionMinutos: diff };
     }
-    return { turno, estado: 'A Tiempo', desviacionMinutos: 0 };
   }
 
+  // ── RETORNO DE PAUSA ──
   if (tipo === 'ENTRADA_QUEBRADA') {
-    const target = 1080; // 6:00 pm (18:00)
-    const diff = minsMarcados - target;
-    if (diff > 0) {
+    // Si la entrada fue cerca de 11:00 AM (hizo 4h en la mañana), su retorno esperado es 7:00 PM (1140 min)
+    let horaEsperadaRetorno = 1080; // 6:00 PM por defecto
+    const primeraPausa = marcajesDelDia.find((m) => m.tipo_evento === 'SALIDA_QUEBRADA');
+    if (primeraEntrada && primeraPausa) {
+      const duracionB1 = (new Date(primeraPausa.fecha_hora).getTime() - new Date(primeraEntrada.fecha_hora).getTime()) / 3600000;
+      if (duracionB1 >= 3.6) {
+        horaEsperadaRetorno = 1140; // 7:00 PM
+      }
+    }
+
+    const diff = minsMarcados - horaEsperadaRetorno;
+    if (diff <= 0) {
+      return { turno, estado: 'A Tiempo', desviacionMinutos: 0 };
+    } else if (diff <= 10) {
+      return { turno, estado: 'Retraso Leve', desviacionMinutos: diff };
+    } else {
       return { turno, estado: 'Tardanza', desviacionMinutos: diff };
     }
-    return { turno, estado: 'A Tiempo', desviacionMinutos: 0 };
   }
 
+  // ── SALIDA A PAUSA ──
   if (tipo === 'SALIDA_QUEBRADA') {
-    const target = 900; // 3:00 pm
-    const diff = target - minsMarcados;
-    if (diff > 0) {
-      return { turno, estado: 'Salida Anticipada', desviacionMinutos: diff };
-    }
     return { turno, estado: 'A Tiempo', desviacionMinutos: 0 };
   }
 
+  // ── SALIDA DEFINITIVA (Cálculo exacto por horas netas de jornada) ──
   if (tipo === 'SALIDA_DEFINITIVA') {
-    let target = 1380; // 11:00 pm
-    if (turno === 'Corrido 1') {
-      target = 1200; // 8:00 pm
-    } else if (turno === 'Desconocido') {
-      target = Math.abs(minsMarcados - 1200) < Math.abs(minsMarcados - 1380) ? 1200 : 1380;
-    }
+    let totalMilisegundos = 0;
+    let entradaTemp: Date | null = null;
 
-    const diff = target - minsMarcados;
-    if (diff > 0) {
-      return { turno, estado: 'Salida Anticipada', desviacionMinutos: diff };
+    marcajesDelDia.forEach((m) => {
+      const dt = new Date(m.fecha_hora);
+      if (m.tipo_evento === 'ENTRADA' || m.tipo_evento === 'ENTRADA_QUEBRADA') {
+        entradaTemp = dt;
+      } else if ((m.tipo_evento === 'SALIDA_QUEBRADA' || m.tipo_evento === 'SALIDA_DEFINITIVA') && entradaTemp) {
+        totalMilisegundos += Math.max(0, dt.getTime() - entradaTemp.getTime());
+        entradaTemp = null;
+      }
+    });
+
+    const horasNetas = totalMilisegundos / 3600000;
+
+    // Tolerancia de 10 minutos (7.83 horas = 7 horas y 50 minutos)
+    if (horasNetas >= 8.1) {
+      const extraMins = Math.round((horasNetas - 8.0) * 60);
+      return { turno, estado: 'Horas Extra', desviacionMinutos: extraMins };
+    } else if (horasNetas >= 7.83) {
+      return { turno, estado: 'Jornada Cumplida 8h', desviacionMinutos: 0 };
+    } else {
+      const deficitMins = Math.round((8.0 - horasNetas) * 60);
+      return { turno, estado: 'Salida Anticipada', desviacionMinutos: deficitMins };
     }
-    return { turno, estado: 'A Tiempo', desviacionMinutos: 0 };
   }
 
   return { turno, estado: 'N/A', desviacionMinutos: 0 };
@@ -414,6 +442,16 @@ export default function AsistenciaLogPage() {
                             <CheckCircle className="w-3 h-3" />
                             A tiempo
                           </span>
+                        ) : analisis.estado === 'Jornada Cumplida 8h' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-250 text-[10px] font-bold text-emerald-700">
+                            <CheckCircle className="w-3 h-3" />
+                            Jornada 8h
+                          </span>
+                        ) : analisis.estado === 'Retraso Leve' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700" title="Dentro de los 10 minutos de gracia. No se alerta al administrador.">
+                            <Clock className="w-3 h-3" />
+                            Gracia (+{analisis.desviacionMinutos} min)
+                          </span>
                         ) : analisis.estado === 'Tardanza' ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-250 text-[10px] font-bold text-rose-700 animate-pulse">
                             <Clock className="w-3 h-3" />
@@ -423,6 +461,11 @@ export default function AsistenciaLogPage() {
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-250 text-[10px] font-bold text-amber-700">
                             <AlertCircle className="w-3 h-3" />
                             Anticipado (-{analisis.desviacionMinutos} min)
+                          </span>
+                        ) : analisis.estado === 'Horas Extra' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-250 text-[10px] font-bold text-blue-700">
+                            <CheckCircle className="w-3 h-3" />
+                            Extra (+{analisis.desviacionMinutos} min)
                           </span>
                         ) : (
                           <span className="text-stone-400 text-xs">-</span>
