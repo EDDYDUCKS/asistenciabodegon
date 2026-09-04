@@ -409,3 +409,9 @@ export async function fetchCompensaciones(): Promise<CompensacionHoras[]> {
   return [];
 }
 
+export async function deleteCompensacion(id: number): Promise<void> {
+  await apiRequest<void>(`/compensaciones/${id}/`, {
+    method: 'DELETE',
+  });
+}
+

@@ -15,6 +15,7 @@ import {
   createPermiso,
   deletePermiso,
   fetchCompensaciones,
+  deleteCompensacion,
 } from '@/lib/api-client';
 import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras } from '@/lib/types';
 import {
@@ -233,6 +234,18 @@ export default function NominaAdminPage() {
       alert(err instanceof Error ? err.message : 'Error descargando reporte Excel de vacaciones');
     } finally {
       setDownloadingVacaciones(false);
+    }
+  };
+
+  const handleDeleteCompensacion = async (id: number) => {
+    if (!confirm('¿Desea eliminar este registro de compensación? Esta acción es útil si fue una prueba de demostración.')) return;
+    try {
+      await deleteCompensacion(id);
+      const updated = await fetchCompensaciones();
+      setCompensaciones(updated);
+      alert('Registro eliminado.');
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar');
     }
   };
 
@@ -1310,6 +1323,14 @@ export default function NominaAdminPage() {
                                 ? 'Deuda Liquidada al 100% ✅'
                                 : `Saldo Pendiente: ${Number(comp.saldo_restante).toFixed(2)} hrs ⚠️`}
                             </span>
+
+                            <button
+                              onClick={() => handleDeleteCompensacion(comp.id)}
+                              className="p-1.5 hover:bg-rose-50 text-stone-400 hover:text-rose-600 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
+                              title="Eliminar este registro de compensación"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
 

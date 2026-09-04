@@ -449,7 +449,7 @@ class PermisoAusenciaViewSet(viewsets.ModelViewSet):
         )
 
 
-class CompensacionHorasViewSet(viewsets.ReadOnlyModelViewSet):
+class CompensacionHorasViewSet(viewsets.ModelViewSet):
     queryset = CompensacionHoras.objects.select_related('empleado').all()
     serializer_class = CompensacionHorasSerializer
     permission_classes = [permissions.AllowAny]
