@@ -1481,6 +1481,263 @@ def exportar_reporte_nomina_excel(request):
         return Response({'detail': f'Error generando reporte Excel: {str(e)}'}, status=500)
 
 
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+@renderer_classes([ExcelBinaryRenderer, JSONRenderer])
+def exportar_reporte_vacaciones_excel(request):
+    """
+    Genera un archivo Excel (.xlsx) mensual o por rango de fechas con el detalle completo de vacaciones y permisos:
+    - Colaborador y Puesto
+    - Tipo de Ausencia (Vacaciones, Vacaciones Pagadas, Incapacidad Médica, Permiso Autorizado)
+    - Fechas de Inicio y Fin
+    - Total de Días Concedidos
+    - Motivo / Justificación
+    - Fecha de Registro / Autorización
+    """
+    try:
+        import datetime
+        import calendar
+        from datetime import datetime as dt
+        from io import BytesIO
+
+        mes_str = request.GET.get('mes')
+        anio_str = request.GET.get('anio')
+        inicio_str = request.GET.get('fecha_inicio')
+        fin_str = request.GET.get('fecha_fin')
+
+        hoy = timezone.localdate()
+
+        MESES_ES = [
+            '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+        ]
+
+        if mes_str and anio_str:
+            mes = int(mes_str)
+            anio = int(anio_str)
+            _, ultimo_dia = calendar.monthrange(anio, mes)
+            fecha_inicio = datetime.date(anio, mes, 1)
+            fecha_fin = datetime.date(anio, mes, ultimo_dia)
+            periodo_label = f"Mes de {MESES_ES[mes]} de {anio}"
+        elif inicio_str and fin_str:
+            fecha_inicio = dt.strptime(inicio_str, '%Y-%m-%d').date()
+            fecha_fin = dt.strptime(fin_str, '%Y-%m-%d').date()
+            periodo_label = f"Del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')}"
+        else:
+            mes = hoy.month
+            anio = hoy.year
+            _, ultimo_dia = calendar.monthrange(anio, mes)
+            fecha_inicio = datetime.date(anio, mes, 1)
+            fecha_fin = datetime.date(anio, mes, ultimo_dia)
+            periodo_label = f"Mes de {MESES_ES[mes]} de {anio}"
+
+        # Filtrar permisos que caigan o se solapen con el período
+        permisos = PermisoAusencia.objects.filter(
+            fecha_inicio__lte=fecha_fin,
+            fecha_fin__gte=fecha_inicio
+        ).select_related('empleado').order_by('fecha_inicio', 'empleado__nombre')
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Vacaciones y Permisos"
+        ws.views.sheetView[0].showGridLines = True
+
+        # Colores Institucionales El Bodegón
+        COLOR_HEADER = "1C6856"
+        COLOR_TITLE = "134F42"
+        COLOR_CARD = "F2F7F5"
+
+        font_titulo = Font(name='Calibri', size=15, bold=True, color='FFFFFF')
+        font_sub = Font(name='Calibri', size=10, italic=True, color='FFFFFF')
+        font_header = Font(name='Calibri', size=10, bold=True, color='FFFFFF')
+        font_data = Font(name='Calibri', size=10)
+        font_bold = Font(name='Calibri', size=10, bold=True)
+        font_mono = Font(name='Consolas', size=10)
+
+        fill_title = PatternFill(fill_type='solid', start_color=COLOR_TITLE, end_color=COLOR_TITLE)
+        fill_header = PatternFill(fill_type='solid', start_color=COLOR_HEADER, end_color=COLOR_HEADER)
+        fill_zebra = PatternFill(fill_type='solid', start_color='F9FBF9', end_color='F9FBF9')
+        fill_card = PatternFill(fill_type='solid', start_color=COLOR_CARD, end_color=COLOR_CARD)
+
+        thin_border = Border(
+            left=Side(style='thin', color='CCCCCC'),
+            right=Side(style='thin', color='CCCCCC'),
+            top=Side(style='thin', color='CCCCCC'),
+            bottom=Side(style='thin', color='CCCCCC')
+        )
+
+        # Fila 1: Título Principal
+        ws.merge_cells('A1:I1')
+        ws['A1'] = "EL BODEGÓN — REPORTE MENSUAL DE VACACIONES Y PERMISOS"
+        ws['A1'].font = font_titulo
+        ws['A1'].fill = fill_title
+        ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[1].height = 28
+
+        # Fila 2: Subtítulo con Período
+        ws.merge_cells('A2:I2')
+        ws['A2'] = f"Período: {periodo_label} | Generado el {hoy.strftime('%d/%m/%Y')}"
+        ws['A2'].font = font_sub
+        ws['A2'].fill = fill_title
+        ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[2].height = 18
+
+        # Tarjetas de Resumen (Fila 4)
+        total_solicitudes = permisos.count()
+        total_dias_otorgados = sum(p.total_dias for p in permisos)
+        total_colaboradores_unicos = len(set(p.empleado_id for p in permisos))
+
+        ws.merge_cells('A4:B4')
+        ws['A4'] = f"Total Solicitudes: {total_solicitudes}"
+        ws['A4'].font = font_bold
+        ws['A4'].fill = fill_card
+        ws['A4'].alignment = Alignment(horizontal='center', vertical='center')
+
+        ws.merge_cells('D4:F4')
+        ws['D4'] = f"Días Concedidos: {total_dias_otorgados} días"
+        ws['D4'].font = font_bold
+        ws['D4'].fill = fill_card
+        ws['D4'].alignment = Alignment(horizontal='center', vertical='center')
+
+        ws.merge_cells('H4:I4')
+        ws['H4'] = f"Colaboradores: {total_colaboradores_unicos}"
+        ws['H4'].font = font_bold
+        ws['H4'].fill = fill_card
+        ws['H4'].alignment = Alignment(horizontal='center', vertical='center')
+
+        for cell_ref in ['A4', 'B4', 'D4', 'E4', 'F4', 'H4', 'I4']:
+            ws[cell_ref].border = thin_border
+
+        # Headers Tabla (Fila 6)
+        headers = [
+            "N°",
+            "Colaborador",
+            "Cargo",
+            "Tipo de Ausencia",
+            "Fecha Inicio",
+            "Fecha Fin",
+            "Días Concedidos",
+            "Motivo / Justificación",
+            "Fecha Registro",
+        ]
+
+        ws.row_dimensions[6].height = 24
+        for col_idx, h in enumerate(headers, 1):
+            c = ws.cell(row=6, column=col_idx, value=h)
+            c.font = font_header
+            c.fill = fill_header
+            c.alignment = Alignment(horizontal='center', vertical='center')
+            c.border = thin_border
+
+        # Filas de Datos
+        row_idx = 7
+        for i, p in enumerate(permisos, 1):
+            ws.row_dimensions[row_idx].height = 20
+            emp = p.empleado
+            motivo_texto = p.motivo.strip() if p.motivo else f"Concesión de {p.get_tipo_display()}"
+            fecha_reg_str = p.created_at.astimezone(timezone.get_current_timezone()).strftime('%d/%m/%Y %I:%M %p') if p.created_at else '-'
+
+            row_data = [
+                i,
+                f"{emp.nombre} {emp.apellido}",
+                emp.get_cargo_display() if hasattr(emp, 'get_cargo_display') else emp.cargo,
+                p.get_tipo_display(),
+                p.fecha_inicio.strftime('%d/%m/%Y'),
+                p.fecha_fin.strftime('%d/%m/%Y'),
+                p.total_dias,
+                motivo_texto,
+                fecha_reg_str,
+            ]
+
+            for col_idx, val in enumerate(row_data, 1):
+                c = ws.cell(row=row_idx, column=col_idx, value=val)
+                c.font = font_data
+                c.border = thin_border
+                if row_idx % 2 == 0:
+                    c.fill = fill_zebra
+
+                if col_idx in [1, 7]:
+                    c.alignment = Alignment(horizontal='center', vertical='center')
+                    if col_idx == 7:
+                        c.font = font_bold
+                elif col_idx in [5, 6, 9]:
+                    c.alignment = Alignment(horizontal='center', vertical='center')
+                    c.font = font_mono
+                else:
+                    c.alignment = Alignment(horizontal='left', vertical='center')
+
+            row_idx += 1
+
+        # Fila de Totales si hay registros
+        if total_solicitudes > 0:
+            ws.merge_cells(f'A{row_idx}:F{row_idx}')
+            tot_label = ws.cell(row=row_idx, column=1, value="TOTAL DÍAS DE VACACIONES Y PERMISOS:")
+            tot_label.font = font_bold
+            tot_label.alignment = Alignment(horizontal='right', vertical='center')
+            tot_label.fill = fill_card
+
+            for c_i in range(1, 7):
+                ws.cell(row=row_idx, column=c_i).border = thin_border
+                ws.cell(row=row_idx, column=c_i).fill = fill_card
+
+            tot_val = ws.cell(row=row_idx, column=7, value=f"=SUM(G7:G{row_idx-1})")
+            tot_val.font = font_bold
+            tot_val.alignment = Alignment(horizontal='center', vertical='center')
+            tot_val.border = thin_border
+            tot_val.fill = fill_card
+
+            for c_i in [8, 9]:
+                c_empty = ws.cell(row=row_idx, column=c_i, value="")
+                c_empty.border = thin_border
+                c_empty.fill = fill_card
+
+            ws.row_dimensions[row_idx].height = 22
+        else:
+            ws.merge_cells(f'A{row_idx}:I{row_idx}')
+            c_empty = ws.cell(row=row_idx, column=1, value="No se registraron vacaciones ni permisos en este período.")
+            c_empty.font = font_data
+            c_empty.alignment = Alignment(horizontal='center', vertical='center')
+            c_empty.border = thin_border
+            ws.row_dimensions[row_idx].height = 24
+
+        # Auto-ajuste de columnas
+        for col in ws.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = get_column_letter(col[0].column)
+            ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+
+        ws.column_dimensions['A'].width = 6
+        ws.column_dimensions['B'].width = 24
+        ws.column_dimensions['C'].width = 18
+        ws.column_dimensions['D'].width = 20
+        ws.column_dimensions['E'].width = 14
+        ws.column_dimensions['F'].width = 14
+        ws.column_dimensions['G'].width = 16
+        ws.column_dimensions['H'].width = 32
+        ws.column_dimensions['I'].width = 20
+
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+
+        nombre_archivo = f"BodegonPass_Vacaciones_{fecha_inicio.strftime('%Y%m')}.xlsx"
+        response = HttpResponse(buffer.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
+        response['X-Filename'] = nombre_archivo
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition, X-Filename'
+
+        BitacoraAccion.objects.create(
+            usuario=request.user if request.user.is_authenticated else None,
+            accion='EXPORTAR_NOMINA',
+            descripcion=f"Reporte mensual de vacaciones Excel exportado ({periodo_label}).",
+            ip_address=_get_clean_ip(request)
+        )
+
+        return response
+    except Exception as e:
+        return Response({'detail': f'Error generando reporte mensual de vacaciones: {str(e)}'}, status=500)
+
+
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def sync_batch_asistencia(request):

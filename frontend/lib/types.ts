@@ -110,6 +110,7 @@ export interface PermisoAusencia {
   tipo_display: string;
   fecha_inicio: string;
   fecha_fin: string;
+  motivo?: string;
   total_dias: number;
   created_at?: string;
 }

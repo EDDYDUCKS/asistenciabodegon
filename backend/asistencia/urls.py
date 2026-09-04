@@ -22,6 +22,7 @@ urlpatterns = [
     # Sincronización Offline Batch
     path('asistencia/sync-batch/', views.sync_batch_asistencia, name='asistencia_sync_batch'),
 
-    # Reporte Excel Nómina
+    # Reportes Excel
     path('reportes/nomina-excel/', views.exportar_reporte_nomina_excel, name='nomina_excel'),
+    path('reportes/vacaciones-excel/', views.exportar_reporte_vacaciones_excel, name='vacaciones_excel'),
 ]

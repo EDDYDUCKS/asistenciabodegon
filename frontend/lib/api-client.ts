@@ -227,6 +227,40 @@ export async function downloadNominaExcel(fechaInicio?: string, fechaFin?: strin
   window.URL.revokeObjectURL(downloadUrl);
 }
 
+// ── DESCARGA DE REPORTE EXCEL DE VACACIONES Y PERMISOS ───────────────────
+export async function downloadVacacionesExcel(opts?: {
+  mes?: number;
+  anio?: number;
+  fechaInicio?: string;
+  fechaFin?: string;
+}): Promise<void> {
+  const params = new URLSearchParams();
+  if (opts?.mes) params.append('mes', String(opts.mes));
+  if (opts?.anio) params.append('anio', String(opts.anio));
+  if (opts?.fechaInicio) params.append('fecha_inicio', opts.fechaInicio);
+  if (opts?.fechaFin) params.append('fecha_fin', opts.fechaFin);
+
+  const url = `${API_BASE_URL}/reportes/vacaciones-excel/?${params.toString()}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error('Error generando el reporte Excel de vacaciones');
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  const fileName = opts?.mes && opts?.anio
+    ? `Vacaciones_Bodegon_${opts.anio}_${String(opts.mes).padStart(2, '0')}.xlsx`
+    : `Vacaciones_Bodegon_${opts?.fechaInicio || 'periodo'}.xlsx`;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}
+
 // ── FERIADOS DINÁMICOS ──────────────────────────────────────────────────────
 export async function fetchFeriados(): Promise<DiaFeriado[]> {
   const data = await apiRequest<DiaFeriado[] | { results: DiaFeriado[] }>('/feriados/');

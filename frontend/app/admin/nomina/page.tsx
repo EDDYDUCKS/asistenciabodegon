@@ -5,6 +5,7 @@ import {
   fetchEmpleados,
   fetchAsistencias,
   downloadNominaExcel,
+  downloadVacacionesExcel,
   fetchFeriados,
   createFeriado,
   deleteFeriado,
@@ -35,6 +36,11 @@ import {
   Lock,
   Search,
 } from 'lucide-react';
+
+const MESES_NOMBRES: Record<number, string> = {
+  1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio',
+  7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+};
 
 export default function NominaAdminPage() {
   const [activeTab, setActiveTab] = useState<'reporte' | 'extras' | 'feriados' | 'permisos'>('reporte');
@@ -77,7 +83,14 @@ export default function NominaAdminPage() {
   const [nuevoPermisoTipo, setNuevoPermisoTipo] = useState<TipoPermisoType>('VACACIONES');
   const [nuevoPermisoInicio, setNuevoPermisoInicio] = useState(hoyStr);
   const [nuevoPermisoFin, setNuevoPermisoFin] = useState(hoyStr);
+  const [nuevoPermisoMotivo, setNuevoPermisoMotivo] = useState('');
   const [addingPermiso, setAddingPermiso] = useState(false);
+
+  // State para Reporte Mensual de Vacaciones en Excel
+  const hoyFechaObj = new Date();
+  const [reporteMes, setReporteMes] = useState<number>(hoyFechaObj.getMonth() + 1);
+  const [reporteAnio, setReporteAnio] = useState<number>(hoyFechaObj.getFullYear());
+  const [downloadingVacaciones, setDownloadingVacaciones] = useState(false);
 
   // Form State para Horas Extra (temporal para edición en lista)
   const [editingExtraId, setEditingExtraId] = useState<number | null>(null);
@@ -178,7 +191,9 @@ export default function NominaAdminPage() {
         tipo: nuevoPermisoTipo,
         fecha_inicio: nuevoPermisoInicio,
         fecha_fin: nuevoPermisoFin,
+        motivo: nuevoPermisoMotivo.trim(),
       });
+      setNuevoPermisoMotivo('');
       const updated = await fetchPermisos();
       setPermisos(updated);
       alert('¡Período registrado con éxito!');
@@ -197,6 +212,17 @@ export default function NominaAdminPage() {
       setPermisos(updated);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al eliminar');
+    }
+  };
+
+  const handleDownloadVacacionesExcel = async () => {
+    setDownloadingVacaciones(true);
+    try {
+      await downloadVacacionesExcel({ mes: reporteMes, anio: reporteAnio });
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error descargando reporte Excel de vacaciones');
+    } finally {
+      setDownloadingVacaciones(false);
     }
   };
 
@@ -539,6 +565,18 @@ export default function NominaAdminPage() {
   const totalFeriadasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.feriadosTrabajadosDias, 0);
   const totalExtrasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasExtraAprobadas, 0);
   const totalDebidasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasDebidas, 0);
+
+  const permisosMesSeleccionado = useMemo(() => {
+    const padM = String(reporteMes).padStart(2, '0');
+    const inicioMes = `${reporteAnio}-${padM}-01`;
+    const ultimoDia = new Date(reporteAnio, reporteMes, 0).getDate();
+    const finMes = `${reporteAnio}-${padM}-${String(ultimoDia).padStart(2, '0')}`;
+    return permisos.filter((p) => p.fecha_inicio <= finMes && p.fecha_fin >= inicioMes);
+  }, [permisos, reporteMes, reporteAnio]);
+
+  const totalDiasMesSeleccionado = useMemo(() => {
+    return permisosMesSeleccionado.reduce((acc, p) => acc + (p.total_dias || 0), 0);
+  }, [permisosMesSeleccionado]);
 
   return (
     <div className="space-y-6 select-none font-sans">
@@ -1071,6 +1109,17 @@ export default function NominaAdminPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-stone-600 mb-1">Motivo / Justificación</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Vacaciones correspondientes a 2026, cita médica..."
+                  value={nuevoPermisoMotivo}
+                  onChange={(e) => setNuevoPermisoMotivo(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                />
+              </div>
+
               <button
                 type="submit"
                 disabled={addingPermiso || !nuevoPermisoEmp || !nuevoPermisoInicio || !nuevoPermisoFin}
@@ -1134,6 +1183,11 @@ export default function NominaAdminPage() {
                                 Del {p.fecha_inicio} al {p.fecha_fin}
                               </span>
                             </div>
+                            {p.motivo && (
+                              <p className="text-[11px] text-stone-600 italic mt-1 font-medium bg-white/70 px-2 py-0.5 rounded border border-stone-200/50 inline-block">
+                                📝 Motivo: {p.motivo}
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -1147,6 +1201,169 @@ export default function NominaAdminPage() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── MÓDULO INFERIOR: REPORTE MENSUAL DE VACACIONES Y PERMISOS EN EXCEL ── */}
+          <div className="glass-panel border border-white rounded-3xl p-6 shadow-premium space-y-5 bg-white/90">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center font-bold">
+                    <FileSpreadsheet className="w-4 h-4" />
+                  </div>
+                  <h3 className="font-bold text-base text-stone-900 tracking-tight">
+                    Reporte Mensual Detallado de Vacaciones & Permisos
+                  </h3>
+                </div>
+                <p className="text-xs text-stone-500 font-medium mt-1">
+                  Descargue el informe en Excel (.xlsx) con el desglose individual de cada vacación o permiso concedido (a quién se le otorgó, motivo justificado, fechas y total de días).
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleDownloadVacacionesExcel}
+                disabled={downloadingVacaciones}
+                className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm self-start sm:self-auto shrink-0"
+              >
+                {downloadingVacaciones ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>Descargar Excel Mensual (.xlsx)</span>
+              </button>
+            </div>
+
+            {/* Controles del Reporte Mensual */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+              <div className="sm:col-span-4">
+                <label className="block text-xs font-bold text-stone-600 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
+                  <Calendar className="w-3.5 h-3.5 text-[#1c6856]" />
+                  Seleccionar Mes:
+                </label>
+                <select
+                  value={reporteMes}
+                  onChange={(e) => setReporteMes(Number(e.target.value))}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-bold"
+                >
+                  <option value={1}>Enero</option>
+                  <option value={2}>Febrero</option>
+                  <option value={3}>Marzo</option>
+                  <option value={4}>Abril</option>
+                  <option value={5}>Mayo</option>
+                  <option value={6}>Junio</option>
+                  <option value={7}>Julio</option>
+                  <option value={8}>Agosto</option>
+                  <option value={9}>Septiembre</option>
+                  <option value={10}>Octubre</option>
+                  <option value={11}>Noviembre</option>
+                  <option value={12}>Diciembre</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-3">
+                <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wide">
+                  Año:
+                </label>
+                <select
+                  value={reporteAnio}
+                  onChange={(e) => setReporteAnio(Number(e.target.value))}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-mono font-bold"
+                >
+                  <option value={2025}>2025</option>
+                  <option value={2026}>2026</option>
+                  <option value={2027}>2027</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-5 flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const hoy = new Date();
+                    setReporteMes(hoy.getMonth() + 1);
+                    setReporteAnio(hoy.getFullYear());
+                  }}
+                  className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all border border-stone-200 shadow-2xs"
+                >
+                  Mes Actual
+                </button>
+                <div className="text-xs text-stone-600 font-medium">
+                  {permisosMesSeleccionado.length === 0 ? (
+                    <span className="text-stone-400">Sin permisos en este mes</span>
+                  ) : (
+                    <span>
+                      <strong className="text-stone-900 font-bold">{permisosMesSeleccionado.length}</strong> registro{permisosMesSeleccionado.length !== 1 ? 's' : ''} (
+                      <strong className="text-[#1c6856] font-bold">{totalDiasMesSeleccionado}</strong> días concedidos)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Vista Previa de los Registros del Mes */}
+            <div className="bg-stone-50/80 border border-stone-200/80 rounded-2xl p-4">
+              <div className="flex items-center justify-between border-b border-stone-200/60 pb-2 mb-3">
+                <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>Detalle de Registros para el Reporte Excel:</span>
+                </h4>
+                <span className="text-[11px] font-mono font-bold text-stone-500">
+                  {MESES_NOMBRES[reporteMes]} {reporteAnio}
+                </span>
+              </div>
+
+              {permisosMesSeleccionado.length === 0 ? (
+                <div className="py-6 text-center text-xs text-stone-400">
+                  No hay vacaciones ni permisos autorizados dentro de este mes. Al exportar, se generará el archivo Excel limpio con la estructura institucional.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-stone-200 text-stone-500 uppercase text-[10px]">
+                        <th className="py-2 px-3">Colaborador</th>
+                        <th className="py-2 px-3">Tipo</th>
+                        <th className="py-2 px-3">Fechas</th>
+                        <th className="py-2 px-3 text-center">Días</th>
+                        <th className="py-2 px-3">Motivo / Justificación</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-200/60 font-medium text-stone-800">
+                      {permisosMesSeleccionado.map((p) => {
+                        const emp = p.empleado_detalle || empleados.find((e) => e.id === p.empleado);
+                        return (
+                          <tr key={`preview-${p.id}`} className="hover:bg-white transition-colors">
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-stone-900 block">
+                                {emp ? `${emp.nombre} ${emp.apellido}` : `Empleado #${p.empleado}`}
+                              </span>
+                              <span className="text-[10px] text-stone-400">
+                                {emp?.cargo_display || ''}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="inline-block px-2 py-0.5 rounded-md bg-[#1c6856]/10 text-[10px] font-bold text-[#1c6856]">
+                                {p.tipo_display}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-stone-600 text-[11px]">
+                              {p.fecha_inicio} al {p.fecha_fin}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold text-stone-900">
+                              {p.total_dias} {p.total_dias === 1 ? 'día' : 'días'}
+                            </td>
+                            <td className="py-2.5 px-3 text-stone-600 italic">
+                              {p.motivo ? p.motivo : <span className="text-stone-400 not-italic">-</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

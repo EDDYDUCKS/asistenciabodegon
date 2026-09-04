@@ -130,6 +130,7 @@ class PermisoAusenciaSerializer(serializers.ModelSerializer):
             'tipo_display',
             'fecha_inicio',
             'fecha_fin',
+            'motivo',
             'total_dias',
             'created_at',
         ]

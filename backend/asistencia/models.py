@@ -184,6 +184,7 @@ class PermisoAusencia(models.Model):
     tipo = models.CharField(max_length=30, choices=TIPOS, default='VACACIONES')
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()
+    motivo = models.CharField(max_length=255, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
