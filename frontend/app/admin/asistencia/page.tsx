@@ -64,22 +64,43 @@ function calcularPuntualidadRecord(
     (m) => m.tipo_evento === 'SALIDA_QUEBRADA' || m.tipo_evento === 'ENTRADA_QUEBRADA'
   );
 
-  let turno = 'Tarde (3 PM)';
-  if (tieneQuebrado) {
-    turno = franjaBaseEntrada === 660 ? 'Quebrado (11 AM)' : 'Quebrado (12 PM)';
-  } else if (franjaBaseEntrada === 540) {
-    turno = 'Mañana (9 AM)';
-  } else if (franjaBaseEntrada === 720) {
-    turno = 'Almuerzo (12 PM)';
-  } else if (franjaBaseEntrada === 660) {
-    turno = 'Cocina (11 AM)';
+  // En el cuadro visual solo debe existir "Quebrado" o "Corrido"
+  const turno = tieneQuebrado ? 'Quebrado' : 'Corrido';
+
+  // Detección inteligente de horario (Mecanismo 1):
+  // Si hay retorno de quebrado en el día, verificar si fue a las 6 PM o a las 7 PM
+  const retornoPausa = marcajesDelDia.find((m) => m.tipo_evento === 'ENTRADA_QUEBRADA');
+  let esQuebrado11AM = false;
+  if (retornoPausa) {
+    const dtRetorno = new Date(retornoPausa.fecha_hora);
+    const niRetStr = dtRetorno.toLocaleTimeString('en-GB', {
+      timeZone: 'America/Managua',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const [hR, mR] = niRetStr.split(':');
+    const minsRet = parseInt(hR, 10) * 60 + parseInt(mR, 10);
+    if (minsRet >= 1115) {
+      // 6:35 PM o después -> retorno de 7:00 PM (turno de 11:00 AM)
+      esQuebrado11AM = true;
+    }
   }
 
   // ── ENTRADA INICIAL ──
   if (tipo === 'ENTRADA') {
-    const franjaBaseEsta = FRANJAS.reduce((prev, curr) =>
-      Math.abs(curr - minsMarcados) < Math.abs(prev - minsMarcados) ? curr : prev
-    );
+    let franjaBaseEsta = 720; // 12:00 PM por defecto
+    if (esQuebrado11AM) {
+      franjaBaseEsta = 660; // 11:00 AM
+    } else if (minsMarcados >= 675 && minsMarcados <= 735) {
+      // Entre 11:15 AM y 12:15 PM -> Turno de 12:00 PM (ej. Uriel 11:26 AM o Carlos 11:55 AM)
+      franjaBaseEsta = 720;
+    } else {
+      const FRANJAS = [540, 660, 720, 900];
+      franjaBaseEsta = FRANJAS.reduce((prev, curr) =>
+        Math.abs(curr - minsMarcados) < Math.abs(prev - minsMarcados) ? curr : prev
+      );
+    }
+
     const diff = minsMarcados - franjaBaseEsta;
 
     if (diff <= 0) {
@@ -93,16 +114,7 @@ function calcularPuntualidadRecord(
 
   // ── RETORNO DE PAUSA ──
   if (tipo === 'ENTRADA_QUEBRADA') {
-    // Si la entrada fue cerca de 11:00 AM (hizo 4h en la mañana), su retorno esperado es 7:00 PM (1140 min)
-    let horaEsperadaRetorno = 1080; // 6:00 PM por defecto
-    const primeraPausa = marcajesDelDia.find((m) => m.tipo_evento === 'SALIDA_QUEBRADA');
-    if (primeraEntrada && primeraPausa) {
-      const duracionB1 = (new Date(primeraPausa.fecha_hora).getTime() - new Date(primeraEntrada.fecha_hora).getTime()) / 3600000;
-      if (duracionB1 >= 3.6) {
-        horaEsperadaRetorno = 1140; // 7:00 PM
-      }
-    }
-
+    const horaEsperadaRetorno = esQuebrado11AM ? 1140 : 1080; // 7:00 PM o 6:00 PM
     const diff = minsMarcados - horaEsperadaRetorno;
     if (diff <= 0) {
       return { turno, estado: 'A Tiempo', desviacionMinutos: 0 };
@@ -118,17 +130,51 @@ function calcularPuntualidadRecord(
     return { turno, estado: 'A Tiempo', desviacionMinutos: 0 };
   }
 
-  // ── SALIDA DEFINITIVA (Cálculo exacto por horas netas de jornada) ──
+  // ── SALIDA DEFINITIVA (Cálculo exacto por horas netas de jornada - Opción A) ──
   if (tipo === 'SALIDA_DEFINITIVA') {
     let totalMilisegundos = 0;
-    let entradaTemp: Date | null = null;
+    let entradaTemp: number | null = null;
 
     marcajesDelDia.forEach((m) => {
       const dt = new Date(m.fecha_hora);
-      if (m.tipo_evento === 'ENTRADA' || m.tipo_evento === 'ENTRADA_QUEBRADA') {
-        entradaTemp = dt;
-      } else if ((m.tipo_evento === 'SALIDA_QUEBRADA' || m.tipo_evento === 'SALIDA_DEFINITIVA') && entradaTemp) {
-        totalMilisegundos += Math.max(0, dt.getTime() - entradaTemp.getTime());
+      const niStr = dt.toLocaleTimeString('en-GB', {
+        timeZone: 'America/Managua',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const [hM, mM] = niStr.split(':');
+      const minsM = parseInt(hM, 10) * 60 + parseInt(mM, 10);
+
+      if (m.tipo_evento === 'ENTRADA') {
+        let baseMins = 720;
+        if (esQuebrado11AM) {
+          baseMins = 660;
+        } else if (minsM >= 675 && minsM <= 735) {
+          baseMins = 720;
+        } else {
+          const FRANJAS = [540, 660, 720, 900];
+          baseMins = FRANJAS.reduce((prev, curr) =>
+            Math.abs(curr - minsM) < Math.abs(prev - minsM) ? curr : prev
+          );
+        }
+
+        // Opción A: Si llegó antes de la hora oficial (hasta 60 min antes), arranca a la hora oficial
+        if (minsM < baseMins && baseMins - minsM <= 60) {
+          const adelantoMs = (baseMins - minsM) * 60000;
+          entradaTemp = dt.getTime() + adelantoMs;
+        } else {
+          entradaTemp = dt.getTime();
+        }
+      } else if (m.tipo_evento === 'ENTRADA_QUEBRADA') {
+        const retBaseMins = esQuebrado11AM ? 1140 : 1080;
+        if (minsM < retBaseMins && retBaseMins - minsM <= 45) {
+          const adelantoMs = (retBaseMins - minsM) * 60000;
+          entradaTemp = dt.getTime() + adelantoMs;
+        } else {
+          entradaTemp = dt.getTime();
+        }
+      } else if ((m.tipo_evento === 'SALIDA_QUEBRADA' || m.tipo_evento === 'SALIDA_DEFINITIVA') && entradaTemp !== null) {
+        totalMilisegundos += Math.max(0, dt.getTime() - entradaTemp);
         entradaTemp = null;
       }
     });
@@ -428,12 +474,14 @@ export default function AsistenciaLogPage() {
                         </span>
                       </td>
 
-                      <td className="px-6 py-4 text-center font-semibold text-stone-600">
-                        {analisis.turno !== 'Desconocido' ? (
-                          <span className="text-xs">{analisis.turno}</span>
-                        ) : (
-                          <span className="text-xs text-stone-400 italic font-normal">No deducido</span>
-                        )}
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          analisis.turno === 'Quebrado'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        }`}>
+                          {analisis.turno}
+                        </span>
                       </td>
 
                       <td className="px-6 py-4 text-center">

@@ -547,12 +547,29 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
         alerta_mensaje = ''
 
         if tipo == 'ENTRADA':
-            FRANJAS = [540, 660, 720, 900]
-            franja_base = min(FRANJAS, key=lambda b: abs(mins_marcados - b))
+            # Franjas Base: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900)
+            # Detección inteligente de horario (Mecanismo 1):
+            # Si hay retorno de pausa en el día, verificar si fue hacia las 6 PM o 7 PM
+            retorno_q = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA_QUEBRADA'), None)
+            es_quebrado_11am = False
+            if retorno_q:
+                mins_ret = retorno_q.fecha_hora.astimezone(timezone.get_current_timezone()).hour * 60 + retorno_q.fecha_hora.astimezone(timezone.get_current_timezone()).minute
+                if mins_ret >= 1115:  # 6:35 PM o después -> retorno de 7:00 PM (turno 11 AM)
+                    es_quebrado_11am = True
+
+            if es_quebrado_11am:
+                franja_base = 660  # 11:00 AM
+            elif 675 <= mins_marcados <= 735:
+                # Entre 11:15 AM y 12:15 PM -> Turno de 12:00 PM (ej. Uriel a las 11:26 AM o Carlos a las 11:55 AM)
+                franja_base = 720  # 12:00 PM
+            else:
+                FRANJAS = [540, 660, 720, 900]
+                franja_base = min(FRANJAS, key=lambda b: abs(mins_marcados - b))
+
             diff = mins_marcados - franja_base
             HORA_LABELS = {540: '9:00 AM', 660: '11:00 AM', 720: '12:00 PM', 900: '3:00 PM'}
             
-            # Solo alertar si excede los 10 minutos de gracia
+            # Solo alertar si excede los 10 minutos de gracia respecto a su turno
             if diff > 10:
                 alerta_creada = True
                 alerta_tipo = 'TARDANZA'
@@ -563,11 +580,11 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                 )
 
         elif tipo == 'ENTRADA_QUEBRADA':
-            # Hora esperada de retorno: 7:00 PM (1140) si el primer bloque fue de ~4 horas (ej. 11am a 3pm),
-            # o 6:00 PM (1080) si fue de ~3 horas (ej. 12pm a 3pm)
+            # Hora esperada de retorno: 7:00 PM (1140) si el primer bloque fue de ~4 horas (11am a 3pm),
+            # o 6:00 PM (1080) si fue de ~3 horas (12pm a 3pm)
             primera_ent = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA'), None)
             primera_pausa = next((r for r in registros_actualizados if r.tipo_evento == 'SALIDA_QUEBRADA'), None)
-            hora_esperada = 1080  # 6:00 PM
+            hora_esperada = 1080  # 6:00 PM por defecto
             if primera_ent and primera_pausa:
                 duracion_b1 = (primera_pausa.fecha_hora - primera_ent.fecha_hora).total_seconds() / 3600.0
                 if duracion_b1 >= 3.6:
@@ -884,13 +901,68 @@ def consultar_horas_kiosco(request):
 def _calcular_horas_netas_dia(registros_dia):
     """
     Suma el tiempo entre ENTRADA -> SALIDA_QUEBRADA y ENTRADA_QUEBRADA -> SALIDA_DEFINITIVA.
+    Aplica la Regla de Inicio Oficial (Opción A):
+    Si un empleado llega temprano (ej. 11:26 AM para turno de 12:00 PM, o 5:53 PM para retorno de 6:00 PM),
+    la jornada cuenta desde la hora oficial del turno, evitando inflar horas extras no autorizadas.
     """
+    import datetime
     total_segundos = 0
     entrada_temp = None
 
+    tz_ni = timezone.get_current_timezone()
+
+    # Detectar si el día tiene quebrado y la hora de retorno
+    retorno_q = next((r for r in registros_dia if r.tipo_evento == 'ENTRADA_QUEBRADA'), None)
+    es_quebrado_11am = False
+    if retorno_q:
+        dt_ret_local = retorno_q.fecha_hora.astimezone(tz_ni)
+        mins_ret = dt_ret_local.hour * 60 + dt_ret_local.minute
+        if mins_ret >= 1115:  # 6:35 PM o después -> turno de 11:00 AM (retorno 7 PM)
+            es_quebrado_11am = True
+
     for reg in registros_dia:
-        if reg.tipo_evento in ('ENTRADA', 'ENTRADA_QUEBRADA'):
-            entrada_temp = reg.fecha_hora
+        dt_local = reg.fecha_hora.astimezone(tz_ni)
+
+        if reg.tipo_evento == 'ENTRADA':
+            mins_e = dt_local.hour * 60 + dt_local.minute
+            # Determinar franja base oficial
+            if es_quebrado_11am:
+                base_mins = 660  # 11:00 AM
+            elif 675 <= mins_e <= 735:
+                # Entre 11:15 AM y 12:15 PM -> Turno oficial 12:00 PM (ej. Uriel 11:26 AM o Carlos 11:55 AM)
+                base_mins = 720  # 12:00 PM
+            else:
+                FRANJAS = [540, 660, 720, 900]
+                base_mins = min(FRANJAS, key=lambda b: abs(mins_e - b))
+
+            h_b = base_mins // 60
+            m_b = base_mins % 60
+            inicio_oficial = timezone.make_aware(
+                datetime.datetime.combine(dt_local.date(), datetime.time(h_b, m_b)),
+                tz_ni
+            )
+
+            # Opción A: Si llegó antes de la hora oficial (hasta 60 min antes), arranca a la hora oficial
+            if dt_local < inicio_oficial and (inicio_oficial - dt_local).total_seconds() <= 3600:
+                entrada_temp = inicio_oficial
+            else:
+                entrada_temp = reg.fecha_hora
+
+        elif reg.tipo_evento == 'ENTRADA_QUEBRADA':
+            hora_ret_esperada = 1140 if es_quebrado_11am else 1080  # 7:00 PM o 6:00 PM
+            h_b = hora_ret_esperada // 60
+            m_b = hora_ret_esperada % 60
+            retorno_oficial = timezone.make_aware(
+                datetime.datetime.combine(dt_local.date(), datetime.time(h_b, m_b)),
+                tz_ni
+            )
+
+            # Opción A: Si regresó antes de la hora oficial (hasta 45 min antes), arranca a la hora oficial
+            if dt_local < retorno_oficial and (retorno_oficial - dt_local).total_seconds() <= 2700:
+                entrada_temp = retorno_oficial
+            else:
+                entrada_temp = reg.fecha_hora
+
         elif reg.tipo_evento in ('SALIDA_QUEBRADA', 'SALIDA_DEFINITIVA') and entrada_temp:
             diferencia = (reg.fecha_hora - entrada_temp).total_seconds()
             if diferencia > 0:
