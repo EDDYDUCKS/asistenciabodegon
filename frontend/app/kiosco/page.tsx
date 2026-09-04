@@ -17,6 +17,7 @@ import {
   KeyRound,
   BarChart3,
   X,
+  Star,
 } from 'lucide-react';
 
 interface RecentScan {
@@ -1252,6 +1253,29 @@ export default function KioscoPage() {
               </button>
             </div>
 
+            {/* Banner de Turno en Curso (si está activo en este momento) */}
+            {consultaData.turno_activo && (
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-emerald-50 border border-emerald-300/80 text-emerald-950 shadow-2xs animate-in fade-in">
+                <div className="flex items-center gap-2.5">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-600"></span>
+                  </span>
+                  <div>
+                    <span className="font-bold text-xs text-emerald-900 block leading-tight">
+                      Turno activo en curso
+                    </span>
+                    <span className="text-[10.5px] text-emerald-700 font-medium">
+                      Iniciaste a las {consultaData.hora_inicio_turno} • {consultaData.horas_en_curso} hrs transcurridas
+                    </span>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-xl bg-emerald-700 text-white font-black text-[9.5px] uppercase tracking-wider shrink-0">
+                  En Turno
+                </span>
+              </div>
+            )}
+
             {/* Grid de Horas y Balance */}
             <div className="grid grid-cols-3 gap-3">
               {/* Horas de Hoy */}
@@ -1301,6 +1325,61 @@ export default function KioscoPage() {
                 }`}>
                   {consultaData.horas_pendientes > 0 ? 'Horas por reponer' : 'Al día'}
                 </span>
+              </div>
+            </div>
+
+            {/* Fila Informativa: Horas Extra Aprobadas y Días Asistidos */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Horas Extra Aprobadas */}
+              <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700 shrink-0">
+                    <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 block leading-tight">
+                      Horas Extra
+                    </span>
+                    <span className="text-[9px] text-amber-700 font-medium">
+                      Aprobadas mes
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-base sm:text-lg font-black font-mono text-amber-950 block leading-tight">
+                    {Number(consultaData.horas_extra_aprobadas || 0).toFixed(1)}h
+                  </span>
+                  {Number(consultaData.horas_extra_pendientes || 0) > 0 && (
+                    <span className="text-[8.5px] text-amber-700 font-semibold block mt-0.5">
+                      +{Number(consultaData.horas_extra_pendientes).toFixed(1)}h revisión
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Días Laborados en el Mes */}
+              <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200/80 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-stone-100 border border-stone-200 flex items-center justify-center text-stone-700 shrink-0 text-sm">
+                    📅
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-700 block leading-tight">
+                      Días Mes
+                    </span>
+                    <span className="text-[9px] text-stone-500 font-medium">
+                      Asistidos
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-base sm:text-lg font-black font-mono text-stone-900 block leading-tight">
+                    {consultaData.dias_trabajados_mes || 0}
+                  </span>
+                  <span className="text-[8.5px] text-stone-500 font-medium block mt-0.5">
+                    jornadas
+                  </span>
+                </div>
               </div>
             </div>
 

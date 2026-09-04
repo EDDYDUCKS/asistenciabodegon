@@ -89,16 +89,25 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def perform_destroy(self, instance):
+        empleado = instance.empleado
+        fecha_instancia = instance.fecha_hora.astimezone(timezone.get_current_timezone()).date()
+
         if instance.foto_verificacion:
             try:
                 instance.foto_verificacion.delete(save=False)
             except Exception:
                 pass
-        emp_nombre = f"{instance.empleado.nombre} {instance.empleado.apellido}"
+        emp_nombre = f"{empleado.nombre} {empleado.apellido}"
         evento_str = instance.get_tipo_evento_display()
         fecha_str = instance.fecha_hora.strftime("%d/%m/%Y %I:%M %p")
 
         instance.delete()
+
+        # Recalcular automáticamente saldo de deuda para revertir cualquier déficit huérfano
+        try:
+            _recalcular_horas_pendientes_empleado(empleado, fecha_instancia)
+        except Exception:
+            pass
 
         try:
             BitacoraAccion.objects.create(
@@ -107,6 +116,22 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
                 descripcion=f"Marcaje de {evento_str} ({fecha_str}) para {emp_nombre} eliminado por el administrador por corrección.",
                 ip_address=_get_clean_ip(self.request)
             )
+        except Exception:
+            pass
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        try:
+            fecha_instancia = instance.fecha_hora.astimezone(timezone.get_current_timezone()).date()
+            _recalcular_horas_pendientes_empleado(instance.empleado, fecha_instancia)
+        except Exception:
+            pass
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        try:
+            fecha_instancia = instance.fecha_hora.astimezone(timezone.get_current_timezone()).date()
+            _recalcular_horas_pendientes_empleado(instance.empleado, fecha_instancia)
         except Exception:
             pass
 
@@ -942,6 +967,36 @@ def consultar_horas_kiosco(request):
 
     horas_mes_total = sum(_calcular_horas_netas_dia(regs_dia) for regs_dia in por_dia.values())
 
+    # 3. Estado de Turno en Curso (En Vivo)
+    ultimo_reg = registros_hoy[-1] if registros_hoy else None
+    turno_activo = False
+    hora_inicio_turno = None
+    horas_en_curso = 0.0
+
+    if ultimo_reg and ultimo_reg.tipo_evento in ['ENTRADA', 'ENTRADA_QUEBRADA']:
+        turno_activo = True
+        hora_inicio_turno = ultimo_reg.fecha_hora.astimezone(tz_ni).strftime('%I:%M %p')
+        segundos_transcurridos = max(0, (ahora - ultimo_reg.fecha_hora).total_seconds())
+        horas_en_curso = round(segundos_transcurridos / 3600.0, 1)
+
+    # 4. Horas Extra Aprobadas y Pendientes del Mes
+    from django.db.models import Sum
+    horas_extra_aprobadas = AutorizacionHorasExtra.objects.filter(
+        empleado=empleado,
+        estado='APROBADA',
+        fecha__gte=primer_dia_mes,
+        fecha__lte=hoy
+    ).aggregate(total=Sum('horas_aprobadas'))['total'] or 0.0
+
+    horas_extra_pendientes = AutorizacionHorasExtra.objects.filter(
+        empleado=empleado,
+        estado='PENDIENTE',
+        fecha__gte=primer_dia_mes,
+        fecha__lte=hoy
+    ).aggregate(total=Sum('horas_solicitadas'))['total'] or 0.0
+
+    dias_trabajados_mes = len(por_dia)
+
     return Response({
         'status': 'ok',
         'empleado': {
@@ -954,6 +1009,12 @@ def consultar_horas_kiosco(request):
         'horas_trabajadas_hoy': horas_hoy,
         'horas_mes': round(horas_mes_total, 1),
         'horas_pendientes': round(float(empleado.horas_pendientes), 2),
+        'turno_activo': turno_activo,
+        'hora_inicio_turno': hora_inicio_turno,
+        'horas_en_curso': horas_en_curso,
+        'horas_extra_aprobadas': round(float(horas_extra_aprobadas), 1),
+        'horas_extra_pendientes': round(float(horas_extra_pendientes), 1),
+        'dias_trabajados_mes': dias_trabajados_mes,
     })
 
 
@@ -1029,6 +1090,55 @@ def _calcular_horas_netas_dia(registros_dia):
             entrada_temp = None
 
     return total_segundos / 3600.0
+
+
+def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
+    """
+    Recalcula de forma determinista y auditable el saldo de horas_pendientes del empleado
+    para el mes correspondiente a fecha_referencia (o el mes actual por defecto).
+    Recorre cronológicamente los días que cuentan con SALIDA_DEFINITIVA registrada.
+    Si se eliminó una salida definitiva o se corrigió un marcaje por error humano,
+    este recálculo elimina deudas huérfanas y garantiza consistencia absoluta.
+    """
+    import datetime
+    tz_ni = timezone.get_current_timezone()
+    hoy = fecha_referencia or timezone.localdate()
+    primer_dia_mes = hoy.replace(day=1)
+
+    start_mes = timezone.make_aware(datetime.datetime.combine(primer_dia_mes, datetime.time.min), tz_ni)
+    end_mes = timezone.make_aware(datetime.datetime.combine(hoy, datetime.time.max), tz_ni)
+
+    registros_mes = list(RegistroAsistencia.objects.filter(
+        empleado=empleado,
+        fecha_hora__range=(start_mes, end_mes)
+    ).order_by('fecha_hora'))
+
+    por_dia = {}
+    for r in registros_mes:
+        d = r.fecha_hora.astimezone(tz_ni).date()
+        por_dia.setdefault(d, []).append(r)
+
+    deuda_acumulada = 0.0
+
+    for d in sorted(por_dia.keys()):
+        regs_d = por_dia[d]
+        tiene_salida_definitiva = any(r.tipo_evento == 'SALIDA_DEFINITIVA' for r in regs_d)
+        
+        # Solo calculamos balance si la jornada del día está cerrada con salida definitiva
+        if tiene_salida_definitiva:
+            horas_dia = _calcular_horas_netas_dia(regs_d)
+            if horas_dia < 8.0:
+                deficit = round(8.0 - horas_dia, 2)
+                deuda_acumulada += deficit
+            elif horas_dia > 8.0:
+                excedente = round(horas_dia - 8.0, 2)
+                amortizado = min(excedente, deuda_acumulada)
+                deuda_acumulada = max(0.0, deuda_acumulada - amortizado)
+
+    empleado.horas_pendientes = round(max(0.0, deuda_acumulada), 2)
+    empleado.periodo_horas_pendientes = primer_dia_mes
+    empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+    return empleado.horas_pendientes
 
 
 def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
