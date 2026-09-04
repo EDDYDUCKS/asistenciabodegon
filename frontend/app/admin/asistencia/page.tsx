@@ -17,6 +17,7 @@ import {
   Pencil,
   Calendar,
   Layers,
+  Camera,
 } from 'lucide-react';
 
 interface AnalisisPuntualidad {
@@ -308,6 +309,18 @@ export default function AsistenciaLogPage() {
   const [editNuevoTipo, setEditNuevoTipo] = useState<string>('ENTRADA');
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // Bloquear el desplazamiento de la página de fondo cuando cualquier modal esté abierto
+  useEffect(() => {
+    if (selectedPhoto || showManualModal || editEventoRecord || recordToDelete) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [selectedPhoto, showManualModal, editEventoRecord, recordToDelete]);
+
   const handleConfirmDelete = async () => {
     if (!recordToDelete) return;
     setDeletingRecord(true);
@@ -550,6 +563,145 @@ export default function AsistenciaLogPage() {
     );
   };
 
+  const renderTarjetaAsistenciaMobile = (asis: RegistroAsistencia) => {
+    const key = `${asis.empleado}_${asis.fecha_hora.slice(0, 10)}`;
+    const marcajesDia = marcajesAgrupadosPorEmpleadoDia[key] || [];
+    const analisis = calcularPuntualidadRecord(asis, marcajesDia);
+
+    return (
+      <div
+        key={asis.id}
+        className="bg-white border border-stone-200 rounded-2xl p-3.5 shadow-2xs space-y-2.5 hover:border-emerald-300 transition-colors"
+      >
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {/* Foto Thumbnail interactiva */}
+            {asis.foto_verificacion_url && !failedPhotoIds[asis.id] ? (
+              <button
+                type="button"
+                onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
+                className="relative group shrink-0 active:scale-95 cursor-pointer"
+                title="Tocar para ampliar foto"
+              >
+                <img
+                  src={asis.foto_verificacion_url}
+                  alt="Foto Marcaje"
+                  onError={() => setFailedPhotoIds((prev) => ({ ...prev, [asis.id]: true }))}
+                  className="w-11 h-11 rounded-xl object-cover border border-stone-200 ring-2 ring-emerald-600/10"
+                />
+                <div className="absolute -bottom-1 -right-1 bg-[#1c6856] text-white p-0.5 rounded-md shadow-xs">
+                  <Camera className="w-2.5 h-2.5" />
+                </div>
+              </button>
+            ) : (
+              <div
+                className="w-11 h-11 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-400 shrink-0"
+                title="Foto no disponible"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </div>
+            )}
+
+            <div className="min-w-0">
+              <h4 className="font-bold text-xs text-stone-900 truncate">
+                {asis.empleado_detalle.nombre} {asis.empleado_detalle.apellido}
+              </h4>
+              <span className="text-[10px] text-stone-500 font-medium truncate block">
+                {asis.empleado_detalle.cargo_display}
+              </span>
+            </div>
+          </div>
+
+          <div className="text-right shrink-0">
+            <span className="font-mono text-xs font-bold text-stone-900 block">
+              {new Date(asis.fecha_hora).toLocaleTimeString('es-NI', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })}
+            </span>
+            <span className="text-[9.5px] font-mono text-stone-400 block">
+              {new Date(asis.fecha_hora).toLocaleDateString('es-NI', {
+                day: '2-digit',
+                month: '2-digit',
+              })}
+            </span>
+          </div>
+        </div>
+
+        {/* Badges de Evento, Turno y Puntualidad */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-stone-100">
+          <span className="px-2 py-0.5 rounded-full bg-stone-100 border border-stone-200 text-[10px] font-bold text-stone-800">
+            {asis.tipo_evento_display}
+          </span>
+
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+              analisis.turno === 'Quebrado'
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            }`}
+          >
+            {analisis.turno}
+          </span>
+
+          {analisis.estado === 'A Tiempo' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-250 text-[10px] font-bold text-emerald-700">
+              <CheckCircle className="w-2.5 h-2.5" />
+              A tiempo
+            </span>
+          ) : analisis.estado === 'Jornada Cumplida 8h' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-250 text-[10px] font-bold text-emerald-700">
+              <CheckCircle className="w-2.5 h-2.5" />
+              Jornada 8h
+            </span>
+          ) : analisis.estado === 'Retraso Leve' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700">
+              <Clock className="w-2.5 h-2.5" />
+              Gracia (+{analisis.desviacionMinutos}m)
+            </span>
+          ) : analisis.estado === 'Tardanza' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 border border-rose-250 text-[10px] font-bold text-rose-700">
+              <Clock className="w-2.5 h-2.5" />
+              Tardanza (+{analisis.desviacionMinutos}m)
+            </span>
+          ) : analisis.estado === 'Salida Anticipada' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-250 text-[10px] font-bold text-amber-700">
+              <AlertCircle className="w-2.5 h-2.5" />
+              Anticipado (-{analisis.desviacionMinutos}m)
+            </span>
+          ) : analisis.estado === 'Horas Extra' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-250 text-[10px] font-bold text-blue-700">
+              <CheckCircle className="w-2.5 h-2.5" />
+              Extra (+{analisis.desviacionMinutos}m)
+            </span>
+          ) : null}
+
+          {/* Botones de acción compactos */}
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              onClick={() => {
+                setEditEventoRecord(asis);
+                setEditNuevoTipo(asis.tipo_evento);
+              }}
+              className="p-1.5 rounded-lg bg-stone-50 hover:bg-amber-50 border border-stone-200 text-stone-600 hover:text-amber-700 transition-colors cursor-pointer"
+              title="Corregir Marcaje"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setRecordToDelete(asis)}
+              className="p-1.5 rounded-lg bg-stone-50 hover:bg-rose-50 border border-stone-200 text-stone-600 hover:text-rose-700 transition-colors cursor-pointer"
+              title="Eliminar Marcaje"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 select-none font-sans">
       {/* Header */}
@@ -612,9 +764,11 @@ export default function AsistenciaLogPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-3 py-1.5 shadow-sm">
-            <Calendar className="w-4 h-4 text-[#1c6856] flex-shrink-0" />
-            <span className="text-[11px] font-bold text-stone-500 whitespace-nowrap">Ver Día:</span>
+          <div className="flex items-center justify-between sm:justify-start gap-2 bg-white border border-stone-200 rounded-xl px-3 py-2 sm:py-1.5 shadow-sm">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-[#1c6856] flex-shrink-0" />
+              <span className="text-[11px] font-bold text-stone-500 whitespace-nowrap">Ver Día:</span>
+            </div>
             <input
               type="date"
               value={filterFecha}
@@ -649,8 +803,59 @@ export default function AsistenciaLogPage() {
         </div>
       </div>
 
-      {/* Tabla de Historial */}
-      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm">
+      {/* Vista Móvil (Tarjetas Táctiles Ergonómicas - Cero scroll horizontal) */}
+      <div className="block sm:hidden space-y-3">
+        {loading ? (
+          <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-stone-400 text-xs shadow-2xs">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#1c6856] mb-2" />
+            Cargando historial de asistencia...
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-stone-400 text-xs shadow-2xs">
+            No se encontraron registros de asistencia.
+          </div>
+        ) : separarPorDia ? (
+          gruposPorDia.map((grupo) => (
+            <div key={`mob-grupo-${grupo.diaKey}`} className="space-y-2.5">
+              {/* Separador Móvil de Día */}
+              <div className="bg-stone-100/90 border border-stone-200/80 rounded-xl px-3 py-2 flex items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="w-5 h-5 rounded-md bg-[#1c6856] text-white flex items-center justify-center font-bold shrink-0">
+                    <Calendar className="w-3 h-3" />
+                  </div>
+                  <span className="font-black text-xs text-stone-900 truncate">
+                    {grupo.fechaLabel}
+                  </span>
+                  {grupo.esHoy && (
+                    <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border border-emerald-300 shrink-0">
+                      Hoy
+                    </span>
+                  )}
+                  {grupo.esAyer && (
+                    <span className="bg-stone-200 text-stone-700 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0">
+                      Ayer
+                    </span>
+                  )}
+                </div>
+                <span className="text-[10px] font-bold text-[#1c6856] bg-white px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs shrink-0">
+                  {grupo.registros.length}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {grupo.registros.map((asis) => renderTarjetaAsistenciaMobile(asis))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((asis) => renderTarjetaAsistenciaMobile(asis))}
+          </div>
+        )}
+      </div>
+
+      {/* Tabla de Historial (Escritorio / Tablet >= sm) */}
+      <div className="hidden sm:block bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm">
             <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
@@ -721,33 +926,74 @@ export default function AsistenciaLogPage() {
         </div>
       </div>
 
-      {/* Modal Foto de Verificación */}
+      {/* Modal Foto de Verificación (100% Centrado, Fondo Oscuro Táctil y Sin Scrolear) */}
       {selectedPhoto && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white border border-stone-200 max-w-md w-full rounded-3xl p-6 relative space-y-4 shadow-2xl">
-            <button
-              onClick={() => setSelectedPhoto(null)}
-              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="font-black text-stone-900 text-base">Fotografía de Verificación</h3>
-            <img
-              src={selectedPhoto}
-              alt="Foto ampliada"
-              className="w-full aspect-square object-cover rounded-2xl border border-stone-200 shadow-inner"
-            />
+        <div
+          onClick={() => setSelectedPhoto(null)}
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-stone-200 max-w-sm sm:max-w-md w-full rounded-3xl p-5 sm:p-6 relative space-y-3.5 shadow-2xl cursor-default animate-in zoom-in-95 duration-150"
+          >
+            <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                  <Camera className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-stone-900 text-sm sm:text-base leading-tight">
+                    Fotografía de Verificación
+                  </h3>
+                  <span className="text-[10px] text-stone-400 font-medium">
+                    Evidencia biométrica tomada en el kiosco
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="text-stone-400 hover:text-stone-700 p-1.5 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative rounded-2xl overflow-hidden border border-stone-200 shadow-inner bg-stone-900">
+              <img
+                src={selectedPhoto}
+                alt="Foto ampliada"
+                className="w-full aspect-square object-cover"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1 text-xs">
+              <span className="text-[11px] text-stone-400 font-medium">
+                💡 Toca afuera para cerrar
+              </span>
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer active:scale-95 shadow-2xs"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Modal Registrar Marcaje Manual */}
       {showManualModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white border border-stone-200 max-w-lg w-full rounded-3xl p-6 sm:p-8 relative space-y-5 shadow-2xl">
+        <div
+          onClick={() => setShowManualModal(false)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-stone-200 max-w-lg w-full rounded-3xl p-6 sm:p-8 relative space-y-5 shadow-2xl cursor-default animate-in zoom-in-95 duration-150"
+          >
             <button
               onClick={() => setShowManualModal(false)}
-              className="absolute top-5 right-5 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
+              className="absolute top-5 right-5 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -861,11 +1107,17 @@ export default function AsistenciaLogPage() {
 
       {/* ── MODAL: CORREGIR TIPO DE EVENTO ── */}
       {editEventoRecord && (
-        <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+        <div
+          onClick={() => setEditEventoRecord(null)}
+          className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 cursor-default"
+          >
             <button
               onClick={() => setEditEventoRecord(null)}
-              className="absolute top-5 right-5 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
+              className="absolute top-5 right-5 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -964,8 +1216,14 @@ export default function AsistenciaLogPage() {
 
       {/* ── MODAL DE CONFIRMACIÓN: ELIMINAR REGISTRO ERRÓNEO ── */}
       {recordToDelete && (
-        <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+        <div
+          onClick={() => setRecordToDelete(null)}
+          className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 cursor-default"
+          >
             <div className="w-12 h-12 rounded-2xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-700 mx-auto shadow-sm">
               <Trash2 className="w-6 h-6" />
             </div>

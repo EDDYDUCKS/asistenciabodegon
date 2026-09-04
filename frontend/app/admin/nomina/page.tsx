@@ -387,6 +387,18 @@ export default function NominaAdminPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showExtraPinModal, handleExtraPinKeyPress, handleExtraPinBackspace]);
 
+  // Bloquear el scroll de fondo cuando un modal esté activo
+  useEffect(() => {
+    if (showExtraPinModal || selectedCompensacion) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showExtraPinModal, selectedCompensacion]);
+
   // ── CÁLCULO DE NÓMINA EN PANTALLA (SIN IMPORTES MONETARIOS) ───────────────
   const feriadosSet = new Set(feriados.map((f) => f.fecha));
 
@@ -779,8 +791,8 @@ export default function NominaAdminPage() {
 
   return (
     <div className="space-y-6 select-none font-sans">
-      {/* Pestañas de Navegación */}
-      <div className="flex border-b border-stone-200 gap-1 print-hide">
+      {/* Pestañas de Navegación (Responsive con scroll horizontal táctil) */}
+      <div className="flex border-b border-stone-200 gap-1 overflow-x-auto no-scrollbar print-hide min-w-0">
         <button
           onClick={() => setActiveTab('reporte')}
           className={`px-4 py-2.5 font-bold text-xs rounded-t-xl border-t border-x transition-colors ${
@@ -1956,8 +1968,19 @@ export default function NominaAdminPage() {
 
       {/* ── MODAL DE AUTORIZACIÓN CON PIN 2322 PARA HORAS EXTRA ── */}
       {showExtraPinModal && pendingExtraAction && (
-        <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center space-y-5 animate-in zoom-in-95 duration-200 select-none">
+        <div
+          onClick={() => {
+            setShowExtraPinModal(false);
+            setPendingExtraAction(null);
+            setExtraPin('');
+            setExtraPinError(false);
+          }}
+          className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center space-y-5 animate-in zoom-in-95 duration-200 select-none cursor-default"
+          >
             <div
               className={`w-14 h-14 rounded-2xl border flex items-center justify-center mx-auto shadow-md transition-colors ${
                 pendingExtraAction.decision === 'APROBADO'

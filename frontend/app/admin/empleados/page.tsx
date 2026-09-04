@@ -22,6 +22,7 @@ import {
   Utensils,
   RefreshCw,
   AlertTriangle,
+  CheckCircle,
 } from 'lucide-react';
 
 const CARGOS_OPCIONES: { value: CargoType; label: string }[] = [
@@ -236,6 +237,121 @@ export default function EmpleadosAdminPage() {
     window.print();
   };
 
+  // Bloquear el scroll de fondo cuando un modal esté activo
+  useEffect(() => {
+    if (showModal || showQrBadge) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showModal, showQrBadge]);
+
+  const renderTarjetaEmpleadoMobile = (emp: Empleado) => {
+    const deuda = parseFloat(String(emp.horas_pendientes || 0));
+    const isSelected = selectedEmpIds.has(emp.id);
+    const iniciales = `${emp.nombre?.[0] || ''}${emp.apellido?.[0] || ''}`.toUpperCase();
+
+    return (
+      <div
+        key={emp.id}
+        className={`bg-white border rounded-2xl p-4 space-y-3 transition-all ${
+          isSelected
+            ? 'border-[#1c6856] bg-emerald-50/40 shadow-xs ring-1 ring-[#1c6856]'
+            : 'border-stone-200/90 shadow-2xs'
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Checkbox de selección de carnet */}
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => toggleSelectEmp(emp.id)}
+              className="w-5 h-5 rounded text-[#1c6856] focus:ring-[#1c6856] border-stone-300 cursor-pointer accent-[#1c6856] shrink-0"
+              title="Seleccionar para imprimir"
+            />
+
+            {/* Avatar con iniciales */}
+            <div className="w-10 h-10 rounded-xl bg-[#1c6856]/10 text-[#1c6856] border border-[#1c6856]/20 flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
+              {iniciales || 'ID'}
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h4 className="font-bold text-xs sm:text-sm text-stone-900 truncate">
+                  {emp.nombre} {emp.apellido}
+                </h4>
+                <span className="text-[10px] text-stone-400 font-mono">#{emp.id}</span>
+              </div>
+              <span className="text-[10.5px] font-bold text-[#1c6856] block truncate mt-0.5">
+                {emp.cargo_display}
+              </span>
+            </div>
+          </div>
+
+          <div className="shrink-0">
+            {emp.activo ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-250 text-emerald-700 text-[10px] font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                Activo
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 border border-stone-200 text-stone-600 text-[10px] font-bold">
+                Inactivo
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Indicador de Horas Pendientes */}
+        <div className="flex items-center justify-between pt-1 border-t border-stone-100 text-xs">
+          <span className="text-[11px] text-stone-500 font-medium">Deuda de horas:</span>
+          {deuda > 0 ? (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold font-mono">
+              <AlertTriangle className="w-3 h-3 text-rose-500" />
+              Debe {deuda.toFixed(2)} hrs ⚠️
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+              <CheckCircle className="w-3 h-3" />
+              Al día (0.00h)
+            </span>
+          )}
+        </div>
+
+        {/* Botones de acción táctiles en móvil */}
+        <div className="grid grid-cols-3 gap-2 pt-1 border-t border-stone-100 text-xs">
+          <button
+            onClick={() => setShowQrBadge(emp)}
+            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-[#1c6856]/10 hover:bg-[#1c6856]/20 text-[#1c6856] font-bold text-[11px] transition-colors border border-[#1c6856]/20 active:scale-95 cursor-pointer"
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            <span>Ver QR</span>
+          </button>
+
+          <button
+            onClick={() => openEditModal(emp)}
+            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-[11px] transition-colors active:scale-95 cursor-pointer"
+          >
+            <Edit className="w-3.5 h-3.5" />
+            <span>Editar</span>
+          </button>
+
+          <button
+            onClick={() => handleDelete(emp.id)}
+            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] transition-colors border border-rose-200 active:scale-95 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Borrar</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 select-none">
       {/* Estilos CSS Específicos para Impresión Paginada CR80 */}
@@ -413,8 +529,26 @@ export default function EmpleadosAdminPage() {
         </div>
       </div>
 
-      {/* Tabla de Empleados */}
-      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm print-hide">
+      {/* Vista Móvil (Tarjetas de Colaborador Táctiles - Cero scroll horizontal) */}
+      <div className="block sm:hidden space-y-3 print-hide">
+        {loading ? (
+          <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-stone-400 text-xs shadow-2xs">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#1c6856] mb-2" />
+            Cargando lista de empleados...
+          </div>
+        ) : empleados.length === 0 ? (
+          <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-stone-400 text-xs shadow-2xs">
+            No hay empleados registrados. Presione "Registrar Nuevo Empleado".
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {empleados.map((emp) => renderTarjetaEmpleadoMobile(emp))}
+          </div>
+        )}
+      </div>
+
+      {/* Tabla de Empleados (Escritorio / Tablet >= sm) */}
+      <div className="hidden sm:block bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm print-hide">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm">
             <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
@@ -562,16 +696,22 @@ export default function EmpleadosAdminPage() {
 
       {/* MODAL CREAR / EDITAR */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 print-hide">
-          <div className="bg-white border border-stone-200 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-6">
-            <div className="flex items-center justify-between border-b border-stone-200 pb-4">
-              <h2 className="text-lg font-black text-[#1c6856] flex items-center gap-2">
+        <div
+          onClick={() => setShowModal(false)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print-hide cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-stone-200 w-full max-w-lg rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto cursor-default animate-in zoom-in-95 duration-150"
+          >
+            <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+              <h2 className="text-base sm:text-lg font-black text-[#1c6856] flex items-center gap-2">
                 <Utensils className="w-5 h-5" />
                 {editingEmp ? 'Editar Datos de Empleado' : 'Registrar Nuevo Empleado'}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors"
+                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -679,11 +819,17 @@ export default function EmpleadosAdminPage() {
 
       {/* MODAL IMPRESIÓN CARNET QR INDIVIDUAL */}
       {showQrBadge && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 print-modal-wrapper">
-          <div className="bg-white border border-stone-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center relative flex flex-col items-center print-modal-content">
+        <div
+          onClick={() => setShowQrBadge(null)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print-modal-wrapper cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-stone-200 w-full max-w-sm rounded-3xl p-5 sm:p-6 shadow-2xl text-center relative flex flex-col items-center print-modal-content cursor-default animate-in zoom-in-95 duration-150"
+          >
             <button
               onClick={() => setShowQrBadge(null)}
-              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors print-hide"
+              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors print-hide cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>

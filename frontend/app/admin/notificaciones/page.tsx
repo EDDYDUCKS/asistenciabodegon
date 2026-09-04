@@ -52,6 +52,18 @@ export default function NotificacionesDetalladasPage() {
     loadData();
   }, []);
 
+  // Bloquear scroll de fondo cuando la boleta esté abierta
+  useEffect(() => {
+    if (selectedAlerta) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [selectedAlerta]);
+
   const handleResolver = async (id: number, decision: 'JUSTIFICAR' | 'SUMAR_DEUDA') => {
     setProcessingId(id);
     try {
@@ -224,8 +236,8 @@ export default function NotificacionesDetalladasPage() {
 
       {/* Barra de Filtros y Buscador */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center bg-white p-3 sm:p-4 rounded-2xl border border-stone-200 shadow-xs">
-        {/* Pestañas de Filtro */}
-        <div className="flex flex-wrap gap-1.5">
+        {/* Pestañas de Filtro (Scroll suave en móvil) */}
+        <div className="flex flex-wrap sm:flex-nowrap gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0 min-w-0">
           <button
             onClick={() => setFiltroTipo('TODAS')}
             className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${

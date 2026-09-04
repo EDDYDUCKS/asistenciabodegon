@@ -176,13 +176,31 @@ button:active, a:active {
   }
 }
 
-.animate-fade-in {
-  animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+@keyframes fadeInSimple {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-/* Suavizado para todas las vistas principales */
+.animate-fade-in {
+  animation: fadeInSimple 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Suavizado para todas las vistas principales sin transform para no romper position:fixed de modales */
 main {
-  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: fadeInSimple 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Ocultar barra de desplazamiento en contenedores horizontales móviles */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Elevación táctil automática en tarjetas glassmorphism */
