@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { MarcajeKioscoResponse, TipoEventoType, Empleado } from '@/lib/types';
-import { marcarAsistenciaKiosco, syncBatchAsistencias, fetchEmpleados } from '@/lib/api-client';
+import { marcarAsistenciaKiosco, consultarHorasKiosco, syncBatchAsistencias, fetchEmpleados } from '@/lib/api-client';
 import {
   Clock,
   Camera,
@@ -15,6 +15,8 @@ import {
   RefreshCw,
   Lock,
   KeyRound,
+  BarChart3,
+  X,
 } from 'lucide-react';
 
 interface RecentScan {
@@ -37,6 +39,20 @@ export default function KioscoPage() {
   const [adminPinError, setAdminPinError] = useState(false);
   const [empleadosCache, setEmpleadosCache] = useState<Empleado[]>([]);
   const [empleadoDetectado, setEmpleadoDetectado] = useState<Empleado | null>(null);
+
+  // Estados de Consulta de Horas para Colaboradores
+  const [showConsultaModal, setShowConsultaModal] = useState(false);
+  const [consultaData, setConsultaData] = useState<any | null>(null);
+  const [consultaTimer, setConsultaTimer] = useState(7);
+  const [consultando, setConsultando] = useState(false);
+  const [consultaError, setConsultaError] = useState<string | null>(null);
+
+  const showConsultaModalRef = useRef(false);
+  showConsultaModalRef.current = showConsultaModal;
+  const consultaDataRef = useRef<any | null>(null);
+  consultaDataRef.current = consultaData;
+  const consultandoRef = useRef(false);
+  consultandoRef.current = consultando;
 
   // Estados de marcajes recientes para feedback visual inmediato en panel lateral
   const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
@@ -351,10 +367,65 @@ export default function KioscoPage() {
     };
   }, [syncing]);
 
+  // ── Manejo de Cierre de Consulta de Horas ─────────────────────────────────
+  const handleCerrarConsulta = useCallback(() => {
+    setShowConsultaModal(false);
+    setConsultaData(null);
+    setConsultaTimer(7);
+    setConsultaError(null);
+    setConsultando(false);
+    consultandoRef.current = false;
+    showConsultaModalRef.current = false;
+    consultaDataRef.current = null;
+    lockRef.current = false;
+  }, []);
+
+  // ── Auto-Cierre de 7 Segundos para Consulta de Horas ─────────────────────
+  useEffect(() => {
+    if (!consultaData) return;
+    if (consultaTimer <= 0) {
+      handleCerrarConsulta();
+      return;
+    }
+    const timer = setTimeout(() => {
+      setConsultaTimer((prev) => prev - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [consultaData, consultaTimer, handleCerrarConsulta]);
+
   // ── Procesar Marcaje de QR Escaneado ──────────────────────────────────
   const processQrScan = useCallback(
     async (token: string) => {
       if (lockRef.current || !token.trim()) return;
+
+      // ── MODO CONSULTA DE HORAS PARA COLABORADORES ──
+      if (showConsultaModalRef.current) {
+        if (consultaDataRef.current || consultandoRef.current) return;
+        lockRef.current = true;
+        consultandoRef.current = true;
+        setConsultando(true);
+        setConsultaError(null);
+        try {
+          const res = await consultarHorasKiosco(token.trim());
+          setConsultaData(res);
+          consultaDataRef.current = res;
+          setConsultaTimer(7);
+          playAudioFeedback('success');
+        } catch (err: any) {
+          playAudioFeedback(false);
+          setConsultaError(err.message || 'Carnet no reconocido. Intente de nuevo.');
+          setTimeout(() => {
+            setConsultaError(null);
+          }, 4000);
+        } finally {
+          setConsultando(false);
+          consultandoRef.current = false;
+          lockRef.current = false;
+        }
+        return;
+      }
+
+      // ── MODO MARCAJE NORMAL DE ASISTENCIA ──
       lockRef.current = true;
       setProcessing(true);
       setErrorMsg(null);
@@ -598,6 +669,19 @@ export default function KioscoPage() {
             <Lock className="w-4 h-4 text-[#1c6856]" />
             <span className="text-xs font-bold text-[#1c6856] hidden sm:inline">Admin</span>
           </button>
+
+          <button
+            onClick={() => {
+              setShowConsultaModal(true);
+              setConsultaData(null);
+              setConsultaError(null);
+            }}
+            className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
+            title="Consultar Horas y Marcajes del Colaborador"
+          >
+            <BarChart3 className="w-4 h-4 text-emerald-700" />
+            <span className="text-xs font-bold text-emerald-800 hidden sm:inline">Mis Horas</span>
+          </button>
           
           <div className="w-10 h-10 rounded-xl bg-[#1c6856] flex items-center justify-center text-white shadow-md shadow-[#1c6856]/10">
             <Utensils className="w-5 h-5" />
@@ -676,15 +760,27 @@ export default function KioscoPage() {
             {/* Custom Scanning Target Frame (CSS-only, activo cuando hay video) */}
             {cameraActive && !processing && !feedback && !errorMsg && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                <div className="w-60 h-60 border border-white/20 rounded-2xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+                <div className={`w-60 h-60 border rounded-2xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] transition-all ${
+                  showConsultaModal ? 'border-teal-400' : 'border-white/20'
+                }`}>
                   {/* Esquinas del objetivo */}
-                  <div className="absolute -top-1.5 -left-1.5 w-8 h-8 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
-                  <div className="absolute -top-1.5 -right-1.5 w-8 h-8 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
-                  <div className="absolute -bottom-1.5 -left-1.5 w-8 h-8 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />
-                  <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 border-b-4 border-r-4 border-emerald-400 rounded-br-lg" />
+                  <div className={`absolute -top-1.5 -left-1.5 w-8 h-8 border-t-4 border-l-4 rounded-tl-lg transition-colors ${
+                    showConsultaModal ? 'border-teal-300' : 'border-emerald-400'
+                  }`} />
+                  <div className={`absolute -top-1.5 -right-1.5 w-8 h-8 border-t-4 border-r-4 rounded-tr-lg transition-colors ${
+                    showConsultaModal ? 'border-teal-300' : 'border-emerald-400'
+                  }`} />
+                  <div className={`absolute -bottom-1.5 -left-1.5 w-8 h-8 border-b-4 border-l-4 rounded-bl-lg transition-colors ${
+                    showConsultaModal ? 'border-teal-300' : 'border-emerald-400'
+                  }`} />
+                  <div className={`absolute -bottom-1.5 -right-1.5 w-8 h-8 border-b-4 border-r-4 rounded-br-lg transition-colors ${
+                    showConsultaModal ? 'border-teal-300' : 'border-emerald-400'
+                  }`} />
                   
                   {/* Línea de escaneo láser pulsante */}
-                  <div className="absolute inset-x-2.5 h-[2px] bg-emerald-400 shadow-[0_0_8px_#34d399] animate-laser" />
+                  <div className={`absolute inset-x-2.5 h-[2px] shadow-[0_0_8px] animate-laser ${
+                    showConsultaModal ? 'bg-teal-300 shadow-teal-300' : 'bg-emerald-400 shadow-[#34d399]'
+                  }`} />
                 </div>
               </div>
             )}
@@ -925,7 +1021,38 @@ export default function KioscoPage() {
               </div>
             )}
 
-            {!processing && !feedback && !errorMsg && (
+            {/* Estado y Banner en Modo Consulta */}
+            {showConsultaModal && !consultaData && (
+              <div className="p-3 bg-gradient-to-r from-teal-700 to-emerald-700 text-white rounded-2xl flex items-center justify-between shadow-md animate-in fade-in duration-150">
+                <div className="flex items-center gap-2.5">
+                  <BarChart3 className="w-5 h-5 text-emerald-200 animate-pulse shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold block">
+                      {consultando ? 'Consultando datos del carnet...' : 'MODO CONSULTA ACTIVO'}
+                    </span>
+                    <span className="text-[10px] text-emerald-100 block">
+                      Muestre su carnet frente a la cámara para ver sus horas
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCerrarConsulta}
+                  className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs transition-all flex items-center gap-1 active:scale-95 shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Cancelar</span>
+                </button>
+              </div>
+            )}
+
+            {consultaError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-center text-xs font-bold animate-in shake duration-200">
+                {consultaError}
+              </div>
+            )}
+
+            {!processing && !feedback && !errorMsg && !showConsultaModal && (
               <div className="text-center space-y-1.5 py-2">
                 <QrCode className="w-7 h-7 text-[#1c6856]/40 mx-auto animate-bounce" />
                 <div>
@@ -936,6 +1063,24 @@ export default function KioscoPage() {
                     El sistema detectará automáticamente su Entrada, Salida o Pausas.
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* Botón Minimalista de Consulta de Horas */}
+            {!showConsultaModal && !processing && !feedback && (
+              <div className="pt-2 border-t border-stone-100 flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowConsultaModal(true);
+                    setConsultaData(null);
+                    setConsultaError(null);
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span>Consultar Mis Horas y Marcajes</span>
+                </button>
               </div>
             )}
           </div>
@@ -1084,6 +1229,148 @@ export default function KioscoPage() {
             <p className="text-[11px] text-stone-400 font-medium hidden sm:block pt-1">
               💡 Puedes ingresar el PIN con el teclado numérico de tu PC (0-9)
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL FICHA DEL COLABORADOR (CONSULTA DE HORAS) ── */}
+      {showConsultaModal && consultaData && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-stone-200 w-full max-w-lg rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 select-none">
+            
+            {/* Header del Colaborador */}
+            <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800 shadow-sm font-bold text-lg">
+                  {consultaData.empleado.nombre.charAt(0)}{consultaData.empleado.apellido.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-stone-900 text-lg sm:text-xl tracking-tight leading-tight">
+                    {consultaData.empleado.nombre} {consultaData.empleado.apellido}
+                  </h3>
+                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-600 font-bold text-[10px] uppercase tracking-wider mt-0.5">
+                    {consultaData.empleado.cargo_display}
+                  </span>
+                </div>
+              </div>
+
+              {/* Botón cerrar manual */}
+              <button
+                type="button"
+                onClick={handleCerrarConsulta}
+                className="w-9 h-9 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-600 transition-all flex items-center justify-center active:scale-95"
+                title="Cerrar consulta"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid de Horas y Balance */}
+            <div className="grid grid-cols-3 gap-3">
+              {/* Horas de Hoy */}
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
+                  Hoy (Cerradas)
+                </span>
+                <span className="text-2xl sm:text-3xl font-black font-mono text-emerald-900 block my-0.5">
+                  {Number(consultaData.horas_trabajadas_hoy).toFixed(1)}
+                </span>
+                <span className="text-[9px] font-semibold text-emerald-700">
+                  Horas netas
+                </span>
+              </div>
+
+              {/* Horas del Mes */}
+              <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200/80 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 block">
+                  Mes Actual
+                </span>
+                <span className="text-2xl sm:text-3xl font-black font-mono text-blue-900 block my-0.5">
+                  {Number(consultaData.horas_mes).toFixed(1)}
+                </span>
+                <span className="text-[9px] font-semibold text-blue-700">
+                  Total acumulado
+                </span>
+              </div>
+
+              {/* Saldo Pendiente */}
+              <div className={`p-3.5 rounded-2xl border text-center ${
+                consultaData.horas_pendientes > 0
+                  ? 'bg-rose-50 border-rose-200/80 text-rose-900'
+                  : 'bg-stone-50 border-stone-200/80 text-stone-900'
+              }`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+                  consultaData.horas_pendientes > 0 ? 'text-rose-800' : 'text-stone-600'
+                }`}>
+                  Saldo Deuda
+                </span>
+                <span className={`text-2xl sm:text-3xl font-black font-mono block my-0.5 ${
+                  consultaData.horas_pendientes > 0 ? 'text-rose-900' : 'text-stone-800'
+                }`}>
+                  {consultaData.horas_pendientes > 0 ? `+${Number(consultaData.horas_pendientes).toFixed(1)}` : '0.0'}
+                </span>
+                <span className={`text-[9px] font-semibold ${
+                  consultaData.horas_pendientes > 0 ? 'text-rose-700' : 'text-stone-500'
+                }`}>
+                  {consultaData.horas_pendientes > 0 ? 'Horas por reponer' : 'Al día'}
+                </span>
+              </div>
+            </div>
+
+            {/* Marcajes de Hoy */}
+            <div className="space-y-2">
+              <h4 className="font-bold text-xs text-stone-700 flex items-center justify-between">
+                <span>Marcajes Registrados Hoy:</span>
+                <span className="text-[10px] font-mono text-stone-400">
+                  {consultaData.marcajes_hoy?.length || 0} registro(s)
+                </span>
+              </h4>
+
+              {(!consultaData.marcajes_hoy || consultaData.marcajes_hoy.length === 0) ? (
+                <div className="p-4 rounded-2xl bg-stone-50 border border-dashed border-stone-200 text-center text-xs text-stone-400 font-medium">
+                  No se han registrado marcajes el día de hoy.
+                </div>
+              ) : (
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                  {consultaData.marcajes_hoy.map((m: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50 border border-stone-200/70 text-xs font-medium"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${
+                          m.tipo?.includes('ENTRADA') ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`} />
+                        <span className="font-bold text-stone-800">{m.display}</span>
+                      </div>
+                      <span className="font-mono font-bold text-stone-600 bg-white px-2 py-0.5 rounded-lg border border-stone-200">
+                        {m.hora}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Barra de Auto-Cierre de 7 Segundos y Botón Listo */}
+            <div className="pt-2 border-t border-stone-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-stone-500 text-xs font-semibold">
+                <Clock className="w-4 h-4 text-emerald-600 animate-spin" style={{ animationDuration: '3s' }} />
+                <span>
+                  Cerrando en <span className="font-mono font-bold text-emerald-700 text-sm">{consultaTimer}s</span>...
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCerrarConsulta}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#1c6856] hover:bg-[#155042] text-white font-bold text-xs transition-all active:scale-95 shadow-md flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Listo / Volver</span>
+              </button>
+            </div>
+
           </div>
         </div>
       )}

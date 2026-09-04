@@ -17,6 +17,7 @@ urlpatterns = [
 
     # Kiosco Marcaje QR
     path('kiosco/marcar/', views.marcar_asistencia_kiosco, name='kiosco_marcar'),
+    path('kiosco/consultar/', views.consultar_horas_kiosco, name='kiosco_consultar'),
 
     # Sincronización Offline Batch
     path('asistencia/sync-batch/', views.sync_batch_asistencia, name='asistencia_sync_batch'),

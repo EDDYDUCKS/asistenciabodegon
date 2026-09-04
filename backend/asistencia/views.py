@@ -804,6 +804,83 @@ def marcar_asistencia_kiosco(request):
     })
 
 
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+@renderer_classes([JSONRenderer])
+def consultar_horas_kiosco(request):
+    """
+    Endpoint seguro de solo lectura para consulta de horas del colaborador desde el Kiosco.
+    No entrega datos salariales ni contraseñas.
+    """
+    qr_token = str(request.data.get('qr_token', '')).strip()
+    if not qr_token:
+        return Response({'status': 'error', 'mensaje': 'Código QR no proporcionado.'}, status=400)
+
+    # Buscar empleado por token exacto o por prefijo UUID
+    empleado = Empleado.objects.filter(qr_code_token=qr_token, activo=True).first()
+    if not empleado:
+        raw_uuid = qr_token.split('.', 1)[0]
+        empleado = Empleado.objects.filter(qr_code_token__startswith=raw_uuid, activo=True).first()
+
+    if not empleado:
+        return Response({'status': 'error', 'mensaje': 'Carnet de colaborador no reconocido o inactivo.'}, status=404)
+
+    tz_ni = timezone.get_current_timezone()
+    ahora = timezone.now().astimezone(tz_ni)
+    hoy = ahora.date()
+
+    # 1. Marcajes de hoy
+    import datetime
+    start_dt = timezone.make_aware(datetime.datetime.combine(hoy, datetime.time.min), tz_ni)
+    end_dt = timezone.make_aware(datetime.datetime.combine(hoy, datetime.time.max), tz_ni)
+
+    registros_hoy = list(RegistroAsistencia.objects.filter(
+        empleado=empleado,
+        fecha_hora__range=(start_dt, end_dt)
+    ).order_by('fecha_hora'))
+
+    marcajes_hoy = [
+        {
+            'tipo': r.tipo_evento,
+            'display': r.get_tipo_evento_display(),
+            'hora': r.fecha_hora.astimezone(tz_ni).strftime('%I:%M %p')
+        }
+        for r in registros_hoy
+    ]
+
+    horas_hoy = round(_calcular_horas_netas_dia(registros_hoy), 2)
+
+    # 2. Horas acumuladas del mes vigente
+    primer_dia_mes = hoy.replace(day=1)
+    start_mes = timezone.make_aware(datetime.datetime.combine(primer_dia_mes, datetime.time.min), tz_ni)
+
+    registros_mes = list(RegistroAsistencia.objects.filter(
+        empleado=empleado,
+        fecha_hora__range=(start_mes, end_dt)
+    ).order_by('fecha_hora'))
+
+    por_dia = {}
+    for r in registros_mes:
+        d = r.fecha_hora.astimezone(tz_ni).date()
+        por_dia.setdefault(d, []).append(r)
+
+    horas_mes_total = sum(_calcular_horas_netas_dia(regs_dia) for regs_dia in por_dia.values())
+
+    return Response({
+        'status': 'ok',
+        'empleado': {
+            'id': empleado.id,
+            'nombre': empleado.nombre,
+            'apellido': empleado.apellido,
+            'cargo_display': empleado.get_cargo_display(),
+        },
+        'marcajes_hoy': marcajes_hoy,
+        'horas_trabajadas_hoy': horas_hoy,
+        'horas_mes': round(horas_mes_total, 1),
+        'horas_pendientes': round(float(empleado.horas_pendientes), 2),
+    })
+
+
 def _calcular_horas_netas_dia(registros_dia):
     """
     Suma el tiempo entre ENTRADA -> SALIDA_QUEBRADA y ENTRADA_QUEBRADA -> SALIDA_DEFINITIVA.

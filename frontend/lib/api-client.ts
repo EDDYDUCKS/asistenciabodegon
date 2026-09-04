@@ -134,6 +134,38 @@ export async function marcarAsistenciaKiosco(payload: {
   return json;
 }
 
+export async function consultarHorasKiosco(qrToken: string): Promise<{
+  status: string;
+  empleado: {
+    id: number;
+    nombre: string;
+    apellido: string;
+    cargo_display: string;
+  };
+  marcajes_hoy: Array<{
+    tipo: string;
+    display: string;
+    hora: string;
+  }>;
+  horas_trabajadas_hoy: number;
+  horas_mes: number;
+  horas_pendientes: number;
+}> {
+  const url = `${API_BASE_URL}/kiosco/consultar/`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ qr_token: qrToken }),
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.mensaje || json.detail || 'Error consultando información del colaborador');
+  }
+  return json;
+}
+
+
 // ── REGISTROS DE ASISTENCIA ───────────────────────────────────────────────
 export async function fetchAsistencias(): Promise<RegistroAsistencia[]> {
   const data = await apiRequest<RegistroAsistencia[] | { results: RegistroAsistencia[] }>('/asistencia/');
