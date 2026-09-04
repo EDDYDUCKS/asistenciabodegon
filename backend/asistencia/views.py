@@ -999,17 +999,17 @@ def consultar_horas_kiosco(request):
     from django.db.models import Sum
     horas_extra_aprobadas = AutorizacionHorasExtra.objects.filter(
         empleado=empleado,
-        estado='APROBADA',
+        estado='APROBADO',
         fecha__gte=primer_dia_mes,
         fecha__lte=hoy
-    ).aggregate(total=Sum('horas_aprobadas'))['total'] or 0.0
+    ).aggregate(total=Sum('horas_extra_autorizadas'))['total'] or 0.0
 
     horas_extra_pendientes = AutorizacionHorasExtra.objects.filter(
         empleado=empleado,
         estado='PENDIENTE',
         fecha__gte=primer_dia_mes,
         fecha__lte=hoy
-    ).aggregate(total=Sum('horas_solicitadas'))['total'] or 0.0
+    ).aggregate(total=Sum('horas_extra_solicitadas'))['total'] or 0.0
 
     dias_trabajados_mes = len(por_dia)
 
