@@ -14,8 +14,9 @@ import {
   fetchPermisos,
   createPermiso,
   deletePermiso,
+  fetchCompensaciones,
 } from '@/lib/api-client';
-import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType } from '@/lib/types';
+import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras } from '@/lib/types';
 import {
   FileSpreadsheet,
   Download,
@@ -35,6 +36,7 @@ import {
   ShieldCheck,
   Lock,
   Search,
+  Scale,
 } from 'lucide-react';
 
 const MESES_NOMBRES: Record<number, string> = {
@@ -50,6 +52,9 @@ export default function NominaAdminPage() {
   const [feriados, setFeriados] = useState<DiaFeriado[]>([]);
   const [horasExtra, setHorasExtra] = useState<AutorizacionHorasExtra[]>([]);
   const [permisos, setPermisos] = useState<PermisoAusencia[]>([]);
+  const [compensaciones, setCompensaciones] = useState<CompensacionHoras[]>([]);
+  const [subTabExtras, setSubTabExtras] = useState<'pendientes' | 'compensaciones'>('pendientes');
+  const [searchCompensacion, setSearchCompensacion] = useState('');
   
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -101,18 +106,20 @@ export default function NominaAdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empList, asisList, feriadosList, extrasList, permisosList] = await Promise.all([
+      const [empList, asisList, feriadosList, extrasList, permisosList, compList] = await Promise.all([
         fetchEmpleados(),
         fetchAsistencias(),
         fetchFeriados(),
         fetchHorasExtra(),
         fetchPermisos(),
+        fetchCompensaciones(),
       ]);
       setEmpleados(empList);
       setAsistencias(asisList);
       setFeriados(feriadosList);
       setHorasExtra(extrasList);
       setPermisos(permisosList);
+      setCompensaciones(compList);
       if (empList.length > 0 && nuevoPermisoEmp === 0) {
         setNuevoPermisoEmp(empList[0].id);
       }
@@ -578,6 +585,17 @@ export default function NominaAdminPage() {
     return permisosMesSeleccionado.reduce((acc, p) => acc + (p.total_dias || 0), 0);
   }, [permisosMesSeleccionado]);
 
+  const compensacionesFiltradas = useMemo(() => {
+    if (!searchCompensacion.trim()) return compensaciones;
+    const term = searchCompensacion.toLowerCase().trim();
+    return compensaciones.filter((c) => {
+      const emp = c.empleado_detalle || empleados.find((e) => e.id === c.empleado);
+      const nombre = emp ? `${emp.nombre} ${emp.apellido}`.toLowerCase() : '';
+      const cargo = (emp?.cargo_display || '').toLowerCase();
+      return nombre.includes(term) || cargo.includes(term);
+    });
+  }, [compensaciones, searchCompensacion, empleados]);
+
   return (
     <div className="space-y-6 select-none font-sans">
       {/* Pestañas de Navegación */}
@@ -896,143 +914,420 @@ export default function NominaAdminPage() {
             </p>
           </div>
 
-          <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm">
-                <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4">Fecha</th>
-                    <th className="px-6 py-4">Empleado</th>
-                    <th className="px-6 py-4 text-right">Exceso Detectado</th>
-                    <th className="px-6 py-4 text-right">Horas Aprobadas</th>
-                    <th className="px-6 py-4">Estado</th>
-                    <th className="px-6 py-4 text-right">Decisión / Comentario</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
-                  {loading ? (
+          {/* Sub-Menú: Solicitudes Pendientes vs Deducciones de Horas */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-stone-200 pb-3 print-hide">
+            <button
+              onClick={() => setSubTabExtras('pendientes')}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 ${
+                subTabExtras === 'pendientes'
+                  ? 'bg-[#1c6856] text-white shadow-sm'
+                  : 'bg-white border border-stone-200 hover:bg-stone-50 text-stone-600'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              <span>Solicitudes para Pago de Nómina</span>
+              {horasExtra.filter((h) => h.estado === 'PENDIENTE').length > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
+                  subTabExtras === 'pendientes' ? 'bg-white text-[#1c6856]' : 'bg-rose-500 text-white'
+                }`}>
+                  {horasExtra.filter((h) => h.estado === 'PENDIENTE').length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setSubTabExtras('compensaciones')}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 ${
+                subTabExtras === 'compensaciones'
+                  ? 'bg-[#1c6856] text-white shadow-sm'
+                  : 'bg-white border border-stone-200 hover:bg-stone-50 text-stone-600'
+              }`}
+            >
+              <Scale className="w-4 h-4" />
+              <span>Reporte de Deducciones y Compensaciones</span>
+              {compensaciones.length > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
+                  subTabExtras === 'compensaciones' ? 'bg-white text-[#1c6856]' : 'bg-[#1c6856]/15 text-[#1c6856]'
+                }`}>
+                  {compensaciones.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {subTabExtras === 'pendientes' && (
+            <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm animate-in fade-in duration-150">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs sm:text-sm">
+                  <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
                     <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-stone-400">
-                        Cargando solicitudes...
-                      </td>
+                      <th className="px-6 py-4">Fecha</th>
+                      <th className="px-6 py-4">Empleado</th>
+                      <th className="px-6 py-4 text-right">Exceso Detectado</th>
+                      <th className="px-6 py-4 text-right">Horas Aprobadas</th>
+                      <th className="px-6 py-4">Estado</th>
+                      <th className="px-6 py-4 text-right">Decisión / Comentario</th>
                     </tr>
-                  ) : horasExtra.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-stone-400 font-normal">
-                        No hay solicitudes de horas extra registradas en el sistema.
-                      </td>
-                    </tr>
-                  ) : (
-                    horasExtra.map((item) => {
-                      const isEditing = editingExtraId === item.id;
-                      return (
-                        <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
-                          <td className="px-6 py-4 font-mono font-bold text-stone-600">
-                            {new Date(item.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                            })}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="font-bold text-stone-900">
-                              {item.empleado_detalle?.nombre} {item.empleado_detalle?.apellido}
-                            </div>
-                            <span className="text-[10px] text-stone-400 block font-medium">
-                              {item.empleado_detalle?.cargo_display}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right font-mono font-bold text-rose-500">
-                            +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(2)} hrs
-                          </td>
-                          <td className="px-6 py-4 text-right font-mono font-bold">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                step="0.10"
-                                max={String(item.horas_extra_solicitadas)}
-                                value={tempAutorizadas}
-                                onChange={(e) => setTempAutorizadas(e.target.value)}
-                                className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                              />
-                            ) : (
-                              <span>
-                                {item.estado === 'APROBADO'
-                                  ? `${parseFloat(String(item.horas_extra_autorizadas)).toFixed(2)} hrs`
-                                  : '0.00 hrs'}
+                  </thead>
+                  <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-8 text-center text-stone-400">
+                          Cargando solicitudes...
+                        </td>
+                      </tr>
+                    ) : horasExtra.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-8 text-center text-stone-400 font-normal">
+                          No hay solicitudes de horas extra registradas en el sistema.
+                        </td>
+                      </tr>
+                    ) : (
+                      horasExtra.map((item) => {
+                        const isEditing = editingExtraId === item.id;
+                        return (
+                          <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
+                            <td className="px-6 py-4 font-mono font-bold text-stone-600">
+                              {new Date(item.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                              })}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-bold text-stone-900">
+                                {item.empleado_detalle?.nombre} {item.empleado_detalle?.apellido}
+                              </div>
+                              <span className="text-[10px] text-stone-400 block font-medium">
+                                {item.empleado_detalle?.cargo_display}
                               </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                                item.estado === 'APROBADO'
-                                  ? 'bg-emerald-50 border-emerald-250 text-emerald-700'
-                                  : item.estado === 'RECHAZADO'
-                                  ? 'bg-rose-50 border-rose-250 text-rose-700'
-                                  : 'bg-amber-50 border-amber-250 text-amber-700 animate-pulse'
-                              }`}
-                            >
-                              {item.estado}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            {isEditing ? (
-                              <div className="flex flex-col gap-2 max-w-xs ml-auto">
+                            </td>
+                            <td className="px-6 py-4 text-right font-mono font-bold text-rose-500">
+                              +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(2)} hrs
+                            </td>
+                            <td className="px-6 py-4 text-right font-mono font-bold">
+                              {isEditing ? (
                                 <input
-                                  type="text"
-                                  placeholder="Nota/comentario..."
-                                  value={tempComentario}
-                                  onChange={(e) => setTempComentario(e.target.value)}
-                                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                                  type="number"
+                                  step="0.10"
+                                  max={String(item.horas_extra_solicitadas)}
+                                  value={tempAutorizadas}
+                                  onChange={(e) => setTempAutorizadas(e.target.value)}
+                                  className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
                                 />
-                                <div className="flex gap-1 justify-end">
+                              ) : (
+                                <span>
+                                  {item.estado === 'APROBADO'
+                                    ? `${parseFloat(String(item.horas_extra_autorizadas)).toFixed(2)} hrs`
+                                    : '0.00 hrs'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span
+                                className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  item.estado === 'APROBADO'
+                                    ? 'bg-emerald-50 border-emerald-250 text-emerald-700'
+                                    : item.estado === 'RECHAZADO'
+                                    ? 'bg-rose-50 border-rose-250 text-rose-700'
+                                    : 'bg-amber-50 border-amber-250 text-amber-700 animate-pulse'
+                                }`}
+                              >
+                                {item.estado}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              {isEditing ? (
+                                <div className="flex flex-col gap-2 max-w-xs ml-auto">
+                                  <input
+                                    type="text"
+                                    placeholder="Nota/comentario..."
+                                    value={tempComentario}
+                                    onChange={(e) => setTempComentario(e.target.value)}
+                                    className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                                  />
+                                  <div className="flex gap-1 justify-end">
+                                    <button
+                                      onClick={() => initiateDecision(item, 'RECHAZADO')}
+                                      disabled={savingExtra}
+                                      className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                                    >
+                                      <ThumbsDown className="w-3.5 h-3.5" /> Rechazar
+                                    </button>
+                                    <button
+                                      onClick={() => initiateDecision(item, 'APROBADO')}
+                                      disabled={savingExtra}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                                    >
+                                      <ThumbsUp className="w-3.5 h-3.5" /> Aprobar
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingExtraId(null)}
+                                      className="border border-stone-200 hover:bg-stone-50 px-2 py-1.5 rounded-lg text-xs"
+                                    >
+                                      X
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-end gap-3">
+                                  {item.estado !== 'PENDIENTE' && (
+                                    <span className="text-xs text-stone-500 font-normal italic max-w-[160px] truncate block" title={item.comentario || ''}>
+                                      {item.comentario}
+                                    </span>
+                                  )}
                                   <button
-                                    onClick={() => initiateDecision(item, 'RECHAZADO')}
-                                    disabled={savingExtra}
-                                    className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                                    onClick={() => startDecision(item)}
+                                    className="bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors"
                                   >
-                                    <ThumbsDown className="w-3.5 h-3.5" /> Rechazar
-                                  </button>
-                                  <button
-                                    onClick={() => initiateDecision(item, 'APROBADO')}
-                                    disabled={savingExtra}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
-                                  >
-                                    <ThumbsUp className="w-3.5 h-3.5" /> Aprobar
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingExtraId(null)}
-                                    className="border border-stone-200 hover:bg-stone-50 px-2 py-1.5 rounded-lg text-xs"
-                                  >
-                                    X
+                                    {item.estado === 'PENDIENTE' ? 'Evaluar' : 'Modificar'}
                                   </button>
                                 </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {subTabExtras === 'compensaciones' && (
+            <div className="space-y-4 animate-in fade-in duration-200">
+              {/* Barra de Filtro de Colaborador */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Buscar por colaborador o cargo..."
+                    value={searchCompensacion}
+                    onChange={(e) => setSearchCompensacion(e.target.value)}
+                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm"
+                  />
+                  <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  {searchCompensacion && (
+                    <button
+                      onClick={() => setSearchCompensacion('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-xs text-stone-500 font-medium">
+                  Mostrando <strong className="text-stone-800">{compensacionesFiltradas.length}</strong> registro{compensacionesFiltradas.length !== 1 ? 's' : ''} de compensación
+                </div>
+              </div>
+
+              {/* Lista de Tarjetas Estilo Notificaciones / Auditoría */}
+              {compensacionesFiltradas.length === 0 ? (
+                <div className="bg-white border border-stone-200 rounded-2xl p-12 text-center text-stone-400 text-xs">
+                  <Scale className="w-10 h-10 mx-auto text-stone-300 mb-2" />
+                  No hay registros de compensación ni deducción de horas en el período.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {compensacionesFiltradas.map((comp) => {
+                    const emp = comp.empleado_detalle || empleados.find((e) => e.id === comp.empleado);
+                    const nombreCompleto = emp ? `${emp.nombre} ${emp.apellido}` : `Empleado #${comp.empleado}`;
+                    const cargo = emp?.cargo_display || '';
+                    const esSaldada = Number(comp.saldo_restante) === 0;
+
+                    return (
+                      <div
+                        key={comp.id}
+                        className="bg-white border border-stone-200/90 rounded-2xl p-5 shadow-sm space-y-4 hover:border-emerald-300/80 transition-colors"
+                      >
+                        {/* Header de la Tarjeta */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold shadow-2xs">
+                              <Scale className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-sm text-stone-900">{nombreCompleto}</h3>
+                                {cargo && <span className="text-xs text-stone-500 font-medium">({cargo})</span>}
                               </div>
-                            ) : (
-                              <div className="flex items-center justify-end gap-3">
-                                {item.estado !== 'PENDIENTE' && (
-                                  <span className="text-xs text-stone-500 font-normal italic max-w-[160px] truncate block" title={item.comentario || ''}>
-                                    {item.comentario}
-                                  </span>
-                                )}
-                                <button
-                                  onClick={() => startDecision(item)}
-                                  className="bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors"
+                              <p className="text-[11px] text-stone-400 font-medium mt-0.5">
+                                Compensación Automática de Bolsa de Horas (Déficit vs Horas Extra)
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border shadow-2xs ${
+                                esSaldada
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  : 'bg-amber-50 text-amber-800 border-amber-300'
+                              }`}
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              {esSaldada
+                                ? 'Deuda Liquidada al 100% ✅'
+                                : `Saldo Pendiente: ${Number(comp.saldo_restante).toFixed(2)} hrs ⚠️`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Bloque Día con Horas Extra (Pago) */}
+                        <div className="bg-emerald-50/60 border border-emerald-200/70 rounded-xl p-3.5 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 block">
+                              🟢 DÍA QUE HIZO LAS HORAS EXTRA (PAGO):
+                            </span>
+                            <span className="font-bold text-stone-900 text-sm mt-0.5 block font-mono">
+                              {new Date(comp.fecha_compensacion + 'T00:00:00').toLocaleDateString('es-NI', {
+                                weekday: 'long',
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-right">
+                            <div>
+                              <span className="text-[10px] text-stone-500 block uppercase font-bold">
+                                Jornada Realizada
+                              </span>
+                              <span className="font-mono font-bold text-stone-800">
+                                {Number(comp.horas_trabajadas_hoy).toFixed(2)} hrs
+                              </span>
+                            </div>
+                            <div className="bg-white px-3 py-1.5 rounded-xl border border-emerald-300 shadow-2xs">
+                              <span className="text-[10px] text-emerald-800 block uppercase font-bold">
+                                Horas Extra Generadas
+                              </span>
+                              <span className="font-mono font-black text-emerald-900 text-sm">
+                                +{Number(comp.horas_extra_generadas).toFixed(2)} hrs
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bloque Desglose Detallado de Días Adeudados */}
+                        <div className="space-y-2">
+                          <span className="font-bold uppercase tracking-wider text-[11px] text-stone-700 flex items-center gap-1.5">
+                            <span>📋 DESGLOSE DETALLADO DE CADA DÍA ADEUDADO:</span>
+                          </span>
+
+                          <div className="space-y-2">
+                            {comp.desglose && comp.desglose.length > 0 ? (
+                              comp.desglose.map((item, idx) => (
+                                <div
+                                  key={idx}
+                                  className="bg-stone-50 border border-stone-200/80 rounded-xl p-3 text-xs space-y-2"
                                 >
-                                  {item.estado === 'PENDIENTE' ? 'Evaluar' : 'Modificar'}
-                                </button>
+                                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/60 pb-1.5">
+                                    <span className="font-bold text-stone-900 flex items-center gap-1.5">
+                                      <span>📅</span>
+                                      <span>{item.fecha_display || item.fecha}</span>
+                                    </span>
+                                    <span className="bg-white border border-stone-200 px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-800 shadow-2xs">
+                                      {item.estado}
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px]">
+                                    <div className="bg-white p-2 rounded-lg border border-stone-200/60">
+                                      <span className="text-stone-400 block text-[10px] uppercase font-bold">
+                                        Horas Trabajadas
+                                      </span>
+                                      <span className="font-mono font-bold text-stone-800">
+                                        {Number(item.horas_trabajadas).toFixed(2)} hrs
+                                      </span>
+                                      <span className="text-[10px] text-stone-400 block">(base 8.00 hrs)</span>
+                                    </div>
+
+                                    <div className="bg-white p-2 rounded-lg border border-stone-200/60">
+                                      <span className="text-rose-500 block text-[10px] uppercase font-bold">
+                                        Horas Faltaron (Déficit)
+                                      </span>
+                                      <span className="font-mono font-bold text-rose-700">
+                                        -{Number(item.horas_faltaron).toFixed(2)} hrs
+                                      </span>
+                                      <span className="text-[10px] text-rose-400 block">Deuda del día</span>
+                                    </div>
+
+                                    <div className="bg-white p-2 rounded-lg border border-stone-200/60">
+                                      <span className="text-emerald-700 block text-[10px] uppercase font-bold">
+                                        Horas Extra Aplicadas
+                                      </span>
+                                      <span className="font-mono font-bold text-emerald-800">
+                                        +{Number(item.horas_aplicadas).toFixed(2)} hrs
+                                      </span>
+                                      <span className="text-[10px] text-emerald-600 block">Deducción directa</span>
+                                    </div>
+
+                                    <div className="bg-white p-2 rounded-lg border border-stone-200/60">
+                                      <span className="text-stone-500 block text-[10px] uppercase font-bold">
+                                        Saldo de esta Fecha
+                                      </span>
+                                      <span className="font-mono font-bold text-stone-900">
+                                        {Number(item.saldo_dia).toFixed(2)} hrs
+                                      </span>
+                                      <span className="text-[10px] text-stone-400 block">
+                                        {Number(item.saldo_dia) === 0 ? 'Liquidado' : 'Pendiente'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="bg-stone-50 p-3 rounded-xl text-stone-500 text-xs">
+                                Amortización directa aplicada sobre el saldo deudor acumulado: {Number(comp.horas_deducidas).toFixed(2)} hrs.
                               </div>
                             )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                          </div>
+                        </div>
+
+                        {/* Footer Resumen de la Tarjeta */}
+                        <div className="bg-stone-100/90 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs border border-stone-200/70 font-medium">
+                          <div className="flex flex-wrap items-center gap-4">
+                            <div>
+                              <span className="text-stone-500 text-[10px] uppercase font-bold block">
+                                Total Extra Deducido:
+                              </span>
+                              <span className="font-mono font-bold text-[#1c6856] text-sm">
+                                -{Number(comp.horas_deducidas).toFixed(2)} hrs
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-stone-500 text-[10px] uppercase font-bold block">
+                                Saldo Global Deudor:
+                              </span>
+                              <span className="font-mono font-bold text-stone-900 text-sm">
+                                {Number(comp.saldo_restante).toFixed(2)} hrs
+                              </span>
+                            </div>
+                            {Number(comp.remanente_extra) > 0 && (
+                              <div>
+                                <span className="text-amber-700 text-[10px] uppercase font-bold block">
+                                  Remanente a Pago de Nómina:
+                                </span>
+                                <span className="font-mono font-bold text-amber-800 text-sm">
+                                  +{Number(comp.remanente_extra).toFixed(2)} hrs
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          <span className="text-[11px] font-mono text-stone-400">
+                            Registro: {new Date(comp.created_at).toLocaleString('es-NI', { hour12: true })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
       )}
 

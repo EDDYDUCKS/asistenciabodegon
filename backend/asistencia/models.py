@@ -198,3 +198,22 @@ class PermisoAusencia(models.Model):
         if self.fecha_inicio and self.fecha_fin:
             return (self.fecha_fin - self.fecha_inicio).days + 1
         return 0
+
+
+class CompensacionHoras(models.Model):
+    empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='compensaciones_horas')
+    fecha_compensacion = models.DateField(help_text="Fecha en que el trabajador generó las horas extra")
+    horas_trabajadas_hoy = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="Total horas trabajadas en el día de la compensación")
+    horas_extra_generadas = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="Exceso sobre 8h")
+    horas_deducidas = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="Total horas extra usadas para saldar deuda")
+    deuda_previa = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    saldo_restante = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    remanente_extra = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="Horas extra enviadas a aprobación tras saldar deuda")
+    desglose = models.JSONField(default=list, blank=True, help_text="Detalle individualizado de cada día adeudado")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_compensacion', '-created_at']
+
+    def __str__(self):
+        return f"Compensación {self.empleado.nombre} {self.empleado.apellido} - {self.fecha_compensacion} (-{self.horas_deducidas} hrs)"

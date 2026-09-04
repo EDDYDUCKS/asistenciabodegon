@@ -8,6 +8,7 @@ import {
   AutorizacionHorasExtra,
   AlertaAsistencia,
   PermisoAusencia,
+  CompensacionHoras,
 } from './types';
 
 const API_BASE_URL =
@@ -396,5 +397,15 @@ export async function purgarDiaCero(pin: string): Promise<{ status: string; mens
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pin }),
   });
+}
+
+// ── COMPENSACIONES Y DEDUCCIONES DE HORAS ──────────────────────────────────
+export async function fetchCompensaciones(): Promise<CompensacionHoras[]> {
+  const data = await apiRequest<CompensacionHoras[] | { results: CompensacionHoras[] }>('/compensaciones/');
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray((data as { results: CompensacionHoras[] }).results)) {
+    return (data as { results: CompensacionHoras[] }).results;
+  }
+  return [];
 }
 

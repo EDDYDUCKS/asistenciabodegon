@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia
+from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia, CompensacionHoras
 
 
 class EmpleadoSerializer(serializers.ModelSerializer):
@@ -132,5 +132,26 @@ class PermisoAusenciaSerializer(serializers.ModelSerializer):
             'fecha_fin',
             'motivo',
             'total_dias',
+            'created_at',
+        ]
+
+
+class CompensacionHorasSerializer(serializers.ModelSerializer):
+    empleado_detalle = EmpleadoSerializer(source='empleado', read_only=True)
+
+    class Meta:
+        model = CompensacionHoras
+        fields = [
+            'id',
+            'empleado',
+            'empleado_detalle',
+            'fecha_compensacion',
+            'horas_trabajadas_hoy',
+            'horas_extra_generadas',
+            'horas_deducidas',
+            'deuda_previa',
+            'saldo_restante',
+            'remanente_extra',
+            'desglose',
             'created_at',
         ]

@@ -114,3 +114,28 @@ export interface PermisoAusencia {
   total_dias: number;
   created_at?: string;
 }
+
+export interface ItemDesgloseCompensacion {
+  fecha: string;
+  fecha_display: string;
+  horas_trabajadas: number;
+  horas_faltaron: number;
+  horas_aplicadas: number;
+  saldo_dia: number;
+  estado: string;
+}
+
+export interface CompensacionHoras {
+  id: number;
+  empleado: number;
+  empleado_detalle?: Empleado;
+  fecha_compensacion: string;
+  horas_trabajadas_hoy: number;
+  horas_extra_generadas: number;
+  horas_deducidas: number;
+  deuda_previa: number;
+  saldo_restante: number;
+  remanente_extra: number;
+  desglose: ItemDesgloseCompensacion[];
+  created_at: string;
+}

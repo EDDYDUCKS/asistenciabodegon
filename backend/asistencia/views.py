@@ -11,8 +11,8 @@ from rest_framework.response import Response
 from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia
-from .serializers import EmpleadoSerializer, RegistroAsistenciaSerializer, BitacoraAccionSerializer, DiaFeriadoSerializer, AutorizacionHorasExtraSerializer, AlertaAsistenciaSerializer, PermisoAusenciaSerializer
+from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia, CompensacionHoras
+from .serializers import EmpleadoSerializer, RegistroAsistenciaSerializer, BitacoraAccionSerializer, DiaFeriadoSerializer, AutorizacionHorasExtraSerializer, AlertaAsistenciaSerializer, PermisoAusenciaSerializer, CompensacionHorasSerializer
 
 
 class ExcelBinaryRenderer(BaseRenderer):
@@ -447,6 +447,12 @@ class PermisoAusenciaViewSet(viewsets.ModelViewSet):
             descripcion=desc,
             ip_address=_get_clean_ip(self.request)
         )
+
+
+class CompensacionHorasViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = CompensacionHoras.objects.select_related('empleado').all()
+    serializer_class = CompensacionHorasSerializer
+    permission_classes = [permissions.AllowAny]
 
 
 def _procesar_foto_a_base64(foto):
@@ -1092,6 +1098,79 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
 
         remanente_extra = max(0.0, round(excedente - horas_amortizadas, 2))
+
+        # Buscar días previos con déficit para construir el desglose detallado (FIFO)
+        import datetime
+        tz_ni = timezone.get_current_timezone()
+        start_periodo = timezone.make_aware(datetime.datetime.combine(primer_dia_mes, datetime.time.min), tz_ni)
+        end_ayer = timezone.make_aware(datetime.datetime.combine(fecha_hoy - datetime.timedelta(days=1), datetime.time.max), tz_ni)
+
+        regs_periodo = RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            fecha_hora__range=(start_periodo, end_ayer)
+        ).order_by('fecha_hora')
+
+        dias_anteriores = {}
+        for r in regs_periodo:
+            dia_local = r.fecha_hora.astimezone(tz_ni).date()
+            dias_anteriores.setdefault(dia_local, []).append(r)
+
+        dias_deficit = []
+        for dia_k, regs_k in sorted(dias_anteriores.items()):
+            h_dia = _calcular_horas_netas_dia(regs_k)
+            if 0 < h_dia < 8.0:
+                deficit_k = round(8.0 - h_dia, 2)
+                dias_deficit.append({
+                    'fecha': dia_k,
+                    'horas_trabajadas': round(h_dia, 2),
+                    'horas_faltaron': deficit_k,
+                })
+
+        desglose = []
+        bolsa_disponible = horas_amortizadas
+
+        for dd in dias_deficit:
+            if bolsa_disponible <= 0:
+                break
+            faltan = dd['horas_faltaron']
+            aplicadas = min(faltan, bolsa_disponible)
+            saldo_dia = round(faltan - aplicadas, 2)
+            estado_dia = "Liquidada al 100%" if saldo_dia == 0 else f"Abonada ({saldo_dia} hrs pendientes)"
+
+            desglose.append({
+                'fecha': dd['fecha'].strftime('%Y-%m-%d'),
+                'fecha_display': dd['fecha'].strftime('%d/%m/%Y'),
+                'horas_trabajadas': dd['horas_trabajadas'],
+                'horas_faltaron': faltan,
+                'horas_aplicadas': round(aplicadas, 2),
+                'saldo_dia': saldo_dia,
+                'estado': estado_dia,
+            })
+            bolsa_disponible = round(bolsa_disponible - aplicadas, 2)
+
+        if not desglose and horas_amortizadas > 0:
+            desglose.append({
+                'fecha': primer_dia_mes.strftime('%Y-%m-%d'),
+                'fecha_display': f"Período {primer_dia_mes.strftime('%m/%Y')}",
+                'horas_trabajadas': round(8.0 - deuda_actual, 2) if deuda_actual < 8.0 else 0.0,
+                'horas_faltaron': deuda_actual,
+                'horas_aplicadas': horas_amortizadas,
+                'saldo_dia': nueva_deuda,
+                'estado': "Liquidada al 100%" if nueva_deuda == 0 else f"Abonada ({nueva_deuda} hrs pendientes)",
+            })
+
+        # Registrar CompensacionHoras auditable
+        CompensacionHoras.objects.create(
+            empleado=empleado,
+            fecha_compensacion=fecha_hoy,
+            horas_trabajadas_hoy=round(horas_trabajadas_dia, 2),
+            horas_extra_generadas=excedente,
+            horas_deducidas=horas_amortizadas,
+            deuda_previa=deuda_actual,
+            saldo_restante=nueva_deuda,
+            remanente_extra=remanente_extra,
+            desglose=desglose,
+        )
 
         # Crear notificación en campanita para el Administrador
         AlertaAsistencia.objects.create(

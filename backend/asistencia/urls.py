@@ -10,6 +10,7 @@ router.register(r'feriados', views.DiaFeriadoViewSet, basename='feriados')
 router.register(r'horas-extra', views.AutorizacionHorasExtraViewSet, basename='horas-extra')
 router.register(r'alertas', views.AlertaAsistenciaViewSet, basename='alertas')
 router.register(r'permisos', views.PermisoAusenciaViewSet, basename='permisos')
+router.register(r'compensaciones', views.CompensacionHorasViewSet, basename='compensaciones')
 
 urlpatterns = [
     # Router CRUD
