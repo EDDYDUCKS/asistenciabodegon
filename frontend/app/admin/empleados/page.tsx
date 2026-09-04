@@ -101,6 +101,7 @@ export default function EmpleadosAdminPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Empleado | null>(null);
   const [showQrBadge, setShowQrBadge] = useState<Empleado | null>(null);
+  const [selectedEmpIds, setSelectedEmpIds] = useState<Set<number>>(new Set());
 
   // Form State (Simplificado: Nombre, Apellido y Cargo)
   const [nombre, setNombre] = useState('');
@@ -141,6 +142,27 @@ export default function EmpleadosAdminPage() {
     setCargo(emp.cargo);
     setActivo(emp.activo);
     setShowModal(true);
+  };
+
+  const toggleSelectEmp = (id: number) => {
+    setSelectedEmpIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const activeEmps = empleados.filter((e) => e.activo);
+    if (selectedEmpIds.size === activeEmps.length) {
+      setSelectedEmpIds(new Set());
+    } else {
+      setSelectedEmpIds(new Set(activeEmps.map((e) => e.id)));
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -354,14 +376,32 @@ export default function EmpleadosAdminPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/admin/empleados/imprimir"
-            className="bg-[#1c6856]/10 border border-[#1c6856]/20 hover:bg-[#1c6856]/20 text-[#1c6856] px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 active:scale-95"
-          >
-            <Printer className="w-4 h-4" />
-            Imprimir Todo el Personal
-          </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedEmpIds.size > 0 ? (
+            <>
+              <Link
+                href={`/admin/empleados/imprimir?ids=${Array.from(selectedEmpIds).join(',')}`}
+                className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm animate-in fade-in active:scale-95"
+              >
+                <Printer className="w-4 h-4" />
+                Imprimir Seleccionados ({selectedEmpIds.size})
+              </Link>
+              <button
+                onClick={() => setSelectedEmpIds(new Set())}
+                className="bg-stone-100 hover:bg-stone-200 text-stone-600 px-3 py-2.5 rounded-xl font-bold text-xs transition-colors"
+              >
+                Limpiar Selección
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/admin/empleados/imprimir"
+              className="bg-[#1c6856]/10 border border-[#1c6856]/20 hover:bg-[#1c6856]/20 text-[#1c6856] px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 active:scale-95"
+            >
+              <Printer className="w-4 h-4" />
+              Imprimir Todo el Personal
+            </Link>
+          )}
           
           <button
             onClick={openCreateModal}
@@ -379,6 +419,15 @@ export default function EmpleadosAdminPage() {
           <table className="w-full text-left text-xs sm:text-sm">
             <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
               <tr>
+                <th className="px-4 py-4 w-12 text-center">
+                  <input
+                    type="checkbox"
+                    checked={empleados.filter(e => e.activo).length > 0 && selectedEmpIds.size === empleados.filter(e => e.activo).length}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded text-[#1c6856] focus:ring-[#1c6856] border-stone-300 cursor-pointer accent-[#1c6856]"
+                    title="Seleccionar / Desmarcar todos"
+                  />
+                </th>
                 <th className="px-6 py-4">Empleado</th>
                 <th className="px-6 py-4">Puesto</th>
                 <th className="px-6 py-4 text-center">Horas Pendientes (Mes)</th>
@@ -390,21 +439,37 @@ export default function EmpleadosAdminPage() {
             <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-stone-400">
+                  <td colSpan={7} className="px-6 py-8 text-center text-stone-400">
                     Cargando lista de empleados...
                   </td>
                 </tr>
               ) : empleados.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-stone-400 font-normal">
+                  <td colSpan={7} className="px-6 py-8 text-center text-stone-400 font-normal">
                     No hay empleados registrados. Presione "Registrar Nuevo Empleado".
                   </td>
                 </tr>
               ) : (
                 empleados.map((emp) => {
                   const deuda = parseFloat(String(emp.horas_pendientes || 0));
+                  const isSelected = selectedEmpIds.has(emp.id);
                   return (
-                    <tr key={emp.id} className="hover:bg-stone-50/50 transition-colors">
+                    <tr
+                      key={emp.id}
+                      className={`transition-colors ${
+                        isSelected
+                          ? 'bg-emerald-50/60 hover:bg-emerald-50/80 border-l-4 border-l-[#1c6856]'
+                          : 'hover:bg-stone-50/50'
+                      }`}
+                    >
+                      <td className="px-4 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectEmp(emp.id)}
+                          className="w-4 h-4 rounded text-[#1c6856] focus:ring-[#1c6856] border-stone-300 cursor-pointer accent-[#1c6856]"
+                        />
+                      </td>
                       <td className="px-6 py-4">
                         <div className="font-bold text-stone-900">
                           {emp.nombre} {emp.apellido}
@@ -470,6 +535,30 @@ export default function EmpleadosAdminPage() {
           </table>
         </div>
       </div>
+
+      {/* Barra Flotante de Selección Múltiple */}
+      {selectedEmpIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom duration-200 border border-stone-800">
+          <span className="text-xs font-bold">
+            <strong className="text-emerald-400 font-mono text-sm mr-1">{selectedEmpIds.size}</strong>
+            empleado{selectedEmpIds.size !== 1 ? 's' : ''} seleccionado{selectedEmpIds.size !== 1 ? 's' : ''}
+          </span>
+          <div className="h-4 w-[1px] bg-stone-700" />
+          <Link
+            href={`/admin/empleados/imprimir?ids=${Array.from(selectedEmpIds).join(',')}`}
+            className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Imprimir Carnets ({selectedEmpIds.size})
+          </Link>
+          <button
+            onClick={() => setSelectedEmpIds(new Set())}
+            className="text-stone-400 hover:text-white text-xs font-semibold cursor-pointer"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
 
       {/* MODAL CREAR / EDITAR */}
       {showModal && (
