@@ -669,19 +669,6 @@ export default function KioscoPage() {
             <Lock className="w-4 h-4 text-[#1c6856]" />
             <span className="text-xs font-bold text-[#1c6856] hidden sm:inline">Admin</span>
           </button>
-
-          <button
-            onClick={() => {
-              setShowConsultaModal(true);
-              setConsultaData(null);
-              setConsultaError(null);
-            }}
-            className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
-            title="Consultar Horas y Marcajes del Colaborador"
-          >
-            <BarChart3 className="w-4 h-4 text-emerald-700" />
-            <span className="text-xs font-bold text-emerald-800 hidden sm:inline">Mis Horas</span>
-          </button>
           
           <div className="w-10 h-10 rounded-xl bg-[#1c6856] flex items-center justify-center text-white shadow-md shadow-[#1c6856]/10">
             <Utensils className="w-5 h-5" />
