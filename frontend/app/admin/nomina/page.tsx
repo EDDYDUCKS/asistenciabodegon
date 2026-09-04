@@ -18,6 +18,7 @@ import {
   deleteCompensacion,
 } from '@/lib/api-client';
 import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras } from '@/lib/types';
+import BoletaCompensacionModal from '@/components/BoletaCompensacionModal';
 import {
   FileSpreadsheet,
   Download,
@@ -39,6 +40,7 @@ import {
   Search,
   Scale,
   Layers,
+  Printer,
 } from 'lucide-react';
 
 const MESES_NOMBRES: Record<number, string> = {
@@ -55,6 +57,7 @@ export default function NominaAdminPage() {
   const [horasExtra, setHorasExtra] = useState<AutorizacionHorasExtra[]>([]);
   const [permisos, setPermisos] = useState<PermisoAusencia[]>([]);
   const [compensaciones, setCompensaciones] = useState<CompensacionHoras[]>([]);
+  const [selectedCompensacion, setSelectedCompensacion] = useState<CompensacionHoras | null>(null);
   const [subTabExtras, setSubTabExtras] = useState<'pendientes' | 'compensaciones'>('pendientes');
   const [searchCompensacion, setSearchCompensacion] = useState('');
   const [searchExtra, setSearchExtra] = useState('');
@@ -1325,6 +1328,16 @@ export default function NominaAdminPage() {
                             </span>
 
                             <button
+                              onClick={() => setSelectedCompensacion(comp)}
+                              className="bg-white hover:bg-emerald-50 border border-stone-300 hover:border-emerald-500 text-stone-700 hover:text-emerald-800 px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+                              title="Descargar Boleta de Compensación en PDF"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-emerald-700" />
+                              <span className="hidden sm:inline">Descargar Boleta PDF</span>
+                              <span className="sm:hidden">Boleta PDF</span>
+                            </button>
+
+                            <button
                               onClick={() => handleDeleteCompensacion(comp.id)}
                               className="p-1.5 hover:bg-rose-50 text-stone-400 hover:text-rose-600 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
                               title="Eliminar este registro de compensación"
@@ -1476,9 +1489,18 @@ export default function NominaAdminPage() {
                             )}
                           </div>
 
-                          <span className="text-[11px] font-mono text-stone-400">
-                            Registro: {new Date(comp.created_at).toLocaleString('es-NI', { hour12: true })}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[11px] font-mono text-stone-400">
+                              Registro: {new Date(comp.created_at).toLocaleString('es-NI', { hour12: true })}
+                            </span>
+                            <button
+                              onClick={() => setSelectedCompensacion(comp)}
+                              className="bg-white hover:bg-stone-50 border border-stone-300 hover:border-[#1c6856] text-stone-700 hover:text-[#1c6856] px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-[#1c6856]" />
+                              Descargar Boleta en PDF
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -2048,6 +2070,12 @@ export default function NominaAdminPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Boleta / Acta Oficial de Compensación y Deducción de Horas */}
+      <BoletaCompensacionModal
+        compensacion={selectedCompensacion}
+        onClose={() => setSelectedCompensacion(null)}
+      />
     </div>
   );
 }
