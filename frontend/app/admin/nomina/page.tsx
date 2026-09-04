@@ -448,6 +448,8 @@ export default function NominaAdminPage() {
             const sFin = domingoSemana > end ? end : domingoSemana;
 
             let ausenciasSemana = 0;
+            let deficitSemana = 0;
+            let excedenteSemana = 0;
             const sCurr = new Date(sInicio);
             while (sCurr <= sFin) {
               const dateStr = sCurr.toISOString().slice(0, 10);
@@ -457,7 +459,7 @@ export default function NominaAdminPage() {
                   if (ausenciasSemana === 0) {
                     diasLibres++; // 1er día = día libre tomado
                   } else {
-                    horasDebidas += 8.0; // 2do+ día = falta
+                    deficitSemana += 8.0; // 2do+ día = falta
                   }
                   ausenciasSemana++;
                 } else {
@@ -480,11 +482,20 @@ export default function NominaAdminPage() {
                   });
                   const horasOrd = Math.min(horasDia, 8.0);
                   const deficit = Math.max(0, 8.0 - horasOrd);
-                  horasDebidas += deficit;
+                  deficitSemana += deficit;
+                  if (horasDia > 8.0) {
+                    excedenteSemana += (horasDia - 8.0);
+                  }
                 }
               }
               sCurr.setDate(sCurr.getDate() + 1);
             }
+
+            // Compensar déficit de la semana con horas adicionales de la misma semana (Bolsa de Horas)
+            const compensadoSemana = Math.min(excedenteSemana, deficitSemana);
+            const deficitNetoSemana = Math.max(0, deficitSemana - compensadoSemana);
+            horasDebidas += deficitNetoSemana;
+            horasNormalesTrabajadas += compensadoSemana;
           }
           curr.setDate(curr.getDate() + 1);
         }

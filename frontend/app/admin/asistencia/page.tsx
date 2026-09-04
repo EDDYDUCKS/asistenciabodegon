@@ -54,8 +54,8 @@ function calcularPuntualidadRecord(
     minsPrimeraEntrada = parseInt(hE, 10) * 60 + parseInt(mE, 10);
   }
 
-  // 4 Franjas Base: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900)
-  const FRANJAS = [540, 660, 720, 900];
+  // 5 Franjas Base: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900), 5:00 PM (1020)
+  const FRANJAS = [540, 660, 720, 900, 1020];
   const franjaBaseEntrada = FRANJAS.reduce((prev, curr) =>
     Math.abs(curr - minsPrimeraEntrada) < Math.abs(prev - minsPrimeraEntrada) ? curr : prev
   );
@@ -95,8 +95,8 @@ function calcularPuntualidadRecord(
       // Entre 11:15 AM y 12:15 PM -> Turno de 12:00 PM (ej. Uriel 11:26 AM o Carlos 11:55 AM)
       franjaBaseEsta = 720;
     } else {
-      const FRANJAS = [540, 660, 720, 900];
-      franjaBaseEsta = FRANJAS.reduce((prev, curr) =>
+      const FRANJAS_ENT = [540, 660, 720, 900, 1020];
+      franjaBaseEsta = FRANJAS_ENT.reduce((prev, curr) =>
         Math.abs(curr - minsMarcados) < Math.abs(prev - minsMarcados) ? curr : prev
       );
     }
@@ -152,8 +152,8 @@ function calcularPuntualidadRecord(
         } else if (minsM >= 675 && minsM <= 735) {
           baseMins = 720;
         } else {
-          const FRANJAS = [540, 660, 720, 900];
-          baseMins = FRANJAS.reduce((prev, curr) =>
+          const FRANJAS_CALC = [540, 660, 720, 900, 1020];
+          baseMins = FRANJAS_CALC.reduce((prev, curr) =>
             Math.abs(curr - minsM) < Math.abs(prev - minsM) ? curr : prev
           );
         }
@@ -180,6 +180,32 @@ function calcularPuntualidadRecord(
     });
 
     const horasNetas = totalMilisegundos / 3600000;
+
+    // Detectar si fue turno vespertino especial de las 5:00 PM (ej. Xiomara Castillo 6h acordadas)
+    const primeraEnt = marcajesDelDia.find((m) => m.tipo_evento === 'ENTRADA');
+    let esTurno5PM = false;
+    if (primeraEnt) {
+      const dtE = new Date(primeraEnt.fecha_hora);
+      const strE = dtE.toLocaleTimeString('en-GB', { timeZone: 'America/Managua', hour: '2-digit', minute: '2-digit' });
+      const [hP, mP] = strE.split(':');
+      const minsP = parseInt(hP, 10) * 60 + parseInt(mP, 10);
+      if (Math.abs(minsP - 1020) <= 45) {
+        esTurno5PM = true;
+      }
+    }
+
+    if (esTurno5PM) {
+      // Turno especial vespertino de 6 horas:
+      if (horasNetas >= 6.1) {
+        const extraMins = Math.round((horasNetas - 6.0) * 60);
+        return { turno, estado: 'Horas Extra', desviacionMinutos: extraMins };
+      } else if (horasNetas >= 5.83) {
+        return { turno, estado: 'Jornada Cumplida 8h', desviacionMinutos: 0 };
+      } else {
+        const deficitMins = Math.round((6.0 - horasNetas) * 60);
+        return { turno, estado: 'Salida Anticipada', desviacionMinutos: deficitMins };
+      }
+    }
 
     // Tolerancia de 10 minutos (7.83 horas = 7 horas y 50 minutos)
     if (horasNetas >= 8.1) {

@@ -156,6 +156,7 @@ class AlertaAsistencia(models.Model):
         ('SEGUNDA_AUSENCIA', 'Segunda Ausencia en la Semana'),
         ('REGISTRO_INCOMPLETO', 'Registro Incompleto — Falta Salida'),
         ('MANTENIMIENTO', 'Recordatorio de Mantenimiento Semestral'),
+        ('COMPENSACION_HORAS', 'Compensación de Horas (Bolsa de Horas)'),
     ]
     tipo = models.CharField(max_length=30, choices=TIPOS)
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='alertas', null=True, blank=True)

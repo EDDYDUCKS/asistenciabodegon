@@ -23,9 +23,10 @@ import {
   FileText,
   Filter,
   Trash2,
+  Scale,
 } from 'lucide-react';
 
-type FiltroTipo = 'TODAS' | 'SEGUNDA_AUSENCIA' | 'TARDANZA' | 'REGISTRO_INCOMPLETO' | 'LEIDAS';
+type FiltroTipo = 'TODAS' | 'COMPENSACION' | 'SEGUNDA_AUSENCIA' | 'TARDANZA' | 'REGISTRO_INCOMPLETO' | 'LEIDAS';
 
 export default function NotificacionesDetalladasPage() {
   const [alertas, setAlertas] = useState<AlertaAsistencia[]>([]);
@@ -99,6 +100,7 @@ export default function NotificacionesDetalladasPage() {
   const counts = useMemo(() => {
     return {
       todas: alertas.length,
+      compensaciones: alertas.filter((a) => a.tipo === 'COMPENSACION_HORAS').length,
       ausencias: alertas.filter((a) => a.tipo === 'SEGUNDA_AUSENCIA').length,
       tardanzas: alertas.filter((a) => a.tipo === 'TARDANZA' || a.tipo === 'SALIDA_ANTICIPADA').length,
       incompletos: alertas.filter((a) => a.tipo === 'REGISTRO_INCOMPLETO').length,
@@ -111,6 +113,7 @@ export default function NotificacionesDetalladasPage() {
   const filteredAlertas = useMemo(() => {
     return alertas.filter((al) => {
       // Filtro por tab
+      if (filtroTipo === 'COMPENSACION' && al.tipo !== 'COMPENSACION_HORAS') return false;
       if (filtroTipo === 'SEGUNDA_AUSENCIA' && al.tipo !== 'SEGUNDA_AUSENCIA') return false;
       if (filtroTipo === 'TARDANZA' && al.tipo !== 'TARDANZA' && al.tipo !== 'SALIDA_ANTICIPADA') return false;
       if (filtroTipo === 'REGISTRO_INCOMPLETO' && al.tipo !== 'REGISTRO_INCOMPLETO') return false;
@@ -138,6 +141,12 @@ export default function NotificacionesDetalladasPage() {
       };
     }
     switch (tipo) {
+      case 'COMPENSACION_HORAS':
+        return {
+          badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+          border: 'border-emerald-200 bg-emerald-50/25 shadow-xs',
+          label: 'Compensación de Horas (Bolsa)',
+        };
       case 'SEGUNDA_AUSENCIA':
         return {
           badge: 'bg-purple-100 text-purple-800 border-purple-200',
@@ -226,6 +235,18 @@ export default function NotificacionesDetalladasPage() {
             }`}
           >
             Todas ({counts.todas})
+          </button>
+
+          <button
+            onClick={() => setFiltroTipo('COMPENSACION')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              filtroTipo === 'COMPENSACION'
+                ? 'bg-emerald-700 text-white shadow-sm'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+            }`}
+          >
+            <Scale className="w-3.5 h-3.5" />
+            Compensaciones ({counts.compensaciones})
           </button>
 
           <button

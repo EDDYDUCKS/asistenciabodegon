@@ -563,11 +563,11 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                 # Entre 11:15 AM y 12:15 PM -> Turno de 12:00 PM (ej. Uriel a las 11:26 AM o Carlos a las 11:55 AM)
                 franja_base = 720  # 12:00 PM
             else:
-                FRANJAS = [540, 660, 720, 900]
+                FRANJAS = [540, 660, 720, 900, 1020]
                 franja_base = min(FRANJAS, key=lambda b: abs(mins_marcados - b))
 
             diff = mins_marcados - franja_base
-            HORA_LABELS = {540: '9:00 AM', 660: '11:00 AM', 720: '12:00 PM', 900: '3:00 PM'}
+            HORA_LABELS = {540: '9:00 AM', 660: '11:00 AM', 720: '12:00 PM', 900: '3:00 PM', 1020: '5:00 PM'}
             
             # Solo alertar si excede los 10 minutos de gracia respecto a su turno
             if diff > 10:
@@ -602,17 +602,41 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                 )
 
         elif tipo == 'SALIDA_DEFINITIVA':
-            # Solo alertar si el déficit supera los 10 minutos de la jornada de 8 horas (menos de 7.83h)
-            if horas_netas_hoy < 7.83:
-                deficit_mins = int(round((8.0 - horas_netas_hoy) * 60))
-                if deficit_mins > 10:
-                    alerta_creada = True
-                    alerta_tipo = 'SALIDA_ANTICIPADA'
-                    alerta_titulo = f"Jornada incompleta{tag_offline}: {empleado.nombre} {empleado.apellido}"
-                    alerta_mensaje = (
-                        f"Se retiró antes de cumplir sus 8 horas. Acumuló {round(horas_netas_hoy, 2)} hrs "
-                        f"(Déficit de {deficit_mins} min)."
-                    )
+            # Detectar si el colaborador inició en el turno vespertino especial de las 5:00 PM (ej. Xiomara Castillo)
+            primera_ent = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA'), None)
+            es_turno_5pm = False
+            if primera_ent:
+                dt_pe = primera_ent.fecha_hora.astimezone(timezone.get_current_timezone())
+                mins_pe = dt_pe.hour * 60 + dt_pe.minute
+                if abs(mins_pe - 1020) <= 45:  # Entrada entre 4:15 PM y 5:45 PM
+                    es_turno_5pm = True
+
+            if es_turno_5pm:
+                # Turno especial de 6 horas acordadas (5:00 PM a 11:00 PM):
+                # Solo alertar si se retira con más de 10 min de anticipación a sus 6 horas (< 5.83h)
+                if horas_netas_hoy < 5.83:
+                    deficit_mins = int(round((6.0 - horas_netas_hoy) * 60))
+                    if deficit_mins > 10:
+                        alerta_creada = True
+                        alerta_tipo = 'SALIDA_ANTICIPADA'
+                        alerta_titulo = f"Salida anticipada (Turno 5 PM){tag_offline}: {empleado.nombre} {empleado.apellido}"
+                        alerta_mensaje = (
+                            f"Se retiró antes de cumplir su jornada acordada de 6 horas. Acumuló {round(horas_netas_hoy, 2)} hrs "
+                            f"(Déficit de {deficit_mins} min)."
+                        )
+            else:
+                # Jornada estándar de 8 horas:
+                # Solo alertar si el déficit supera los 10 minutos de la jornada de 8 horas (menos de 7.83h)
+                if horas_netas_hoy < 7.83:
+                    deficit_mins = int(round((8.0 - horas_netas_hoy) * 60))
+                    if deficit_mins > 10:
+                        alerta_creada = True
+                        alerta_tipo = 'SALIDA_ANTICIPADA'
+                        alerta_titulo = f"Jornada incompleta{tag_offline}: {empleado.nombre} {empleado.apellido}"
+                        alerta_mensaje = (
+                            f"Se retiró antes de cumplir sus 8 horas. Acumuló {round(horas_netas_hoy, 2)} hrs "
+                            f"(Déficit de {deficit_mins} min)."
+                        )
 
         if alerta_creada:
             AlertaAsistencia.objects.create(
@@ -771,31 +795,31 @@ def marcar_asistencia_kiosco(request):
                     }
                 )
 
-    # ── HORAS EXTRA: día con más de 8h → crear AutorizacionHorasExtra ──────
-    if tipo_evento == 'SALIDA_DEFINITIVA' and horas_netas_hoy > 8.0:
-        horas_extra = horas_netas_hoy - 8.0
-        AutorizacionHorasExtra.objects.update_or_create(
-            empleado=empleado,
-            fecha=hoy,
-            defaults={
-                'horas_extra_solicitadas': round(horas_extra, 2),
-                'estado': 'PENDIENTE'
-            }
-        )
-
-    # ── HORAS EXTRA: 7mo día trabajado en la semana ─────────────────────────
+    # ── BOLSA DE HORAS: Compensación Automática o Solicitud de Horas Extra ──
+    comp_info = {
+        'horas_amortizadas': 0.0,
+        'deuda_restante': float(empleado.horas_pendientes),
+        'horas_extra_solicitadas': 0.0,
+    }
     if tipo_evento == 'SALIDA_DEFINITIVA':
+        comp_info = _procesar_compensacion_y_horas_extra(empleado, hoy, horas_netas_hoy, request)
+        # Horas extra por 7mo día trabajado en la semana
         _verificar_septimo_dia(empleado, hoy, horas_netas_hoy)
-
-    # ── HORAS DEBIDAS: acumular déficit del día en horas_pendientes ─────────
-    if tipo_evento == 'SALIDA_DEFINITIVA':
-        _acumular_horas_pendientes(empleado, hoy, horas_netas_hoy)
 
     # ── DETECCIÓN DE PUNTUALIDAD Y CREACIÓN DE ALERTAS INTERNAS ─────────────
     _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=False)
 
     horas_restantes_hoy = max(0.0, round(8.0 - horas_netas_hoy, 2))
     cumplio_meta = horas_netas_hoy >= 7.95
+
+    # Detectar si entró en el turno vespertino especial de las 5:00 PM (ej. Xiomara Castillo)
+    primera_ent_kiosco = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA'), None)
+    es_turno_5pm_kiosco = False
+    if primera_ent_kiosco:
+        dt_pe = primera_ent_kiosco.fecha_hora.astimezone(timezone.get_current_timezone())
+        mins_pe = dt_pe.hour * 60 + dt_pe.minute
+        if abs(mins_pe - 1020) <= 45:
+            es_turno_5pm_kiosco = True
 
     if tipo_evento == 'ENTRADA':
         mensaje_kiosco = f"¡Hola {empleado.nombre}! Entrada registrada. Jornada iniciada."
@@ -804,8 +828,36 @@ def marcar_asistencia_kiosco(request):
     elif tipo_evento == 'ENTRADA_QUEBRADA':
         mensaje_kiosco = f"¡Bienvenido de vuelta, {empleado.nombre}! Llevas {round(horas_netas_hoy, 1)} hrs del primer turno. Te restan {round(horas_restantes_hoy, 1)} hrs para tus 8h."
     elif tipo_evento == 'SALIDA_DEFINITIVA':
-        if cumplio_meta:
-            mensaje_kiosco = f"¡Excelente trabajo, {empleado.nombre}! Completaste {round(horas_netas_hoy, 1)} hrs hoy (Meta de 8 hrs cumplida 🎉). ¡Buen descanso!"
+        if comp_info['horas_amortizadas'] > 0:
+            if comp_info['deuda_restante'] <= 0:
+                if comp_info['horas_extra_solicitadas'] > 0:
+                    mensaje_kiosco = (
+                        f"¡Excelente trabajo, {empleado.nombre}! Completaste {round(horas_netas_hoy, 1)} hrs hoy. "
+                        f"¡Saldaste tus {round(comp_info['horas_amortizadas'], 1)} hrs debidas 🎉 y enviamos {round(comp_info['horas_extra_solicitadas'], 1)} hrs extra para aprobación!"
+                    )
+                else:
+                    mensaje_kiosco = (
+                        f"¡Excelente trabajo, {empleado.nombre}! Completaste {round(horas_netas_hoy, 1)} hrs hoy. "
+                        f"¡Has liquidado por completo tu deuda de horas pendientes ({round(comp_info['horas_amortizadas'], 1)} hrs saldadas)! 🎉 ¡Buen descanso!"
+                    )
+            else:
+                mensaje_kiosco = (
+                    f"Jornada finalizada, {empleado.nombre}. Completaste {round(horas_netas_hoy, 1)} hrs hoy. "
+                    f"Se abonaron {round(comp_info['horas_amortizadas'], 1)} hrs a tu déficit de horas (Saldo pendiente restante: {round(comp_info['deuda_restante'], 1)} hrs)."
+                )
+        elif cumplio_meta:
+            if comp_info['horas_extra_solicitadas'] > 0:
+                mensaje_kiosco = (
+                    f"¡Excelente trabajo, {empleado.nombre}! Completaste {round(horas_netas_hoy, 1)} hrs hoy (Meta de 8 hrs cumplida 🎉). "
+                    f"Se enviaron {round(comp_info['horas_extra_solicitadas'], 1)} hrs extra para aprobación."
+                )
+            else:
+                mensaje_kiosco = f"¡Excelente trabajo, {empleado.nombre}! Completaste {round(horas_netas_hoy, 1)} hrs hoy (Meta de 8 hrs cumplida 🎉). ¡Buen descanso!"
+        elif es_turno_5pm_kiosco and horas_netas_hoy >= 5.8:
+            mensaje_kiosco = (
+                f"¡Buen trabajo, {empleado.nombre}! Turno vespertino completado ({round(horas_netas_hoy, 1)} hrs). "
+                f"Déficit diario de {round(horas_restantes_hoy, 1)} hrs acumulado para reposición el fin de semana. ¡Buen descanso!"
+            )
         else:
             mensaje_kiosco = f"Jornada finalizada, {empleado.nombre}. Acumulaste {round(horas_netas_hoy, 1)} hrs hoy (Déficit de {round(horas_restantes_hoy, 1)} hrs)."
     else:
@@ -818,6 +870,7 @@ def marcar_asistencia_kiosco(request):
         'horas_trabajadas_hoy': round(horas_netas_hoy, 2),
         'horas_restantes_hoy': round(horas_restantes_hoy, 2),
         'cumplio_meta_8h': cumplio_meta,
+        'compensacion': comp_info,
     })
 
 
@@ -932,7 +985,7 @@ def _calcular_horas_netas_dia(registros_dia):
                 # Entre 11:15 AM y 12:15 PM -> Turno oficial 12:00 PM (ej. Uriel 11:26 AM o Carlos 11:55 AM)
                 base_mins = 720  # 12:00 PM
             else:
-                FRANJAS = [540, 660, 720, 900]
+                FRANJAS = [540, 660, 720, 900, 1020]
                 base_mins = min(FRANJAS, key=lambda b: abs(mins_e - b))
 
             h_b = base_mins // 60
@@ -976,7 +1029,6 @@ def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
     """
     Si el empleado trabajó menos de 8 horas, acumula el déficit en horas_pendientes.
     Reinicia el saldo si el mes cambió desde el último registro del período.
-    Las horas ordinarias se limitan a 8h por día (el exceso es horas extra, no reduce deuda).
     """
     horas_ordinarias = min(horas_trabajadas_dia, 8.0)
     deficit = max(0.0, 8.0 - horas_ordinarias)
@@ -993,6 +1045,119 @@ def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
 
     empleado.horas_pendientes = float(empleado.horas_pendientes) + round(deficit, 2)
     empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+
+
+def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_dia, request=None):
+    """
+    Gestiona la Bolsa de Horas / Compensación Automática de Déficit y Solicitud de Horas Extra:
+    1. Si horas_trabajadas_dia < 8.0:
+       - Acumula déficit en horas_pendientes del empleado.
+    2. Si horas_trabajadas_dia > 8.0:
+       - Calcula excedente = horas_trabajadas_dia - 8.0
+       - Verifica periodo mensual de horas_pendientes.
+       - Si el colaborador debe horas (horas_pendientes > 0):
+         * Amortiza la deuda: horas_amortizadas = min(excedente, float(empleado.horas_pendientes))
+         * Actualiza empleado.horas_pendientes -= horas_amortizadas
+         * Genera AlertaAsistencia(tipo='COMPENSACION_HORAS') para auditoría y visualización admin.
+         * Registra en BitacoraAccion.
+         * Remanente extra = excedente - horas_amortizadas:
+           - Si remanente > 0: crea/actualiza AutorizacionHorasExtra.
+           - Si remanente == 0: elimina AutorizacionHorasExtra pendiente previa de hoy.
+       - Si no debe horas (horas_pendientes <= 0):
+         * Genera/actualiza AutorizacionHorasExtra con el excedente completo.
+    """
+    primer_dia_mes = fecha_hoy.replace(day=1)
+    if empleado.periodo_horas_pendientes != primer_dia_mes:
+        empleado.horas_pendientes = 0.00
+        empleado.periodo_horas_pendientes = primer_dia_mes
+        empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+
+    if horas_trabajadas_dia < 8.0:
+        _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia)
+        return {
+            'horas_netas': horas_trabajadas_dia,
+            'excedente': 0.0,
+            'horas_amortizadas': 0.0,
+            'deuda_restante': float(empleado.horas_pendientes),
+            'horas_extra_solicitadas': 0.0,
+        }
+
+    excedente = round(horas_trabajadas_dia - 8.0, 2)
+    deuda_actual = float(empleado.horas_pendientes)
+
+    if deuda_actual > 0:
+        horas_amortizadas = min(excedente, deuda_actual)
+        nueva_deuda = max(0.0, round(deuda_actual - horas_amortizadas, 2))
+        empleado.horas_pendientes = nueva_deuda
+        empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+
+        remanente_extra = max(0.0, round(excedente - horas_amortizadas, 2))
+
+        # Crear notificación en campanita para el Administrador
+        AlertaAsistencia.objects.create(
+            tipo='COMPENSACION_HORAS',
+            empleado=empleado,
+            titulo=f"Compensación Automática: {empleado.nombre} {empleado.apellido}",
+            mensaje=(
+                f"El colaborador completó {round(horas_trabajadas_dia, 2)} hrs el {fecha_hoy.strftime('%d/%m/%Y')}. "
+                f"Se aplicaron {round(horas_amortizadas, 2)} hrs extra para amortizar su déficit acumulado. "
+                f"Saldo de horas debidas actualizado a: {round(nueva_deuda, 2)} hrs."
+            ),
+            leida=False
+        )
+
+        # Registrar en bitácora auditable
+        BitacoraAccion.objects.create(
+            usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
+            accion='REGISTRO_MANUAL',
+            descripcion=(
+                f"Bolsa de Horas: {round(horas_amortizadas, 2)} hrs compensadas para "
+                f"{empleado.nombre} {empleado.apellido}. Deuda actualizada a {round(nueva_deuda, 2)} hrs."
+            ),
+            ip_address=_get_clean_ip(request) if request else None
+        )
+
+        # Si aún sobra excedente tras saldar la deuda, se genera la solicitud de horas extra
+        if remanente_extra > 0.05:
+            AutorizacionHorasExtra.objects.update_or_create(
+                empleado=empleado,
+                fecha=fecha_hoy,
+                defaults={
+                    'horas_extra_solicitadas': round(remanente_extra, 2),
+                    'estado': 'PENDIENTE'
+                }
+            )
+        else:
+            AutorizacionHorasExtra.objects.filter(
+                empleado=empleado,
+                fecha=fecha_hoy,
+                estado='PENDIENTE'
+            ).delete()
+
+        return {
+            'horas_netas': horas_trabajadas_dia,
+            'excedente': excedente,
+            'horas_amortizadas': horas_amortizadas,
+            'deuda_restante': nueva_deuda,
+            'horas_extra_solicitadas': remanente_extra,
+        }
+    else:
+        # Sin deuda acumulada: todo el excedente va a solicitud de horas extra
+        AutorizacionHorasExtra.objects.update_or_create(
+            empleado=empleado,
+            fecha=fecha_hoy,
+            defaults={
+                'horas_extra_solicitadas': round(excedente, 2),
+                'estado': 'PENDIENTE'
+            }
+        )
+        return {
+            'horas_netas': horas_trabajadas_dia,
+            'excedente': excedente,
+            'horas_amortizadas': 0.0,
+            'deuda_restante': 0.0,
+            'horas_extra_solicitadas': excedente,
+        }
 
 
 def _verificar_septimo_dia(empleado, fecha_hoy, horas_trabajadas_dia):
@@ -1195,6 +1360,8 @@ def exportar_reporte_nomina_excel(request):
                     s_fin = min(semana_fin, fecha_fin)
 
                     ausencias_semana = 0
+                    deficit_semana = 0.0
+                    excedente_semana = 0.0
                     d = s_inicio
                     while d <= s_fin:
                         # Si es feriado o permiso autorizado, se exonera de falta y deuda
@@ -1203,16 +1370,25 @@ def exportar_reporte_nomina_excel(request):
                                 if ausencias_semana == 0:
                                     dias_libres += 1  # Primera ausencia = día libre
                                 else:
-                                    horas_debidas += 8.0   # Segunda+ = ausencia extra
+                                    deficit_semana += 8.0   # Segunda+ = ausencia extra
                                 ausencias_semana += 1
                             else:
-                                # Día trabajado: calcular déficit de horas
+                                # Día trabajado: calcular déficit y excedente
                                 regs_d = dias_map[d]
                                 horas_dia = _calcular_horas_netas_dia(regs_d)
                                 horas_ord = min(horas_dia, 8.0)
                                 deficit = max(0.0, 8.0 - horas_ord)
-                                horas_debidas += deficit
+                                deficit_semana += deficit
+                                if horas_dia > 8.0:
+                                    excedente_semana += (horas_dia - 8.0)
                         d += datetime.timedelta(days=1)
+
+                    # Compensar déficit de la semana con horas adicionales de la misma semana
+                    compensado_semana = min(excedente_semana, deficit_semana)
+                    deficit_neto_semana = max(0.0, deficit_semana - compensado_semana)
+                    horas_debidas += deficit_neto_semana
+                    # Las horas que compensaron deuda se suman a las horas ordinarias trabajadas
+                    horas_normales_trabajadas += compensado_semana
                 curr_day += datetime.timedelta(days=1)
 
             # Horas extra aprobadas
@@ -1438,20 +1614,9 @@ def sync_batch_asistencia(request):
                     )
 
         if tipo_evento == 'SALIDA_DEFINITIVA':
-            if horas_netas_hoy > 8.0:
-                horas_extra = horas_netas_hoy - 8.0
-                AutorizacionHorasExtra.objects.update_or_create(
-                    empleado=empleado,
-                    fecha=dia,
-                    defaults={
-                        'horas_extra_solicitadas': round(horas_extra, 2),
-                        'estado': 'PENDIENTE'
-                    }
-                )
+            _procesar_compensacion_y_horas_extra(empleado, dia, horas_netas_hoy, request)
             # 7mo día de la semana
             _verificar_septimo_dia(empleado, dia, horas_netas_hoy)
-            # Horas debidas / pendientes
-            _acumular_horas_pendientes(empleado, dia, horas_netas_hoy)
 
         # Alertas de asistencia (Regla de gracia 10 min de El Bodegón)
         _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=True)
