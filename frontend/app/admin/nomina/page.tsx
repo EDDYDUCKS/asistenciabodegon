@@ -70,10 +70,12 @@ export default function NominaAdminPage() {
   const [showExtraPinModal, setShowExtraPinModal] = useState(false);
   const [pendingExtraAction, setPendingExtraAction] = useState<{
     id: number;
+    empId: number;
     decision: 'APROBADO' | 'RECHAZADO';
     horas: number;
     comentario: string;
     empNombre?: string;
+    deudaActual?: number;
   } | null>(null);
   const [extraPin, setExtraPin] = useState('');
   const [extraPinError, setExtraPinError] = useState(false);
@@ -296,9 +298,15 @@ export default function NominaAdminPage() {
       });
       setEditingExtraId(null);
       setTempComentario('');
-      // Recargar
-      const updatedExtras = await fetchHorasExtra();
+      // Recargar horas extra, compensaciones y empleados para actualizar balances de deuda
+      const [updatedExtras, updatedComp, updatedEmp] = await Promise.all([
+        fetchHorasExtra(),
+        fetchCompensaciones(),
+        fetchEmpleados(),
+      ]);
       setHorasExtra(updatedExtras);
+      setCompensaciones(updatedComp);
+      setEmpleados(updatedEmp);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al guardar decisión');
     } finally {
@@ -311,13 +319,16 @@ export default function NominaAdminPage() {
     const empName = emp ? `${emp.nombre} ${emp.apellido}` : `Empleado #${item.empleado}`;
     const horasVal = decision === 'APROBADO' ? parseFloat(tempAutorizadas) || 0 : 0;
     const defaultComment = decision === 'APROBADO' ? 'Horas autorizadas' : 'Horas rechazadas';
+    const deudaVal = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
 
     setPendingExtraAction({
       id: item.id!,
+      empId: item.empleado,
       decision: decision,
       horas: horasVal,
       comentario: tempComentario.trim() || defaultComment,
       empNombre: empName,
+      deudaActual: deudaVal,
     });
     setExtraPin('');
     setExtraPinError(false);
@@ -701,6 +712,19 @@ export default function NominaAdminPage() {
           <span className="text-[10px] text-stone-400 block font-medium">
             {item.empleado_detalle?.cargo_display}
           </span>
+          {(() => {
+            const emp = empleados.find((e) => e.id === item.empleado);
+            const deuda = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
+            if (deuda > 0 && item.estado === 'PENDIENTE') {
+              return (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md mt-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                  Debe {deuda.toFixed(2)} hrs (se amortizará al aprobar)
+                </span>
+              );
+            }
+            return null;
+          })()}
         </td>
         <td className="px-6 py-4 text-right font-mono font-bold text-rose-500">
           +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(2)} hrs
@@ -2021,6 +2045,27 @@ export default function NominaAdminPage() {
                 )}
               </div>
             </div>
+
+            {/* Advertencia de Amortización Automática si tiene Deuda Acumulada */}
+            {pendingExtraAction.decision === 'APROBADO' &&
+              pendingExtraAction.deudaActual !== undefined &&
+              pendingExtraAction.deudaActual > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-left space-y-1.5 text-xs animate-in fade-in duration-200">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    Amortización Automática de Deuda
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-amber-800 font-medium">
+                    El colaborador adeuda actualmente <strong>{pendingExtraAction.deudaActual.toFixed(2)} hrs</strong>. Al ingresar su PIN, se deducirán automáticamente{' '}
+                    <strong>{Math.min(pendingExtraAction.horas, pendingExtraAction.deudaActual).toFixed(2)} hrs</strong> para abonar a su saldo deudor (Bolsa de Horas).
+                    {pendingExtraAction.horas > pendingExtraAction.deudaActual ? (
+                      <> El remanente de <strong>{(pendingExtraAction.horas - pendingExtraAction.deudaActual).toFixed(2)} hrs</strong> pasará limpio a pago de nómina.</>
+                    ) : (
+                      <> La deuda restante quedará en <strong>{(pendingExtraAction.deudaActual - pendingExtraAction.horas).toFixed(2)} hrs</strong>.</>
+                    )}
+                  </p>
+                </div>
+              )}
 
             {/* Indicador de 4 Puntos PIN */}
             <div className="flex justify-center gap-4 py-2">
