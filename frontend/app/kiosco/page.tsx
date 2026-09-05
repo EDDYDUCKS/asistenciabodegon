@@ -38,7 +38,7 @@ export default function KioscoPage() {
   const [dateStr, setDateStr] = useState<string>('');
   const [processing, setProcessing] = useState(false);
   const [feedback, setFeedback] = useState<MarcajeKioscoResponse | null>(null);
-  const [feedbackTimer, setFeedbackTimer] = useState<number>(10);
+  const [feedbackTimer, setFeedbackTimer] = useState<number>(6);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showAdminPinModal, setShowAdminPinModal] = useState(false);
   const [adminPin, setAdminPin] = useState('');
@@ -360,7 +360,7 @@ export default function KioscoPage() {
         status: 'ok',
         mensaje: 'Guardado localmente (SIN CONEXIÓN). Se sincronizará automáticamente al recuperar internet.',
       });
-      setFeedbackTimer(10);
+      setFeedbackTimer(6);
 
       // Agregar marcaje offline al feed local
       const localTimeFormatted = new Date(nowStr).toLocaleTimeString('es-NI', {
@@ -442,7 +442,7 @@ export default function KioscoPage() {
     return () => clearTimeout(timer);
   }, [consultaData, consultaTimer, handleCerrarConsulta]);
 
-  // ── Auto-Cierre de 10 Segundos para el Feedback de Marcaje ────────────────
+  // ── Auto-Cierre de 6 Segundos para el Feedback de Marcaje ────────────────
   useEffect(() => {
     if (!feedback) return;
     if (feedbackTimer <= 0) {
@@ -543,7 +543,7 @@ export default function KioscoPage() {
             }
           }
           setFeedback(res);
-          setFeedbackTimer(10);
+          setFeedbackTimer(6);
           setEmpleadoDetectado(null);
 
           // Agregar al feed de actividad del Kiosco
@@ -1055,12 +1055,12 @@ export default function KioscoPage() {
                   })()
                 )}
 
-                {/* Barra de progreso de 10 segundos con botón para cerrar */}
+                {/* Barra de progreso de 6 segundos con botón para cerrar */}
                 <div className="w-full max-w-sm sm:max-w-md mx-auto pt-3 flex items-center justify-between gap-3">
                   <div className="flex-1 bg-white/20 h-1.5 rounded-full overflow-hidden">
                     <div
                       className="bg-white h-full transition-all duration-1000 ease-linear rounded-full"
-                      style={{ width: `${(feedbackTimer / 10) * 100}%` }}
+                      style={{ width: `${(feedbackTimer / 6) * 100}%` }}
                     />
                   </div>
                   <button
