@@ -18,6 +18,10 @@ import {
   BarChart3,
   X,
   Star,
+  Coffee,
+  TrendingUp,
+  Sparkles,
+  Award,
 } from 'lucide-react';
 
 interface RecentScan {
@@ -34,6 +38,7 @@ export default function KioscoPage() {
   const [dateStr, setDateStr] = useState<string>('');
   const [processing, setProcessing] = useState(false);
   const [feedback, setFeedback] = useState<MarcajeKioscoResponse | null>(null);
+  const [feedbackTimer, setFeedbackTimer] = useState<number>(5);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showAdminPinModal, setShowAdminPinModal] = useState(false);
   const [adminPin, setAdminPin] = useState('');
@@ -142,8 +147,18 @@ export default function KioscoPage() {
     });
   }, []);
 
-  // ── Sonido de Feedback Auditivo Inteligente ───────────────────────────────
-  const playAudioFeedback = (type: boolean | 'success' | 'error' | 'cooldown') => {
+  // ── Sonido de Feedback Auditivo Inteligente y Diferenciado ───────────────
+  const playAudioFeedback = (
+    type:
+      | boolean
+      | 'success'
+      | 'error'
+      | 'cooldown'
+      | 'ENTRADA'
+      | 'SALIDA_QUEBRADA'
+      | 'ENTRADA_QUEBRADA'
+      | 'SALIDA_DEFINITIVA'
+  ) => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const osc = ctx.createOscillator();
@@ -151,7 +166,45 @@ export default function KioscoPage() {
       osc.connect(gain);
       gain.connect(ctx.destination);
 
-      if (type === true || type === 'success') {
+      if (type === 'ENTRADA') {
+        // Acorde mayor ascendente alegre (C5 -> E5 -> G5)
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+        osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.09); // E5
+        osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.18); // G5
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
+      } else if (type === 'SALIDA_QUEBRADA') {
+        // Tono cálido, suave y relajante para inicio de pausa (A4 -> E4)
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
+        osc.frequency.setValueAtTime(329.63, ctx.currentTime + 0.12); // E4
+        gain.gain.setValueAtTime(0.16, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.35);
+      } else if (type === 'ENTRADA_QUEBRADA') {
+        // Doble campana activa / Power-up de retorno (F5 -> A5)
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(698.46, ctx.currentTime); // F5
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.32);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.32);
+      } else if (type === 'SALIDA_DEFINITIVA') {
+        // Acorde triunfal de misión cumplida y fin de jornada (C5 -> G5 -> C6)
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+        osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.1); // G5
+        osc.frequency.setValueAtTime(1046.5, ctx.currentTime + 0.2); // C6
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.45);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.45);
+      } else if (type === true || type === 'success') {
         // Ding brillante de confirmación
         osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
         osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
@@ -302,11 +355,12 @@ export default function KioscoPage() {
         foto: photoBase64 || undefined,
       });
 
-      playAudioFeedback(true);
+      playAudioFeedback('ENTRADA');
       setFeedback({
         status: 'ok',
         mensaje: 'Guardado localmente (SIN CONEXIÓN). Se sincronizará automáticamente al recuperar internet.',
       });
+      setFeedbackTimer(5);
 
       // Agregar marcaje offline al feed local
       const localTimeFormatted = new Date(nowStr).toLocaleTimeString('es-NI', {
@@ -327,12 +381,6 @@ export default function KioscoPage() {
       ]);
 
       checkOfflineQueue();
-
-      setTimeout(() => {
-        setFeedback(null);
-        setProcessing(false);
-        lockRef.current = false;
-      }, 5000);
     } catch (e: any) {
       playAudioFeedback(false);
       setErrorMsg('Error al guardar fuera de línea: ' + e.message);
@@ -393,6 +441,22 @@ export default function KioscoPage() {
     }, 1000);
     return () => clearTimeout(timer);
   }, [consultaData, consultaTimer, handleCerrarConsulta]);
+
+  // ── Auto-Cierre de 5 Segundos para el Feedback de Marcaje ────────────────
+  useEffect(() => {
+    if (!feedback) return;
+    if (feedbackTimer <= 0) {
+      setFeedback(null);
+      setProcessing(false);
+      setEmpleadoDetectado(null);
+      lockRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setFeedbackTimer((prev) => prev - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [feedback, feedbackTimer]);
 
   // ── Procesar Marcaje de QR Escaneado ──────────────────────────────────
   const processQrScan = useCallback(
@@ -471,9 +535,15 @@ export default function KioscoPage() {
           if (res.status === 'cooldown') {
             playAudioFeedback('cooldown');
           } else {
-            playAudioFeedback('success');
+            const ev = res.registro?.tipo_evento;
+            if (ev && ['ENTRADA', 'SALIDA_QUEBRADA', 'ENTRADA_QUEBRADA', 'SALIDA_DEFINITIVA'].includes(ev)) {
+              playAudioFeedback(ev as any);
+            } else {
+              playAudioFeedback('success');
+            }
           }
           setFeedback(res);
+          setFeedbackTimer(5);
           setEmpleadoDetectado(null);
 
           // Agregar al feed de actividad del Kiosco
@@ -495,14 +565,6 @@ export default function KioscoPage() {
               ...prev.slice(0, 3),
             ]);
           }
-
-          // Mantener visible la alerta y balance durante 5.0 segundos completos
-          setTimeout(() => {
-            setFeedback(null);
-            setProcessing(false);
-            setEmpleadoDetectado(null);
-            lockRef.current = false;
-          }, 5000);
         } catch (err: any) {
           setEmpleadoDetectado(null);
           if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('network'))) {
@@ -802,9 +864,9 @@ export default function KioscoPage() {
             )}
 
             {feedback && (
-              <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-md z-30 flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-in zoom-in-95 duration-200">
+              <div className="absolute inset-0 bg-stone-950/95 backdrop-blur-md z-30 flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-in zoom-in-95 duration-200">
                 {feedback.status === 'cooldown' ? (
-                  <div className="space-y-2 max-w-sm sm:max-w-md mx-auto">
+                  <div className="space-y-2.5 max-w-sm sm:max-w-md mx-auto">
                     <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500 border-2 border-amber-300 flex items-center justify-center text-white mx-auto shadow-xl">
                       <Clock className="w-6 h-6 sm:w-7 sm:h-7" />
                     </div>
@@ -837,42 +899,181 @@ export default function KioscoPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-2 max-w-sm sm:max-w-md mx-auto">
-                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-500 border-2 border-emerald-300 flex items-center justify-center text-white mx-auto shadow-xl">
-                      <CheckCircle2 className="w-6 h-6 sm:w-7 sm:h-7" />
-                    </div>
-                    {feedback.registro?.empleado_detalle && (
-                      <h2 className="text-lg sm:text-2xl font-display font-black text-white tracking-tight leading-tight">
-                        {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
-                      </h2>
-                    )}
-                    <span className="inline-block px-3 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400 text-emerald-300 text-[11px] sm:text-xs font-bold uppercase tracking-wider">
-                      ¡Registro Exitoso!
-                    </span>
-                    <p className="text-xs sm:text-sm font-medium text-stone-200 leading-snug">
-                      {feedback.mensaje}
-                    </p>
-                    {feedback.horas_trabajadas_hoy !== undefined && (
-                      <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                        <span className="inline-block bg-white/10 border border-white/20 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl font-mono">
-                          ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
-                        </span>
-                        {feedback.cumplio_meta_8h ? (
-                          <span className="inline-block bg-emerald-500 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl shadow-sm">
-                            🎉 Meta de 8h Cumplida
+                  (() => {
+                    const tipo = feedback.registro?.tipo_evento;
+                    const empNombre = feedback.registro?.empleado_detalle
+                      ? `${feedback.registro.empleado_detalle.nombre} ${feedback.registro.empleado_detalle.apellido}`
+                      : 'Colaborador';
+                    const horaMarcada = feedback.registro?.fecha_hora
+                      ? new Date(feedback.registro.fecha_hora).toLocaleTimeString('es-NI', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true,
+                          timeZone: 'America/Managua',
+                        })
+                      : '';
+
+                    if (tipo === 'ENTRADA') {
+                      return (
+                        <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
+                          <div className="w-14 h-14 rounded-2xl bg-emerald-500 border-2 border-emerald-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-emerald-950/50">
+                            <CheckCircle2 className="w-8 h-8" />
+                          </div>
+                          <div>
+                            <span className="inline-block px-3 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400 text-emerald-300 text-[11px] sm:text-xs font-black uppercase tracking-wider mb-1">
+                              ENTRADA AL TURNO 🟢
+                            </span>
+                            <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight">
+                              ¡Bienvenido/a, {empNombre}! 👋
+                            </h2>
+                            <p className="text-xs sm:text-sm font-medium text-emerald-100 mt-0.5">
+                              Marcaje registrado a las <strong>{horaMarcada}</strong>
+                            </p>
+                          </div>
+                          <p className="text-xs text-stone-300 bg-white/10 p-2 rounded-xl border border-white/10">
+                            ¡Que tengas una jornada productiva y un excelente servicio en El Bodegón!
+                          </p>
+                          <div className="flex justify-center gap-2 pt-0.5">
+                            <span className="bg-emerald-600/60 text-white font-mono text-xs px-3 py-1 rounded-xl border border-emerald-400/40">
+                              ⏱️ Meta Diaria: 8.0 horas
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (tipo === 'SALIDA_QUEBRADA') {
+                      const hHoy = feedback.horas_trabajadas_hoy || 0;
+                      // Lógica de retorno El Bodegón:
+                      const horaRet = hHoy >= 3.8 ? '7:00 PM' : hHoy >= 3.2 ? '6:30 PM' : '6:00 PM';
+                      const faltan = Math.max(0, 8.0 - hHoy);
+
+                      return (
+                        <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
+                          <div className="w-14 h-14 rounded-2xl bg-amber-500 border-2 border-amber-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-amber-950/50">
+                            <Coffee className="w-8 h-8" />
+                          </div>
+                          <div>
+                            <span className="inline-block px-3 py-0.5 rounded-full bg-amber-500/25 border border-amber-400 text-amber-300 text-[11px] sm:text-xs font-black uppercase tracking-wider mb-1">
+                              SALIDA A PAUSA (TURNO QUEBRADO) ☕
+                            </span>
+                            <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight">
+                              ¡Buen descanso, {empNombre}! 🍽️
+                            </h2>
+                            <p className="text-xs sm:text-sm font-medium text-amber-100 mt-0.5">
+                              Salida a pausa: <strong>{horaMarcada}</strong> • Acumulaste <strong>{hHoy.toFixed(2)} hrs</strong>
+                            </p>
+                          </div>
+
+                          {/* Tarjeta Destacada de Retorno */}
+                          <div className="bg-amber-500/20 border border-amber-300/40 rounded-2xl p-3 text-left space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black text-amber-300 uppercase tracking-wider">
+                                🕒 Tu Hora Límite de Regreso:
+                              </span>
+                              <span className="text-sm font-black font-mono text-white bg-amber-600 px-2.5 py-0.5 rounded-lg border border-amber-300/60">
+                                {horaRet}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-amber-100 font-medium leading-snug">
+                              Debes regresar a las <strong>{horaRet}</strong> para completar tus <strong>{faltan.toFixed(1)}h restantes</strong> antes del cierre de las 11:00 PM.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (tipo === 'ENTRADA_QUEBRADA') {
+                      return (
+                        <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
+                          <div className="w-14 h-14 rounded-2xl bg-blue-500 border-2 border-blue-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-blue-950/50">
+                            <TrendingUp className="w-8 h-8" />
+                          </div>
+                          <div>
+                            <span className="inline-block px-3 py-0.5 rounded-full bg-blue-500/25 border border-blue-400 text-blue-300 text-[11px] sm:text-xs font-black uppercase tracking-wider mb-1">
+                              RETORNO DE PAUSA (2DO BLOQUE) ⚡
+                            </span>
+                            <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight">
+                              ¡De vuelta al turno, {empNombre}! 💪
+                            </h2>
+                            <p className="text-xs sm:text-sm font-medium text-blue-100 mt-0.5">
+                              Retorno registrado a las <strong>{horaMarcada}</strong>
+                            </p>
+                          </div>
+                          <div className="bg-blue-500/20 border border-blue-300/40 rounded-2xl p-3 text-left space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black text-blue-300 uppercase tracking-wider">
+                                Horas restantes para 8h:
+                              </span>
+                              <span className="text-sm font-black font-mono text-white bg-blue-600 px-2 py-0.5 rounded-lg border border-blue-300/60">
+                                {feedback.horas_restantes_hoy !== undefined ? `${feedback.horas_restantes_hoy.toFixed(1)} hrs` : '--'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-blue-100 font-medium leading-snug">
+                              Llevas {feedback.horas_trabajadas_hoy?.toFixed(2)}h acumuladas. Salida programada al cierre de las 11:00 PM.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // SALIDA_DEFINITIVA o por defecto
+                    const totalH = feedback.horas_trabajadas_hoy || 0;
+                    return (
+                      <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
+                        <div className="w-14 h-14 rounded-2xl bg-purple-600 border-2 border-purple-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-purple-950/50">
+                          <Award className="w-8 h-8" />
+                        </div>
+                        <div>
+                          <span className="inline-block px-3 py-0.5 rounded-full bg-purple-500/25 border border-purple-400 text-purple-300 text-[11px] sm:text-xs font-black uppercase tracking-wider mb-1">
+                            SALIDA DEFINITIVA - FIN DE JORNADA 🏁
                           </span>
-                        ) : feedback.horas_restantes_hoy !== undefined && feedback.horas_restantes_hoy > 0 ? (
-                          <span className="inline-block bg-amber-400 text-stone-950 text-xs sm:text-sm font-bold px-3 py-1 rounded-xl font-mono">
-                            Faltan: {feedback.horas_restantes_hoy.toFixed(1)} hrs
+                          <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight">
+                            ¡Misión cumplida, {empNombre}! 🎉
+                          </h2>
+                          <p className="text-xs sm:text-sm font-medium text-purple-100 mt-0.5">
+                            Salida registrada a las <strong>{horaMarcada}</strong>
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+                          <span className="bg-white/15 border border-white/20 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl font-mono">
+                            ⏱️ Total Hoy: {totalH.toFixed(2)} hrs
                           </span>
-                        ) : null}
+                          {feedback.cumplio_meta_8h && (
+                            <span className="bg-emerald-500 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl shadow-sm">
+                              ✅ Meta 8h Cumplida
+                            </span>
+                          )}
+                          {totalH > 8.0 && (
+                            <span className="bg-amber-400 text-stone-950 text-xs sm:text-sm font-black px-3 py-1 rounded-xl">
+                              ⭐ +{(totalH - 8.0).toFixed(2)}h extra registradas
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()
                 )}
-                {/* Indicador inferior */}
-                <div className="absolute bottom-0 inset-x-0 h-1.5 bg-white/10 overflow-hidden">
-                  <div className="h-full bg-emerald-400 animate-pulse w-full" />
+
+                {/* Barra de progreso de 5 segundos con botón para cerrar */}
+                <div className="w-full max-w-sm sm:max-w-md mx-auto pt-3 flex items-center justify-between gap-3">
+                  <div className="flex-1 bg-white/20 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-white h-full transition-all duration-1000 ease-linear rounded-full"
+                      style={{ width: `${(feedbackTimer / 5) * 100}%` }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setFeedback(null);
+                      setProcessing(false);
+                      setEmpleadoDetectado(null);
+                      lockRef.current = false;
+                    }}
+                    className="text-[11px] font-bold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                  >
+                    Listo ({feedbackTimer}s) ✕
+                  </button>
                 </div>
               </div>
             )}
@@ -1304,26 +1505,26 @@ export default function KioscoPage() {
                 </span>
               </div>
 
-              {/* Saldo Pendiente */}
+              {/* Bolsa de Horas */}
               <div className={`p-3.5 rounded-2xl border text-center ${
                 consultaData.horas_pendientes > 0
                   ? 'bg-rose-50 border-rose-200/80 text-rose-900'
-                  : 'bg-stone-50 border-stone-200/80 text-stone-900'
+                  : 'bg-emerald-50 border-emerald-200/80 text-emerald-900'
               }`}>
                 <span className={`text-[10px] font-bold uppercase tracking-wider block ${
-                  consultaData.horas_pendientes > 0 ? 'text-rose-800' : 'text-stone-600'
+                  consultaData.horas_pendientes > 0 ? 'text-rose-800' : 'text-emerald-800'
                 }`}>
-                  Saldo Deuda
+                  Bolsa de Horas
                 </span>
                 <span className={`text-2xl sm:text-3xl font-black font-mono block my-0.5 ${
-                  consultaData.horas_pendientes > 0 ? 'text-rose-900' : 'text-stone-800'
+                  consultaData.horas_pendientes > 0 ? 'text-rose-900' : 'text-emerald-900'
                 }`}>
-                  {consultaData.horas_pendientes > 0 ? `+${Number(consultaData.horas_pendientes).toFixed(1)}` : '0.0'}
+                  {consultaData.horas_pendientes > 0 ? `-${Number(consultaData.horas_pendientes).toFixed(1)}h` : '0.0h'}
                 </span>
                 <span className={`text-[9px] font-semibold ${
-                  consultaData.horas_pendientes > 0 ? 'text-rose-700' : 'text-stone-500'
+                  consultaData.horas_pendientes > 0 ? 'text-rose-700' : 'text-emerald-700'
                 }`}>
-                  {consultaData.horas_pendientes > 0 ? 'Horas por reponer' : 'Al día'}
+                  {consultaData.horas_pendientes > 0 ? 'Por compensar con HE ⚠️' : 'Al día ✅'}
                 </span>
               </div>
             </div>
