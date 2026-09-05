@@ -148,6 +148,17 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
         try:
             fecha_instancia = instance.fecha_hora.astimezone(timezone.get_current_timezone()).date()
             _recalcular_horas_pendientes_empleado(instance.empleado, fecha_instancia)
+            if instance.tipo_evento == 'SALIDA_DEFINITIVA':
+                tz_ni = timezone.get_current_timezone()
+                import datetime
+                start_dt = timezone.make_aware(datetime.datetime.combine(fecha_instancia, datetime.time.min), tz_ni)
+                end_dt = timezone.make_aware(datetime.datetime.combine(fecha_instancia, datetime.time.max), tz_ni)
+                regs = list(RegistroAsistencia.objects.filter(
+                    empleado=instance.empleado,
+                    fecha_hora__range=(start_dt, end_dt)
+                ).order_by('fecha_hora'))
+                h_netas = _calcular_horas_netas_dia(regs)
+                _procesar_compensacion_y_horas_extra(instance.empleado, fecha_instancia, h_netas, self.request)
         except Exception:
             pass
 
@@ -881,8 +892,8 @@ def marcar_asistencia_kiosco(request):
         ).order_by('fecha_hora'))
         if regs_ayer:
             ultimo_ayer = regs_ayer[-1].tipo_evento
-            if ultimo_ayer in ('ENTRADA', 'ENTRADA_QUEBRADA'):
-                # Ayer quedó con entrada sin salida
+            if ultimo_ayer in ('ENTRADA', 'ENTRADA_QUEBRADA', 'SALIDA_QUEBRADA'):
+                # Ayer quedó con entrada o pausa sin salida definitiva
                 AlertaAsistencia.objects.get_or_create(
                     tipo='REGISTRO_INCOMPLETO',
                     empleado=empleado,
@@ -892,7 +903,7 @@ def marcar_asistencia_kiosco(request):
                             f"El día {ayer.strftime('%d/%m/%Y')} el empleado registró "
                             f"{regs_ayer[-1].get_tipo_evento_display()} a las "
                             f"{regs_ayer[-1].fecha_hora.astimezone(timezone.get_current_timezone()).strftime('%I:%M %p')} "
-                            f"pero nunca registró su Salida. "
+                            f"pero nunca completó su Salida Definitiva. "
                             f"Por favor, agregue la salida manualmente para calcular correctamente sus horas."
                         ),
                         'leida': False
@@ -932,7 +943,24 @@ def marcar_asistencia_kiosco(request):
     elif tipo_evento == 'ENTRADA_QUEBRADA':
         mensaje_kiosco = f"¡Bienvenido de vuelta, {empleado.nombre}! Llevas {round(horas_netas_hoy, 1)} hrs del primer turno. Te restan {round(horas_restantes_hoy, 1)} hrs para tus 8h."
     elif tipo_evento == 'SALIDA_DEFINITIVA':
-        if comp_info.get('horas_compensadas_de_extra', 0) > 0:
+        if comp_info.get('es_septimo_dia'):
+            if comp_info['horas_amortizadas'] > 0:
+                if comp_info['deuda_restante'] <= 0:
+                    mensaje_kiosco = (
+                        f"¡Excelente esfuerzo, {empleado.nombre}! Laboraste {round(horas_netas_hoy, 1)} hrs en tu día libre (7mo día). "
+                        f"¡Saldaste toda tu deuda pendiente ({round(comp_info['horas_amortizadas'], 1)} hrs) y quedas al día! 🎉"
+                    )
+                else:
+                    mensaje_kiosco = (
+                        f"¡Excelente esfuerzo, {empleado.nombre}! Laboraste {round(horas_netas_hoy, 1)} hrs en tu día libre (7mo día). "
+                        f"Se abonaron {round(comp_info['horas_amortizadas'], 1)} hrs a tu deuda (Saldo restante: {round(comp_info['deuda_restante'], 1)} hrs)."
+                    )
+            else:
+                mensaje_kiosco = (
+                    f"¡Excelente trabajo, {empleado.nombre}! Laboraste {round(horas_netas_hoy, 1)} hrs en tu día libre (7mo día). "
+                    f"Se enviaron {round(comp_info['horas_extra_solicitadas'], 1)} hrs extra para aprobación de nómina. ¡Buen descanso!"
+                )
+        elif comp_info.get('horas_compensadas_de_extra', 0) > 0:
             if comp_info['deuda_restante'] <= 0:
                 mensaje_kiosco = (
                     f"Jornada finalizada, {empleado.nombre} ({round(horas_netas_hoy, 1)} hrs trabajadas). "
@@ -1400,25 +1428,94 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
     }
 
 
+def _es_septimo_dia_semana(empleado, fecha_hoy):
+    """
+    Determina si el día actual corresponde al 7mo día trabajado en la semana ISO (Lunes a Domingo).
+    Si el empleado ya tiene registros de ENTRADA en 6 días previos distintos de esta misma semana,
+    hoy es su 7mo día (día de descanso / día libre trabajado).
+    """
+    import datetime
+    inicio_semana = fecha_hoy - datetime.timedelta(days=fecha_hoy.weekday())
+    dias_trabajados = RegistroAsistencia.objects.filter(
+        empleado=empleado,
+        tipo_evento='ENTRADA',
+        fecha_hora__date__gte=inicio_semana,
+        fecha_hora__date__lt=fecha_hoy,
+    ).dates('fecha_hora', 'day').count()
+
+    return dias_trabajados >= 6
+
+
 def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_dia, request=None):
     """
     Gestiona la deducción automática de déficit y creación de solicitud de Horas Extra al marcar salida:
-    1. Si horas_trabajadas_dia < 8.0:
-       - Acumula déficit en horas_pendientes del empleado.
-    2. Si horas_trabajadas_dia >= 8.0:
+    1. Si hoy es el 7mo día de la semana (Día Libre laborado):
+       - Base esperada = 0.0h (no hay déficit diario).
+       - Todas las horas trabajadas hoy son horas extra / reposición de deuda.
+       - Si el empleado tiene deuda previa (horas_pendientes > 0), se amortiza de inmediato.
+       - El remanente limpio va a AutorizacionHorasExtra como horas extra de 7mo día.
+    2. Si horas_trabajadas_dia < 8.0 en día ordinario:
+       - Si posee solicitudes de horas extra PENDIENTES en el mes, se compensa de inmediato
+         el déficit del día contra esas horas extra, reduciendo la solicitud y evitando generar deuda.
+       - Si aún queda déficit tras agotar las horas extra pendientes, se acumula en horas_pendientes.
+    3. Si horas_trabajadas_dia >= 8.0 en día ordinario:
        - Calcula excedente = round(horas_trabajadas_dia - 8.0, 1).
        - Si el empleado posee déficit en su Bolsa de Horas (horas_pendientes > 0),
-         se sustraen automáticamente las horas necesarias para indemnizar la deuda de inmediato
-         sin requerir aprobación de gerencia.
-       - A la tabla de solicitudes de Horas Extra (AutorizacionHorasExtra) solo se envía
-         el remanente limpio por pagar en nómina (remanente = max(0.0, excedente - horas_amortizadas)).
-       - Si el remanente <= 0.05, no se genera solicitud por pagar (y se limpia cualquier solicitud pendiente).
+         se sustraen automáticamente las horas necesarias para indemnizar la deuda de inmediato.
+       - A la tabla de solicitudes de Horas Extra solo se envía el remanente limpio por pagar en nómina.
     """
     primer_dia_mes = fecha_hoy.replace(day=1)
     if empleado.periodo_horas_pendientes != primer_dia_mes:
         empleado.horas_pendientes = 0.00
         empleado.periodo_horas_pendientes = primer_dia_mes
         empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+
+    es_septimo_dia = _es_septimo_dia_semana(empleado, fecha_hoy)
+
+    if es_septimo_dia:
+        excedente = round(horas_trabajadas_dia, 1)
+        deuda_actual = round(float(empleado.horas_pendientes or 0.0), 1)
+        horas_amortizadas = 0.0
+        remanente = excedente
+
+        # Si tiene deuda y laboró en su día libre, se amortiza de inmediato su deuda
+        if deuda_actual > 0 and excedente > 0:
+            res_comp = _aplicar_amortizacion_deuda_empleado(
+                empleado=empleado,
+                fecha_referencia=fecha_hoy,
+                horas_a_amortizar=excedente,
+                request=request
+            )
+            horas_amortizadas = res_comp['horas_amortizadas']
+            remanente = res_comp['remanente']
+            deuda_actual = res_comp['deuda_restante']
+
+        # El remanente pasa a solicitud de horas extra de 7mo día
+        if remanente > 0.05:
+            AutorizacionHorasExtra.objects.update_or_create(
+                empleado=empleado,
+                fecha=fecha_hoy,
+                defaults={
+                    'horas_extra_solicitadas': round(remanente, 1),
+                    'estado': 'PENDIENTE',
+                    'comentario': '[7mo Día Trabajado (Día Libre)]'
+                }
+            )
+        else:
+            AutorizacionHorasExtra.objects.filter(
+                empleado=empleado,
+                fecha=fecha_hoy,
+                estado='PENDIENTE'
+            ).delete()
+
+        return {
+            'horas_netas': round(horas_trabajadas_dia, 1),
+            'excedente': excedente,
+            'horas_amortizadas': round(horas_amortizadas, 1),
+            'deuda_restante': round(deuda_actual, 1),
+            'horas_extra_solicitadas': round(remanente, 1),
+            'es_septimo_dia': True,
+        }
 
     if horas_trabajadas_dia < 8.0:
         deficit_dia = round(8.0 - horas_trabajadas_dia, 1)
@@ -1566,34 +1663,10 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
 
 def _verificar_septimo_dia(empleado, fecha_hoy, horas_trabajadas_dia):
     """
-    Detecta si el empleado ya trabajó 6 días anteriores en la misma semana ISO.
-    Si es así, las horas del día actual se generan como solicitud de horas extra.
+    Compatibilidad hacia atrás. La detección, compensación de deuda y solicitud
+    de horas extra para el 7mo día se procesa directamente en _procesar_compensacion_y_horas_extra.
     """
-    import datetime
-    # Semana ISO: Lunes=0, Domingo=6
-    inicio_semana = fecha_hoy - datetime.timedelta(days=fecha_hoy.weekday())
-    fin_semana = inicio_semana + datetime.timedelta(days=6)
-
-    # Contar días distintos con al menos una ENTRADA en la semana (excluyendo hoy)
-    dias_trabajados = RegistroAsistencia.objects.filter(
-        empleado=empleado,
-        tipo_evento='ENTRADA',
-        fecha_hora__date__gte=inicio_semana,
-        fecha_hora__date__lt=fecha_hoy,
-    ).dates('fecha_hora', 'day').count()
-
-    if dias_trabajados >= 6:
-        # El empleado ya cumplió sus 6 días — hoy es el 7mo, todo va a extra
-        horas_extra_7mo = min(horas_trabajadas_dia, 8.0)
-        if horas_extra_7mo > 0:
-            AutorizacionHorasExtra.objects.update_or_create(
-                empleado=empleado,
-                fecha=fecha_hoy,
-                defaults={
-                    'horas_extra_solicitadas': round(horas_extra_7mo, 1),
-                    'estado': 'PENDIENTE'
-                }
-            )
+    pass
 
 
 # ==========================================
@@ -2259,7 +2332,7 @@ def sync_batch_asistencia(request):
             ).order_by('fecha_hora'))
             if regs_ayer:
                 ultimo_ayer = regs_ayer[-1].tipo_evento
-                if ultimo_ayer in ('ENTRADA', 'ENTRADA_QUEBRADA'):
+                if ultimo_ayer in ('ENTRADA', 'ENTRADA_QUEBRADA', 'SALIDA_QUEBRADA'):
                     AlertaAsistencia.objects.get_or_create(
                         tipo='REGISTRO_INCOMPLETO',
                         empleado=empleado,
