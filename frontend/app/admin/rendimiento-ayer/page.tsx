@@ -185,24 +185,22 @@ export default function RendimientoAyerPage() {
         const minsMarcados = dEnt.getHours() * 60 + dEnt.getMinutes();
 
         // Determinar franja base de entrada según El Bodegón (views.py):
-        // 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900), 5:00 PM (1020)
-        let esQuebrado11am = false;
-        if (retornoQuebrada) {
-          const dRet = new Date(retornoQuebrada.fecha_hora);
-          const minsRet = dRet.getHours() * 60 + dRet.getMinutes();
-          if (minsRet >= 1115) {
-            esQuebrado11am = true;
+        // 9:00 AM (540), 11:00 AM (660), 11:30 AM (690), 12:00 PM (720), 3:00 PM (900), 5:00 PM (1020)
+        let franjaBase = 720;
+        if (salidaQuebrada || retornoQuebrada) {
+          // Colaborador con jornada partida (quebrada)
+          if (minsMarcados <= 675) {
+            franjaBase = 660; // 11:00 AM (ej. Nelly 11:06 AM)
+          } else if (minsMarcados <= 705) {
+            franjaBase = 690; // 11:30 AM (ej. Lucero 11:29 AM)
+          } else {
+            franjaBase = 720; // 12:00 PM (ej. Estefani 11:57 AM)
           }
-        }
-
-        let franjaBase = 720; // 12:00 PM por defecto
-        if (esQuebrado11am) {
-          franjaBase = 660; // 11:00 AM
         } else if (minsMarcados >= 675 && minsMarcados <= 735) {
-          // Entre 11:15 AM y 12:15 PM -> Turno de 12:00 PM (ej. Estefani a las 11:57 AM, Carlos a las 11:55 AM)
+          // Entre 11:15 AM y 12:15 PM corrido -> Turno de 12:00 PM (ej. Carlos a las 11:55 AM)
           franjaBase = 720;
         } else {
-          const FRANJAS = [540, 660, 720, 900, 1020];
+          const FRANJAS = [540, 660, 690, 720, 900, 1020];
           franjaBase = FRANJAS.reduce((prev, curr) =>
             Math.abs(curr - minsMarcados) < Math.abs(prev - minsMarcados) ? curr : prev
           );
@@ -211,6 +209,7 @@ export default function RendimientoAyerPage() {
         const HORA_LABELS: Record<number, string> = {
           540: '9:00 AM',
           660: '11:00 AM',
+          690: '11:30 AM',
           720: '12:00 PM',
           900: '3:00 PM',
           1020: '5:00 PM',
@@ -219,7 +218,10 @@ export default function RendimientoAyerPage() {
         turnoEsperadoStr = HORA_LABELS[franjaBase] || '12:00 PM';
         const diff = minsMarcados - franjaBase;
 
-        if (alertaTardanza) {
+        // Distinguir si la alerta fue en la entrada o en la pausa
+        const esAlertaDePausa = alertaTardanza?.mensaje.toLowerCase().includes('pausa');
+
+        if (alertaTardanza && !esAlertaDePausa) {
           puntual = false;
           const match = alertaTardanza.mensaje.match(/(\d+)\s*min/i);
           minutosTarde = match ? parseInt(match[1], 10) : Math.max(1, diff);
@@ -251,16 +253,36 @@ export default function RendimientoAyerPage() {
           const msB1 =
             new Date(salidaQuebrada.fecha_hora).getTime() - new Date(entrada.fecha_hora).getTime();
           const durB1 = msB1 / (1000 * 60 * 60);
-          const horaEsperadaRet = durB1 >= 3.6 ? 1140 : 1080;
-          horaRetornoEsperadaStr = horaEsperadaRet === 1140 ? '7:00 PM' : '6:00 PM';
+
+          // Lógica Maestra El Bodegón:
+          // Con cierre a las 11:00 PM (23:00), la hora límite de retorno permite completar las 8 horas diarias:
+          let horaEsperadaRet = 1080; // 6:00 PM
+          if (durB1 >= 3.8) {
+            horaEsperadaRet = 1140; // 7:00 PM (Turno 11:00 AM, acumuló ~4.0h)
+          } else if (durB1 >= 3.2) {
+            horaEsperadaRet = 1110; // 6:30 PM (Turno 11:30 AM, acumuló ~3.5h, ej. Lucero)
+          } else {
+            horaEsperadaRet = 1080; // 6:00 PM (Turno 12:00 PM, acumuló ~3.0h, ej. Estefani)
+          }
+
+          const retLabels: Record<number, string> = {
+            1140: '7:00 PM',
+            1110: '6:30 PM',
+            1080: '6:00 PM',
+          };
+          horaRetornoEsperadaStr = retLabels[horaEsperadaRet] || '6:00 PM';
 
           const diffRet = minsRet - horaEsperadaRet;
+          const horasFaltantes = Math.max(0, 8.0 - durB1);
+
           if (diffRet > 10) {
-            explicacionRetorno = `Retornó a las ${horaRetornoMarcadaStr} (+${diffRet} min tarde respecto a las ${horaRetornoEsperadaStr}).`;
+            puntual = false;
+            minutosTarde = Math.max(minutosTarde, diffRet);
+            explicacionRetorno = `Retornó a las ${horaRetornoMarcadaStr} (+${diffRet} min tarde respecto a las ${horaRetornoEsperadaStr}). Con ${durB1.toFixed(1)}h hechas en la mañana, debía regresar a las ${horaRetornoEsperadaStr} para completar las ${horasFaltantes.toFixed(1)}h restantes antes del cierre (11:00 PM).`;
           } else if (diffRet <= 0) {
-            explicacionRetorno = `Retornó a las ${horaRetornoMarcadaStr} (${Math.abs(diffRet)} min antes de las ${horaRetornoEsperadaStr}).`;
+            explicacionRetorno = `Retornó a las ${horaRetornoMarcadaStr} (${Math.abs(diffRet)} min antes de las ${horaRetornoEsperadaStr}). Con ${durB1.toFixed(1)}h hechas en la mañana, dispone del tiempo exacto para completar sus 8h antes del cierre.`;
           } else {
-            explicacionRetorno = `Retornó a las ${horaRetornoMarcadaStr} (+${diffRet} min, dentro de la tolerancia de 10 min).`;
+            explicacionRetorno = `Retornó a las ${horaRetornoMarcadaStr} (+${diffRet} min respecto a las ${horaRetornoEsperadaStr}, dentro de la tolerancia de 10 min). En tiempo para completar sus 8h.`;
           }
         }
       }

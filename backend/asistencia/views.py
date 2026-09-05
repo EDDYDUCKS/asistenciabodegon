@@ -646,23 +646,25 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
             # Detección inteligente de horario (Mecanismo 1):
             # Si hay retorno de pausa en el día, verificar si fue hacia las 6 PM o 7 PM
             retorno_q = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA_QUEBRADA'), None)
-            es_quebrado_11am = False
-            if retorno_q:
-                mins_ret = retorno_q.fecha_hora.astimezone(timezone.get_current_timezone()).hour * 60 + retorno_q.fecha_hora.astimezone(timezone.get_current_timezone()).minute
-                if mins_ret >= 1115:  # 6:35 PM o después -> retorno de 7:00 PM (turno 11 AM)
-                    es_quebrado_11am = True
+            pausa_q = next((r for r in registros_actualizados if r.tipo_evento == 'SALIDA_QUEBRADA'), None)
 
-            if es_quebrado_11am:
-                franja_base = 660  # 11:00 AM
+            if retorno_q or pausa_q:
+                # Colaborador con horario quebrado
+                if mins_marcados <= 675:
+                    franja_base = 660  # 11:00 AM (ej. Nelly 11:06 AM)
+                elif mins_marcados <= 705:
+                    franja_base = 690  # 11:30 AM (ej. Lucero 11:29 AM)
+                else:
+                    franja_base = 720  # 12:00 PM (ej. Estefani 11:57 AM)
             elif 675 <= mins_marcados <= 735:
                 # Entre 11:15 AM y 12:15 PM -> Turno de 12:00 PM (ej. Uriel a las 11:26 AM o Carlos a las 11:55 AM)
                 franja_base = 720  # 12:00 PM
             else:
-                FRANJAS = [540, 660, 720, 900, 1020]
+                FRANJAS = [540, 660, 690, 720, 900, 1020]
                 franja_base = min(FRANJAS, key=lambda b: abs(mins_marcados - b))
 
             diff = mins_marcados - franja_base
-            HORA_LABELS = {540: '9:00 AM', 660: '11:00 AM', 720: '12:00 PM', 900: '3:00 PM', 1020: '5:00 PM'}
+            HORA_LABELS = {540: '9:00 AM', 660: '11:00 AM', 690: '11:30 AM', 720: '12:00 PM', 900: '3:00 PM', 1020: '5:00 PM'}
             
             # Solo alertar si excede los 10 minutos de gracia respecto a su turno
             if diff > 10:
@@ -675,18 +677,25 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                 )
 
         elif tipo == 'ENTRADA_QUEBRADA':
-            # Hora esperada de retorno: 7:00 PM (1140) si el primer bloque fue de ~4 horas (11am a 3pm),
-            # o 6:00 PM (1080) si fue de ~3 horas (12pm a 3pm)
+            # Horario de Retorno Inteligente según las 8 horas y el cierre de las 11:00 PM:
+            # - Entró a las 11:00 AM (hizo ~4h en la mañana) -> le faltan 4h -> Retorno a las 7:00 PM (1140)
+            # - Entró a las 11:30 AM (hizo ~3.5h en la mañana) -> le faltan 4.5h -> Retorno a las 6:30 PM (1110)
+            # - Entró a las 12:00 PM (hizo ~3.0h en la mañana) -> le faltan 5h -> Retorno a las 6:00 PM (1080)
             primera_ent = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA'), None)
             primera_pausa = next((r for r in registros_actualizados if r.tipo_evento == 'SALIDA_QUEBRADA'), None)
             hora_esperada = 1080  # 6:00 PM por defecto
             if primera_ent and primera_pausa:
                 duracion_b1 = (primera_pausa.fecha_hora - primera_ent.fecha_hora).total_seconds() / 3600.0
-                if duracion_b1 >= 3.6:
-                    hora_esperada = 1140  # 7:00 PM
+                if duracion_b1 >= 3.8:
+                    hora_esperada = 1140  # 7:00 PM (Turno 11:00 AM)
+                elif duracion_b1 >= 3.2:
+                    hora_esperada = 1110  # 6:30 PM (Turno 11:30 AM, ej. Lucero)
+                else:
+                    hora_esperada = 1080  # 6:00 PM (Turno 12:00 PM, ej. Estefani)
 
             diff_ret = mins_marcados - hora_esperada
-            ret_label = '7:00 PM' if hora_esperada == 1140 else '6:00 PM'
+            ret_labels = {1140: '7:00 PM', 1110: '6:30 PM', 1080: '6:00 PM'}
+            ret_label = ret_labels.get(hora_esperada, '6:00 PM')
             if diff_ret > 10:
                 alerta_creada = True
                 alerta_tipo = 'TARDANZA'
