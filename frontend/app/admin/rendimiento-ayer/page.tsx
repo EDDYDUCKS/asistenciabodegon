@@ -699,7 +699,7 @@ export default function RendimientoAyerPage() {
                     Horas Extra del Cierre sin Aprobar
                   </span>
                   <p className="text-xs font-bold text-stone-900 mt-0.5">
-                    Hay {reporteJornada.hePendientes.length} solicitud(es) esperando revisión con PIN 2322.
+                    Hay {reporteJornada.hePendientes.length} solicitud(es) esperando revisión gerencial.
                   </p>
                   <p className="text-[11px] text-stone-500 mt-0.5">
                     Se generaron por exceder las 8 horas en el cierre nocturno.

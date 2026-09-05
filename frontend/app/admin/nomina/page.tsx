@@ -2028,8 +2028,8 @@ export default function NominaAdminPage() {
               </h3>
               <p className="text-xs text-stone-500 font-medium mt-1">
                 {pendingExtraAction.decision === 'APROBADO'
-                  ? 'Ingrese el PIN de Gerencia (2322) para autorizar el pago de horas extra en nómina.'
-                  : 'Ingrese el PIN de Gerencia (2322) para confirmar el rechazo de esta solicitud.'}
+                  ? 'Ingrese el PIN de Gerencia para autorizar el pago de horas extra en nómina.'
+                  : 'Ingrese el PIN de Gerencia para confirmar el rechazo de esta solicitud.'}
               </p>
             </div>
 
