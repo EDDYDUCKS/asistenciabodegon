@@ -34,6 +34,8 @@ import {
   RefreshCw,
   FileSpreadsheet,
   Sparkles,
+  Info,
+  X,
 } from 'lucide-react';
 
 export default function RendimientoAyerPage() {
@@ -43,6 +45,7 @@ export default function RendimientoAyerPage() {
   const [alertas, setAlertas] = useState<AlertaAsistencia[]>([]);
   const [permisos, setPermisos] = useState<PermisoAusencia[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPuntualidadFila, setSelectedPuntualidadFila] = useState<any | null>(null);
 
   // Calcular la fecha de ayer por defecto en la zona horaria de Managua, Nicaragua
   const hoyManagua = useMemo(() => {
@@ -154,11 +157,17 @@ export default function RendimientoAyerPage() {
         horasNetas = Math.max(0, msTotal / (1000 * 60 * 60) - horasPausa);
       }
 
-      // 2. Verificar puntualidad
+      // 2. Verificar puntualidad con la regla de tolerancia exacta de El Bodegón
       let puntual = true;
       let minutosTarde = 0;
+      let turnoEsperadoStr = '12:00 PM';
+      let horaEntradaMarcadaStr = '--:--';
+      let explicacionPuntualidad = '';
+      let horaRetornoEsperadaStr = '';
+      let horaRetornoMarcadaStr = '';
+      let explicacionRetorno = '';
 
-      // Consultar si el sistema generó alerta de tardanza en este día
+      // Consultar si el sistema generó alerta oficial de tardanza en este día
       const alertaTardanza = alertas.find(
         (al) =>
           al.empleado === emp.id &&
@@ -166,33 +175,93 @@ export default function RendimientoAyerPage() {
           al.created_at?.startsWith(fechaSeleccionada)
       );
 
-      if (alertaTardanza) {
-        puntual = false;
-        // Extraer minutos del mensaje si existen (ej. "llegó 15 minutos tarde")
-        const match = alertaTardanza.mensaje.match(/(\d+)\s*min/i);
-        minutosTarde = match ? parseInt(match[1], 10) : 15;
-      } else if (entrada) {
-        // Cálculo heurístico de tolerancia de 10 minutos
+      if (entrada) {
         const dEnt = new Date(entrada.fecha_hora);
-        const h = dEnt.getHours();
-        const m = dEnt.getMinutes();
-        const minutosDesdeMedianoche = h * 60 + m;
+        horaEntradaMarcadaStr = dEnt.toLocaleTimeString('es-NI', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+        const minsMarcados = dEnt.getHours() * 60 + dEnt.getMinutes();
 
-        // Horarios estándar de El Bodegón con tolerancia:
-        // Turno 9:00 AM (máx 9:10 = 550 min)
-        if (minutosDesdeMedianoche > 550 && minutosDesdeMedianoche < 660) {
-          puntual = false;
-          minutosTarde = minutosDesdeMedianoche - 540;
+        // Determinar franja base de entrada según El Bodegón (views.py):
+        // 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900), 5:00 PM (1020)
+        let esQuebrado11am = false;
+        if (retornoQuebrada) {
+          const dRet = new Date(retornoQuebrada.fecha_hora);
+          const minsRet = dRet.getHours() * 60 + dRet.getMinutes();
+          if (minsRet >= 1115) {
+            esQuebrado11am = true;
+          }
         }
-        // Turno 11:30 AM (máx 11:40 = 700 min)
-        else if (minutosDesdeMedianoche > 700 && minutosDesdeMedianoche < 750) {
-          puntual = false;
-          minutosTarde = minutosDesdeMedianoche - 690;
+
+        let franjaBase = 720; // 12:00 PM por defecto
+        if (esQuebrado11am) {
+          franjaBase = 660; // 11:00 AM
+        } else if (minsMarcados >= 675 && minsMarcados <= 735) {
+          // Entre 11:15 AM y 12:15 PM -> Turno de 12:00 PM (ej. Estefani a las 11:57 AM, Carlos a las 11:55 AM)
+          franjaBase = 720;
+        } else {
+          const FRANJAS = [540, 660, 720, 900, 1020];
+          franjaBase = FRANJAS.reduce((prev, curr) =>
+            Math.abs(curr - minsMarcados) < Math.abs(prev - minsMarcados) ? curr : prev
+          );
         }
-        // Turno 17:00 PM (máx 17:10 = 1030 min)
-        else if (minutosDesdeMedianoche > 1030 && minutosDesdeMedianoche < 1080) {
+
+        const HORA_LABELS: Record<number, string> = {
+          540: '9:00 AM',
+          660: '11:00 AM',
+          720: '12:00 PM',
+          900: '3:00 PM',
+          1020: '5:00 PM',
+        };
+
+        turnoEsperadoStr = HORA_LABELS[franjaBase] || '12:00 PM';
+        const diff = minsMarcados - franjaBase;
+
+        if (alertaTardanza) {
           puntual = false;
-          minutosTarde = minutosDesdeMedianoche - 1020;
+          const match = alertaTardanza.mensaje.match(/(\d+)\s*min/i);
+          minutosTarde = match ? parseInt(match[1], 10) : Math.max(1, diff);
+          explicacionPuntualidad = `Alerta de tardanza registrada: ${alertaTardanza.mensaje}`;
+        } else if (diff > 10) {
+          puntual = false;
+          minutosTarde = diff;
+          explicacionPuntualidad = `Llegó a las ${horaEntradaMarcadaStr} (+${diff} min tarde respecto a su horario programado de las ${turnoEsperadoStr}). Excedió la tolerancia de 10 min por ${diff - 10} min.`;
+        } else if (diff <= 0) {
+          puntual = true;
+          minutosTarde = 0;
+          explicacionPuntualidad = `Llegó a las ${horaEntradaMarcadaStr} (${Math.abs(diff)} min antes de su turno de las ${turnoEsperadoStr}). Marcaje puntual.`;
+        } else {
+          puntual = true;
+          minutosTarde = 0;
+          explicacionPuntualidad = `Llegó a las ${horaEntradaMarcadaStr} (+${diff} min respecto a las ${turnoEsperadoStr}), dentro del margen institucional de 10 minutos de cortesía.`;
+        }
+
+        // Si tiene pausa quebrada, evaluar también la puntualidad del retorno
+        if (salidaQuebrada && retornoQuebrada) {
+          const dRet = new Date(retornoQuebrada.fecha_hora);
+          horaRetornoMarcadaStr = dRet.toLocaleTimeString('es-NI', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
+          const minsRet = dRet.getHours() * 60 + dRet.getMinutes();
+
+          const msB1 =
+            new Date(salidaQuebrada.fecha_hora).getTime() - new Date(entrada.fecha_hora).getTime();
+          const durB1 = msB1 / (1000 * 60 * 60);
+          const horaEsperadaRet = durB1 >= 3.6 ? 1140 : 1080;
+          horaRetornoEsperadaStr = horaEsperadaRet === 1140 ? '7:00 PM' : '6:00 PM';
+
+          const diffRet = minsRet - horaEsperadaRet;
+          if (diffRet > 10) {
+            explicacionRetorno = `Retornó a las ${horaRetornoMarcadaStr} (+${diffRet} min tarde respecto a las ${horaRetornoEsperadaStr}).`;
+          } else if (diffRet <= 0) {
+            explicacionRetorno = `Retornó a las ${horaRetornoMarcadaStr} (${Math.abs(diffRet)} min antes de las ${horaRetornoEsperadaStr}).`;
+          } else {
+            explicacionRetorno = `Retornó a las ${horaRetornoMarcadaStr} (+${diffRet} min, dentro de la tolerancia de 10 min).`;
+          }
         }
       }
 
@@ -231,6 +300,12 @@ export default function RendimientoAyerPage() {
         horasNetas,
         puntual,
         minutosTarde,
+        turnoEsperadoStr,
+        horaEntradaMarcadaStr,
+        explicacionPuntualidad,
+        horaRetornoEsperadaStr,
+        horaRetornoMarcadaStr,
+        explicacionRetorno,
         estadoCierre,
         horasExtra: heObj || null,
         todosRegistros: sorted,
@@ -819,18 +894,34 @@ export default function RendimientoAyerPage() {
                       {fila.horasNetas > 0 ? `${fila.horasNetas.toFixed(2)} hrs` : '0.00 hrs'}
                     </td>
 
-                    {/* Puntualidad */}
+                    {/* Puntualidad Interactiva */}
                     <td className="py-3 px-3 text-center">
                       {!fila.entrada ? (
                         <span className="text-[10px] text-stone-400">N/A</span>
-                      ) : fila.puntual ? (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          A Tiempo
-                        </span>
                       ) : (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                          Tarde (+{fila.minutosTarde}m)
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPuntualidadFila(fila)}
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 ${
+                            fila.puntual
+                              ? 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 border-emerald-200'
+                              : 'text-amber-800 bg-amber-50 hover:bg-amber-100/80 border-amber-200 animate-pulse'
+                          }`}
+                          title="Toca o haz clic para ver horario programado y detalle exacto de puntualidad"
+                        >
+                          {fila.puntual ? (
+                            <>
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>A Tiempo</span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                              <span>Tarde (+{fila.minutosTarde}m)</span>
+                            </>
+                          )}
+                          <Info className="w-2.5 h-2.5 opacity-60 ml-0.5 shrink-0" />
+                        </button>
                       )}
                     </td>
 
@@ -907,6 +998,163 @@ export default function RendimientoAyerPage() {
           Cerrar y Volver al Dashboard
         </Link>
       </div>
+
+      {/* ── MODAL EXPLICATIVO DE PUNTUALIDAD (CLICK EN DESKTOP / TAP EN MÓVIL) ── */}
+      {selectedPuntualidadFila && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+          onClick={() => setSelectedPuntualidadFila(null)}
+        >
+          <div
+            className="bg-white border border-stone-200 rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-stone-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header del Modal */}
+            <div className="flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                    selectedPuntualidadFila.puntual
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}
+                >
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-stone-900 leading-tight">
+                    Detalle de Horario y Puntualidad
+                  </h3>
+                  <p className="text-[11px] font-bold text-stone-500">
+                    {selectedPuntualidadFila.empleado.nombre} {selectedPuntualidadFila.empleado.apellido}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedPuntualidadFila(null)}
+                className="text-stone-400 hover:text-stone-700 p-1.5 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Cargo y Modalidad de Turno */}
+            <div className="bg-stone-50 rounded-xl p-2.5 border border-stone-200 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-[9px] uppercase font-bold text-stone-400 block">Puesto / Cargo</span>
+                <span className="font-bold text-stone-800">{selectedPuntualidadFila.empleado.cargo_display}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[9px] uppercase font-bold text-stone-400 block">Modalidad de Turno</span>
+                <span className="font-bold text-stone-800">
+                  {selectedPuntualidadFila.pausa ? 'Horario Quebrado' : 'Horario Corrido'}
+                </span>
+              </div>
+            </div>
+
+            {/* Tarjeta 1: Entrada Principal */}
+            <div
+              className={`rounded-2xl p-3.5 border space-y-2.5 ${
+                selectedPuntualidadFila.puntual
+                  ? 'bg-emerald-50/60 border-emerald-200'
+                  : 'bg-amber-50/70 border-amber-200'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-black tracking-wider text-stone-700">
+                  Entrada Principal
+                </span>
+                <span
+                  className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                    selectedPuntualidadFila.puntual
+                      ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                      : 'bg-amber-100 border-amber-300 text-amber-900'
+                  }`}
+                >
+                  {selectedPuntualidadFila.puntual ? '✅ PUNTUAL' : '⚠️ TARDANZA'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-white/90 p-2 rounded-lg border border-stone-200/80">
+                  <span className="text-[9px] text-stone-400 uppercase font-bold block">Horario Programado</span>
+                  <span className="font-mono font-bold text-stone-800 text-xs">
+                    {selectedPuntualidadFila.turnoEsperadoStr}
+                  </span>
+                </div>
+                <div className="bg-white/90 p-2 rounded-lg border border-stone-200/80">
+                  <span className="text-[9px] text-stone-400 uppercase font-bold block">Marcaje Registrado</span>
+                  <span className="font-mono font-bold text-stone-900 text-xs">
+                    {selectedPuntualidadFila.horaEntradaMarcadaStr}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs font-medium text-stone-800 leading-snug bg-white/80 p-2.5 rounded-xl border border-stone-200/60">
+                {selectedPuntualidadFila.explicacionPuntualidad}
+              </p>
+            </div>
+
+            {/* Tarjeta 2: Retorno de Pausa (si aplica horario quebrado) */}
+            {selectedPuntualidadFila.pausa && (
+              <div className="rounded-2xl p-3.5 border bg-stone-50 border-stone-200 space-y-2">
+                <span className="text-[10px] uppercase font-black tracking-wider text-stone-700 block">
+                  Pausa Intermedia y Retorno (Horario Quebrado)
+                </span>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-white p-2 rounded-lg border border-stone-200">
+                    <span className="text-[9px] text-stone-400 uppercase font-bold block">Salida a Pausa</span>
+                    <span className="font-mono font-bold text-stone-800 text-xs">
+                      {selectedPuntualidadFila.salidaQuebrada
+                        ? new Date(selectedPuntualidadFila.salidaQuebrada.fecha_hora).toLocaleTimeString('es-NI', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          })
+                        : '--:--'}
+                    </span>
+                  </div>
+                  <div className="bg-white p-2 rounded-lg border border-stone-200">
+                    <span className="text-[9px] text-stone-400 uppercase font-bold block">Retorno Registrado</span>
+                    <span className="font-mono font-bold text-stone-800 text-xs">
+                      {selectedPuntualidadFila.retornoQuebrada
+                        ? new Date(selectedPuntualidadFila.retornoQuebrada.fecha_hora).toLocaleTimeString('es-NI', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          })
+                        : 'Sin retorno'}
+                    </span>
+                  </div>
+                </div>
+
+                {selectedPuntualidadFila.explicacionRetorno && (
+                  <p className="text-xs font-medium text-stone-700 bg-white p-2 rounded-lg border border-stone-200">
+                    {selectedPuntualidadFila.explicacionRetorno}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Nota institucional */}
+            <div className="bg-emerald-50/50 border border-emerald-200/60 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-emerald-950 font-medium">
+              <Info className="w-4 h-4 text-[#1c6856] shrink-0 mt-0.5" />
+              <span>
+                <strong>Regla Institucional:</strong> Restaurante El Bodegón concede <strong>10 minutos de cortesía</strong> después de la hora oficial programada antes de registrar tardanza administrativa.
+              </span>
+            </div>
+
+            {/* Footer */}
+            <button
+              onClick={() => setSelectedPuntualidadFila(null)}
+              className="w-full bg-[#1c6856] hover:bg-[#154f42] text-white py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm active:scale-95 cursor-pointer"
+            >
+              Entendido / Cerrar Detalle
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
