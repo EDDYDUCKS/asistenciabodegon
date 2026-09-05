@@ -932,7 +932,20 @@ def marcar_asistencia_kiosco(request):
     elif tipo_evento == 'ENTRADA_QUEBRADA':
         mensaje_kiosco = f"¡Bienvenido de vuelta, {empleado.nombre}! Llevas {round(horas_netas_hoy, 1)} hrs del primer turno. Te restan {round(horas_restantes_hoy, 1)} hrs para tus 8h."
     elif tipo_evento == 'SALIDA_DEFINITIVA':
-        if comp_info['horas_amortizadas'] > 0:
+        if comp_info.get('horas_compensadas_de_extra', 0) > 0:
+            if comp_info['deuda_restante'] <= 0:
+                mensaje_kiosco = (
+                    f"Jornada finalizada, {empleado.nombre} ({round(horas_netas_hoy, 1)} hrs trabajadas). "
+                    f"Tu salida anticipada (-{round(comp_info['horas_compensadas_de_extra'], 1)} hrs) se compensó con tus horas extra pendientes. "
+                    f"¡Quedas al día sin deuda! 🎉 ¡Buen descanso!"
+                )
+            else:
+                mensaje_kiosco = (
+                    f"Jornada finalizada, {empleado.nombre} ({round(horas_netas_hoy, 1)} hrs trabajadas). "
+                    f"Se compensaron {round(comp_info['horas_compensadas_de_extra'], 1)} hrs con tus horas extra pendientes. "
+                    f"Déficit restante: {round(comp_info['deuda_restante'], 1)} hrs."
+                )
+        elif comp_info['horas_amortizadas'] > 0:
             if comp_info['deuda_restante'] <= 0:
                 if comp_info['horas_extra_solicitadas'] > 0:
                     mensaje_kiosco = (
@@ -1408,13 +1421,102 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
 
     if horas_trabajadas_dia < 8.0:
-        _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia)
+        deficit_dia = round(8.0 - horas_trabajadas_dia, 1)
+        horas_compensadas = 0.0
+        deficit_restante = deficit_dia
+
+        # Buscar solicitudes de Horas Extra PENDIENTES del colaborador en el mes actual
+        solicitudes_pendientes = list(AutorizacionHorasExtra.objects.filter(
+            empleado=empleado,
+            fecha__gte=primer_dia_mes,
+            fecha__lte=fecha_hoy,
+            estado='PENDIENTE',
+            horas_extra_solicitadas__gt=0.05
+        ).order_by('fecha'))
+
+        total_extra_disponible = sum(float(s.horas_extra_solicitadas or 0.0) for s in solicitudes_pendientes)
+
+        if total_extra_disponible > 0 and deficit_dia > 0:
+            horas_compensadas = min(deficit_dia, total_extra_disponible)
+            deficit_restante = max(0.0, round(deficit_dia - horas_compensadas, 1))
+
+            por_descontar = horas_compensadas
+            desglose_compensacion = []
+
+            for s in solicitudes_pendientes:
+                if por_descontar <= 0:
+                    break
+                disp = float(s.horas_extra_solicitadas or 0.0)
+                aplicar = min(disp, por_descontar)
+                disp_nueva = max(0.0, round(disp - aplicar, 1))
+                por_descontar = max(0.0, round(por_descontar - aplicar, 1))
+
+                desglose_compensacion.append({
+                    'fecha': s.fecha.strftime('%Y-%m-%d'),
+                    'fecha_display': s.fecha.strftime('%d/%m/%Y'),
+                    'horas_trabajadas': round(8.0 + disp, 1),
+                    'horas_faltaron': round(deficit_dia, 1),
+                    'horas_aplicadas': round(aplicar, 1),
+                    'saldo_dia': disp_nueva,
+                    'estado': "Consumida al 100%" if disp_nueva == 0 else f"Remanente pendiente ({disp_nueva} hrs)"
+                })
+
+                if disp_nueva > 0.05:
+                    s.horas_extra_solicitadas = disp_nueva
+                    nota = f"[Compensación automática: -{round(aplicar, 1)}h deducidas por salida temprana el {fecha_hoy.strftime('%d/%m/%Y')}]"
+                    s.comentario = f"{s.comentario} | {nota}" if s.comentario else nota
+                    s.save(update_fields=['horas_extra_solicitadas', 'comentario', 'updated_at'])
+                else:
+                    s.delete()
+
+            # Registrar CompensacionHoras formal y auditable
+            CompensacionHoras.objects.create(
+                empleado=empleado,
+                fecha_compensacion=fecha_hoy,
+                horas_trabajadas_hoy=round(horas_trabajadas_dia, 1),
+                horas_extra_generadas=round(total_extra_disponible, 1),
+                horas_deducidas=round(horas_compensadas, 1),
+                deuda_previa=round(deficit_dia, 1),
+                saldo_restante=round(deficit_restante, 1),
+                remanente_extra=max(0.0, round(total_extra_disponible - horas_compensadas, 1)),
+                desglose=desglose_compensacion,
+            )
+
+            # Notificación en campanita para gerencia
+            AlertaAsistencia.objects.create(
+                tipo='COMPENSACION_HORAS',
+                empleado=empleado,
+                titulo=f"Compensación Automática: {empleado.nombre} {empleado.apellido}",
+                mensaje=(
+                    f"El {fecha_hoy.strftime('%d/%m/%Y')} el colaborador completó {round(horas_trabajadas_dia, 1)} hrs "
+                    f"(déficit de {round(deficit_dia, 1)} hrs). Se compensaron {round(horas_compensadas, 1)} hrs "
+                    f"directamente de sus horas extra pendientes por aprobar. Déficit restante: {round(deficit_restante, 1)} hrs."
+                ),
+                leida=False
+            )
+
+            BitacoraAccion.objects.create(
+                usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
+                accion='REGISTRO_MANUAL',
+                descripcion=(
+                    f"Compensación por salida temprana: -{round(horas_compensadas, 1)} hrs extra pendientes deducidas a "
+                    f"{empleado.nombre} {empleado.apellido} para cubrir déficit de {round(deficit_dia, 1)} hrs."
+                ),
+                ip_address=_get_clean_ip(request) if request else None
+            )
+
+        # Si aún queda déficit tras agotar todas las horas extra pendientes, se acumula a horas_pendientes
+        if deficit_restante > 0:
+            _acumular_horas_pendientes(empleado, fecha_hoy, 8.0 - deficit_restante)
+
         return {
             'horas_netas': round(horas_trabajadas_dia, 1),
             'excedente': 0.0,
-            'horas_amortizadas': 0.0,
-            'deuda_restante': round(float(empleado.horas_pendientes), 1),
+            'horas_amortizadas': round(horas_compensadas, 1),
+            'deuda_restante': round(float(empleado.horas_pendientes or 0.0), 1),
             'horas_extra_solicitadas': 0.0,
+            'horas_compensadas_de_extra': round(horas_compensadas, 1),
+            'deficit_dia': round(deficit_dia, 1),
         }
 
     excedente = round(horas_trabajadas_dia - 8.0, 1)
