@@ -76,6 +76,7 @@ export default function NominaAdminPage() {
     comentario: string;
     empNombre?: string;
     deudaActual?: number;
+    totalPendienteColaborador?: number;
   } | null>(null);
   const [extraPin, setExtraPin] = useState('');
   const [extraPinError, setExtraPinError] = useState(false);
@@ -316,10 +317,13 @@ export default function NominaAdminPage() {
 
   const initiateDecision = (item: AutorizacionHorasExtra, decision: 'APROBADO' | 'RECHAZADO') => {
     const emp = empleados.find((e) => e.id === item.empleado);
-    const empName = emp ? `${emp.nombre} ${emp.apellido}` : `Empleado #${item.empleado}`;
+    const empName = emp ? `${emp.nombre} ${emp.apellido}` : (item.empleado_detalle ? `${item.empleado_detalle.nombre} ${item.empleado_detalle.apellido}` : `Empleado #${item.empleado}`);
     const horasVal = decision === 'APROBADO' ? parseFloat(tempAutorizadas) || 0 : 0;
     const defaultComment = decision === 'APROBADO' ? 'Horas autorizadas' : 'Horas rechazadas';
     const deudaVal = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
+    const totalPendienteEmp = horasExtra
+      .filter((h) => h.empleado === item.empleado && h.estado === 'PENDIENTE')
+      .reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_solicitadas)) || 0), 0);
 
     setPendingExtraAction({
       id: item.id!,
@@ -329,6 +333,7 @@ export default function NominaAdminPage() {
       comentario: tempComentario.trim() || defaultComment,
       empNombre: empName,
       deudaActual: deudaVal,
+      totalPendienteColaborador: totalPendienteEmp,
     });
     setExtraPin('');
     setExtraPinError(false);
@@ -638,6 +643,36 @@ export default function NominaAdminPage() {
     });
   }, [compensaciones, searchCompensacion, empleados]);
 
+  // ── MÉTRICAS ACUMULADAS PARA LA SECCIÓN DE HORAS EXTRA ────────────────
+  const totalHorasExtraPendientes = useMemo(() => {
+    return horasExtra
+      .filter((h) => h.estado === 'PENDIENTE')
+      .reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_solicitadas)) || 0), 0);
+  }, [horasExtra]);
+
+  const totalHorasExtraAprobadasGlobal = useMemo(() => {
+    return horasExtra
+      .filter((h) => h.estado === 'APROBADO')
+      .reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_autorizadas)) || 0), 0);
+  }, [horasExtra]);
+
+  const totalHorasDeducidasGlobal = useMemo(() => {
+    return compensaciones.reduce((acc, c) => acc + (parseFloat(String(c.horas_deducidas)) || 0), 0);
+  }, [compensaciones]);
+
+  // Mapa de suma total acumulada de horas extra pendientes por colaborador
+  const horasPendientesPorColaborador = useMemo(() => {
+    const map: Record<number, number> = {};
+    horasExtra.forEach((h) => {
+      if (h.estado === 'PENDIENTE') {
+        const empId = typeof h.empleado === 'number' ? h.empleado : (h.empleado_detalle?.id || 0);
+        const val = parseFloat(String(h.horas_extra_solicitadas || 0)) || 0;
+        map[empId] = (map[empId] || 0) + val;
+      }
+    });
+    return map;
+  }, [horasExtra]);
+
   const horasExtraFiltradas = useMemo(() => {
     let list = [...horasExtra];
     if (searchExtra.trim()) {
@@ -696,6 +731,11 @@ export default function NominaAdminPage() {
 
   const renderFilaExtra = (item: AutorizacionHorasExtra) => {
     const isEditing = editingExtraId === item.id;
+    const empId = typeof item.empleado === 'number' ? item.empleado : (item.empleado_detalle?.id || 0);
+    const totalPendienteEmp = horasPendientesPorColaborador[empId] || 0;
+    const emp = empleados.find((e) => e.id === empId);
+    const deuda = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
+
     return (
       <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
         <td className="px-6 py-4 font-mono font-bold text-stone-600">
@@ -712,22 +752,31 @@ export default function NominaAdminPage() {
           <span className="text-[10px] text-stone-400 block font-medium">
             {item.empleado_detalle?.cargo_display}
           </span>
-          {(() => {
-            const emp = empleados.find((e) => e.id === item.empleado);
-            const deuda = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
-            if (deuda > 0 && item.estado === 'PENDIENTE') {
-              return (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md mt-1">
-                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                  Debe {deuda.toFixed(1)} hrs (se amortizará al aprobar)
-                </span>
-              );
-            }
-            return null;
-          })()}
+          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+            {totalPendienteEmp > 0 && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1c6856] bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs"
+                title="Suma total acumulada de horas extra que este colaborador tiene pendientes de aprobación"
+              >
+                <Clock className="w-3 h-3 text-[#1c6856] shrink-0" />
+                Suma por aprobar: +{totalPendienteEmp.toFixed(1)} hrs
+              </span>
+            )}
+            {deuda > 0 && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                Debe {deuda.toFixed(1)} hrs
+              </span>
+            )}
+          </div>
         </td>
-        <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700">
-          +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+        <td className="px-6 py-4 text-right">
+          <span className="font-mono font-bold text-emerald-700 text-sm block">
+            +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+          </span>
+          <span className="text-[10px] text-stone-400 font-medium block">
+            (este día)
+          </span>
         </td>
         <td className="px-6 py-4 text-right font-mono font-bold">
           {isEditing ? (
@@ -1174,6 +1223,75 @@ export default function NominaAdminPage() {
 
           {subTabExtras === 'pendientes' && (
             <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Tarjetas Resumen Métrico de Horas Extra */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="bg-gradient-to-br from-amber-50/80 to-amber-100/40 border border-amber-250 rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                      Pendiente por Aprobar
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-amber-900">
+                      +{totalHorasExtraPendientes.toFixed(1)} hrs
+                    </span>
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-full">
+                      {horasExtra.filter((h) => h.estado === 'PENDIENTE').length} en cola
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 font-medium mt-1">
+                    Suma total acumulada en espera de validación gerencial
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-emerald-50/80 to-emerald-100/40 border border-emerald-250 rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                      Horas Extra Aprobadas
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                      <ThumbsUp className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-emerald-900">
+                      +{totalHorasExtraAprobadasGlobal.toFixed(1)} hrs
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/60 px-2 py-0.5 rounded-full">
+                      {horasExtra.filter((h) => h.estado === 'APROBADO').length} aprobadas
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                    Autorizadas para pago directo en nómina
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-stone-50 to-stone-100/60 border border-stone-200/80 rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-stone-700 uppercase tracking-wider">
+                      Deducidas a Deuda (Bolsa)
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-stone-700 text-white flex items-center justify-center font-bold shadow-xs">
+                      <Scale className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-stone-900">
+                      -{totalHorasDeducidasGlobal.toFixed(1)} hrs
+                    </span>
+                    <span className="text-[10px] font-bold text-stone-600 bg-stone-200/70 px-2 py-0.5 rounded-full">
+                      {compensaciones.length} amortizadas
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 font-medium mt-1">
+                    Deducidas automáticamente al marcar salida
+                  </p>
+                </div>
+              </div>
+
               {/* Barra de Filtros: Buscador por empleado + Toggle de Separadores por Día */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-md">
@@ -1222,7 +1340,7 @@ export default function NominaAdminPage() {
                       <tr>
                         <th className="px-6 py-4">Fecha</th>
                         <th className="px-6 py-4">Empleado</th>
-                        <th className="px-6 py-4 text-right">Exceso Detectado</th>
+                        <th className="px-6 py-4 text-right">Horas del Día</th>
                         <th className="px-6 py-4 text-right">Horas Aprobadas</th>
                         <th className="px-6 py-4">Estado</th>
                         <th className="px-6 py-4 text-right">Decisión / Comentario</th>
@@ -1279,6 +1397,25 @@ export default function NominaAdminPage() {
                         horasExtraFiltradas.map((item) => renderFilaExtra(item))
                       )}
                     </tbody>
+                    {/* Fila de Totales de Solicitudes */}
+                    {horasExtraFiltradas.length > 0 && !loading && (
+                      <tfoot className="bg-[#1c6856]/5 border-t-2 border-[#1c6856]/30 font-bold text-stone-800">
+                        <tr>
+                          <td colSpan={2} className="px-6 py-3.5 text-right font-bold uppercase text-xs tracking-wider text-stone-600">
+                            Total Solicitudes en Lista:
+                          </td>
+                          <td className="px-6 py-3.5 text-right font-mono font-black text-emerald-700 text-sm">
+                            +{horasExtraFiltradas.reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_solicitadas)) || 0), 0).toFixed(1)} hrs
+                          </td>
+                          <td className="px-6 py-3.5 text-right font-mono font-black text-stone-900 text-sm">
+                            +{horasExtraFiltradas.filter((h) => h.estado === 'APROBADO').reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_autorizadas)) || 0), 0).toFixed(1)} hrs
+                          </td>
+                          <td colSpan={2} className="px-6 py-3.5 text-xs text-stone-500 font-medium">
+                            ({horasExtraFiltradas.filter((h) => h.estado === 'PENDIENTE').length} pendientes de aprobar)
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
               </div>
@@ -2038,8 +2175,16 @@ export default function NominaAdminPage() {
                 <span className="text-stone-500 font-bold">Colaborador:</span>
                 <span className="font-black text-stone-900">{pendingExtraAction.empNombre}</span>
               </div>
+              {pendingExtraAction.totalPendienteColaborador !== undefined && pendingExtraAction.totalPendienteColaborador > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-stone-500 font-bold">Suma Total por Aprobar:</span>
+                  <span className="font-mono font-black text-[#1c6856] bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                    +{pendingExtraAction.totalPendienteColaborador.toFixed(1)} hrs
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between items-center">
-                <span className="text-stone-500 font-bold">Decisión a Registrar:</span>
+                <span className="text-stone-500 font-bold">Decisión para este Día:</span>
                 {pendingExtraAction.decision === 'APROBADO' ? (
                   <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
                     Aprobar +{pendingExtraAction.horas.toFixed(1)} hrs

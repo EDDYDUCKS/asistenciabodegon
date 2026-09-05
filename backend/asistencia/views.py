@@ -259,7 +259,7 @@ class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
             remanente = res['remanente']
 
             autorizacion.horas_extra_autorizadas = remanente
-            nota_comp = f"[Bolsa de Horas: {horas_deducidas:.2f}h amortizadas a deuda previa (saldo: {res['deuda_restante']:.2f}h). {remanente:.2f}h enviadas a nómina]"
+            nota_comp = f"[Bolsa de Horas: {horas_deducidas:.1f}h amortizadas a deuda previa (saldo: {res['deuda_restante']:.1f}h). {remanente:.1f}h enviadas a nómina]"
             if autorizacion.comentario:
                 autorizacion.comentario = f"{autorizacion.comentario} | {nota_comp}"
             else:
@@ -1389,15 +1389,17 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
 
 def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_dia, request=None):
     """
-    Gestiona la acumulación de déficit o creación de solicitud de Horas Extra al marcar salida:
+    Gestiona la deducción automática de déficit y creación de solicitud de Horas Extra al marcar salida:
     1. Si horas_trabajadas_dia < 8.0:
        - Acumula déficit en horas_pendientes del empleado.
     2. Si horas_trabajadas_dia >= 8.0:
-       - Calcula excedente = horas_trabajadas_dia - 8.0.
-       - NO amortiza deudas en el Kiosco. El excedente completo se envía como solicitud
-         de Horas Extra en estado PENDIENTE.
-       - Si y solo si el Administrador APRUEBA formalmente la solicitud con PIN 2322,
-         se aplicará la deducción para amortizar la deuda acumulada del colaborador.
+       - Calcula excedente = round(horas_trabajadas_dia - 8.0, 1).
+       - Si el empleado posee déficit en su Bolsa de Horas (horas_pendientes > 0),
+         se sustraen automáticamente las horas necesarias para indemnizar la deuda de inmediato
+         sin requerir aprobación de gerencia.
+       - A la tabla de solicitudes de Horas Extra (AutorizacionHorasExtra) solo se envía
+         el remanente limpio por pagar en nómina (remanente = max(0.0, excedente - horas_amortizadas)).
+       - Si el remanente <= 0.05, no se genera solicitud por pagar (y se limpia cualquier solicitud pendiente).
     """
     primer_dia_mes = fecha_hoy.replace(day=1)
     if empleado.periodo_horas_pendientes != primer_dia_mes:
@@ -1408,23 +1410,38 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
     if horas_trabajadas_dia < 8.0:
         _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia)
         return {
-            'horas_netas': horas_trabajadas_dia,
+            'horas_netas': round(horas_trabajadas_dia, 1),
             'excedente': 0.0,
             'horas_amortizadas': 0.0,
-            'deuda_restante': float(empleado.horas_pendientes),
+            'deuda_restante': round(float(empleado.horas_pendientes), 1),
             'horas_extra_solicitadas': 0.0,
         }
 
     excedente = round(horas_trabajadas_dia - 8.0, 1)
-    deuda_actual = float(empleado.horas_pendientes)
+    deuda_actual = round(float(empleado.horas_pendientes or 0.0), 1)
 
-    # El excedente pasa a solicitud PENDIENTE para revisión y aprobación de gerencia
-    if excedente > 0.05:
+    horas_amortizadas = 0.0
+    remanente = excedente
+
+    # Deducción automática e inmediata si el colaborador tiene déficit acumulado
+    if deuda_actual > 0 and excedente > 0:
+        res_comp = _aplicar_amortizacion_deuda_empleado(
+            empleado=empleado,
+            fecha_referencia=fecha_hoy,
+            horas_a_amortizar=excedente,
+            request=request
+        )
+        horas_amortizadas = res_comp['horas_amortizadas']
+        remanente = res_comp['remanente']
+        deuda_actual = res_comp['deuda_restante']
+
+    # Solo el remanente limpio por pagar va a AutorizacionHorasExtra para revisión gerencial
+    if remanente > 0.05:
         AutorizacionHorasExtra.objects.update_or_create(
             empleado=empleado,
             fecha=fecha_hoy,
             defaults={
-                'horas_extra_solicitadas': round(excedente, 1),
+                'horas_extra_solicitadas': round(remanente, 1),
                 'estado': 'PENDIENTE'
             }
         )
@@ -1436,11 +1453,11 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         ).delete()
 
     return {
-        'horas_netas': horas_trabajadas_dia,
+        'horas_netas': round(horas_trabajadas_dia, 1),
         'excedente': excedente,
-        'horas_amortizadas': 0.0,
-        'deuda_restante': deuda_actual,
-        'horas_extra_solicitadas': excedente,
+        'horas_amortizadas': round(horas_amortizadas, 1),
+        'deuda_restante': round(deuda_actual, 1),
+        'horas_extra_solicitadas': round(remanente, 1),
     }
 
 
