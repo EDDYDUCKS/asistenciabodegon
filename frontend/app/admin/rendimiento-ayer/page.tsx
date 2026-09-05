@@ -127,34 +127,31 @@ export default function RendimientoAyerPage() {
         (a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime()
       );
 
-      // Eventos clave
-      const entrada = sorted.find(
-        (r) => r.tipo_evento === 'ENTRADA' || r.tipo_evento === 'ENTRADA_QUEBRADA'
-      );
+      // Eventos clave de la jornada
+      const entrada = sorted.find((r) => r.tipo_evento === 'ENTRADA') || sorted[0];
+      const salidaQuebrada = sorted.find((r) => r.tipo_evento === 'SALIDA_QUEBRADA');
+      const retornoQuebrada = sorted.find((r) => r.tipo_evento === 'ENTRADA_QUEBRADA');
       const salidaDef = [...sorted]
         .reverse()
         .find((r) => r.tipo_evento === 'SALIDA_DEFINITIVA');
-      const salidasQuebradas = sorted.filter((r) => r.tipo_evento === 'SALIDA_QUEBRADA');
+
+      // Calcular tiempo de pausa quebrada si aplica
+      let horasPausa = 0;
+      if (salidaQuebrada && retornoQuebrada) {
+        const msPausa =
+          new Date(retornoQuebrada.fecha_hora).getTime() -
+          new Date(salidaQuebrada.fecha_hora).getTime();
+        if (msPausa > 0) {
+          horasPausa = msPausa / (1000 * 60 * 60);
+        }
+      }
 
       // Calcular horas netas de la jornada
       let horasNetas = 0;
       if (entrada && salidaDef) {
         const msTotal =
           new Date(salidaDef.fecha_hora).getTime() - new Date(entrada.fecha_hora).getTime();
-        horasNetas = Math.max(0, msTotal / (1000 * 60 * 60));
-
-        // Si tuvo pausa de horario quebrado, descontar la pausa
-        if (salidasQuebradas.length > 0) {
-          const retornoQuebrada = sorted.find((r) => r.tipo_evento === 'ENTRADA_QUEBRADA');
-          if (retornoQuebrada) {
-            const msPausa =
-              new Date(retornoQuebrada.fecha_hora).getTime() -
-              new Date(salidasQuebradas[0].fecha_hora).getTime();
-            if (msPausa > 0) {
-              horasNetas = Math.max(0, (msTotal - msPausa) / (1000 * 60 * 60));
-            }
-          }
-        }
+        horasNetas = Math.max(0, msTotal / (1000 * 60 * 60) - horasPausa);
       }
 
       // 2. Verificar puntualidad
@@ -227,7 +224,10 @@ export default function RendimientoAyerPage() {
         empleado: emp,
         entrada,
         salida: salidaDef,
-        pausa: salidasQuebradas.length > 0,
+        salidaQuebrada,
+        retornoQuebrada,
+        horasPausa,
+        pausa: Boolean(salidaQuebrada || retornoQuebrada),
         horasNetas,
         puntual,
         minutosTarde,
@@ -703,7 +703,7 @@ export default function RendimientoAyerPage() {
               <tr className="border-b border-stone-200 text-[10px] uppercase font-bold text-stone-400 bg-stone-50/70">
                 <th className="py-3 px-4">Colaborador</th>
                 <th className="py-3 px-3 text-center">Entrada</th>
-                <th className="py-3 px-3 text-center">Pausa / Comida</th>
+                <th className="py-3 px-3 text-center">Pausa Intermedia (Quebrada)</th>
                 <th className="py-3 px-3 text-center">Salida</th>
                 <th className="py-3 px-3 text-right">Horas Netas</th>
                 <th className="py-3 px-3 text-center">Puntualidad</th>
@@ -721,6 +721,20 @@ export default function RendimientoAyerPage() {
                       hour12: true,
                     })
                   : '--:--';
+                const horaSalidaQ = fila.salidaQuebrada
+                  ? new Date(fila.salidaQuebrada.fecha_hora).toLocaleTimeString('es-NI', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    })
+                  : null;
+                const horaRetornoQ = fila.retornoQuebrada
+                  ? new Date(fila.retornoQuebrada.fecha_hora).toLocaleTimeString('es-NI', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    })
+                  : null;
                 const horaSalida = fila.salida
                   ? new Date(fila.salida.fecha_hora).toLocaleTimeString('es-NI', {
                       hour: '2-digit',
@@ -751,14 +765,37 @@ export default function RendimientoAyerPage() {
                       )}
                     </td>
 
-                    {/* Pausa Quebrada */}
+                    {/* Pausa Quebrada: Salida y Retorno */}
                     <td className="py-3 px-3 text-center">
-                      {fila.pausa ? (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                          Sí (Quebrada)
-                        </span>
+                      {horaSalidaQ && horaRetornoQ ? (
+                        <div className="inline-flex flex-col items-center">
+                          <div className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md shadow-2xs">
+                            <span title="Salida a Pausa">{horaSalidaQ}</span>
+                            <span className="text-amber-400 font-normal">➔</span>
+                            <span title="Retorno de Pausa">{horaRetornoQ}</span>
+                          </div>
+                          <span className="text-[9.5px] text-stone-500 font-medium mt-0.5">
+                            Pausa de {fila.horasPausa.toFixed(1)} hrs
+                          </span>
+                        </div>
+                      ) : horaSalidaQ && !horaRetornoQ ? (
+                        <div className="inline-flex flex-col items-center">
+                          <div className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                            <span>{horaSalidaQ}</span>
+                            <span className="text-amber-400 font-normal">➔</span>
+                            <span className="text-rose-600 font-bold">Sin retorno</span>
+                          </div>
+                        </div>
+                      ) : !horaSalidaQ && horaRetornoQ ? (
+                        <div className="inline-flex flex-col items-center">
+                          <span className="text-[11px] font-mono font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                            Retorno: {horaRetornoQ}
+                          </span>
+                        </div>
                       ) : (
-                        <span className="text-[11px] text-stone-400 font-normal">Corrida</span>
+                        <span className="text-[10.5px] text-stone-400 font-normal">
+                          Turno Corrido
+                        </span>
                       )}
                     </td>
 
