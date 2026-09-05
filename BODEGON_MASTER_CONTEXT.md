@@ -47,11 +47,11 @@
    - **Tolerancia:** 10 minutos de cortesía. Si regresa después de su hora límite + 10 min, el sistema genera alerta de impuntualidad en retorno.
 3. **Turno Vespertino Especial (5:00 PM):** Jornada de 6.0 horas (salida 11:00 PM, ej. ayudantes vespertinos).
 
-### B. Bolsa de Horas y Amortización Automática
-- **Déficit Diario:** Si un empleado en turno de 8h hace menos de 8h (ej: 7.0h), acumula déficit en su Bolsa de Horas (`-1.0h`).
-- **Amortización FIFO:** Cuando el colaborador genera horas extras en días posteriores (ej: trabaja 10.5h $\rightarrow$ `+2.5h` extra):
-  - Al aprobar con PIN `2322`, el sistema cubre primero la deuda acumulada más antigua (FIFO).
-  - El excedente restante pasa limpio como **Remanente a Pagar en Nómina**.
+### B. Bolsa de Horas y Compensación Automática Bidireccional
+- **Déficit Diario:** Si un empleado en turno de 8h hace menos de 8h (ej: 7.0h), se genera un déficit de `-1.0h`.
+- **Compensación Bidireccional Automática en el Kiosco:**
+  1. **Excedente sobre 8h vs Deuda previa:** Si el colaborador tiene déficit acumulado (`horas_pendientes > 0`), al marcar salida con $\ge 8.0\text{h}$ se sustraen automáticamente las horas necesarias para saldar su deuda de inmediato. Solo el remanente limpio va a aprobación de nómina.
+  2. **Salida temprana (< 8h) vs Horas extra pendientes:** Si el colaborador se va antes de sus 8h y posee horas extra en estado `PENDIENTE` en el mes, el déficit del día se compensa directamente contra su solicitud de horas extra pendiente (reduciendo la solicitud y evitando que quede con deuda). Si el déficit supera lo pendiente, solo la diferencia pasa a deuda.
 - **Visualización en Kiosco:** En el modal de consulta, la Bolsa de Horas se muestra como `0.0h (Al día ✅)` o `-X.Xh (Por compensar con HE ⚠️)`.
 
 ### C. Estandarización de 1 Solo Dígito Decimal
