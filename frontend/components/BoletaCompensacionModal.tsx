@@ -244,13 +244,13 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[8px] text-emerald-800 uppercase font-bold block">Extra Generada</span>
+                    <span className="text-[8px] text-emerald-800 uppercase font-bold block">Horas Extra Laboradas</span>
                     <span className="font-mono font-black text-emerald-800 text-xs">
                       +{Number(compensacion.horas_extra_generadas).toFixed(2)} hrs
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[8px] text-[#1c6856] uppercase font-bold block">Extra Deducida</span>
+                    <span className="text-[8px] text-[#1c6856] uppercase font-bold block">(-) Aplicadas a Deuda</span>
                     <span className="font-mono font-black text-[#1c6856] text-xs">
                       -{Number(compensacion.horas_deducidas).toFixed(2)} hrs
                     </span>
@@ -272,10 +272,10 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                     <thead>
                       <tr className="border-b border-stone-200 text-[8.5px] uppercase text-stone-500 font-bold bg-stone-50/80">
                         <th className="py-1 px-1.5">Fecha Adeudada</th>
-                        <th className="py-1 px-1.5 text-center">Trabajadas (8h base)</th>
-                        <th className="py-1 px-1.5 text-center text-rose-600">Déficit (Debe)</th>
-                        <th className="py-1 px-1.5 text-center text-emerald-700">Extra Aplicada</th>
-                        <th className="py-1 px-1.5 text-center">Saldo Restante</th>
+                        <th className="py-1 px-1.5 text-center">Jornada Laborada (Base 8h)</th>
+                        <th className="py-1 px-1.5 text-center text-rose-600">Horas Pendientes (Déficit)</th>
+                        <th className="py-1 px-1.5 text-center text-emerald-700">Horas Compensadas</th>
+                        <th className="py-1 px-1.5 text-center">Saldo Pendiente</th>
                         <th className="py-1 px-1.5 text-right">Estado</th>
                       </tr>
                     </thead>
@@ -315,31 +315,66 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
             </div>
 
             {/* Cuadro 4: Balance Consolidado de la Operación */}
-            <div className="bg-stone-50 border border-stone-200 rounded-lg p-2.5 mb-2.5">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                <div className="bg-white p-1.5 rounded border border-stone-200">
-                  <span className="text-[8px] text-stone-400 uppercase font-bold block">Deuda Previa</span>
-                  <span className="font-mono font-bold text-stone-800 text-xs">
-                    {Number(compensacion.deuda_previa).toFixed(2)} hrs
-                  </span>
+            <div className="bg-stone-50 border border-stone-200 rounded-xl p-2.5 mb-2.5 space-y-2">
+              {/* Sección A: Liquidación de Horas Extraordinarias de la Jornada */}
+              <div className="bg-white border border-stone-200/80 rounded-lg p-2 shadow-2xs">
+                <span className="text-[8.5px] font-bold text-stone-700 uppercase tracking-wider block mb-1">
+                  A. Liquidación de Horas Extraordinarias de la Jornada:
+                </span>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-stone-50/80 p-1.5 rounded border border-stone-200/70">
+                    <span className="text-[7.5px] text-stone-500 uppercase font-bold block">Horas Extra Laboradas</span>
+                    <span className="font-mono font-black text-stone-800 text-xs">
+                      +{Number(compensacion.horas_extra_generadas).toFixed(2)} hrs
+                    </span>
+                  </div>
+                  <div className="bg-stone-50/80 p-1.5 rounded border border-stone-200/70">
+                    <span className="text-[7.5px] text-stone-500 uppercase font-bold block">(-) Aplicadas a Deuda</span>
+                    <span className="font-mono font-black text-[#1c6856] text-xs">
+                      -{Number(compensacion.horas_deducidas).toFixed(2)} hrs
+                    </span>
+                  </div>
+                  <div className="bg-emerald-50 p-1.5 rounded border border-emerald-300">
+                    <span className="text-[7.5px] text-emerald-800 uppercase font-bold block">(=) A Pagar en Nómina</span>
+                    <span className="font-mono font-black text-emerald-800 text-xs">
+                      {Number(compensacion.remanente_extra) > 0 ? `+${Number(compensacion.remanente_extra).toFixed(2)} hrs` : '0.00 hrs'}
+                    </span>
+                  </div>
                 </div>
-                <div className="bg-white p-1.5 rounded border border-emerald-300">
-                  <span className="text-[8px] text-emerald-800 uppercase font-bold block">Total Deducido</span>
-                  <span className="font-mono font-black text-emerald-800 text-xs">
-                    -{Number(compensacion.horas_deducidas).toFixed(2)} hrs
-                  </span>
-                </div>
-                <div className="bg-white p-1.5 rounded border border-stone-200">
-                  <span className="text-[8px] text-stone-500 uppercase font-bold block">Saldo Deudor Actual</span>
-                  <span className="font-mono font-bold text-stone-900 text-xs">
-                    {Number(compensacion.saldo_restante).toFixed(2)} hrs
-                  </span>
-                </div>
-                <div className="bg-white p-1.5 rounded border border-stone-200">
-                  <span className="text-[8px] text-amber-700 uppercase font-bold block">Remanente a Pago</span>
-                  <span className="font-mono font-bold text-amber-800 text-xs">
-                    {Number(compensacion.remanente_extra) > 0 ? `+${Number(compensacion.remanente_extra).toFixed(2)} hrs` : '0.00 hrs'}
-                  </span>
+              </div>
+
+              {/* Sección B: Estado del Saldo Pendiente del Colaborador (Bolsa de Horas) */}
+              <div className="bg-white border border-stone-200/80 rounded-lg p-2 shadow-2xs">
+                <span className="text-[8.5px] font-bold text-stone-700 uppercase tracking-wider block mb-1">
+                  B. Estado del Saldo Pendiente del Colaborador (Bolsa de Horas):
+                </span>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-stone-50/80 p-1.5 rounded border border-stone-200/70">
+                    <span className="text-[7.5px] text-stone-500 uppercase font-bold block">Saldo Pendiente Anterior</span>
+                    <span className="font-mono font-black text-stone-800 text-xs">
+                      {Number(compensacion.deuda_previa).toFixed(2)} hrs
+                    </span>
+                  </div>
+                  <div className="bg-stone-50/80 p-1.5 rounded border border-stone-200/70">
+                    <span className="text-[7.5px] text-stone-500 uppercase font-bold block">(-) Horas Compensadas</span>
+                    <span className="font-mono font-black text-emerald-700 text-xs">
+                      -{Number(compensacion.horas_deducidas).toFixed(2)} hrs
+                    </span>
+                  </div>
+                  <div className={`p-1.5 rounded border ${
+                    esSaldada ? 'bg-emerald-50 border-emerald-300' : 'bg-rose-50 border-rose-300'
+                  }`}>
+                    <span className={`text-[7.5px] uppercase font-bold block ${
+                      esSaldada ? 'text-emerald-800' : 'text-rose-800'
+                    }`}>
+                      (=) Saldo Pendiente Actual
+                    </span>
+                    <span className={`font-mono font-black text-xs ${
+                      esSaldada ? 'text-emerald-800' : 'text-rose-700'
+                    }`}>
+                      {esSaldada ? '0.00 hrs (Al Día ✅)' : `${Number(compensacion.saldo_restante).toFixed(2)} hrs`}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

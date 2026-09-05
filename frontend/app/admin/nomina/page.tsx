@@ -726,7 +726,7 @@ export default function NominaAdminPage() {
             return null;
           })()}
         </td>
-        <td className="px-6 py-4 text-right font-mono font-bold text-rose-500">
+        <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700">
           +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(2)} hrs
         </td>
         <td className="px-6 py-4 text-right font-mono font-bold">
@@ -839,7 +839,7 @@ export default function NominaAdminPage() {
           <Clock className="w-3.5 h-3.5 inline-block mr-1.5" />
           Aprobaciones Horas Extra
           {horasExtra.filter((h) => h.estado === 'PENDIENTE').length > 0 && (
-            <span className="ml-1.5 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+            <span className="ml-1.5 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
           )}
         </button>
         <button
@@ -1083,7 +1083,7 @@ export default function NominaAdminPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-right font-mono font-bold text-amber-600">
+                        <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700">
                           {item.horasExtraAprobadas.toFixed(2)} hrs
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-rose-700 bg-rose-50/20">
@@ -1104,7 +1104,7 @@ export default function NominaAdminPage() {
                     <td className="px-6 py-4 text-right text-[#1c6856] text-base font-mono font-black">
                       {totalFeriadasPeriodo} {totalFeriadasPeriodo === 1 ? 'día' : 'días'}
                     </td>
-                    <td className="px-6 py-4 text-right text-amber-600 text-base font-mono font-black">
+                    <td className="px-6 py-4 text-right text-emerald-700 text-base font-mono font-black">
                       {totalExtrasPeriodo.toFixed(2)} hrs
                     </td>
                     <td className="px-6 py-4 text-right text-rose-700 bg-rose-50/50 text-base font-mono font-black">
@@ -1145,7 +1145,7 @@ export default function NominaAdminPage() {
               <span>Solicitudes de Horas Extra</span>
               {horasExtra.filter((h) => h.estado === 'PENDIENTE').length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
-                  subTabExtras === 'pendientes' ? 'bg-white text-[#1c6856]' : 'bg-rose-500 text-white'
+                  subTabExtras === 'pendientes' ? 'bg-white text-[#1c6856]' : 'bg-amber-500 text-white'
                 }`}>
                   {horasExtra.filter((h) => h.estado === 'PENDIENTE').length}
                 </span>
@@ -1495,46 +1495,53 @@ export default function NominaAdminPage() {
                         </div>
 
                         {/* Footer Resumen de la Tarjeta */}
-                        <div className="bg-stone-100/90 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs border border-stone-200/70 font-medium">
-                          <div className="flex flex-wrap items-center gap-4">
-                            <div>
-                              <span className="text-stone-500 text-[10px] uppercase font-bold block">
-                                Total Extra Deducido:
+                        <div className="bg-stone-50 rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs border border-stone-200 font-medium">
+                          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                            {/* Sección A: Horas Extra */}
+                            <div className="space-y-0.5">
+                              <span className="text-stone-400 text-[9px] uppercase font-bold block">
+                                A. Horas Extra Jornada
                               </span>
-                              <span className="font-mono font-bold text-[#1c6856] text-sm">
-                                -{Number(comp.horas_deducidas).toFixed(2)} hrs
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-stone-500 text-[10px] uppercase font-bold block">
-                                Saldo Global Deudor:
-                              </span>
-                              <span className="font-mono font-bold text-stone-900 text-sm">
-                                {Number(comp.saldo_restante).toFixed(2)} hrs
-                              </span>
-                            </div>
-                            {Number(comp.remanente_extra) > 0 && (
-                              <div>
-                                <span className="text-amber-700 text-[10px] uppercase font-bold block">
-                                  Remanente a Pago de Nómina:
-                                </span>
-                                <span className="font-mono font-bold text-amber-800 text-sm">
-                                  +{Number(comp.remanente_extra).toFixed(2)} hrs
+                              <div className="flex items-center gap-1.5 text-xs font-mono">
+                                <span className="text-stone-700 font-bold" title="Laboradas">+{Number(comp.horas_extra_generadas).toFixed(2)}h</span>
+                                <span className="text-stone-400 font-normal">|</span>
+                                <span className="text-[#1c6856] font-bold" title="Aplicadas a Deuda">-{Number(comp.horas_deducidas).toFixed(2)}h</span>
+                                <span className="text-stone-400 font-normal">|</span>
+                                <span className="text-emerald-700 font-black bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="A Pagar en Nómina">
+                                  {Number(comp.remanente_extra) > 0 ? `+${Number(comp.remanente_extra).toFixed(2)}h pagar` : '0.00h'}
                                 </span>
                               </div>
-                            )}
+                            </div>
+
+                            {/* Sección B: Saldo Pendiente */}
+                            <div className="space-y-0.5">
+                              <span className="text-stone-400 text-[9px] uppercase font-bold block">
+                                B. Saldo Pendiente (Bolsa)
+                              </span>
+                              <div className="flex items-center gap-1.5 text-xs font-mono">
+                                <span className="text-stone-600 font-bold" title="Saldo Anterior">{Number(comp.deuda_previa).toFixed(2)}h previa</span>
+                                <span className="text-stone-400 font-normal">➔</span>
+                                <span className={`font-black px-1.5 py-0.5 rounded border ${
+                                  Number(comp.saldo_restante) <= 0
+                                    ? 'text-emerald-800 bg-emerald-50 border-emerald-300'
+                                    : 'text-rose-700 bg-rose-50 border-rose-300'
+                                }`} title="Saldo Pendiente Actual">
+                                  {Number(comp.saldo_restante) <= 0 ? '0.00h (Al Día ✅)' : `${Number(comp.saldo_restante).toFixed(2)}h pendiente`}
+                                </span>
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-3">
-                            <span className="text-[11px] font-mono text-stone-400">
-                              Registro: {new Date(comp.created_at).toLocaleString('es-NI', { hour12: true })}
+                          <div className="flex items-center gap-3 self-end md:self-center">
+                            <span className="text-[10px] font-mono text-stone-400 hidden sm:inline">
+                              {new Date(comp.created_at).toLocaleString('es-NI', { hour12: true })}
                             </span>
                             <button
                               onClick={() => setSelectedCompensacion(comp)}
-                              className="bg-white hover:bg-stone-50 border border-stone-300 hover:border-[#1c6856] text-stone-700 hover:text-[#1c6856] px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+                              className="bg-[#1c6856] hover:bg-[#154f42] text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
                             >
-                              <Printer className="w-3.5 h-3.5 text-[#1c6856]" />
-                              Descargar Boleta en PDF
+                              <Printer className="w-3.5 h-3.5" />
+                              Ver Boleta Oficial PDF
                             </button>
                           </div>
                         </div>
