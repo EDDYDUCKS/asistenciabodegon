@@ -219,7 +219,7 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                   <span className="text-stone-400 font-bold block text-[8px] uppercase">Estado de Saldo:</span>
                   <span className={`font-bold text-[10px] inline-flex items-center gap-1 ${esSaldada ? 'text-emerald-700' : 'text-amber-700'}`}>
                     <CheckCircle className="w-3 h-3" />
-                    {esSaldada ? 'Totalmente Liquidada' : `Debe ${Number(compensacion.saldo_restante).toFixed(2)} hrs`}
+                    {esSaldada ? 'Totalmente Liquidada' : `Debe ${Number(compensacion.saldo_restante).toFixed(1)} hrs`}
                   </span>
                 </div>
               </div>
@@ -240,19 +240,19 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                   <div className="text-right">
                     <span className="text-[8px] text-stone-500 uppercase font-bold block">Jornada Total</span>
                     <span className="font-mono font-bold text-stone-800 text-xs">
-                      {Number(compensacion.horas_trabajadas_hoy).toFixed(2)} hrs
+                      {Number(compensacion.horas_trabajadas_hoy).toFixed(1)} hrs
                     </span>
                   </div>
                   <div className="text-right">
                     <span className="text-[8px] text-emerald-800 uppercase font-bold block">Horas Extra Laboradas</span>
                     <span className="font-mono font-black text-emerald-800 text-xs">
-                      +{Number(compensacion.horas_extra_generadas).toFixed(2)} hrs
+                      +{Number(compensacion.horas_extra_generadas).toFixed(1)} hrs
                     </span>
                   </div>
                   <div className="text-right">
                     <span className="text-[8px] text-[#1c6856] uppercase font-bold block">(-) Aplicadas a Deuda</span>
                     <span className="font-mono font-black text-[#1c6856] text-xs">
-                      -{Number(compensacion.horas_deducidas).toFixed(2)} hrs
+                      -{Number(compensacion.horas_deducidas).toFixed(1)} hrs
                     </span>
                   </div>
                 </div>
@@ -286,16 +286,16 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                             {item.fecha_display || item.fecha}
                           </td>
                           <td className="py-1 px-1.5 text-center font-mono text-stone-700">
-                            {Number(item.horas_trabajadas).toFixed(2)} hrs
+                            {Number(item.horas_trabajadas).toFixed(1)} hrs
                           </td>
                           <td className="py-1 px-1.5 text-center font-mono text-rose-700 font-bold">
-                            -{Number(item.horas_faltaron).toFixed(2)} hrs
+                            -{Number(item.horas_faltaron).toFixed(1)} hrs
                           </td>
                           <td className="py-1 px-1.5 text-center font-mono text-emerald-800 font-black">
-                            +{Number(item.horas_aplicadas).toFixed(2)} hrs
+                            +{Number(item.horas_aplicadas).toFixed(1)} hrs
                           </td>
                           <td className="py-1 px-1.5 text-center font-mono text-stone-900 font-bold">
-                            {Number(item.saldo_dia).toFixed(2)} hrs
+                            {Number(item.saldo_dia).toFixed(1)} hrs
                           </td>
                           <td className="py-1 px-1.5 text-right">
                             <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
@@ -309,7 +309,7 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                 </div>
               ) : (
                 <div className="bg-stone-50 p-2 rounded text-stone-600 text-[10px]">
-                  Amortización directa aplicada sobre el saldo deudor acumulado: {Number(compensacion.horas_deducidas).toFixed(2)} hrs.
+                  Amortización directa aplicada sobre el saldo deudor acumulado: {Number(compensacion.horas_deducidas).toFixed(1)} hrs.
                 </div>
               )}
             </div>
@@ -325,19 +325,19 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                   <div className="bg-stone-50/80 p-1.5 rounded border border-stone-200/70">
                     <span className="text-[7.5px] text-stone-500 uppercase font-bold block">Horas Extra Laboradas</span>
                     <span className="font-mono font-black text-stone-800 text-xs">
-                      +{Number(compensacion.horas_extra_generadas).toFixed(2)} hrs
+                      +{Number(compensacion.horas_extra_generadas).toFixed(1)} hrs
                     </span>
                   </div>
                   <div className="bg-stone-50/80 p-1.5 rounded border border-stone-200/70">
                     <span className="text-[7.5px] text-stone-500 uppercase font-bold block">(-) Aplicadas a Deuda</span>
                     <span className="font-mono font-black text-[#1c6856] text-xs">
-                      -{Number(compensacion.horas_deducidas).toFixed(2)} hrs
+                      -{Number(compensacion.horas_deducidas).toFixed(1)} hrs
                     </span>
                   </div>
                   <div className="bg-emerald-50 p-1.5 rounded border border-emerald-300">
                     <span className="text-[7.5px] text-emerald-800 uppercase font-bold block">(=) A Pagar en Nómina</span>
                     <span className="font-mono font-black text-emerald-800 text-xs">
-                      {Number(compensacion.remanente_extra) > 0 ? `+${Number(compensacion.remanente_extra).toFixed(2)} hrs` : '0.00 hrs'}
+                      {Number(compensacion.remanente_extra) > 0 ? `+${Number(compensacion.remanente_extra).toFixed(1)} hrs` : '0.0 hrs'}
                     </span>
                   </div>
                 </div>
@@ -352,13 +352,13 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                   <div className="bg-stone-50/80 p-1.5 rounded border border-stone-200/70">
                     <span className="text-[7.5px] text-stone-500 uppercase font-bold block">Saldo Pendiente Anterior</span>
                     <span className="font-mono font-black text-stone-800 text-xs">
-                      {Number(compensacion.deuda_previa).toFixed(2)} hrs
+                      {Number(compensacion.deuda_previa).toFixed(1)} hrs
                     </span>
                   </div>
                   <div className="bg-stone-50/80 p-1.5 rounded border border-stone-200/70">
                     <span className="text-[7.5px] text-stone-500 uppercase font-bold block">(-) Horas Compensadas</span>
                     <span className="font-mono font-black text-emerald-700 text-xs">
-                      -{Number(compensacion.horas_deducidas).toFixed(2)} hrs
+                      -{Number(compensacion.horas_deducidas).toFixed(1)} hrs
                     </span>
                   </div>
                   <div className={`p-1.5 rounded border ${
@@ -372,7 +372,7 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                     <span className={`font-mono font-black text-xs ${
                       esSaldada ? 'text-emerald-800' : 'text-rose-700'
                     }`}>
-                      {esSaldada ? '0.00 hrs (Al Día ✅)' : `${Number(compensacion.saldo_restante).toFixed(2)} hrs`}
+                      {esSaldada ? '0.0 hrs (Al Día ✅)' : `${Number(compensacion.saldo_restante).toFixed(1)} hrs`}
                     </span>
                   </div>
                 </div>

@@ -884,7 +884,7 @@ export default function KioscoPage() {
                     {feedback.horas_trabajadas_hoy !== undefined && (
                       <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                         <span className="inline-block bg-white/10 border border-white/20 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl font-mono">
-                          ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
+                          ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(1)} hrs
                         </span>
                         {feedback.cumplio_meta_8h ? (
                           <span className="inline-block bg-emerald-500 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl shadow-sm">
@@ -961,7 +961,7 @@ export default function KioscoPage() {
                               ¡Buen descanso, {empNombre}! 🍽️
                             </h2>
                             <p className="text-xs sm:text-sm font-medium text-amber-100 mt-0.5">
-                              Salida a pausa: <strong>{horaMarcada}</strong> • Acumulaste <strong>{hHoy.toFixed(2)} hrs</strong>
+                              Salida a pausa: <strong>{horaMarcada}</strong> • Acumulaste <strong>{hHoy.toFixed(1)} hrs</strong>
                             </p>
                           </div>
 
@@ -1010,7 +1010,7 @@ export default function KioscoPage() {
                               </span>
                             </div>
                             <p className="text-[11px] text-blue-100 font-medium leading-snug">
-                              Llevas {feedback.horas_trabajadas_hoy?.toFixed(2)}h acumuladas. Salida programada al cierre de las 11:00 PM.
+                              Llevas {feedback.horas_trabajadas_hoy?.toFixed(1)}h acumuladas. Salida programada al cierre de las 11:00 PM.
                             </p>
                           </div>
                         </div>
@@ -1037,7 +1037,7 @@ export default function KioscoPage() {
                         </div>
                         <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
                           <span className="bg-white/15 border border-white/20 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl font-mono">
-                            ⏱️ Total Hoy: {totalH.toFixed(2)} hrs
+                            ⏱️ Total Hoy: {totalH.toFixed(1)} hrs
                           </span>
                           {feedback.cumplio_meta_8h && (
                             <span className="bg-emerald-500 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl shadow-sm">
@@ -1046,7 +1046,7 @@ export default function KioscoPage() {
                           )}
                           {totalH > 8.0 && (
                             <span className="bg-amber-400 text-stone-950 text-xs sm:text-sm font-black px-3 py-1 rounded-xl">
-                              ⭐ +{(totalH - 8.0).toFixed(2)}h extra registradas
+                              ⭐ +{(totalH - 8.0).toFixed(1)}h extra registradas
                             </span>
                           )}
                         </div>
@@ -1144,7 +1144,7 @@ export default function KioscoPage() {
                       {feedback.horas_trabajadas_hoy !== undefined && (
                         <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
                           <span className="inline-block bg-amber-100 text-amber-900 text-[11px] font-bold px-3 py-1 rounded-lg font-mono">
-                            ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
+                            ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(1)} hrs
                           </span>
                           {feedback.cumplio_meta_8h ? (
                             <span className="inline-block bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg">
@@ -1177,7 +1177,7 @@ export default function KioscoPage() {
                       {feedback.horas_trabajadas_hoy !== undefined && (
                         <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
                           <span className="inline-block bg-emerald-100 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-lg font-mono">
-                            ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(2)} hrs
+                            ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(1)} hrs
                           </span>
                           {feedback.cumplio_meta_8h ? (
                             <span className="inline-block bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg">

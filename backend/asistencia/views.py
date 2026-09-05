@@ -725,7 +725,7 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                         alerta_tipo = 'SALIDA_ANTICIPADA'
                         alerta_titulo = f"Salida anticipada (Turno 5 PM){tag_offline}: {empleado.nombre} {empleado.apellido}"
                         alerta_mensaje = (
-                            f"Se retiró antes de cumplir su jornada acordada de 6 horas. Acumuló {round(horas_netas_hoy, 2)} hrs "
+                            f"Se retiró antes de cumplir su jornada acordada de 6 horas. Acumuló {round(horas_netas_hoy, 1)} hrs "
                             f"(Déficit de {deficit_mins} min)."
                         )
             else:
@@ -738,7 +738,7 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                         alerta_tipo = 'SALIDA_ANTICIPADA'
                         alerta_titulo = f"Jornada incompleta{tag_offline}: {empleado.nombre} {empleado.apellido}"
                         alerta_mensaje = (
-                            f"Se retiró antes de cumplir sus 8 horas. Acumuló {round(horas_netas_hoy, 2)} hrs "
+                            f"Se retiró antes de cumplir sus 8 horas. Acumuló {round(horas_netas_hoy, 1)} hrs "
                             f"(Déficit de {deficit_mins} min)."
                         )
 
@@ -824,7 +824,7 @@ def marcar_asistencia_kiosco(request):
                     f"No te preocupes, tu registro está guardado."
                 ),
                 'registro': RegistroAsistenciaSerializer(ultimo_reg, context={'request': request}).data,
-                'horas_trabajadas_hoy': round(_calcular_horas_netas_dia(list(registros_hoy)), 2)
+                'horas_trabajadas_hoy': round(_calcular_horas_netas_dia(list(registros_hoy)), 1)
             })
 
     # Tipo de evento solicitado o auto-detectado inteligentemente por franja horaria
@@ -913,7 +913,7 @@ def marcar_asistencia_kiosco(request):
     # ── DETECCIÓN DE PUNTUALIDAD Y CREACIÓN DE ALERTAS INTERNAS ─────────────
     _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=False)
 
-    horas_restantes_hoy = max(0.0, round(8.0 - horas_netas_hoy, 2))
+    horas_restantes_hoy = max(0.0, round(8.0 - horas_netas_hoy, 1))
     cumplio_meta = horas_netas_hoy >= 7.95
 
     # Detectar si entró en el turno vespertino especial de las 5:00 PM (ej. Xiomara Castillo)
@@ -971,8 +971,8 @@ def marcar_asistencia_kiosco(request):
         'status': 'ok',
         'mensaje': mensaje_kiosco,
         'registro': RegistroAsistenciaSerializer(registro, context={'request': request}).data,
-        'horas_trabajadas_hoy': round(horas_netas_hoy, 2),
-        'horas_restantes_hoy': round(horas_restantes_hoy, 2),
+        'horas_trabajadas_hoy': round(horas_netas_hoy, 1),
+        'horas_restantes_hoy': round(horas_restantes_hoy, 1),
         'cumplio_meta_8h': cumplio_meta,
         'compensacion': comp_info,
     })
@@ -1022,7 +1022,7 @@ def consultar_horas_kiosco(request):
         for r in registros_hoy
     ]
 
-    horas_hoy = round(_calcular_horas_netas_dia(registros_hoy), 2)
+    horas_hoy = round(_calcular_horas_netas_dia(registros_hoy), 1)
 
     # 2. Horas acumuladas del mes vigente
     primer_dia_mes = hoy.replace(day=1)
@@ -1081,7 +1081,7 @@ def consultar_horas_kiosco(request):
         'marcajes_hoy': marcajes_hoy,
         'horas_trabajadas_hoy': horas_hoy,
         'horas_mes': round(horas_mes_total, 1),
-        'horas_pendientes': round(float(empleado.horas_pendientes), 2),
+        'horas_pendientes': round(float(empleado.horas_pendientes), 1),
         'turno_activo': turno_activo,
         'hora_inicio_turno': hora_inicio_turno,
         'horas_en_curso': horas_en_curso,
@@ -1201,7 +1201,7 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
         if tiene_salida_definitiva:
             horas_dia = _calcular_horas_netas_dia(regs_d)
             if horas_dia < 8.0:
-                deficit = round(8.0 - horas_dia, 2)
+                deficit = round(8.0 - horas_dia, 1)
                 deuda_acumulada += deficit
     # Restar compensaciones formalmente aprobadas en el mes
     from django.db.models import Sum
@@ -1210,7 +1210,7 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
         fecha_compensacion__range=(primer_dia_mes, hoy)
     ).aggregate(t=Sum('horas_deducidas'))['t'] or 0.0
 
-    deuda_neta = max(0.0, round(deuda_acumulada - float(total_compensado), 2))
+    deuda_neta = max(0.0, round(deuda_acumulada - float(total_compensado), 1))
     empleado.horas_pendientes = deuda_neta
     empleado.periodo_horas_pendientes = primer_dia_mes
     empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
@@ -1232,10 +1232,10 @@ def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
 
     # Reiniciar si el período cambió (nuevo mes)
     if empleado.periodo_horas_pendientes != primer_dia_mes:
-        empleado.horas_pendientes = 0.00
+        empleado.horas_pendientes = 0.0
         empleado.periodo_horas_pendientes = primer_dia_mes
 
-    empleado.horas_pendientes = float(empleado.horas_pendientes) + round(deficit, 2)
+    empleado.horas_pendientes = float(empleado.horas_pendientes) + round(deficit, 1)
     empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
 
 
@@ -1268,11 +1268,11 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
         }
 
     horas_amortizadas = min(horas_a_amortizar, deuda_actual)
-    nueva_deuda = max(0.0, round(deuda_actual - horas_amortizadas, 2))
+    nueva_deuda = max(0.0, round(deuda_actual - horas_amortizadas, 1))
     empleado.horas_pendientes = nueva_deuda
     empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
 
-    remanente_extra = max(0.0, round(horas_a_amortizar - horas_amortizadas, 2))
+    remanente_extra = max(0.0, round(horas_a_amortizar - horas_amortizadas, 1))
 
     # Buscar días previos con déficit para construir el desglose detallado (FIFO)
     start_periodo = timezone.make_aware(datetime.datetime.combine(primer_dia_mes, datetime.time.min), tz_ni)
@@ -1292,10 +1292,10 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
     for dia_k, regs_k in sorted(dias_anteriores.items()):
         h_dia = _calcular_horas_netas_dia(regs_k)
         if 0 < h_dia < 8.0:
-            deficit_k = round(8.0 - h_dia, 2)
+            deficit_k = round(8.0 - h_dia, 1)
             dias_deficit.append({
                 'fecha': dia_k,
-                'horas_trabajadas': round(h_dia, 2),
+                'horas_trabajadas': round(h_dia, 1),
                 'horas_faltaron': deficit_k,
             })
 
@@ -1307,7 +1307,7 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
             break
         faltan = dd['horas_faltaron']
         aplicadas = min(faltan, bolsa_disponible)
-        saldo_dia = round(faltan - aplicadas, 2)
+        saldo_dia = round(faltan - aplicadas, 1)
         estado_dia = "Liquidada al 100%" if saldo_dia == 0 else f"Abonada ({saldo_dia} hrs pendientes)"
 
         desglose.append({
@@ -1315,17 +1315,17 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
             'fecha_display': dd['fecha'].strftime('%d/%m/%Y'),
             'horas_trabajadas': dd['horas_trabajadas'],
             'horas_faltaron': faltan,
-            'horas_aplicadas': round(aplicadas, 2),
+            'horas_aplicadas': round(aplicadas, 1),
             'saldo_dia': saldo_dia,
             'estado': estado_dia,
         })
-        bolsa_disponible = round(bolsa_disponible - aplicadas, 2)
+        bolsa_disponible = round(bolsa_disponible - aplicadas, 1)
 
     if not desglose and horas_amortizadas > 0:
         desglose.append({
             'fecha': primer_dia_mes.strftime('%Y-%m-%d'),
             'fecha_display': f"Período {primer_dia_mes.strftime('%m/%Y')}",
-            'horas_trabajadas': round(8.0 - deuda_actual, 2) if deuda_actual < 8.0 else 0.0,
+            'horas_trabajadas': round(8.0 - deuda_actual, 1) if deuda_actual < 8.0 else 0.0,
             'horas_faltaron': deuda_actual,
             'horas_aplicadas': horas_amortizadas,
             'saldo_dia': nueva_deuda,
@@ -1339,18 +1339,18 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
         empleado=empleado,
         fecha_hora__range=(start_dia_ref, end_dia_ref)
     ).order_by('fecha_hora'))
-    horas_dia_ref = _calcular_horas_netas_dia(regs_ref) if regs_ref else round(8.0 + horas_a_amortizar, 2)
+    horas_dia_ref = _calcular_horas_netas_dia(regs_ref) if regs_ref else round(8.0 + horas_a_amortizar, 1)
 
     # Registrar CompensacionHoras auditable
     comp = CompensacionHoras.objects.create(
         empleado=empleado,
         fecha_compensacion=fecha_referencia,
-        horas_trabajadas_hoy=round(horas_dia_ref, 2),
-        horas_extra_generadas=round(horas_a_amortizar, 2),
-        horas_deducidas=round(horas_amortizadas, 2),
-        deuda_previa=round(deuda_actual, 2),
-        saldo_restante=round(nueva_deuda, 2),
-        remanente_extra=round(remanente_extra, 2),
+        horas_trabajadas_hoy=round(horas_dia_ref, 1),
+        horas_extra_generadas=round(horas_a_amortizar, 1),
+        horas_deducidas=round(horas_amortizadas, 1),
+        deuda_previa=round(deuda_actual, 1),
+        saldo_restante=round(nueva_deuda, 1),
+        remanente_extra=round(remanente_extra, 1),
         desglose=desglose,
     )
 
@@ -1361,8 +1361,8 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
         titulo=f"Compensación Autorizada: {empleado.nombre} {empleado.apellido}",
         mensaje=(
             f"Al autorizar horas extra del {fecha_referencia.strftime('%d/%m/%Y')}, "
-            f"se aplicaron {round(horas_amortizadas, 2)} hrs extra para amortizar su déficit acumulado. "
-            f"Saldo de horas debidas actualizado a: {round(nueva_deuda, 2)} hrs."
+            f"se aplicaron {round(horas_amortizadas, 1)} hrs extra para amortizar su déficit acumulado. "
+            f"Saldo de horas debidas actualizado a: {round(nueva_deuda, 1)} hrs."
         ),
         leida=False
     )
@@ -1372,17 +1372,17 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
         usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
         accion='REGISTRO_MANUAL',
         descripcion=(
-            f"Bolsa de Horas Aprobada: {round(horas_amortizadas, 2)} hrs compensadas para "
-            f"{empleado.nombre} {empleado.apellido}. Deuda actualizada a {round(nueva_deuda, 2)} hrs."
+            f"Bolsa de Horas Aprobada: {round(horas_amortizadas, 1)} hrs compensadas para "
+            f"{empleado.nombre} {empleado.apellido}. Deuda actualizada a {round(nueva_deuda, 1)} hrs."
         ),
         ip_address=_get_clean_ip(request) if request else None
     )
 
     return {
-        'horas_amortizadas': round(horas_amortizadas, 2),
-        'deuda_previa': round(deuda_actual, 2),
-        'deuda_restante': round(nueva_deuda, 2),
-        'remanente': round(remanente_extra, 2),
+        'horas_amortizadas': round(horas_amortizadas, 1),
+        'deuda_previa': round(deuda_actual, 1),
+        'deuda_restante': round(nueva_deuda, 1),
+        'remanente': round(remanente_extra, 1),
         'compensacion': comp,
     }
 
@@ -1415,7 +1415,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'horas_extra_solicitadas': 0.0,
         }
 
-    excedente = round(horas_trabajadas_dia - 8.0, 2)
+    excedente = round(horas_trabajadas_dia - 8.0, 1)
     deuda_actual = float(empleado.horas_pendientes)
 
     # El excedente pasa a solicitud PENDIENTE para revisión y aprobación de gerencia
@@ -1424,7 +1424,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             empleado=empleado,
             fecha=fecha_hoy,
             defaults={
-                'horas_extra_solicitadas': round(excedente, 2),
+                'horas_extra_solicitadas': round(excedente, 1),
                 'estado': 'PENDIENTE'
             }
         )
@@ -1471,7 +1471,7 @@ def _verificar_septimo_dia(empleado, fecha_hoy, horas_trabajadas_dia):
                 empleado=empleado,
                 fecha=fecha_hoy,
                 defaults={
-                    'horas_extra_solicitadas': round(horas_extra_7mo, 2),
+                    'horas_extra_solicitadas': round(horas_extra_7mo, 1),
                     'estado': 'PENDIENTE'
                 }
             )
@@ -1620,7 +1620,7 @@ def exportar_reporte_nomina_excel(request):
                         desc_feriado = DiaFeriado.objects.filter(fecha=dia).first()
                         nombre_feriado = desc_feriado.descripcion if desc_feriado else "Día Feriado"
                         feriados_trabajados_info.append(
-                            f"- {dia.strftime('%d/%m/%Y')}: {nombre_feriado} ({round(horas_ord, 2)} hrs)"
+                            f"- {dia.strftime('%d/%m/%Y')}: {nombre_feriado} ({round(horas_ord, 1)} hrs)"
                         )
                     else:
                         horas_normales_trabajadas += horas_ord
@@ -1689,10 +1689,10 @@ def exportar_reporte_nomina_excel(request):
                 f"{emp.nombre} {emp.apellido} ({emp.get_cargo_display()})",
                 dias_trabajados,
                 dias_libres,
-                round(horas_normales_trabajadas, 2),
+                round(horas_normales_trabajadas, 1),
                 feriados_trabajados_dias,
-                round(float(horas_extra_aprobadas), 2),
-                round(horas_debidas, 2),
+                round(float(horas_extra_aprobadas), 1),
+                round(horas_debidas, 1),
             ]
             ws.append(fila)
 

@@ -663,7 +663,7 @@ export default function RendimientoAyerPage() {
         // Horas
         ctx.font = 'bold 12px monospace';
         ctx.fillStyle = '#1c1917';
-        ctx.fillText(`${f.horasNetas.toFixed(2)}h`, marginX + 680, curY + 27);
+        ctx.fillText(`${f.horasNetas.toFixed(1)}h`, marginX + 680, curY + 27);
 
         // Badge
         if (f.estadoCierre === 'SIN_SALIDA') {
@@ -1121,7 +1121,7 @@ export default function RendimientoAyerPage() {
             </span>
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl font-display font-black text-emerald-700 leading-none">
-                +{reporteJornada.totalHorasExtraGeneradas.toFixed(2)}
+                +{reporteJornada.totalHorasExtraGeneradas.toFixed(1)}
               </span>
               <span className="text-xs font-mono font-bold text-stone-500">hrs extra</span>
             </div>
@@ -1372,7 +1372,7 @@ export default function RendimientoAyerPage() {
 
                     {/* Horas Netas */}
                     <td className="py-3 px-3 text-right font-mono font-black text-stone-900">
-                      {fila.horasNetas > 0 ? `${fila.horasNetas.toFixed(2)} hrs` : '0.00 hrs'}
+                      {fila.horasNetas > 0 ? `${fila.horasNetas.toFixed(1)} hrs` : '0.0 hrs'}
                     </td>
 
                     {/* Puntualidad Interactiva */}
@@ -1418,7 +1418,7 @@ export default function RendimientoAyerPage() {
                               : 'text-stone-400 bg-stone-50 border-stone-200 line-through'
                           }`}
                         >
-                          +{parseFloat(String(fila.horasExtra.horas_extra_solicitadas)).toFixed(2)}h
+                          +{parseFloat(String(fila.horasExtra.horas_extra_solicitadas)).toFixed(1)}h
                         </span>
                       ) : (
                         <span className="text-stone-300 font-normal">--</span>

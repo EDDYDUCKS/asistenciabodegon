@@ -719,7 +719,7 @@ export default function NominaAdminPage() {
               return (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md mt-1">
                   <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                  Debe {deuda.toFixed(2)} hrs (se amortizará al aprobar)
+                  Debe {deuda.toFixed(1)} hrs (se amortizará al aprobar)
                 </span>
               );
             }
@@ -727,13 +727,13 @@ export default function NominaAdminPage() {
           })()}
         </td>
         <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700">
-          +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(2)} hrs
+          +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
         </td>
         <td className="px-6 py-4 text-right font-mono font-bold">
           {isEditing ? (
             <input
               type="number"
-              step="0.10"
+              step="0.1"
               max={String(item.horas_extra_solicitadas)}
               value={tempAutorizadas}
               onChange={(e) => setTempAutorizadas(e.target.value)}
@@ -742,8 +742,8 @@ export default function NominaAdminPage() {
           ) : (
             <span>
               {item.estado === 'APROBADO'
-                ? `${parseFloat(String(item.horas_extra_autorizadas)).toFixed(2)} hrs`
-                : '0.00 hrs'}
+                ? `${parseFloat(String(item.horas_extra_autorizadas)).toFixed(1)} hrs`
+                : '0.0 hrs'}
             </span>
           )}
         </td>
@@ -1039,7 +1039,7 @@ export default function NominaAdminPage() {
                           {item.diasLibres} {item.diasLibres === 1 ? 'libre' : 'libres'}
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-stone-900">
-                          {item.horasOrdinarias.toFixed(2)} hrs
+                          {item.horasOrdinarias.toFixed(1)} hrs
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-[#1c6856] relative">
                           <div className="flex items-center justify-end gap-1.5">
@@ -1072,7 +1072,7 @@ export default function NominaAdminPage() {
                                           </span>
                                         </div>
                                         <span className="font-mono font-bold text-[#1c6856] shrink-0">
-                                          {f.horas.toFixed(2)} hrs
+                                          {f.horas.toFixed(1)} hrs
                                         </span>
                                       </div>
                                     ))}
@@ -1084,10 +1084,10 @@ export default function NominaAdminPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700">
-                          {item.horasExtraAprobadas.toFixed(2)} hrs
+                          {item.horasExtraAprobadas.toFixed(1)} hrs
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-rose-700 bg-rose-50/20">
-                          {item.horasDebidas.toFixed(2)} hrs
+                          {item.horasDebidas.toFixed(1)} hrs
                         </td>
                       </tr>
                     ))
@@ -1099,16 +1099,16 @@ export default function NominaAdminPage() {
                       Totales del Período:
                     </td>
                     <td className="px-6 py-4 text-right text-stone-950 text-base font-mono font-black">
-                      {totalOrdinariasPeriodo.toFixed(2)} hrs
+                      {totalOrdinariasPeriodo.toFixed(1)} hrs
                     </td>
                     <td className="px-6 py-4 text-right text-[#1c6856] text-base font-mono font-black">
                       {totalFeriadasPeriodo} {totalFeriadasPeriodo === 1 ? 'día' : 'días'}
                     </td>
                     <td className="px-6 py-4 text-right text-emerald-700 text-base font-mono font-black">
-                      {totalExtrasPeriodo.toFixed(2)} hrs
+                      {totalExtrasPeriodo.toFixed(1)} hrs
                     </td>
                     <td className="px-6 py-4 text-right text-rose-700 bg-rose-50/50 text-base font-mono font-black">
-                      {totalDebidasPeriodo.toFixed(2)} hrs
+                      {totalDebidasPeriodo.toFixed(1)} hrs
                     </td>
                   </tr>
                 </tfoot>
@@ -1348,7 +1348,6 @@ export default function NominaAdminPage() {
                               </p>
                             </div>
                           </div>
-
                           <div className="flex items-center gap-2">
                             <span
                               className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border shadow-2xs ${
@@ -1359,8 +1358,8 @@ export default function NominaAdminPage() {
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
                               {esSaldada
-                                ? 'Deuda Liquidada al 100% ✅'
-                                : `Saldo Pendiente: ${Number(comp.saldo_restante).toFixed(2)} hrs ⚠️`}
+                                 ? 'Deuda Liquidada al 100% ✅'
+                                 : `Saldo Pendiente: ${Number(comp.saldo_restante).toFixed(1)} hrs ⚠️`}
                             </span>
 
                             <button
@@ -1404,7 +1403,7 @@ export default function NominaAdminPage() {
                                 Jornada Realizada
                               </span>
                               <span className="font-mono font-bold text-stone-800">
-                                {Number(comp.horas_trabajadas_hoy).toFixed(2)} hrs
+                                {Number(comp.horas_trabajadas_hoy).toFixed(1)} hrs
                               </span>
                             </div>
                             <div className="bg-white px-3 py-1.5 rounded-xl border border-emerald-300 shadow-2xs">
@@ -1412,7 +1411,7 @@ export default function NominaAdminPage() {
                                 Horas Extra Generadas
                               </span>
                               <span className="font-mono font-black text-emerald-900 text-sm">
-                                +{Number(comp.horas_extra_generadas).toFixed(2)} hrs
+                                +{Number(comp.horas_extra_generadas).toFixed(1)} hrs
                               </span>
                             </div>
                           </div>
@@ -1447,9 +1446,9 @@ export default function NominaAdminPage() {
                                         Horas Trabajadas
                                       </span>
                                       <span className="font-mono font-bold text-stone-800">
-                                        {Number(item.horas_trabajadas).toFixed(2)} hrs
+                                        {Number(item.horas_trabajadas).toFixed(1)} hrs
                                       </span>
-                                      <span className="text-[10px] text-stone-400 block">(base 8.00 hrs)</span>
+                                      <span className="text-[10px] text-stone-400 block">(base 8.0 hrs)</span>
                                     </div>
 
                                     <div className="bg-white p-2 rounded-lg border border-stone-200/60">
@@ -1457,7 +1456,7 @@ export default function NominaAdminPage() {
                                         Horas Faltaron (Déficit)
                                       </span>
                                       <span className="font-mono font-bold text-rose-700">
-                                        -{Number(item.horas_faltaron).toFixed(2)} hrs
+                                        -{Number(item.horas_faltaron).toFixed(1)} hrs
                                       </span>
                                       <span className="text-[10px] text-rose-400 block">Deuda del día</span>
                                     </div>
@@ -1467,7 +1466,7 @@ export default function NominaAdminPage() {
                                         Horas Extra Aplicadas
                                       </span>
                                       <span className="font-mono font-bold text-emerald-800">
-                                        +{Number(item.horas_aplicadas).toFixed(2)} hrs
+                                        +{Number(item.horas_aplicadas).toFixed(1)} hrs
                                       </span>
                                       <span className="text-[10px] text-emerald-600 block">Deducción directa</span>
                                     </div>
@@ -1477,7 +1476,7 @@ export default function NominaAdminPage() {
                                         Saldo de esta Fecha
                                       </span>
                                       <span className="font-mono font-bold text-stone-900">
-                                        {Number(item.saldo_dia).toFixed(2)} hrs
+                                        {Number(item.saldo_dia).toFixed(1)} hrs
                                       </span>
                                       <span className="text-[10px] text-stone-400 block">
                                         {Number(item.saldo_dia) === 0 ? 'Liquidado' : 'Pendiente'}
@@ -1488,7 +1487,7 @@ export default function NominaAdminPage() {
                               ))
                             ) : (
                               <div className="bg-stone-50 p-3 rounded-xl text-stone-500 text-xs">
-                                Amortización directa aplicada sobre el saldo deudor acumulado: {Number(comp.horas_deducidas).toFixed(2)} hrs.
+                                Amortización directa aplicada sobre el saldo deudor acumulado: {Number(comp.horas_deducidas).toFixed(1)} hrs.
                               </div>
                             )}
                           </div>
@@ -1503,12 +1502,12 @@ export default function NominaAdminPage() {
                                 A. Horas Extra Jornada
                               </span>
                               <div className="flex items-center gap-1.5 text-xs font-mono">
-                                <span className="text-stone-700 font-bold" title="Laboradas">+{Number(comp.horas_extra_generadas).toFixed(2)}h</span>
+                                <span className="text-stone-700 font-bold" title="Laboradas">+{Number(comp.horas_extra_generadas).toFixed(1)}h</span>
                                 <span className="text-stone-400 font-normal">|</span>
-                                <span className="text-[#1c6856] font-bold" title="Aplicadas a Deuda">-{Number(comp.horas_deducidas).toFixed(2)}h</span>
+                                <span className="text-[#1c6856] font-bold" title="Aplicadas a Deuda">-{Number(comp.horas_deducidas).toFixed(1)}h</span>
                                 <span className="text-stone-400 font-normal">|</span>
                                 <span className="text-emerald-700 font-black bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="A Pagar en Nómina">
-                                  {Number(comp.remanente_extra) > 0 ? `+${Number(comp.remanente_extra).toFixed(2)}h pagar` : '0.00h'}
+                                  {Number(comp.remanente_extra) > 0 ? `+${Number(comp.remanente_extra).toFixed(1)}h pagar` : '0.0h'}
                                 </span>
                               </div>
                             </div>
@@ -1519,14 +1518,14 @@ export default function NominaAdminPage() {
                                 B. Saldo Pendiente (Bolsa)
                               </span>
                               <div className="flex items-center gap-1.5 text-xs font-mono">
-                                <span className="text-stone-600 font-bold" title="Saldo Anterior">{Number(comp.deuda_previa).toFixed(2)}h previa</span>
+                                <span className="text-stone-600 font-bold" title="Saldo Anterior">{Number(comp.deuda_previa).toFixed(1)}h previa</span>
                                 <span className="text-stone-400 font-normal">➔</span>
                                 <span className={`font-black px-1.5 py-0.5 rounded border ${
                                   Number(comp.saldo_restante) <= 0
                                     ? 'text-emerald-800 bg-emerald-50 border-emerald-300'
                                     : 'text-rose-700 bg-rose-50 border-rose-300'
                                 }`} title="Saldo Pendiente Actual">
-                                  {Number(comp.saldo_restante) <= 0 ? '0.00h (Al Día ✅)' : `${Number(comp.saldo_restante).toFixed(2)}h pendiente`}
+                                  {Number(comp.saldo_restante) <= 0 ? '0.0h (Al Día ✅)' : `${Number(comp.saldo_restante).toFixed(1)}h pendiente`}
                                 </span>
                               </div>
                             </div>
@@ -2043,11 +2042,11 @@ export default function NominaAdminPage() {
                 <span className="text-stone-500 font-bold">Decisión a Registrar:</span>
                 {pendingExtraAction.decision === 'APROBADO' ? (
                   <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                    Aprobar +{pendingExtraAction.horas.toFixed(2)} hrs
+                    Aprobar +{pendingExtraAction.horas.toFixed(1)} hrs
                   </span>
                 ) : (
                   <span className="font-mono font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200">
-                    Rechazar Solicitud (0.00 hrs)
+                    Rechazar Solicitud (0.0 hrs)
                   </span>
                 )}
               </div>
@@ -2063,12 +2062,12 @@ export default function NominaAdminPage() {
                     Amortización Automática de Deuda
                   </div>
                   <p className="text-[11px] leading-relaxed text-amber-800 font-medium">
-                    El colaborador adeuda actualmente <strong>{pendingExtraAction.deudaActual.toFixed(2)} hrs</strong>. Al ingresar su PIN, se deducirán automáticamente{' '}
-                    <strong>{Math.min(pendingExtraAction.horas, pendingExtraAction.deudaActual).toFixed(2)} hrs</strong> para abonar a su saldo deudor (Bolsa de Horas).
+                    El colaborador adeuda actualmente <strong>{pendingExtraAction.deudaActual.toFixed(1)} hrs</strong>. Al ingresar su PIN, se deducirán automáticamente{' '}
+                    <strong>{Math.min(pendingExtraAction.horas, pendingExtraAction.deudaActual).toFixed(1)} hrs</strong> para abonar a su saldo deudor (Bolsa de Horas).
                     {pendingExtraAction.horas > pendingExtraAction.deudaActual ? (
-                      <> El remanente de <strong>{(pendingExtraAction.horas - pendingExtraAction.deudaActual).toFixed(2)} hrs</strong> pasará limpio a pago de nómina.</>
+                      <> El remanente de <strong>{(pendingExtraAction.horas - pendingExtraAction.deudaActual).toFixed(1)} hrs</strong> pasará limpio a pago de nómina.</>
                     ) : (
-                      <> La deuda restante quedará en <strong>{(pendingExtraAction.deudaActual - pendingExtraAction.horas).toFixed(2)} hrs</strong>.</>
+                      <> La deuda restante quedará en <strong>{(pendingExtraAction.deudaActual - pendingExtraAction.horas).toFixed(1)} hrs</strong>.</>
                     )}
                   </p>
                 </div>
