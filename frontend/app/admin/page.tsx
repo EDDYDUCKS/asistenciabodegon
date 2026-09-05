@@ -13,6 +13,7 @@ import {
   QrCode,
   ArrowRight,
   Utensils,
+  TrendingUp,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -64,6 +65,15 @@ export default function AdminDashboardPage() {
   const ausentes = empleados.filter((e) => e.activo && !estadoMap[e.id]);
   const totalActivos = empleados.filter((e) => e.activo).length;
 
+  // Fecha de ayer para acceso directo al informe
+  const ayerDate = new Date();
+  ayerDate.setDate(ayerDate.getDate() - 1);
+  const ayerDisplay = ayerDate.toLocaleDateString('es-NI', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+
   return (
     <div className="space-y-6 select-none font-sans">
       {/* Encabezado Dashboard */}
@@ -78,14 +88,27 @@ export default function AdminDashboardPage() {
           </p>
         </div>
 
-        <button
-          onClick={loadData}
-          disabled={loading}
-          className="bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-2 self-start sm:self-auto shadow-sm"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''} text-[#1c6856]`} />
-          Actualizar Estado
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          <Link
+            href="/admin/rendimiento-ayer"
+            className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-2 shadow-sm cursor-pointer"
+          >
+            <TrendingUp className="w-4 h-4 text-emerald-300" />
+            <span>Rendimiento de Ayer</span>
+            <span className="bg-white/20 text-white text-[10px] font-mono px-1.5 py-0.5 rounded-md capitalize">
+              {ayerDisplay}
+            </span>
+          </Link>
+
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-2 shadow-sm cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''} text-[#1c6856]`} />
+            Actualizar Estado
+          </button>
+        </div>
       </div>
 
       {/* Tarjetas de Métricas de Hoy */}
