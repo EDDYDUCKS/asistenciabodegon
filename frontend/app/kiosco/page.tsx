@@ -38,7 +38,7 @@ export default function KioscoPage() {
   const [dateStr, setDateStr] = useState<string>('');
   const [processing, setProcessing] = useState(false);
   const [feedback, setFeedback] = useState<MarcajeKioscoResponse | null>(null);
-  const [feedbackTimer, setFeedbackTimer] = useState<number>(5);
+  const [feedbackTimer, setFeedbackTimer] = useState<number>(10);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showAdminPinModal, setShowAdminPinModal] = useState(false);
   const [adminPin, setAdminPin] = useState('');
@@ -49,7 +49,7 @@ export default function KioscoPage() {
   // Estados de Consulta de Horas para Colaboradores
   const [showConsultaModal, setShowConsultaModal] = useState(false);
   const [consultaData, setConsultaData] = useState<any | null>(null);
-  const [consultaTimer, setConsultaTimer] = useState(7);
+  const [consultaTimer, setConsultaTimer] = useState(10);
   const [consultando, setConsultando] = useState(false);
   const [consultaError, setConsultaError] = useState<string | null>(null);
 
@@ -360,7 +360,7 @@ export default function KioscoPage() {
         status: 'ok',
         mensaje: 'Guardado localmente (SIN CONEXIÓN). Se sincronizará automáticamente al recuperar internet.',
       });
-      setFeedbackTimer(5);
+      setFeedbackTimer(10);
 
       // Agregar marcaje offline al feed local
       const localTimeFormatted = new Date(nowStr).toLocaleTimeString('es-NI', {
@@ -420,7 +420,7 @@ export default function KioscoPage() {
   const handleCerrarConsulta = useCallback(() => {
     setShowConsultaModal(false);
     setConsultaData(null);
-    setConsultaTimer(7);
+    setConsultaTimer(10);
     setConsultaError(null);
     setConsultando(false);
     consultandoRef.current = false;
@@ -429,7 +429,7 @@ export default function KioscoPage() {
     lockRef.current = false;
   }, []);
 
-  // ── Auto-Cierre de 7 Segundos para Consulta de Horas ─────────────────────
+  // ── Auto-Cierre de 10 Segundos para Consulta de Horas ─────────────────────
   useEffect(() => {
     if (!consultaData) return;
     if (consultaTimer <= 0) {
@@ -442,7 +442,7 @@ export default function KioscoPage() {
     return () => clearTimeout(timer);
   }, [consultaData, consultaTimer, handleCerrarConsulta]);
 
-  // ── Auto-Cierre de 5 Segundos para el Feedback de Marcaje ────────────────
+  // ── Auto-Cierre de 10 Segundos para el Feedback de Marcaje ────────────────
   useEffect(() => {
     if (!feedback) return;
     if (feedbackTimer <= 0) {
@@ -474,7 +474,7 @@ export default function KioscoPage() {
           const res = await consultarHorasKiosco(token.trim());
           setConsultaData(res);
           consultaDataRef.current = res;
-          setConsultaTimer(7);
+          setConsultaTimer(10);
           playAudioFeedback('success');
         } catch (err: any) {
           playAudioFeedback(false);
@@ -543,7 +543,7 @@ export default function KioscoPage() {
             }
           }
           setFeedback(res);
-          setFeedbackTimer(5);
+          setFeedbackTimer(10);
           setEmpleadoDetectado(null);
 
           // Agregar al feed de actividad del Kiosco
@@ -1055,12 +1055,12 @@ export default function KioscoPage() {
                   })()
                 )}
 
-                {/* Barra de progreso de 5 segundos con botón para cerrar */}
+                {/* Barra de progreso de 10 segundos con botón para cerrar */}
                 <div className="w-full max-w-sm sm:max-w-md mx-auto pt-3 flex items-center justify-between gap-3">
                   <div className="flex-1 bg-white/20 h-1.5 rounded-full overflow-hidden">
                     <div
                       className="bg-white h-full transition-all duration-1000 ease-linear rounded-full"
-                      style={{ width: `${(feedbackTimer / 5) * 100}%` }}
+                      style={{ width: `${(feedbackTimer / 10) * 100}%` }}
                     />
                   </div>
                   <button
@@ -1619,7 +1619,7 @@ export default function KioscoPage() {
               )}
             </div>
 
-            {/* Barra de Auto-Cierre de 7 Segundos y Botón Listo */}
+            {/* Barra de Auto-Cierre de 10 Segundos y Botón Listo */}
             <div className="pt-2 border-t border-stone-100 flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-stone-500 text-xs font-semibold">
                 <Clock className="w-4 h-4 text-emerald-600 animate-spin" style={{ animationDuration: '3s' }} />
