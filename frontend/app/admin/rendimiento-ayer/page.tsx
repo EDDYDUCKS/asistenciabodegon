@@ -331,6 +331,7 @@ export default function RendimientoAyerPage() {
         horasPausa,
         pausa: Boolean(salidaQuebrada || retornoQuebrada),
         horasNetas,
+        horasOrdinarias: Math.min(8.0, horasNetas),
         puntual,
         minutosTarde,
         turnoEsperadoStr,
@@ -660,10 +661,10 @@ export default function RendimientoAyerPage() {
           : 'Sin salida';
         ctx.fillText(`${entStr} → ${salStr}`, marginX + 390, curY + 27);
 
-        // Horas
+        // Horas Ordinarias (Base 8.0h máx)
         ctx.font = 'bold 12px monospace';
         ctx.fillStyle = '#1c1917';
-        ctx.fillText(`${f.horasNetas.toFixed(1)}h`, marginX + 680, curY + 27);
+        ctx.fillText(`${f.horasOrdinarias.toFixed(1)}h`, marginX + 680, curY + 27);
 
         // Badge
         if (f.estadoCierre === 'SIN_SALIDA') {
@@ -1370,9 +1371,9 @@ export default function RendimientoAyerPage() {
                       )}
                     </td>
 
-                    {/* Horas Netas */}
+                    {/* Horas Netas (Máximo 8.0h reglamentarias, las extras van en su columna) */}
                     <td className="py-3 px-3 text-right font-mono font-black text-stone-900">
-                      {fila.horasNetas > 0 ? `${fila.horasNetas.toFixed(1)} hrs` : '0.0 hrs'}
+                      {fila.horasOrdinarias > 0 ? `${fila.horasOrdinarias.toFixed(1)} hrs` : '0.0 hrs'}
                     </td>
 
                     {/* Puntualidad Interactiva */}
