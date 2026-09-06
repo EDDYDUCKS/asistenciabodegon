@@ -16,6 +16,7 @@ import {
   deletePermiso,
   fetchCompensaciones,
   deleteCompensacion,
+  ajustarVacacionesEmpleado,
 } from '@/lib/api-client';
 import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras } from '@/lib/types';
 import BoletaCompensacionModal from '@/components/BoletaCompensacionModal';
@@ -41,6 +42,10 @@ import {
   Scale,
   Layers,
   Printer,
+  Info,
+  Edit3,
+  BookOpen,
+  FileCheck,
 } from 'lucide-react';
 
 const MESES_NOMBRES: Record<number, string> = {
@@ -106,6 +111,14 @@ export default function NominaAdminPage() {
   const [reporteMes, setReporteMes] = useState<number>(hoyFechaObj.getMonth() + 1);
   const [reporteAnio, setReporteAnio] = useState<number>(hoyFechaObj.getFullYear());
   const [downloadingVacaciones, setDownloadingVacaciones] = useState(false);
+
+  // State para Auditoría y Ajuste de Vacaciones
+  const [selectedVacacionesEmp, setSelectedVacacionesEmp] = useState<Empleado | null>(null);
+  const [ajustandoEmp, setAjustandoEmp] = useState<Empleado | null>(null);
+  const [tempAjusteDias, setTempAjusteDias] = useState<string>('0.0');
+  const [tempAjusteMotivo, setTempAjusteMotivo] = useState<string>('');
+  const [savingAjusteVac, setSavingAjusteVac] = useState<boolean>(false);
+  const [searchVacacionesColab, setSearchVacacionesColab] = useState<string>('');
 
   // Form State para Horas Extra (temporal para edición en lista)
   const [editingExtraId, setEditingExtraId] = useState<number | null>(null);
@@ -240,6 +253,35 @@ export default function NominaAdminPage() {
       alert(err instanceof Error ? err.message : 'Error descargando reporte Excel de vacaciones');
     } finally {
       setDownloadingVacaciones(false);
+    }
+  };
+
+  const handleOpenAjuste = (emp: Empleado) => {
+    setAjustandoEmp(emp);
+    setTempAjusteDias(String(emp.dias_vacaciones_acumuladas ?? '0.0'));
+    setTempAjusteMotivo('');
+  };
+
+  const handleSaveAjusteVacaciones = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ajustandoEmp) return;
+    const diasVal = parseFloat(tempAjusteDias);
+    if (isNaN(diasVal) || diasVal < 0) {
+      alert('Por favor ingrese una cantidad válida de días de vacaciones.');
+      return;
+    }
+    setSavingAjusteVac(true);
+    try {
+      const updated = await ajustarVacacionesEmpleado(ajustandoEmp.id, diasVal, tempAjusteMotivo.trim() || 'Ajuste inicial de saldo por administración');
+      setEmpleados((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      if (selectedVacacionesEmp?.id === updated.id) {
+        setSelectedVacacionesEmp(updated);
+      }
+      setAjustandoEmp(null);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al ajustar vacaciones');
+    } finally {
+      setSavingAjusteVac(false);
     }
   };
 
@@ -437,7 +479,16 @@ export default function NominaAdminPage() {
   });
 
   const asistenciasFiltradas = asistencias.filter((a) => {
-    const fecha = new Date(a.fecha_hora).toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    const dt = new Date(a.fecha_hora);
+    const horaLocal = parseInt(
+      dt.toLocaleTimeString('en-US', { timeZone: 'America/Managua', hour12: false, hour: 'numeric' }),
+      10
+    );
+    let fecha = dt.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    if (a.tipo_evento === 'SALIDA_DEFINITIVA' && horaLocal < 5) {
+      const prevDate = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
+      fecha = prevDate.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    }
     return fecha >= fechaInicio && fecha <= fechaFin;
   });
 
@@ -447,10 +498,19 @@ export default function NominaAdminPage() {
       const regEmp = asistenciasFiltradas.filter((a) => a.empleado === emp.id);
       const diasPermisoEmp = permisosMapPorEmpleado[emp.id] || new Set<string>();
       
-      // Agrupar asistencias por día en hora local de Nicaragua
+      // Agrupar asistencias por día en hora local operativa de Nicaragua
       const diasMap: Record<string, RegistroAsistencia[]> = {};
       regEmp.forEach((a) => {
-        const diaLocal = new Date(a.fecha_hora).toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+        const dt = new Date(a.fecha_hora);
+        const horaLocal = parseInt(
+          dt.toLocaleTimeString('en-US', { timeZone: 'America/Managua', hour12: false, hour: 'numeric' }),
+          10
+        );
+        let diaLocal = dt.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+        if (a.tipo_evento === 'SALIDA_DEFINITIVA' && horaLocal < 5) {
+          const prevDate = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
+          diaLocal = prevDate.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+        }
         if (!diasMap[diaLocal]) diasMap[diaLocal] = [];
         diasMap[diaLocal].push(a);
       });
@@ -596,6 +656,18 @@ export default function NominaAdminPage() {
       const deudaOficialBolsa = parseFloat(String(emp.horas_pendientes || 0));
       const horasDebidasFinal = Math.max(horasDebidas, deudaOficialBolsa);
 
+      // Cálculo de vacaciones acumuladas, tomadas y saldo restante
+      const vacAcumuladas = parseFloat(String(emp.dias_vacaciones_acumuladas || 0));
+      const permisosVacEmp = permisos.filter(
+        (p) =>
+          p.empleado === emp.id &&
+          (p.tipo === 'VACACIONES' ||
+            p.tipo === 'VACACIONES_PAGADAS' ||
+            (p.tipo === 'PERMISO_AUTORIZADO' && (p.motivo || '').toLowerCase().includes('vacaciones')))
+      );
+      const vacTomadas = permisosVacEmp.reduce((acc, p) => acc + (p.total_dias || 0), 0);
+      const vacRestantes = Number((vacAcumuladas - vacTomadas).toFixed(1));
+
       return {
         emp,
         diasUnicos,
@@ -606,6 +678,10 @@ export default function NominaAdminPage() {
         horasExtraAprobadas,
         horasDebidas: horasDebidasFinal,
         permisosInfo: permisosInfoPorEmpleado[emp.id] || [],
+        vacAcumuladas,
+        vacTomadas,
+        vacRestantes,
+        permisosVacEmp,
       };
     });
 
@@ -623,6 +699,7 @@ export default function NominaAdminPage() {
   const totalFeriadasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.feriadosTrabajadosDias, 0);
   const totalExtrasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasExtraAprobadas, 0);
   const totalDebidasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasDebidas, 0);
+  const totalVacacionesPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.vacRestantes, 0);
 
   const permisosMesSeleccionado = useMemo(() => {
     const padM = String(reporteMes).padStart(2, '0');
@@ -1043,24 +1120,25 @@ export default function NominaAdminPage() {
                     <th className="px-6 py-4 text-right">Feriados Trabajados (Días)</th>
                     <th className="px-6 py-4 text-right">Horas Extra Aprobadas</th>
                     <th className="px-6 py-4 text-right text-rose-700 bg-rose-50/50">Horas Debidas (Déficit)</th>
+                    <th className="px-6 py-4 text-right text-emerald-800 bg-emerald-50/60">🏖️ Vacaciones Restantes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-stone-400">
+                      <td colSpan={8} className="px-6 py-8 text-center text-stone-400">
                         Calculando registros...
                       </td>
                     </tr>
                   ) : resumenEmpleados.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-stone-400 font-normal">
+                      <td colSpan={8} className="px-6 py-8 text-center text-stone-400 font-normal">
                         No hay registros disponibles para este rango.
                       </td>
                     </tr>
                   ) : resumenFiltrado.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-8 text-center text-stone-400 font-normal">
+                      <td colSpan={8} className="px-6 py-8 text-center text-stone-400 font-normal">
                         No se encontró ningún trabajador que coincida con &quot;{searchColaborador}&quot;.
                       </td>
                     </tr>
@@ -1152,6 +1230,20 @@ export default function NominaAdminPage() {
                             )}
                           </div>
                         </td>
+                        <td className="px-6 py-4 text-right bg-emerald-50/20">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVacacionesEmp(item.emp)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-black bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+                            title="Haga clic para ver el desglose legal auditado de días acumulados, tomados y saldo disponible"
+                          >
+                            <span>🏖️</span>
+                            <span className={item.vacRestantes < 0 ? 'text-rose-600' : 'text-emerald-800'}>
+                              {item.vacRestantes.toFixed(1)} {Math.abs(item.vacRestantes) === 1 ? 'día' : 'días'}
+                            </span>
+                            <Info className="w-3 h-3 text-emerald-600 opacity-60 group-hover:opacity-100" />
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -1172,6 +1264,9 @@ export default function NominaAdminPage() {
                     </td>
                     <td className="px-6 py-4 text-right text-rose-700 bg-rose-50/50 text-base font-mono font-black">
                       {totalDebidasPeriodo.toFixed(1)} hrs
+                    </td>
+                    <td className="px-6 py-4 text-right text-emerald-800 bg-emerald-50/50 text-base font-mono font-black">
+                      {totalVacacionesPeriodo.toFixed(1)} días
                     </td>
                   </tr>
                 </tfoot>
@@ -1834,6 +1929,141 @@ export default function NominaAdminPage() {
             </p>
           </div>
 
+          {/* ── TABLERO MAESTRO DE CONTROL Y SALDOS DE VACACIONES ── */}
+          <div className="glass-panel border border-white rounded-3xl p-6 shadow-premium space-y-5 bg-white/95">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center font-bold shadow-2xs">
+                  <Palmtree className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-stone-900 tracking-tight flex items-center gap-2">
+                    Saldos de Vacaciones por Colaborador
+                    <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Ley Nic. Art. 76: +2.5 días/mes
+                    </span>
+                  </h3>
+                  <p className="text-xs text-stone-500 font-medium mt-0.5">
+                    Haga clic en cualquiera para ver el desglose legal o ajustar el saldo inicial provisto por Administración.
+                  </p>
+                </div>
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <input
+                  type="text"
+                  placeholder="Buscar colaborador..."
+                  value={searchVacacionesColab}
+                  onChange={(e) => setSearchVacacionesColab(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-7 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                />
+                <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                {searchVacacionesColab && (
+                  <button
+                    onClick={() => setSearchVacacionesColab('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Tabla de Saldos */}
+            <div className="overflow-x-auto rounded-2xl border border-stone-200/80">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="px-5 py-3">Colaborador</th>
+                    <th className="px-4 py-3 text-right">Acumuladas Totales</th>
+                    <th className="px-4 py-3 text-right">Días Tomados</th>
+                    <th className="px-4 py-3 text-right text-emerald-800 bg-emerald-50/50">Saldo Disponible</th>
+                    <th className="px-4 py-3 text-center">Último Corte</th>
+                    <th className="px-5 py-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-200/80 text-stone-800 font-medium bg-white">
+                  {empleados
+                    .filter((e) => e.activo)
+                    .filter((e) => {
+                      if (!searchVacacionesColab.trim()) return true;
+                      const term = searchVacacionesColab.toLowerCase();
+                      return `${e.nombre} ${e.apellido}`.toLowerCase().includes(term) || (e.cargo_display || '').toLowerCase().includes(term);
+                    })
+                    .map((emp) => {
+                      const vacAcum = parseFloat(String(emp.dias_vacaciones_acumuladas || 0));
+                      const permisosVac = permisos.filter(
+                        (p) =>
+                          p.empleado === emp.id &&
+                          (p.tipo === 'VACACIONES' ||
+                            p.tipo === 'VACACIONES_PAGADAS' ||
+                            (p.tipo === 'PERMISO_AUTORIZADO' && (p.motivo || '').toLowerCase().includes('vacaciones')))
+                      );
+                      const vacTom = permisosVac.reduce((acc, p) => acc + (p.total_dias || 0), 0);
+                      const vacDisp = Number((vacAcum - vacTom).toFixed(1));
+                      const corteStr = emp.ultimo_corte_vacaciones
+                        ? new Date(emp.ultimo_corte_vacaciones + 'T00:00:00').toLocaleDateString('es-NI', {
+                            month: 'short',
+                            year: 'numeric',
+                          })
+                        : 'Al día';
+
+                      return (
+                        <tr key={emp.id} className="hover:bg-stone-50/60 transition-colors">
+                          <td className="px-5 py-3">
+                            <div className="font-bold text-stone-900">{emp.nombre} {emp.apellido}</div>
+                            <span className="text-[10px] text-stone-500 font-medium">{emp.cargo_display}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-stone-700">
+                            +{vacAcum.toFixed(1)} días
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono font-bold text-amber-700">
+                            {vacTom > 0 ? `-${vacTom.toFixed(1)} días` : '0.0 días'}
+                          </td>
+                          <td className="px-4 py-3 text-right bg-emerald-50/20">
+                            <span
+                              className={`inline-block font-mono font-black text-xs px-2.5 py-1 rounded-lg border shadow-2xs ${
+                                vacDisp < 0
+                                  ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                  : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              }`}
+                            >
+                              {vacDisp.toFixed(1)} {Math.abs(vacDisp) === 1 ? 'día' : 'días'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center text-[11px] font-mono text-stone-500">
+                            {corteStr}
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedVacacionesEmp(emp)}
+                                className="bg-stone-50 hover:bg-[#1c6856] hover:text-white border border-stone-200 text-stone-700 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                                title="Ver auditoría y estado de cuenta de vacaciones"
+                              >
+                                <Info className="w-3.5 h-3.5" />
+                                <span>Detalle</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAjuste(emp)}
+                                className="bg-[#1c6856]/10 hover:bg-[#1c6856] text-[#1c6856] hover:text-white border border-[#1c6856]/20 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                                title="Ajustar saldo inicial de vacaciones"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                <span>Ajustar</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Formulario Registrar Permiso */}
             <form onSubmit={handleAddPermiso} className="lg:col-span-4 bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-4">
@@ -2425,6 +2655,342 @@ export default function NominaAdminPage() {
         compensacion={selectedCompensacion}
         onClose={() => setSelectedCompensacion(null)}
       />
+
+      {/* ── MODAL 1: AUDITORÍA DETALLADA Y ESTADO DE CUENTA DE VACACIONES ── */}
+      {selectedVacacionesEmp && (() => {
+        const emp = selectedVacacionesEmp;
+        const vacAcum = parseFloat(String(emp.dias_vacaciones_acumuladas || 0));
+        const permisosVac = permisos.filter(
+          (p) =>
+            p.empleado === emp.id &&
+            (p.tipo === 'VACACIONES' ||
+              p.tipo === 'VACACIONES_PAGADAS' ||
+              (p.tipo === 'PERMISO_AUTORIZADO' && (p.motivo || '').toLowerCase().includes('vacaciones')))
+        );
+        const vacTom = permisosVac.reduce((acc, p) => acc + (p.total_dias || 0), 0);
+        const vacDisp = Number((vacAcum - vacTom).toFixed(1));
+        const corteStr = emp.ultimo_corte_vacaciones
+          ? new Date(emp.ultimo_corte_vacaciones + 'T00:00:00').toLocaleDateString('es-NI', {
+              month: 'long',
+              year: 'numeric',
+            })
+          : 'Mes en curso';
+
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200 print:p-0 print:bg-white">
+            <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-stone-200/80 p-5 sm:p-7 space-y-6 print:shadow-none print:border-none print:p-4">
+              {/* Header del Modal */}
+              <div className="flex items-start justify-between gap-3 border-b border-stone-200/80 pb-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-[#1c6856] text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0">
+                    🏖️
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-base sm:text-lg font-display font-black text-stone-900 leading-tight">
+                        {emp.nombre} {emp.apellido}
+                      </h2>
+                      <span className="text-[10px] font-bold text-[#1c6856] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        {emp.cargo_display}
+                      </span>
+                    </div>
+                    <p className="text-xs text-stone-500 font-medium mt-0.5">
+                      Estado de Cuenta y Auditoría Legal de Vacaciones (Art. 76 Ley Nicaragua)
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedVacacionesEmp(null)}
+                  className="p-2 hover:bg-stone-100 rounded-full text-stone-400 hover:text-stone-700 transition-colors print:hidden cursor-pointer"
+                  title="Cerrar modal"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Hero Card: Saldo Disponible Destacado */}
+              <div
+                className={`rounded-2xl p-5 border text-center space-y-1 shadow-sm ${
+                  vacDisp >= 0
+                    ? 'bg-gradient-to-br from-emerald-50 via-teal-50/40 to-emerald-100/50 border-emerald-200 text-emerald-950'
+                    : 'bg-gradient-to-br from-rose-50 via-amber-50/40 to-rose-100/50 border-rose-200 text-rose-950'
+                }`}
+              >
+                <span className="text-[11px] uppercase font-bold tracking-wider opacity-75 block">
+                  Saldo Disponible Actual de Vacaciones
+                </span>
+                <div className="text-3xl sm:text-4xl font-display font-black font-mono tracking-tight">
+                  {vacDisp.toFixed(1)} {Math.abs(vacDisp) === 1 ? 'Día' : 'Días'}
+                </div>
+                <p className="text-xs font-medium opacity-80 pt-0.5">
+                  {vacDisp >= 0
+                    ? '✅ Días hábiles remunerados disponibles para gozar conforme a la ley.'
+                    : '⚠️ El colaborador tiene días pendientes de corte o acumulación.'}
+                </p>
+              </div>
+
+              {/* Desglose Matemático y Legal en 3 Tarjetas */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. Acumuladas */}
+                <div className="bg-stone-50 border border-stone-200/80 rounded-2xl p-4 space-y-1">
+                  <span className="text-[10px] text-stone-500 uppercase font-bold tracking-wider block">
+                    📈 1. Acumuladas
+                  </span>
+                  <div className="text-xl font-mono font-black text-stone-900">
+                    +{vacAcum.toFixed(1)} <span className="text-xs font-sans font-bold text-stone-500">días</span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 font-medium leading-tight">
+                    +2.5 días/mes por ley + saldo inicial auditado.
+                  </p>
+                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded inline-block mt-1">
+                    Corte: {corteStr}
+                  </span>
+                </div>
+
+                {/* 2. Tomadas */}
+                <div className="bg-stone-50 border border-stone-200/80 rounded-2xl p-4 space-y-1">
+                  <span className="text-[10px] text-stone-500 uppercase font-bold tracking-wider block">
+                    📉 2. Días Gozados
+                  </span>
+                  <div className="text-xl font-mono font-black text-amber-700">
+                    {vacTom > 0 ? `-${vacTom.toFixed(1)}` : '0.0'}{' '}
+                    <span className="text-xs font-sans font-bold text-stone-500">días</span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 font-medium leading-tight">
+                    Restados de {permisosVac.length} período(s) registrado(s).
+                  </p>
+                  <span className="text-[10px] font-mono text-stone-600 bg-white border border-stone-200 px-1.5 py-0.5 rounded inline-block mt-1">
+                    {permisosVac.length} ausencia(s)
+                  </span>
+                </div>
+
+                {/* 3. Fórmula */}
+                <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-4 space-y-1">
+                  <span className="text-[10px] text-emerald-800 uppercase font-bold tracking-wider block">
+                    🧮 3. Fórmula Legal
+                  </span>
+                  <div className="text-sm font-mono font-black text-emerald-950 pt-1">
+                    {vacAcum.toFixed(1)} - {vacTom.toFixed(1)} =
+                  </div>
+                  <div className="text-lg font-mono font-black text-emerald-800">
+                    {vacDisp.toFixed(1)} días
+                  </div>
+                  <p className="text-[10px] text-emerald-700 font-medium">
+                    Art. 76 Código del Trabajo Nic.
+                  </p>
+                </div>
+              </div>
+
+              {/* Historial Detallado de Ausencias de Vacaciones */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center justify-between">
+                  <span>📋 Historial de Períodos de Vacaciones Gozados</span>
+                  <span className="text-[11px] font-mono text-stone-400 font-normal">
+                    {permisosVac.length} registro{permisosVac.length !== 1 ? 's' : ''}
+                  </span>
+                </h4>
+
+                {permisosVac.length === 0 ? (
+                  <div className="bg-stone-50 border border-dashed border-stone-200 rounded-2xl p-6 text-center text-xs text-stone-400">
+                    🌴 Este colaborador no tiene ausencias registradas por vacaciones aún.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {permisosVac.map((p) => (
+                      <div
+                        key={p.id}
+                        className="bg-white border border-stone-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs hover:border-emerald-300 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-lg text-center font-mono font-bold text-xs shrink-0">
+                            -{p.total_dias || 1} d
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-stone-900 flex items-center gap-2">
+                              <span>Del {p.fecha_inicio} al {p.fecha_fin}</span>
+                              <span className="text-[10px] font-bold text-[#1c6856] bg-[#1c6856]/5 px-2 py-0.5 rounded">
+                                {p.tipo_display}
+                              </span>
+                            </div>
+                            {p.motivo && (
+                              <p className="text-[11px] text-stone-500 font-medium italic mt-0.5">
+                                &ldquo;{p.motivo}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <span className="text-[10px] text-stone-400 font-mono self-end sm:self-center">
+                          Registrado: {p.created_at ? new Date(p.created_at).toLocaleDateString('es-NI') : '-'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Botones y Acciones */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-stone-200/80 pt-4 print:hidden">
+                <button
+                  type="button"
+                  onClick={() => handleOpenAjuste(emp)}
+                  className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Ajustar Saldo Acumulado</span>
+                </button>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="bg-white hover:bg-emerald-50 text-[#1c6856] border border-emerald-300 px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Imprimir Constancia</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVacacionesEmp(null)}
+                    className="bg-[#1c6856] hover:bg-[#154f42] text-white px-5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                  >
+                    Entendido / Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── MODAL 2: AJUSTE RÁPIDO DE SALDO INICIAL POR ADMINISTRACIÓN ── */}
+      {ajustandoEmp && (() => {
+        const emp = ajustandoEmp;
+        const permisosVac = permisos.filter(
+          (p) =>
+            p.empleado === emp.id &&
+            (p.tipo === 'VACACIONES' ||
+              p.tipo === 'VACACIONES_PAGADAS' ||
+              (p.tipo === 'PERMISO_AUTORIZADO' && (p.motivo || '').toLowerCase().includes('vacaciones')))
+        );
+        const vacTom = permisosVac.reduce((acc, p) => acc + (p.total_dias || 0), 0);
+        const previewDias = parseFloat(tempAjusteDias) || 0;
+        const previewDisp = Number((previewDias - vacTom).toFixed(1));
+
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-stone-200/90 p-6 space-y-5">
+              <div className="flex items-start justify-between gap-3 border-b border-stone-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#1c6856] border border-emerald-200 flex items-center justify-center font-bold">
+                    <Edit3 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-stone-900 leading-tight">
+                      Ajustar Saldo de Vacaciones
+                    </h3>
+                    <p className="text-xs text-stone-500 font-medium">
+                      {emp.nombre} {emp.apellido} — {emp.cargo_display}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setAjustandoEmp(null)}
+                  className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-stone-700"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAjusteVacaciones} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">
+                    Días Acumulados Totales a Acreditar:
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      required
+                      value={tempAjusteDias}
+                      onChange={(e) => setTempAjusteDias(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-base font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856]"
+                      placeholder="Ej: 12.5"
+                    />
+                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400">
+                      días
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 font-medium mt-1">
+                    💡 Ingrese el saldo acumulado histórico provisto por el administrador. El sistema le sumará automáticamente +2.5 días cada fin de mes.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">
+                    Motivo / Justificación del Ajuste:
+                  </label>
+                  <input
+                    type="text"
+                    value={tempAjusteMotivo}
+                    onChange={(e) => setTempAjusteMotivo(e.target.value)}
+                    placeholder="Ej: Carga de saldo inicial proporcionado por Administración"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                  />
+                </div>
+
+                {/* Previsualización en Vivo */}
+                <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-3 text-xs space-y-1">
+                  <span className="font-bold text-emerald-950 uppercase tracking-wider text-[10px] block">
+                    Previsualización del Balance:
+                  </span>
+                  <div className="flex items-center justify-between font-mono text-stone-700">
+                    <span>Acumuladas a fijar:</span>
+                    <strong className="text-stone-900">+{previewDias.toFixed(1)} d</strong>
+                  </div>
+                  <div className="flex items-center justify-between font-mono text-stone-700">
+                    <span>Días tomados registrados:</span>
+                    <strong className="text-amber-700">-{vacTom.toFixed(1)} d</strong>
+                  </div>
+                  <div className="flex items-center justify-between font-mono border-t border-emerald-200/60 pt-1 font-bold">
+                    <span className="text-emerald-950">Nuevo Saldo Disponible:</span>
+                    <strong className="text-emerald-800 text-sm">={previewDisp.toFixed(1)} días</strong>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setAjustandoEmp(null)}
+                    disabled={savingAjusteVac}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 border border-stone-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingAjusteVac}
+                    className="bg-[#1c6856] hover:bg-[#154f42] disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {savingAjusteVac ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-3.5 h-3.5" />
+                    )}
+                    <span>Guardar Saldo Oficial</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

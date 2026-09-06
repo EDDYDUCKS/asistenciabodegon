@@ -39,6 +39,15 @@ class Empleado(models.Model):
         null=True, blank=True,
         help_text="Primer día del mes al que corresponde horas_pendientes (se reinicia al cambiar de mes)"
     )
+    # Vacaciones acumuladas conforme a Art. 76 Código del Trabajo de Nicaragua (+2.5 días por mes trabajado)
+    dias_vacaciones_acumuladas = models.DecimalField(
+        max_digits=6, decimal_places=1, default=0.0,
+        help_text="Total días de vacaciones acumulados por ley (+2.5 días/mes o saldo inicial)"
+    )
+    ultimo_corte_vacaciones = models.DateField(
+        null=True, blank=True,
+        help_text="Fecha del último mes acreditado (+2.5 días)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

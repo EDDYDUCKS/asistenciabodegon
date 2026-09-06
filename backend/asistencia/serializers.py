@@ -5,6 +5,8 @@ from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, Au
 class EmpleadoSerializer(serializers.ModelSerializer):
     cargo_display = serializers.CharField(source='get_cargo_display', read_only=True)
     tipo_turno_display = serializers.CharField(source='get_tipo_turno_display', read_only=True)
+    dias_vacaciones_tomadas = serializers.SerializerMethodField()
+    dias_vacaciones_disponibles = serializers.SerializerMethodField()
 
     class Meta:
         model = Empleado
@@ -22,9 +24,32 @@ class EmpleadoSerializer(serializers.ModelSerializer):
             'activo',
             'horas_pendientes',
             'periodo_horas_pendientes',
+            'dias_vacaciones_acumuladas',
+            'ultimo_corte_vacaciones',
+            'dias_vacaciones_tomadas',
+            'dias_vacaciones_disponibles',
             'created_at',
             'updated_at',
         ]
+
+    def get_dias_vacaciones_tomadas(self, obj):
+        try:
+            permisos_vac = obj.permisos.filter(tipo__in=['VACACIONES', 'VACACIONES_PAGADAS'])
+            total = sum(p.total_dias for p in permisos_vac)
+            # También incluir permisos autorizados explícitamente a cuenta de vacaciones
+            permisos_cta = obj.permisos.filter(tipo='PERMISO_AUTORIZADO', motivo__icontains='vacaciones')
+            total += sum(p.total_dias for p in permisos_cta)
+            return round(float(total), 1)
+        except Exception:
+            return 0.0
+
+    def get_dias_vacaciones_disponibles(self, obj):
+        try:
+            acumuladas = float(obj.dias_vacaciones_acumuladas or 0.0)
+            tomadas = self.get_dias_vacaciones_tomadas(obj)
+            return round(acumuladas - tomadas, 1)
+        except Exception:
+            return 0.0
 
 
 class RegistroAsistenciaSerializer(serializers.ModelSerializer):

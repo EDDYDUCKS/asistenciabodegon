@@ -366,7 +366,16 @@ export default function AsistenciaLogPage() {
   const marcajesAgrupadosPorEmpleadoDia: Record<string, RegistroAsistencia[]> = {};
   
   asistencias.forEach((asis) => {
-    const dia = asis.fecha_hora.slice(0, 10);
+    const dt = new Date(asis.fecha_hora);
+    const horaLocal = parseInt(
+      dt.toLocaleTimeString('en-US', { timeZone: 'America/Managua', hour12: false, hour: 'numeric' }),
+      10
+    );
+    let dia = dt.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    if (asis.tipo_evento === 'SALIDA_DEFINITIVA' && horaLocal < 5) {
+      const prevDate = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
+      dia = prevDate.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    }
     const key = `${asis.empleado}_${dia}`;
     if (!marcajesAgrupadosPorEmpleadoDia[key]) {
       marcajesAgrupadosPorEmpleadoDia[key] = [];
@@ -437,7 +446,17 @@ export default function AsistenciaLogPage() {
   }, [filtered]);
 
   const renderFilaAsistencia = (asis: RegistroAsistencia) => {
-    const key = `${asis.empleado}_${asis.fecha_hora.slice(0, 10)}`;
+    const dt = new Date(asis.fecha_hora);
+    const horaLocal = parseInt(
+      dt.toLocaleTimeString('en-US', { timeZone: 'America/Managua', hour12: false, hour: 'numeric' }),
+      10
+    );
+    let dia = dt.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    if (asis.tipo_evento === 'SALIDA_DEFINITIVA' && horaLocal < 5) {
+      const prevDate = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
+      dia = prevDate.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    }
+    const key = `${asis.empleado}_${dia}`;
     const marcajesDia = marcajesAgrupadosPorEmpleadoDia[key] || [];
     const analisis = calcularPuntualidadRecord(asis, marcajesDia);
 
@@ -569,7 +588,17 @@ export default function AsistenciaLogPage() {
   };
 
   const renderTarjetaAsistenciaMobile = (asis: RegistroAsistencia) => {
-    const key = `${asis.empleado}_${asis.fecha_hora.slice(0, 10)}`;
+    const dt = new Date(asis.fecha_hora);
+    const horaLocal = parseInt(
+      dt.toLocaleTimeString('en-US', { timeZone: 'America/Managua', hour12: false, hour: 'numeric' }),
+      10
+    );
+    let dia = dt.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    if (asis.tipo_evento === 'SALIDA_DEFINITIVA' && horaLocal < 5) {
+      const prevDate = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
+      dia = prevDate.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    }
+    const key = `${asis.empleado}_${dia}`;
     const marcajesDia = marcajesAgrupadosPorEmpleadoDia[key] || [];
     const analisis = calcularPuntualidadRecord(asis, marcajesDia);
 

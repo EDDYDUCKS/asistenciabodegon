@@ -22,6 +22,10 @@ export interface Empleado {
   activo: boolean;
   horas_pendientes?: number | string;
   periodo_horas_pendientes?: string | null;
+  dias_vacaciones_acumuladas?: number | string;
+  ultimo_corte_vacaciones?: string | null;
+  dias_vacaciones_tomadas?: number;
+  dias_vacaciones_disponibles?: number;
   created_at: string;
   updated_at: string;
 }

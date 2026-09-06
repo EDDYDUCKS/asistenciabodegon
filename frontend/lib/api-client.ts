@@ -103,6 +103,18 @@ export async function regenerarQrEmpleado(id: number): Promise<{ qr_code_token: 
   });
 }
 
+export async function ajustarVacacionesEmpleado(
+  id: number,
+  dias: number,
+  motivo?: string
+): Promise<Empleado> {
+  return apiRequest<Empleado>(`/empleados/${id}/ajustar-vacaciones/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dias_vacaciones_acumuladas: dias, motivo: motivo || 'Ajuste inicial por administración' }),
+  });
+}
+
 // ── KIOSCO DE MARCAJE ──────────────────────────────────────────────────────
 export async function marcarAsistenciaKiosco(payload: {
   qr_token: string;

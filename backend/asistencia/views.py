@@ -1,3 +1,5 @@
+import datetime
+from decimal import Decimal
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
@@ -34,10 +36,108 @@ def _get_clean_ip(request):
     return ip[:45]
 
 
+def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
+    """
+    Acredita automáticamente +2.5 días por cada mes completo transcurrido desde el último corte
+    conforme al Art. 76 del Código del Trabajo de Nicaragua.
+    """
+    if not emp.activo:
+        return False
+    if not fecha_referencia:
+        fecha_referencia = timezone.now().astimezone(timezone.get_current_timezone()).date()
+
+    if not emp.ultimo_corte_vacaciones:
+        emp.ultimo_corte_vacaciones = datetime.date(fecha_referencia.year, fecha_referencia.month, 1)
+        emp.save(update_fields=['ultimo_corte_vacaciones'])
+        return False
+
+    corte = emp.ultimo_corte_vacaciones
+    meses_a_acreditar = 0
+    curr_year = corte.year
+    curr_month = corte.month
+
+    while True:
+        if curr_month == 12:
+            next_year = curr_year + 1
+            next_month = 1
+        else:
+            next_year = curr_year
+            next_month = curr_month + 1
+
+        next_corte = datetime.date(next_year, next_month, 1)
+        if next_corte <= fecha_referencia:
+            meses_a_acreditar += 1
+            curr_year = next_year
+            curr_month = next_month
+        else:
+            break
+
+    if meses_a_acreditar > 0:
+        dias_nuevos = round(meses_a_acreditar * 2.5, 1)
+        emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.0')) + Decimal(str(dias_nuevos))
+        emp.ultimo_corte_vacaciones = datetime.date(curr_year, curr_month, 1)
+        emp.save(update_fields=['dias_vacaciones_acumuladas', 'ultimo_corte_vacaciones'])
+
+        BitacoraAccion.objects.create(
+            usuario=None,
+            accion='EDITAR_EMPLEADO',
+            descripcion=f"Acreditación automática Ley Nic. Art. 76: +{dias_nuevos} días de vacaciones acumulados para {emp.nombre} {emp.apellido} ({meses_a_acreditar} mes(es)).",
+            ip_address='127.0.0.1'
+        )
+        return True
+    return False
+
+
+def _verificar_acreditacion_vacaciones_todos():
+    """
+    Verifica y devenga las vacaciones de todos los colaboradores activos.
+    """
+    hoy = timezone.now().astimezone(timezone.get_current_timezone()).date()
+    for emp in Empleado.objects.filter(activo=True):
+        try:
+            _verificar_acreditacion_vacaciones_empleado(emp, hoy)
+        except Exception:
+            pass
+
+
 class EmpleadoViewSet(viewsets.ModelViewSet):
     queryset = Empleado.objects.all()
     serializer_class = EmpleadoSerializer
     permission_classes = [permissions.AllowAny]
+
+    def list(self, request, *args, **kwargs):
+        try:
+            _verificar_acreditacion_vacaciones_todos()
+        except Exception:
+            pass
+        return super().list(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'], url_path='ajustar-vacaciones')
+    def ajustar_vacaciones(self, request, pk=None):
+        empleado = self.get_object()
+        dias = request.data.get('dias_vacaciones_acumuladas')
+        motivo = request.data.get('motivo', 'Ajuste inicial de saldo por administración')
+        if dias is None:
+            return Response({'error': 'El campo dias_vacaciones_acumuladas es obligatorio.'}, status=400)
+        try:
+            val = round(float(dias), 1)
+        except (ValueError, TypeError):
+            return Response({'error': 'Valor de días inválido.'}, status=400)
+
+        empleado.dias_vacaciones_acumuladas = Decimal(str(val))
+        if not empleado.ultimo_corte_vacaciones:
+            now_dt = timezone.now().astimezone(timezone.get_current_timezone()).date()
+            empleado.ultimo_corte_vacaciones = datetime.date(now_dt.year, now_dt.month, 1)
+        empleado.save()
+
+        BitacoraAccion.objects.create(
+            usuario=self.request.user if self.request.user.is_authenticated else None,
+            accion='EDITAR_EMPLEADO',
+            descripcion=f"Saldo de vacaciones para {empleado.nombre} {empleado.apellido} ajustado a {val} días acumulados. Motivo: {motivo}",
+            ip_address=_get_clean_ip(self.request)
+        )
+        serializer = self.get_serializer(empleado)
+        return Response(serializer.data)
 
     def perform_create(self, serializer):
         emp = serializer.save()
@@ -581,9 +681,11 @@ def _procesar_foto_a_base64(foto):
         return None
 
 
-def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro):
+def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro, empleado=None):
     """
     Auto-detección inteligente de eventos para El Bodegón:
+    - Cierre trasnoche (00:00 a 04:59 AM): si el colaborador tiene turno abierto del día anterior
+      (ENTRADA o ENTRADA_QUEBRADA), se auto-detecta como SALIDA_DEFINITIVA.
     - Primer evento del día -> siempre ENTRADA.
     - Cierre nocturno (después de las 9:30 PM / 1290 min) -> siempre SALIDA_DEFINITIVA.
     - Segundo evento:
@@ -592,11 +694,24 @@ def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro):
     - Tercer evento (después de SALIDA_QUEBRADA) -> ENTRADA_QUEBRADA (Retorno).
     - Cuarto evento (después de ENTRADA_QUEBRADA) -> SALIDA_DEFINITIVA (Cierre).
     """
+    dt_local = fecha_hora_registro.astimezone(timezone.get_current_timezone())
+    hora_mins = dt_local.hour * 60 + dt_local.minute
+
+    # Regla de Cierre Trasnoche: 00:00 a 04:59 AM con turno abierto del día anterior
+    if empleado and dt_local.hour < 5:
+        ayer = dt_local.date() - datetime.timedelta(days=1)
+        start_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.min), timezone.get_current_timezone())
+        end_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.max), timezone.get_current_timezone())
+        regs_ayer = list(RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            fecha_hora__range=(start_ayer, end_ayer)
+        ).order_by('fecha_hora'))
+        if regs_ayer and regs_ayer[-1].tipo_evento in ('ENTRADA', 'ENTRADA_QUEBRADA'):
+            return 'SALIDA_DEFINITIVA'
+
     if not registros_hoy.exists():
         return 'ENTRADA'
 
-    dt_local = fecha_hora_registro.astimezone(timezone.get_current_timezone())
-    hora_mins = dt_local.hour * 60 + dt_local.minute
     cant = registros_hoy.count()
     ultimo = registros_hoy.last()
     primero = registros_hoy.first()
@@ -842,15 +957,34 @@ def marcar_asistencia_kiosco(request):
     tipo_evento = request.data.get('tipo_evento')
     dt_local = fecha_hora_registro.astimezone(timezone.get_current_timezone())
     hora_mins = dt_local.hour * 60 + dt_local.minute
+    ayer = hoy - datetime.timedelta(days=1)
 
-    if not tipo_evento:
-        tipo_evento = _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro)
+    # ── DETECCIÓN DE CIERRE DE TURNO TRASNOCHE (00:00 a 04:59 AM) ─────────
+    # Si el colaborador marca en la madrugada y tiene turno abierto de ayer, es el fin de su jornada
+    es_cierre_trasnoche = False
+    regs_ayer_trasnoche = []
+    if dt_local.hour < 5:
+        start_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.min), timezone.get_current_timezone())
+        end_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.max), timezone.get_current_timezone())
+        regs_ayer_trasnoche = list(RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            fecha_hora__range=(start_ayer, end_ayer)
+        ).order_by('fecha_hora'))
+        if regs_ayer_trasnoche and regs_ayer_trasnoche[-1].tipo_evento in ('ENTRADA', 'ENTRADA_QUEBRADA'):
+            es_cierre_trasnoche = True
+
+    if not tipo_evento or tipo_evento == 'AUTODETECT':
+        if es_cierre_trasnoche:
+            tipo_evento = 'SALIDA_DEFINITIVA'
+        else:
+            tipo_evento = _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro, empleado=empleado)
 
     foto = request.FILES.get('foto')
     foto_b64 = _procesar_foto_a_base64(foto)
 
     # ── DETECCIÓN DE HORARIO INUSUAL / MADRUGADA ───────────────────────────
-    if 1 <= dt_local.hour < 7:  # De 1:00 AM a 6:59 AM (madrugada profunda con restaurante cerrado)
+    # No generar alerta sospechosa si es un cierre legítimo de turno nocturno
+    if 1 <= dt_local.hour < 7 and not es_cierre_trasnoche:
         AlertaAsistencia.objects.create(
             tipo='MARCACION_SOSPECHOSA',
             empleado=empleado,
@@ -872,18 +1006,23 @@ def marcar_asistencia_kiosco(request):
             ip_address=_get_clean_ip(request)
         )
 
-    # Calcular horas trabajadas hoy acumuladas hasta el momento
-    registros_actualizados = list(RegistroAsistencia.objects.filter(
-        empleado=empleado,
-        fecha_hora__range=(start_dt, end_dt)
-    ).order_by('fecha_hora'))
+    # Calcular horas trabajadas acumuladas hasta el momento
+    if es_cierre_trasnoche:
+        # Unir los registros de ayer con esta salida de madrugada para cómputo de horas totales del turno
+        registros_actualizados = regs_ayer_trasnoche + [registro]
+        dia_operativo_cierre = ayer
+    else:
+        registros_actualizados = list(RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            fecha_hora__range=(start_dt, end_dt)
+        ).order_by('fecha_hora'))
+        dia_operativo_cierre = hoy
 
     horas_netas_hoy = _calcular_horas_netas_dia(registros_actualizados)
 
     # ── ALERTA: ENTRADA sin SALIDA previa del día anterior ─────────────────
     # Si hoy el empleado marca ENTRADA pero ayer tenía una ENTRADA sin cerrar, alertar al admin
     if tipo_evento == 'ENTRADA':
-        ayer = hoy - datetime.timedelta(days=1)
         start_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.min), timezone.get_current_timezone())
         end_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.max), timezone.get_current_timezone())
         regs_ayer = list(RegistroAsistencia.objects.filter(
@@ -893,22 +1032,29 @@ def marcar_asistencia_kiosco(request):
         if regs_ayer:
             ultimo_ayer = regs_ayer[-1].tipo_evento
             if ultimo_ayer in ('ENTRADA', 'ENTRADA_QUEBRADA', 'SALIDA_QUEBRADA'):
-                # Ayer quedó con entrada o pausa sin salida definitiva
-                AlertaAsistencia.objects.get_or_create(
-                    tipo='REGISTRO_INCOMPLETO',
+                # Verificar si cerró en la madrugada de hoy (cierre trasnoche)
+                cerro_madrugada = RegistroAsistencia.objects.filter(
                     empleado=empleado,
-                    titulo=f"Registro incompleto: {empleado.nombre} {empleado.apellido}",
-                    defaults={
-                        'mensaje': (
-                            f"El día {ayer.strftime('%d/%m/%Y')} el empleado registró "
-                            f"{regs_ayer[-1].get_tipo_evento_display()} a las "
-                            f"{regs_ayer[-1].fecha_hora.astimezone(timezone.get_current_timezone()).strftime('%I:%M %p')} "
-                            f"pero nunca completó su Salida Definitiva. "
-                            f"Por favor, agregue la salida manualmente para calcular correctamente sus horas."
-                        ),
-                        'leida': False
-                    }
-                )
+                    tipo_evento='SALIDA_DEFINITIVA',
+                    fecha_hora__gte=start_dt,
+                    fecha_hora__lt=start_dt + datetime.timedelta(hours=5)
+                ).exists()
+                if not cerro_madrugada:
+                    AlertaAsistencia.objects.get_or_create(
+                        tipo='REGISTRO_INCOMPLETO',
+                        empleado=empleado,
+                        titulo=f"Registro incompleto: {empleado.nombre} {empleado.apellido}",
+                        defaults={
+                            'mensaje': (
+                                f"El día {ayer.strftime('%d/%m/%Y')} el empleado registró "
+                                f"{regs_ayer[-1].get_tipo_evento_display()} a las "
+                                f"{regs_ayer[-1].fecha_hora.astimezone(timezone.get_current_timezone()).strftime('%I:%M %p')} "
+                                f"pero nunca completó su Salida Definitiva. "
+                                f"Por favor, agregue la salida manualmente para calcular correctamente sus horas."
+                            ),
+                            'leida': False
+                        }
+                    )
 
     # ── BOLSA DE HORAS: Compensación Automática o Solicitud de Horas Extra ──
     comp_info = {
@@ -917,9 +1063,9 @@ def marcar_asistencia_kiosco(request):
         'horas_extra_solicitadas': 0.0,
     }
     if tipo_evento == 'SALIDA_DEFINITIVA':
-        comp_info = _procesar_compensacion_y_horas_extra(empleado, hoy, horas_netas_hoy, request)
+        comp_info = _procesar_compensacion_y_horas_extra(empleado, dia_operativo_cierre, horas_netas_hoy, request)
         # Horas extra por 7mo día trabajado en la semana
-        _verificar_septimo_dia(empleado, hoy, horas_netas_hoy)
+        _verificar_septimo_dia(empleado, dia_operativo_cierre, horas_netas_hoy)
 
     # ── DETECCIÓN DE PUNTUALIDAD Y CREACIÓN DE ALERTAS INTERNAS ─────────────
     _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=False)
@@ -1220,7 +1366,8 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
     primer_dia_mes = hoy.replace(day=1)
 
     start_mes = timezone.make_aware(datetime.datetime.combine(primer_dia_mes, datetime.time.min), tz_ni)
-    end_mes = timezone.make_aware(datetime.datetime.combine(hoy, datetime.time.max), tz_ni)
+    # Extender 5 horas para capturar posibles salidas definitivas en la madrugada (trasnoche)
+    end_mes = timezone.make_aware(datetime.datetime.combine(hoy, datetime.time.max), tz_ni) + datetime.timedelta(hours=5)
 
     registros_mes = list(RegistroAsistencia.objects.filter(
         empleado=empleado,
@@ -1229,7 +1376,15 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
 
     por_dia = {}
     for r in registros_mes:
-        d = r.fecha_hora.astimezone(tz_ni).date()
+        r_local = r.fecha_hora.astimezone(tz_ni)
+        d_local = r_local.date()
+        # Si es salida definitiva de madrugada (< 5 AM), se asocia a la jornada del día anterior
+        if r.tipo_evento == 'SALIDA_DEFINITIVA' and r_local.hour < 5:
+            d = d_local - datetime.timedelta(days=1)
+        else:
+            d = d_local
+        if d < primer_dia_mes or d > hoy:
+            continue
         por_dia.setdefault(d, []).append(r)
 
     deuda_acumulada = 0.0
@@ -1718,7 +1873,7 @@ def exportar_reporte_nomina_excel(request):
             bottom=Side(style='thin', color='CCCCCC')
         )
 
-        # Headers — 7 Columnas Ejecutivas
+        # Headers — 8 Columnas Ejecutivas
         headers = [
             "Empleado y Puesto",
             "Días Trabajados",
@@ -1727,15 +1882,16 @@ def exportar_reporte_nomina_excel(request):
             "Horas Feriados (Días)",
             "Horas Extra Aprobadas",
             "Horas Debidas (Déficit)",
+            "Vacaciones Restantes (Días)",
         ]
 
-        ws.merge_cells('A1:G1')
+        ws.merge_cells('A1:H1')
         ws['A1'] = "BODEGÓN PASS — REPORTE DE ASISTENCIA Y PERSONAL"
         ws['A1'].font = font_titulo
         ws['A1'].fill = fill_title
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
-        ws.merge_cells('A2:G2')
+        ws.merge_cells('A2:H2')
         ws['A2'] = f"Período del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')} — Generado el {hoy.strftime('%d/%m/%Y')}"
         ws['A2'].font = font_sub
         ws['A2'].fill = fill_title
@@ -1744,7 +1900,7 @@ def exportar_reporte_nomina_excel(request):
         ws.append([])        # Fila 3 vacía
         ws.append(headers)   # Fila 4 Headers
 
-        for col in range(1, 8):
+        for col in range(1, 9):
             cell = ws.cell(row=4, column=col)
             cell.font = font_header
             cell.fill = fill_header
@@ -1782,14 +1938,15 @@ def exportar_reporte_nomina_excel(request):
 
         for emp in empleados:
             start_query = timezone.make_aware(datetime.datetime.combine(fecha_inicio, datetime.time.min), timezone.get_current_timezone())
-            end_query = timezone.make_aware(datetime.datetime.combine(fecha_fin, datetime.time.max), timezone.get_current_timezone())
+            # Extender 5 horas para incluir salidas nocturnas que ocurrieron pasada la medianoche
+            end_query = timezone.make_aware(datetime.datetime.combine(fecha_fin, datetime.time.max), timezone.get_current_timezone()) + datetime.timedelta(hours=5)
             
             registros = RegistroAsistencia.objects.filter(
                 empleado=emp,
                 fecha_hora__range=(start_query, end_query)
             ).order_by('fecha_hora')
 
-            # Agrupar registros por día local (Nicaragua)
+            # Agrupar registros por día local operativo (Nicaragua)
             horas_normales_trabajadas = 0.0
             feriados_trabajados_dias = 0
             feriados_trabajados_info = []
@@ -1797,11 +1954,17 @@ def exportar_reporte_nomina_excel(request):
             for reg in registros:
                 reg_local = reg.fecha_hora.astimezone(timezone.get_current_timezone())
                 dia_local = reg_local.date()
-                if dia_local < fecha_inicio or dia_local > fecha_fin:
+                # Si es salida definitiva de madrugada (< 5 AM), pertenece a la jornada de ayer
+                if reg.tipo_evento == 'SALIDA_DEFINITIVA' and reg_local.hour < 5:
+                    dia_operativo = dia_local - datetime.timedelta(days=1)
+                else:
+                    dia_operativo = dia_local
+
+                if dia_operativo < fecha_inicio or dia_operativo > fecha_fin:
                     continue
-                if dia_local not in dias_map:
-                    dias_map[dia_local] = []
-                dias_map[dia_local].append(reg)
+                if dia_operativo not in dias_map:
+                    dias_map[dia_operativo] = []
+                dias_map[dia_operativo].append(reg)
 
             dias_trabajados = len(dias_map)
             dias_permiso_emp = permisos_por_empleado.get(emp.id, set())
@@ -1883,6 +2046,13 @@ def exportar_reporte_nomina_excel(request):
                 estado='APROBADO'
             ).aggregate(total=Sum('horas_extra_autorizadas'))['total'] or 0.0
 
+            # Cálculo de vacaciones restantes
+            permisos_vac_emp = PermisoAusencia.objects.filter(empleado=emp, tipo__in=['VACACIONES', 'VACACIONES_PAGADAS'])
+            total_vac_tomadas = sum(p.total_dias for p in permisos_vac_emp)
+            permisos_cta_emp = PermisoAusencia.objects.filter(empleado=emp, tipo='PERMISO_AUTORIZADO', motivo__icontains='vacaciones')
+            total_vac_tomadas += sum(p.total_dias for p in permisos_cta_emp)
+            vacaciones_restantes = round(float(emp.dias_vacaciones_acumuladas or 0.0) - float(total_vac_tomadas), 1)
+
             fila = [
                 f"{emp.nombre} {emp.apellido} ({emp.get_cargo_display()})",
                 dias_trabajados,
@@ -1891,6 +2061,7 @@ def exportar_reporte_nomina_excel(request):
                 feriados_trabajados_dias,
                 round(float(horas_extra_aprobadas), 1),
                 round(horas_debidas, 1),
+                vacaciones_restantes,
             ]
             ws.append(fila)
 
@@ -1906,13 +2077,13 @@ def exportar_reporte_nomina_excel(request):
                 cell_feriado = ws.cell(row=row_idx, column=5)
                 cell_feriado.comment = Comment(comentario_texto, "BodegónPass")
 
-            for col in range(1, 8):
+            for col in range(1, 9):
                 cell = ws.cell(row=row_idx, column=col)
                 cell.font = font_data
                 cell.border = thin_border
                 if row_idx % 2 == 0:
                     cell.fill = fill_zebra
-                if col in [2, 3, 4, 5, 6, 7]:
+                if col in [2, 3, 4, 5, 6, 7, 8]:
                     cell.alignment = Alignment(horizontal='right')
                 else:
                     cell.alignment = Alignment(horizontal='left')
@@ -1927,7 +2098,7 @@ def exportar_reporte_nomina_excel(request):
         ws[f'A{row_idx}'].font = font_bold
         ws[f'A{row_idx}'].alignment = Alignment(horizontal='right')
 
-        for col_letter in ['D', 'E', 'F', 'G']:
+        for col_letter in ['D', 'E', 'F', 'G', 'H']:
             cell = ws[f'{col_letter}{row_idx}']
             cell.value = f"=SUM({col_letter}5:{col_letter}{row_idx-2})"
             cell.font = font_bold
@@ -2286,20 +2457,36 @@ def sync_batch_asistencia(request):
         if fecha_hora and timezone.is_naive(fecha_hora):
             fecha_hora = timezone.make_aware(fecha_hora, timezone.get_current_timezone())
 
-        # Auto-detectar tipo_evento si no se proporciona
-        if not tipo_evento:
-            dt_local = fecha_hora.astimezone(timezone.get_current_timezone())
-            dia = dt_local.date()
-            start_dt = timezone.make_aware(datetime.combine(dia, datetime.time.min), timezone.get_current_timezone())
-            end_dt = timezone.make_aware(datetime.combine(dia, datetime.time.max), timezone.get_current_timezone())
-            
-            registros_hoy = RegistroAsistencia.objects.filter(
-                empleado=empleado,
-                fecha_hora__range=(start_dt, end_dt)
-            ).order_by('fecha_hora')
+        dt_local = fecha_hora.astimezone(timezone.get_current_timezone())
+        dia = dt_local.date()
+        start_dt = timezone.make_aware(datetime.datetime.combine(dia, datetime.time.min), timezone.get_current_timezone())
+        end_dt = timezone.make_aware(datetime.datetime.combine(dia, datetime.time.max), timezone.get_current_timezone())
+        ayer = dia - datetime.timedelta(days=1)
 
-            if not tipo_evento or tipo_evento == 'AUTODETECT':
-                tipo_evento = _autodetectar_tipo_evento(registros_hoy, fecha_hora)
+        # Detección de cierre de turno trasnoche (00:00 a 04:59 AM)
+        es_cierre_trasnoche = False
+        regs_ayer_trasnoche = []
+        if dt_local.hour < 5:
+            start_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.min), timezone.get_current_timezone())
+            end_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.max), timezone.get_current_timezone())
+            regs_ayer_trasnoche = list(RegistroAsistencia.objects.filter(
+                empleado=empleado,
+                fecha_hora__range=(start_ayer, end_ayer)
+            ).order_by('fecha_hora'))
+            if regs_ayer_trasnoche and regs_ayer_trasnoche[-1].tipo_evento in ('ENTRADA', 'ENTRADA_QUEBRADA'):
+                es_cierre_trasnoche = True
+
+        registros_hoy = RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            fecha_hora__range=(start_dt, end_dt)
+        ).order_by('fecha_hora')
+
+        # Auto-detectar tipo_evento si no se proporciona
+        if not tipo_evento or tipo_evento == 'AUTODETECT':
+            if es_cierre_trasnoche:
+                tipo_evento = 'SALIDA_DEFINITIVA'
+            else:
+                tipo_evento = _autodetectar_tipo_evento(registros_hoy, fecha_hora, empleado=empleado)
 
         with transaction.atomic():
             registro = RegistroAsistencia.objects.create(
@@ -2312,24 +2499,20 @@ def sync_batch_asistencia(request):
             )
 
         # Calcular horas hoy y verificar tardanzas
-        dt_local = fecha_hora.astimezone(timezone.get_current_timezone())
-        dia = dt_local.date()
-        
-        import datetime
-        start_dt = timezone.make_aware(datetime.datetime.combine(dia, datetime.time.min), timezone.get_current_timezone())
-        end_dt = timezone.make_aware(datetime.datetime.combine(dia, datetime.time.max), timezone.get_current_timezone())
-        
-        registros_actualizados = list(RegistroAsistencia.objects.filter(
-            empleado=empleado,
-            fecha_hora__range=(start_dt, end_dt)
-        ).order_by('fecha_hora'))
+        if es_cierre_trasnoche:
+            registros_actualizados = regs_ayer_trasnoche + [registro]
+            dia_operativo_cierre = ayer
+        else:
+            registros_actualizados = list(RegistroAsistencia.objects.filter(
+                empleado=empleado,
+                fecha_hora__range=(start_dt, end_dt)
+            ).order_by('fecha_hora'))
+            dia_operativo_cierre = dia
 
-        # Lógica de horas extras y déficit
         horas_netas_hoy = _calcular_horas_netas_dia(registros_actualizados)
 
         # Si es ENTRADA, revisar si el día previo quedó sin salida
         if tipo_evento == 'ENTRADA':
-            ayer = dia - datetime.timedelta(days=1)
             start_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.min), timezone.get_current_timezone())
             end_ayer = timezone.make_aware(datetime.datetime.combine(ayer, datetime.time.max), timezone.get_current_timezone())
             regs_ayer = list(RegistroAsistencia.objects.filter(
@@ -2339,24 +2522,31 @@ def sync_batch_asistencia(request):
             if regs_ayer:
                 ultimo_ayer = regs_ayer[-1].tipo_evento
                 if ultimo_ayer in ('ENTRADA', 'ENTRADA_QUEBRADA', 'SALIDA_QUEBRADA'):
-                    AlertaAsistencia.objects.get_or_create(
-                        tipo='REGISTRO_INCOMPLETO',
+                    cerro_madrugada = RegistroAsistencia.objects.filter(
                         empleado=empleado,
-                        titulo=f"Registro incompleto (Offline): {empleado.nombre} {empleado.apellido}",
-                        defaults={
-                            'mensaje': (
-                                f"El día {ayer.strftime('%d/%m/%Y')} el empleado registró "
-                                f"{regs_ayer[-1].get_tipo_evento_display()} "
-                                f"pero nunca registró su Salida. Por favor, agregue la salida manualmente."
-                            ),
-                            'leida': False
-                        }
-                    )
+                        tipo_evento='SALIDA_DEFINITIVA',
+                        fecha_hora__gte=start_dt,
+                        fecha_hora__lt=start_dt + datetime.timedelta(hours=5)
+                    ).exists()
+                    if not cerro_madrugada:
+                        AlertaAsistencia.objects.get_or_create(
+                            tipo='REGISTRO_INCOMPLETO',
+                            empleado=empleado,
+                            titulo=f"Registro incompleto (Offline): {empleado.nombre} {empleado.apellido}",
+                            defaults={
+                                'mensaje': (
+                                    f"El día {ayer.strftime('%d/%m/%Y')} el empleado registró "
+                                    f"{regs_ayer[-1].get_tipo_evento_display()} "
+                                    f"pero nunca registró su Salida. Por favor, agregue la salida manualmente."
+                                ),
+                                'leida': False
+                            }
+                        )
 
         if tipo_evento == 'SALIDA_DEFINITIVA':
-            _procesar_compensacion_y_horas_extra(empleado, dia, horas_netas_hoy, request)
+            _procesar_compensacion_y_horas_extra(empleado, dia_operativo_cierre, horas_netas_hoy, request)
             # 7mo día de la semana
-            _verificar_septimo_dia(empleado, dia, horas_netas_hoy)
+            _verificar_septimo_dia(empleado, dia_operativo_cierre, horas_netas_hoy)
 
         # Alertas de asistencia (Regla de gracia 10 min de El Bodegón)
         _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=True)
