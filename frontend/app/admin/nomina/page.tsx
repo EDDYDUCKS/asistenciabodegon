@@ -652,6 +652,15 @@ export default function NominaAdminPage() {
         0
       );
 
+      // Sumar horas extras pendientes por aprobar para este empleado en el período
+      const extrasPendientesEmpPeriodo = horasExtra.filter(
+        (h) => h.empleado === emp.id && h.fecha >= fechaInicio && h.fecha <= fechaFin && h.estado === 'PENDIENTE'
+      );
+      const horasExtraPendientes = extrasPendientesEmpPeriodo.reduce(
+        (acc, curr) => acc + (parseFloat(String(curr.horas_extra_solicitadas)) || 0),
+        0
+      );
+
       // Sincronizar con el saldo real auditado de la Bolsa de Horas del colaborador
       const deudaOficialBolsa = parseFloat(String(emp.horas_pendientes || 0));
       const horasDebidasFinal = Math.max(horasDebidas, deudaOficialBolsa);
@@ -676,6 +685,7 @@ export default function NominaAdminPage() {
         feriadosTrabajadosDias,
         feriadosDetalle,
         horasExtraAprobadas,
+        horasExtraPendientes,
         horasDebidas: horasDebidasFinal,
         permisosInfo: permisosInfoPorEmpleado[emp.id] || [],
         vacAcumuladas,
@@ -698,6 +708,7 @@ export default function NominaAdminPage() {
   const totalOrdinariasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasOrdinarias, 0);
   const totalFeriadasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.feriadosTrabajadosDias, 0);
   const totalExtrasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasExtraAprobadas, 0);
+  const totalExtrasPendientesPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasExtraPendientes, 0);
   const totalDebidasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasDebidas, 0);
   const totalVacacionesPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.vacRestantes, 0);
 
@@ -1107,7 +1118,7 @@ export default function NominaAdminPage() {
             </div>
           )}
 
-          {/* Tabla de Resumen de Horas (7 Columnas Ejecutivas) */}
+          {/* Tabla de Resumen de Horas (8 Columnas Ejecutivas) */}
           <div className="glass-panel border border-white rounded-3xl overflow-hidden shadow-premium">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs sm:text-sm">
@@ -1119,6 +1130,7 @@ export default function NominaAdminPage() {
                     <th className="px-6 py-4 text-right">Horas Ordinarias</th>
                     <th className="px-6 py-4 text-right">Feriados Trabajados (Días)</th>
                     <th className="px-6 py-4 text-right">Horas Extra Aprobadas</th>
+                    <th className="px-6 py-4 text-right text-amber-800 bg-amber-50/60">H. Extra por Aprobar</th>
                     <th className="px-6 py-4 text-right text-rose-700 bg-rose-50/50">Horas Debidas (Déficit)</th>
                     <th className="px-6 py-4 text-right text-emerald-800 bg-emerald-50/60">🏖️ Vacaciones Restantes</th>
                   </tr>
@@ -1126,19 +1138,19 @@ export default function NominaAdminPage() {
                 <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
                   {loading ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-8 text-center text-stone-400">
+                      <td colSpan={9} className="px-6 py-8 text-center text-stone-400">
                         Calculando registros...
                       </td>
                     </tr>
                   ) : resumenEmpleados.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-8 text-center text-stone-400 font-normal">
+                      <td colSpan={9} className="px-6 py-8 text-center text-stone-400 font-normal">
                         No hay registros disponibles para este rango.
                       </td>
                     </tr>
                   ) : resumenFiltrado.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-8 text-center text-stone-400 font-normal">
+                      <td colSpan={9} className="px-6 py-8 text-center text-stone-400 font-normal">
                         No se encontró ningún trabajador que coincida con &quot;{searchColaborador}&quot;.
                       </td>
                     </tr>
@@ -1217,6 +1229,24 @@ export default function NominaAdminPage() {
                         <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700">
                           {item.horasExtraAprobadas.toFixed(1)} hrs
                         </td>
+                        <td className="px-6 py-4 text-right font-mono font-bold bg-amber-50/20">
+                          {item.horasExtraPendientes > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveTab('extras');
+                                setSubTabExtras('pendientes');
+                              }}
+                              className="inline-flex items-center gap-1.5 text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-xl transition-all hover:scale-105 active:scale-95 cursor-pointer text-xs font-bold"
+                              title="Haga clic para ir a revisar y autorizar estas horas extra pendientes"
+                            >
+                              <span>+{item.horasExtraPendientes.toFixed(1)} hrs</span>
+                              <span className="text-[9px] bg-amber-200/90 text-amber-950 px-1 py-0.2 rounded font-black uppercase">Pendiente</span>
+                            </button>
+                          ) : (
+                            <span className="text-stone-400 font-normal">0.0 hrs</span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-rose-700 bg-rose-50/20">
                           <div className="flex items-center justify-end gap-1.5">
                             <span>{item.horasDebidas.toFixed(1)} hrs</span>
@@ -1261,6 +1291,9 @@ export default function NominaAdminPage() {
                     </td>
                     <td className="px-6 py-4 text-right text-emerald-700 text-base font-mono font-black">
                       {totalExtrasPeriodo.toFixed(1)} hrs
+                    </td>
+                    <td className="px-6 py-4 text-right text-amber-700 bg-amber-50/50 text-base font-mono font-black">
+                      {totalExtrasPendientesPeriodo > 0 ? `+${totalExtrasPendientesPeriodo.toFixed(1)} hrs` : '0.0 hrs'}
                     </td>
                     <td className="px-6 py-4 text-right text-rose-700 bg-rose-50/50 text-base font-mono font-black">
                       {totalDebidasPeriodo.toFixed(1)} hrs

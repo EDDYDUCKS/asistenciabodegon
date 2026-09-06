@@ -1959,7 +1959,7 @@ def exportar_reporte_nomina_excel(request):
             bottom=Side(style='thin', color='CCCCCC')
         )
 
-        # Headers — 8 Columnas Ejecutivas
+        # Headers — 9 Columnas Ejecutivas
         headers = [
             "Empleado y Puesto",
             "Días Trabajados",
@@ -1967,17 +1967,18 @@ def exportar_reporte_nomina_excel(request):
             "Horas Ordinarias",
             "Horas Feriados (Días)",
             "Horas Extra Aprobadas",
+            "H. Extra por Aprobar",
             "Horas Debidas (Déficit)",
             "Vacaciones Restantes (Días)",
         ]
 
-        ws.merge_cells('A1:H1')
+        ws.merge_cells('A1:I1')
         ws['A1'] = "BODEGÓN PASS — REPORTE DE ASISTENCIA Y PERSONAL"
         ws['A1'].font = font_titulo
         ws['A1'].fill = fill_title
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
-        ws.merge_cells('A2:H2')
+        ws.merge_cells('A2:I2')
         ws['A2'] = f"Período del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')} — Generado el {hoy.strftime('%d/%m/%Y')}"
         ws['A2'].font = font_sub
         ws['A2'].fill = fill_title
@@ -1986,7 +1987,7 @@ def exportar_reporte_nomina_excel(request):
         ws.append([])        # Fila 3 vacía
         ws.append(headers)   # Fila 4 Headers
 
-        for col in range(1, 9):
+        for col in range(1, 10):
             cell = ws.cell(row=4, column=col)
             cell.font = font_header
             cell.fill = fill_header
@@ -2123,7 +2124,7 @@ def exportar_reporte_nomina_excel(request):
             # Sincronizar con el saldo oficial auditado de la Bolsa de Horas del colaborador
             horas_debidas = max(horas_debidas, float(emp.horas_pendientes or 0.0))
 
-            # Horas extra aprobadas
+            # Horas extra aprobadas y pendientes
             from django.db.models import Sum
             horas_extra_aprobadas = AutorizacionHorasExtra.objects.filter(
                 empleado=emp,
@@ -2131,6 +2132,13 @@ def exportar_reporte_nomina_excel(request):
                 fecha__lte=fecha_fin,
                 estado='APROBADO'
             ).aggregate(total=Sum('horas_extra_autorizadas'))['total'] or 0.0
+
+            horas_extra_pendientes = AutorizacionHorasExtra.objects.filter(
+                empleado=emp,
+                fecha__gte=fecha_inicio,
+                fecha__lte=fecha_fin,
+                estado='PENDIENTE'
+            ).aggregate(total=Sum('horas_extra_solicitadas'))['total'] or 0.0
 
             # Cálculo de vacaciones restantes
             permisos_vac_emp = PermisoAusencia.objects.filter(empleado=emp, tipo__in=['VACACIONES', 'VACACIONES_PAGADAS'])
@@ -2146,6 +2154,7 @@ def exportar_reporte_nomina_excel(request):
                 round(horas_normales_trabajadas, 1),
                 feriados_trabajados_dias,
                 round(float(horas_extra_aprobadas), 1),
+                round(float(horas_extra_pendientes), 1),
                 round(horas_debidas, 1),
                 vacaciones_restantes,
             ]
@@ -2163,13 +2172,13 @@ def exportar_reporte_nomina_excel(request):
                 cell_feriado = ws.cell(row=row_idx, column=5)
                 cell_feriado.comment = Comment(comentario_texto, "BodegónPass")
 
-            for col in range(1, 9):
+            for col in range(1, 10):
                 cell = ws.cell(row=row_idx, column=col)
                 cell.font = font_data
                 cell.border = thin_border
                 if row_idx % 2 == 0:
                     cell.fill = fill_zebra
-                if col in [2, 3, 4, 5, 6, 7, 8]:
+                if col in [2, 3, 4, 5, 6, 7, 8, 9]:
                     cell.alignment = Alignment(horizontal='right')
                 else:
                     cell.alignment = Alignment(horizontal='left')
@@ -2184,7 +2193,7 @@ def exportar_reporte_nomina_excel(request):
         ws[f'A{row_idx}'].font = font_bold
         ws[f'A{row_idx}'].alignment = Alignment(horizontal='right')
 
-        for col_letter in ['D', 'E', 'F', 'G', 'H']:
+        for col_letter in ['D', 'E', 'F', 'G', 'H', 'I']:
             cell = ws[f'{col_letter}{row_idx}']
             cell.value = f"=SUM({col_letter}5:{col_letter}{row_idx-2})"
             cell.font = font_bold
