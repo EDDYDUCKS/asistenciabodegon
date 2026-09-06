@@ -90,10 +90,18 @@ def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
 
 def _verificar_acreditacion_vacaciones_todos():
     """
-    Verifica y devenga las vacaciones de todos los colaboradores activos.
+    Verifica y devenga las vacaciones de todos los colaboradores activos
+    únicamente si hay alguno con corte anterior al mes actual.
     """
     hoy = timezone.now().astimezone(timezone.get_current_timezone()).date()
-    for emp in Empleado.objects.filter(activo=True):
+    primer_dia_este_mes = datetime.date(hoy.year, hoy.month, 1)
+    candidatos = list(Empleado.objects.filter(activo=True).filter(
+        models.Q(ultimo_corte_vacaciones__isnull=True) | models.Q(ultimo_corte_vacaciones__lt=primer_dia_este_mes)
+    ))
+    if not candidatos:
+        return
+
+    for emp in candidatos:
         try:
             _verificar_acreditacion_vacaciones_empleado(emp, hoy)
         except Exception:
@@ -101,7 +109,7 @@ def _verificar_acreditacion_vacaciones_todos():
 
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
-    queryset = Empleado.objects.all()
+    queryset = Empleado.objects.prefetch_related('permisos').all()
     serializer_class = EmpleadoSerializer
     permission_classes = [permissions.AllowAny]
 

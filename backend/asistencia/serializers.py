@@ -2,6 +2,28 @@ from rest_framework import serializers
 from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia, CompensacionHoras
 
 
+class EmpleadoSimpleSerializer(serializers.ModelSerializer):
+    cargo_display = serializers.CharField(source='get_cargo_display', read_only=True)
+    tipo_turno_display = serializers.CharField(source='get_tipo_turno_display', read_only=True)
+
+    class Meta:
+        model = Empleado
+        fields = [
+            'id',
+            'nombre',
+            'apellido',
+            'cargo',
+            'cargo_display',
+            'tipo_turno',
+            'tipo_turno_display',
+            'cedula_carnet',
+            'telefono',
+            'qr_code_token',
+            'activo',
+            'horas_pendientes',
+        ]
+
+
 class EmpleadoSerializer(serializers.ModelSerializer):
     cargo_display = serializers.CharField(source='get_cargo_display', read_only=True)
     tipo_turno_display = serializers.CharField(source='get_tipo_turno_display', read_only=True)
@@ -33,13 +55,18 @@ class EmpleadoSerializer(serializers.ModelSerializer):
         ]
 
     def get_dias_vacaciones_tomadas(self, obj):
+        if hasattr(obj, '_vacaciones_tomadas_cache'):
+            return obj._vacaciones_tomadas_cache
         try:
-            permisos_vac = obj.permisos.filter(tipo__in=['VACACIONES', 'VACACIONES_PAGADAS'])
-            total = sum(p.total_dias for p in permisos_vac)
-            # También incluir permisos autorizados explícitamente a cuenta de vacaciones
-            permisos_cta = obj.permisos.filter(tipo='PERMISO_AUTORIZADO', motivo__icontains='vacaciones')
-            total += sum(p.total_dias for p in permisos_cta)
-            return round(float(total), 1)
+            permisos = obj.permisos.all()
+            total = sum(
+                p.total_dias for p in permisos
+                if p.tipo in ('VACACIONES', 'VACACIONES_PAGADAS')
+                or (p.tipo == 'PERMISO_AUTORIZADO' and 'vacaciones' in (p.motivo or '').lower())
+            )
+            val = round(float(total), 1)
+            obj._vacaciones_tomadas_cache = val
+            return val
         except Exception:
             return 0.0
 
@@ -53,7 +80,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
 
 
 class RegistroAsistenciaSerializer(serializers.ModelSerializer):
-    empleado_detalle = EmpleadoSerializer(source='empleado', read_only=True)
+    empleado_detalle = EmpleadoSimpleSerializer(source='empleado', read_only=True)
     tipo_evento_display = serializers.CharField(source='get_tipo_evento_display', read_only=True)
     foto_verificacion_url = serializers.SerializerMethodField()
 
@@ -67,7 +94,6 @@ class RegistroAsistenciaSerializer(serializers.ModelSerializer):
             'tipo_evento_display',
             'fecha_hora',
             'foto_verificacion',
-            'foto_base64',
             'foto_verificacion_url',
             'observacion',
             'ip_address',
@@ -114,7 +140,7 @@ class DiaFeriadoSerializer(serializers.ModelSerializer):
 
 
 class AutorizacionHorasExtraSerializer(serializers.ModelSerializer):
-    empleado_detalle = EmpleadoSerializer(source='empleado', read_only=True)
+    empleado_detalle = EmpleadoSimpleSerializer(source='empleado', read_only=True)
 
     class Meta:
         model = AutorizacionHorasExtra
@@ -133,7 +159,7 @@ class AutorizacionHorasExtraSerializer(serializers.ModelSerializer):
 
 
 class AlertaAsistenciaSerializer(serializers.ModelSerializer):
-    empleado_detalle = EmpleadoSerializer(source='empleado', read_only=True)
+    empleado_detalle = EmpleadoSimpleSerializer(source='empleado', read_only=True)
 
     class Meta:
         model = AlertaAsistencia
@@ -141,7 +167,7 @@ class AlertaAsistenciaSerializer(serializers.ModelSerializer):
 
 
 class PermisoAusenciaSerializer(serializers.ModelSerializer):
-    empleado_detalle = EmpleadoSerializer(source='empleado', read_only=True)
+    empleado_detalle = EmpleadoSimpleSerializer(source='empleado', read_only=True)
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
     total_dias = serializers.ReadOnlyField()
 
@@ -162,7 +188,7 @@ class PermisoAusenciaSerializer(serializers.ModelSerializer):
 
 
 class CompensacionHorasSerializer(serializers.ModelSerializer):
-    empleado_detalle = EmpleadoSerializer(source='empleado', read_only=True)
+    empleado_detalle = EmpleadoSimpleSerializer(source='empleado', read_only=True)
 
     class Meta:
         model = CompensacionHoras
