@@ -850,7 +850,7 @@ def marcar_asistencia_kiosco(request):
     foto_b64 = _procesar_foto_a_base64(foto)
 
     # ── DETECCIÓN DE HORARIO INUSUAL / MADRUGADA ───────────────────────────
-    if 1 <= dt_local.hour < 10:
+    if 1 <= dt_local.hour < 7:  # De 1:00 AM a 6:59 AM (madrugada profunda con restaurante cerrado)
         AlertaAsistencia.objects.create(
             tipo='MARCACION_SOSPECHOSA',
             empleado=empleado,
