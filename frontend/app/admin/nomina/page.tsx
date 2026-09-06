@@ -623,8 +623,11 @@ export default function NominaAdminPage() {
                     }
                   });
                   const horasOrd = Math.min(horasDia, 8.0);
-                  const deficit = Math.max(0, 8.0 - horasOrd);
-                  deficitSemana += deficit;
+                  // En domingo (getDay() === 0) la administración autoriza salida temprana por cierre a las 10 PM, sin generar deuda
+                  if (sCurr.getDay() !== 0) {
+                    const deficit = Math.max(0, 8.0 - horasOrd);
+                    deficitSemana += deficit;
+                  }
                   if (horasDia > 8.0) {
                     excedenteSemana += (horasDia - 8.0);
                   }

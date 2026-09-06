@@ -942,8 +942,10 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                         )
             else:
                 # Jornada estándar de 8 horas:
-                # Solo alertar si el déficit supera los 10 minutos de la jornada de 8 horas (menos de 7.83h)
-                if horas_netas_hoy < 7.83:
+                # En domingo la administración autoriza la salida temprana por cierre anticipado del restaurante a las 10:00 PM.
+                # Solo alertar si NO es domingo y el déficit supera los 10 minutos (menos de 7.83h):
+                es_domingo = (hora_actual.weekday() == 6)
+                if not es_domingo and horas_netas_hoy < 7.83:
                     deficit_mins = int(round((8.0 - horas_netas_hoy) * 60))
                     if deficit_mins > 10:
                         alerta_creada = True
@@ -1480,9 +1482,10 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
         tiene_salida_definitiva = any(r.tipo_evento == 'SALIDA_DEFINITIVA' for r in regs_d)
         
         # Solo calculamos balance si la jornada del día está cerrada con salida definitiva
+        # En domingo no se acumula déficit por cierre anticipado autorizado
         if tiene_salida_definitiva:
             horas_dia = _calcular_horas_netas_dia(regs_d)
-            if horas_dia < 8.0:
+            if d.weekday() != 6 and horas_dia < 8.0:
                 deficit = round(8.0 - horas_dia, 1)
                 deuda_acumulada += deficit
     # Restar compensaciones formalmente aprobadas en el mes
@@ -1502,8 +1505,12 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
 def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
     """
     Si el empleado trabajó menos de 8 horas, acumula el déficit en horas_pendientes.
+    En domingo la administración autoriza salida anticipada por cierre a las 10 PM, no genera deuda.
     Reinicia el saldo si el mes cambió desde el último registro del período.
     """
+    if fecha_hoy.weekday() == 6:
+        return  # En domingo no se acumula deuda por cierre anticipado acordado
+
     horas_ordinarias = min(horas_trabajadas_dia, 8.0)
     deficit = max(0.0, 8.0 - horas_ordinarias)
 
@@ -1756,6 +1763,19 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'deuda_restante': round(deuda_actual, 1),
             'horas_extra_solicitadas': round(remanente, 1),
             'es_septimo_dia': True,
+        }
+
+    # En domingo la administración autoriza la salida temprana al terminar la limpieza (cierre 10 PM), sin generar deuda ni deducir horas extra
+    es_domingo = (fecha_hoy.weekday() == 6)
+    if es_domingo and horas_trabajadas_dia < 8.0:
+        return {
+            'horas_netas': round(horas_trabajadas_dia, 1),
+            'excedente': 0.0,
+            'horas_amortizadas': 0.0,
+            'deuda_restante': round(float(empleado.horas_pendientes or 0.0), 1),
+            'horas_extra_solicitadas': 0.0,
+            'horas_compensadas_de_extra': 0.0,
+            'deficit_dia': 0.0,
         }
 
     if horas_trabajadas_dia < 8.0:
@@ -2107,8 +2127,10 @@ def exportar_reporte_nomina_excel(request):
                                 regs_d = dias_map[d]
                                 horas_dia = _calcular_horas_netas_dia(regs_d)
                                 horas_ord = min(horas_dia, 8.0)
-                                deficit = max(0.0, 8.0 - horas_ord)
-                                deficit_semana += deficit
+                                # En domingo no se genera déficit semanal por salida temprana autorizada tras el cierre
+                                if d.weekday() != 6:
+                                    deficit = max(0.0, 8.0 - horas_ord)
+                                    deficit_semana += deficit
                                 if horas_dia > 8.0:
                                     excedente_semana += (horas_dia - 8.0)
                         d += datetime.timedelta(days=1)
