@@ -1531,7 +1531,8 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             horas_extra_solicitadas__gt=0.05
         ).order_by('fecha'))
 
-        total_extra_disponible = sum(float(s.horas_extra_solicitadas or 0.0) for s in solicitudes_pendientes)
+        # Usar el valor redondeado a 1 decimal para cada día, garantizando coherencia visual y contable
+        total_extra_disponible = sum(round(float(s.horas_extra_solicitadas or 0.0), 1) for s in solicitudes_pendientes)
 
         if total_extra_disponible > 0 and deficit_dia > 0:
             horas_compensadas = min(deficit_dia, total_extra_disponible)
@@ -1543,7 +1544,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             for s in solicitudes_pendientes:
                 if por_descontar <= 0:
                     break
-                disp = float(s.horas_extra_solicitadas or 0.0)
+                disp = round(float(s.horas_extra_solicitadas or 0.0), 1)
                 aplicar = min(disp, por_descontar)
                 disp_nueva = max(0.0, round(disp - aplicar, 1))
                 por_descontar = max(0.0, round(por_descontar - aplicar, 1))
