@@ -592,6 +592,10 @@ export default function NominaAdminPage() {
         0
       );
 
+      // Sincronizar con el saldo real auditado de la Bolsa de Horas del colaborador
+      const deudaOficialBolsa = parseFloat(String(emp.horas_pendientes || 0));
+      const horasDebidasFinal = Math.max(horasDebidas, deudaOficialBolsa);
+
       return {
         emp,
         diasUnicos,
@@ -600,7 +604,7 @@ export default function NominaAdminPage() {
         feriadosTrabajadosDias,
         feriadosDetalle,
         horasExtraAprobadas,
-        horasDebidas,
+        horasDebidas: horasDebidasFinal,
         permisosInfo: permisosInfoPorEmpleado[emp.id] || [],
       };
     });
@@ -1136,7 +1140,17 @@ export default function NominaAdminPage() {
                           {item.horasExtraAprobadas.toFixed(1)} hrs
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-rose-700 bg-rose-50/20">
-                          {item.horasDebidas.toFixed(1)} hrs
+                          <div className="flex items-center justify-end gap-1.5">
+                            <span>{item.horasDebidas.toFixed(1)} hrs</span>
+                            {Number(item.emp.horas_pendientes || 0) > 0 && (
+                              <span
+                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs"
+                                title={`Saldo activo en Bolsa de Horas: ${Number(item.emp.horas_pendientes).toFixed(1)} hrs a reponer`}
+                              >
+                                Bolsa
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))

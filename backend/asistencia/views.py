@@ -1871,6 +1871,9 @@ def exportar_reporte_nomina_excel(request):
                     horas_normales_trabajadas += compensado_semana
                 curr_day += datetime.timedelta(days=1)
 
+            # Sincronizar con el saldo oficial auditado de la Bolsa de Horas del colaborador
+            horas_debidas = max(horas_debidas, float(emp.horas_pendientes or 0.0))
+
             # Horas extra aprobadas
             from django.db.models import Sum
             horas_extra_aprobadas = AutorizacionHorasExtra.objects.filter(
