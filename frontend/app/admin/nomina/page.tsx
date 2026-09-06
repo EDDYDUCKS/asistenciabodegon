@@ -1519,109 +1519,194 @@ export default function NominaAdminPage() {
                           </div>
                         </div>
 
-                        {/* Bloque Día con Horas Extra (Pago) */}
-                        <div className="bg-emerald-50/60 border border-emerald-200/70 rounded-xl p-3.5 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div>
-                            <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 block">
-                              🟢 DÍA QUE HIZO LAS HORAS EXTRA (PAGO):
-                            </span>
-                            <span className="font-bold text-stone-900 text-sm mt-0.5 block font-mono">
-                              {new Date(comp.fecha_compensacion + 'T00:00:00').toLocaleDateString('es-NI', {
-                                weekday: 'long',
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric',
-                              })}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-4 text-right">
+                        {/* Bloque Identificador: Salida Anticipada vs Día de Horas Extra */}
+                        {Number(comp.horas_trabajadas_hoy) < 7.95 ? (
+                          <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3.5 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
-                              <span className="text-[10px] text-stone-500 block uppercase font-bold">
-                                Jornada Realizada
+                              <span className="font-bold uppercase tracking-wider text-[10px] text-amber-800 flex items-center gap-1.5">
+                                <span>🟠</span>
+                                <span>DÍA CON SALIDA ANTICIPADA (DÉFICIT COMPENSADO):</span>
                               </span>
-                              <span className="font-mono font-bold text-stone-800">
-                                {Number(comp.horas_trabajadas_hoy).toFixed(1)} hrs
+                              <span className="font-bold text-stone-900 text-sm mt-0.5 block font-mono">
+                                {new Date(comp.fecha_compensacion + 'T00:00:00').toLocaleDateString('es-NI', {
+                                  weekday: 'long',
+                                  day: 'numeric',
+                                  month: 'long',
+                                  year: 'numeric',
+                                })}
                               </span>
                             </div>
-                            <div className="bg-white px-3 py-1.5 rounded-xl border border-emerald-300 shadow-2xs">
-                              <span className="text-[10px] text-emerald-800 block uppercase font-bold">
-                                Horas Extra Generadas
-                              </span>
-                              <span className="font-mono font-black text-emerald-900 text-sm">
-                                +{Number(comp.horas_extra_generadas).toFixed(1)} hrs
-                              </span>
+                            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-right">
+                              <div>
+                                <span className="text-[10px] text-stone-500 block uppercase font-bold">
+                                  Jornada Realizada
+                                </span>
+                                <span className="font-mono font-bold text-stone-800">
+                                  {Number(comp.horas_trabajadas_hoy).toFixed(1)} hrs
+                                </span>
+                                <span className="text-[9px] text-stone-400 block">(base 8.0 hrs)</span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-rose-600 block uppercase font-bold">
+                                  Déficit Generado
+                                </span>
+                                <span className="font-mono font-black text-rose-700">
+                                  -{Number(comp.deuda_previa).toFixed(1)} hrs
+                                </span>
+                                <span className="text-[9px] text-rose-400 block">Salida temprana</span>
+                              </div>
+                              <div className="bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs">
+                                <span className="text-[10px] text-amber-800 block uppercase font-bold">
+                                  Cubierto con Horas Extra
+                                </span>
+                                <span className="font-mono font-black text-emerald-800 text-sm">
+                                  +{Number(comp.horas_deducidas).toFixed(1)} hrs
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="bg-emerald-50/60 border border-emerald-200/70 rounded-xl p-3.5 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 block">
+                                🟢 DÍA QUE HIZO LAS HORAS EXTRA (PAGO):
+                              </span>
+                              <span className="font-bold text-stone-900 text-sm mt-0.5 block font-mono">
+                                {new Date(comp.fecha_compensacion + 'T00:00:00').toLocaleDateString('es-NI', {
+                                  weekday: 'long',
+                                  day: 'numeric',
+                                  month: 'long',
+                                  year: 'numeric',
+                                })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-4 text-right">
+                              <div>
+                                <span className="text-[10px] text-stone-500 block uppercase font-bold">
+                                  Jornada Realizada
+                                </span>
+                                <span className="font-mono font-bold text-stone-800">
+                                  {Number(comp.horas_trabajadas_hoy).toFixed(1)} hrs
+                                </span>
+                              </div>
+                              <div className="bg-white px-3 py-1.5 rounded-xl border border-emerald-300 shadow-2xs">
+                                <span className="text-[10px] text-emerald-800 block uppercase font-bold">
+                                  Horas Extra Generadas
+                                </span>
+                                <span className="font-mono font-black text-emerald-900 text-sm">
+                                  +{Number(comp.horas_extra_generadas).toFixed(1)} hrs
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
-                        {/* Bloque Desglose Detallado de Días Adeudados */}
+                        {/* Bloque Desglose Detallado */}
                         <div className="space-y-2">
                           <span className="font-bold uppercase tracking-wider text-[11px] text-stone-700 flex items-center gap-1.5">
-                            <span>📋 DESGLOSE DETALLADO DE CADA DÍA ADEUDADO:</span>
+                            {Number(comp.horas_trabajadas_hoy) < 7.95 ? (
+                              <span>📋 HORAS EXTRA PREVIAS UTILIZADAS PARA CUBRIR LA SALIDA TEMPRANA:</span>
+                            ) : (
+                              <span>📋 DESGLOSE DETALLADO DE CADA DÍA ADEUDADO:</span>
+                            )}
                           </span>
 
                           <div className="space-y-2">
                             {comp.desglose && comp.desglose.length > 0 ? (
-                              comp.desglose.map((item, idx) => (
-                                <div
-                                  key={idx}
-                                  className="bg-stone-50 border border-stone-200/80 rounded-xl p-3 text-xs space-y-2"
-                                >
-                                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/60 pb-1.5">
-                                    <span className="font-bold text-stone-900 flex items-center gap-1.5">
-                                      <span>📅</span>
-                                      <span>{item.fecha_display || item.fecha}</span>
-                                    </span>
-                                    <span className="bg-white border border-stone-200 px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-800 shadow-2xs">
-                                      {item.estado}
-                                    </span>
+                              comp.desglose.map((item, idx) => {
+                                const esSalidaAnt = Number(comp.horas_trabajadas_hoy) < 7.95;
+                                const horasExtraOrigen = Number(
+                                  item.horas_extra_origen ?? (
+                                    item.horas_trabajadas > 8.0
+                                      ? item.horas_trabajadas - 8.0
+                                      : item.horas_aplicadas
+                                  )
+                                );
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="bg-stone-50 border border-stone-200/80 rounded-xl p-3 text-xs space-y-2"
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/60 pb-1.5">
+                                      <span className="font-bold text-stone-900 flex items-center gap-1.5">
+                                        <span>📅</span>
+                                        <span>{item.fecha_display || item.fecha}</span>
+                                        {esSalidaAnt && (
+                                          <span className="text-[10px] text-stone-500 font-normal">
+                                            (Fecha donde acumuló horas extra)
+                                          </span>
+                                        )}
+                                      </span>
+                                      <span className="bg-white border border-stone-200 px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-800 shadow-2xs">
+                                        {item.estado}
+                                      </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px]">
+                                      <div className="bg-white p-2 rounded-lg border border-stone-200/60">
+                                        <span className="text-stone-400 block text-[10px] uppercase font-bold">
+                                          Horas Trabajadas
+                                        </span>
+                                        <span className="font-mono font-bold text-stone-800">
+                                          {Number(item.horas_trabajadas).toFixed(1)} hrs
+                                        </span>
+                                        <span className="text-[10px] text-stone-400 block">
+                                          {esSalidaAnt ? '(Jornada con horas extra)' : '(base 8.0 hrs)'}
+                                        </span>
+                                      </div>
+
+                                      <div className="bg-white p-2 rounded-lg border border-stone-200/60">
+                                        {esSalidaAnt ? (
+                                          <>
+                                            <span className="text-emerald-700 block text-[10px] uppercase font-bold">
+                                              Horas Extra Acumuladas
+                                            </span>
+                                            <span className="font-mono font-bold text-emerald-800">
+                                              +{horasExtraOrigen.toFixed(1)} hrs
+                                            </span>
+                                            <span className="text-[10px] text-emerald-600 block">Fondo a su favor</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <span className="text-rose-500 block text-[10px] uppercase font-bold">
+                                              Horas Faltaron (Déficit)
+                                            </span>
+                                            <span className="font-mono font-bold text-rose-700">
+                                              -{Number(item.horas_faltaron).toFixed(1)} hrs
+                                            </span>
+                                            <span className="text-[10px] text-rose-400 block">Deuda del día</span>
+                                          </>
+                                        )}
+                                      </div>
+
+                                      <div className="bg-white p-2 rounded-lg border border-stone-200/60">
+                                        <span className="text-[#1c6856] block text-[10px] uppercase font-bold">
+                                          {esSalidaAnt ? 'Horas Extra Deducidas' : 'Horas Extra Aplicadas'}
+                                        </span>
+                                        <span className="font-mono font-bold text-[#1c6856]">
+                                          {esSalidaAnt ? '-' : '+'}{Number(item.horas_aplicadas).toFixed(1)} hrs
+                                        </span>
+                                        <span className="text-[10px] text-stone-400 block">
+                                          {esSalidaAnt ? 'Para cubrir salida' : 'Deducción directa'}
+                                        </span>
+                                      </div>
+
+                                      <div className="bg-white p-2 rounded-lg border border-stone-200/60">
+                                        <span className="text-stone-500 block text-[10px] uppercase font-bold">
+                                          {esSalidaAnt ? 'Remanente Extra' : 'Saldo de esta Fecha'}
+                                        </span>
+                                        <span className="font-mono font-bold text-stone-900">
+                                          {Number(item.saldo_dia).toFixed(1)} hrs
+                                        </span>
+                                        <span className="text-[10px] text-stone-400 block">
+                                          {Number(item.saldo_dia) === 0 ? 'Liquidado' : 'Pendiente'}
+                                        </span>
+                                      </div>
+                                    </div>
                                   </div>
-
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px]">
-                                    <div className="bg-white p-2 rounded-lg border border-stone-200/60">
-                                      <span className="text-stone-400 block text-[10px] uppercase font-bold">
-                                        Horas Trabajadas
-                                      </span>
-                                      <span className="font-mono font-bold text-stone-800">
-                                        {Number(item.horas_trabajadas).toFixed(1)} hrs
-                                      </span>
-                                      <span className="text-[10px] text-stone-400 block">(base 8.0 hrs)</span>
-                                    </div>
-
-                                    <div className="bg-white p-2 rounded-lg border border-stone-200/60">
-                                      <span className="text-rose-500 block text-[10px] uppercase font-bold">
-                                        Horas Faltaron (Déficit)
-                                      </span>
-                                      <span className="font-mono font-bold text-rose-700">
-                                        -{Number(item.horas_faltaron).toFixed(1)} hrs
-                                      </span>
-                                      <span className="text-[10px] text-rose-400 block">Deuda del día</span>
-                                    </div>
-
-                                    <div className="bg-white p-2 rounded-lg border border-stone-200/60">
-                                      <span className="text-emerald-700 block text-[10px] uppercase font-bold">
-                                        Horas Extra Aplicadas
-                                      </span>
-                                      <span className="font-mono font-bold text-emerald-800">
-                                        +{Number(item.horas_aplicadas).toFixed(1)} hrs
-                                      </span>
-                                      <span className="text-[10px] text-emerald-600 block">Deducción directa</span>
-                                    </div>
-
-                                    <div className="bg-white p-2 rounded-lg border border-stone-200/60">
-                                      <span className="text-stone-500 block text-[10px] uppercase font-bold">
-                                        Saldo de esta Fecha
-                                      </span>
-                                      <span className="font-mono font-bold text-stone-900">
-                                        {Number(item.saldo_dia).toFixed(1)} hrs
-                                      </span>
-                                      <span className="text-[10px] text-stone-400 block">
-                                        {Number(item.saldo_dia) === 0 ? 'Liquidado' : 'Pendiente'}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))
+                                );
+                              })
                             ) : (
                               <div className="bg-stone-50 p-3 rounded-xl text-stone-500 text-xs">
                                 Amortización directa aplicada sobre el saldo deudor acumulado: {Number(comp.horas_deducidas).toFixed(1)} hrs.
@@ -1633,19 +1718,35 @@ export default function NominaAdminPage() {
                         {/* Footer Resumen de la Tarjeta */}
                         <div className="bg-stone-50 rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs border border-stone-200 font-medium">
                           <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-                            {/* Sección A: Horas Extra */}
+                            {/* Sección A: Balance */}
                             <div className="space-y-0.5">
                               <span className="text-stone-400 text-[9px] uppercase font-bold block">
-                                A. Horas Extra Jornada
+                                {Number(comp.horas_trabajadas_hoy) < 7.95
+                                  ? 'A. Balance Salida Anticipada'
+                                  : 'A. Horas Extra Jornada'}
                               </span>
                               <div className="flex items-center gap-1.5 text-xs font-mono">
-                                <span className="text-stone-700 font-bold" title="Laboradas">+{Number(comp.horas_extra_generadas).toFixed(1)}h</span>
-                                <span className="text-stone-400 font-normal">|</span>
-                                <span className="text-[#1c6856] font-bold" title="Aplicadas a Deuda">-{Number(comp.horas_deducidas).toFixed(1)}h</span>
-                                <span className="text-stone-400 font-normal">|</span>
-                                <span className="text-emerald-700 font-black bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="A Pagar en Nómina">
-                                  {Number(comp.remanente_extra) > 0 ? `+${Number(comp.remanente_extra).toFixed(1)}h pagar` : '0.0h'}
-                                </span>
+                                {Number(comp.horas_trabajadas_hoy) < 7.95 ? (
+                                  <>
+                                    <span className="text-rose-700 font-bold" title="Déficit de hoy">-{Number(comp.deuda_previa).toFixed(1)}h déficit</span>
+                                    <span className="text-stone-400 font-normal">|</span>
+                                    <span className="text-emerald-700 font-bold" title="Horas extra aplicadas">+{Number(comp.horas_deducidas).toFixed(1)}h extra</span>
+                                    <span className="text-stone-400 font-normal">|</span>
+                                    <span className="text-stone-700 font-medium" title="Remanente extra de nómina">
+                                      {Number(comp.remanente_extra) > 0 ? `+${Number(comp.remanente_extra).toFixed(1)}h extra nómina` : '0.0h extra nómina'}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-stone-700 font-bold" title="Laboradas">+{Number(comp.horas_extra_generadas).toFixed(1)}h</span>
+                                    <span className="text-stone-400 font-normal">|</span>
+                                    <span className="text-[#1c6856] font-bold" title="Aplicadas a Deuda">-{Number(comp.horas_deducidas).toFixed(1)}h</span>
+                                    <span className="text-stone-400 font-normal">|</span>
+                                    <span className="text-emerald-700 font-black bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="A Pagar en Nómina">
+                                      {Number(comp.remanente_extra) > 0 ? `+${Number(comp.remanente_extra).toFixed(1)}h pagar` : '0.0h'}
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </div>
 
@@ -1655,15 +1756,30 @@ export default function NominaAdminPage() {
                                 B. Saldo Pendiente (Bolsa)
                               </span>
                               <div className="flex items-center gap-1.5 text-xs font-mono">
-                                <span className="text-stone-600 font-bold" title="Saldo Anterior">{Number(comp.deuda_previa).toFixed(1)}h previa</span>
-                                <span className="text-stone-400 font-normal">➔</span>
-                                <span className={`font-black px-1.5 py-0.5 rounded border ${
-                                  Number(comp.saldo_restante) <= 0
-                                    ? 'text-emerald-800 bg-emerald-50 border-emerald-300'
-                                    : 'text-rose-700 bg-rose-50 border-rose-300'
-                                }`} title="Saldo Pendiente Actual">
-                                  {Number(comp.saldo_restante) <= 0 ? '0.0h (Al Día ✅)' : `${Number(comp.saldo_restante).toFixed(1)}h pendiente`}
-                                </span>
+                                {Number(comp.horas_trabajadas_hoy) < 7.95 ? (
+                                  <>
+                                    <span className="text-stone-600 font-bold" title="Déficit no cubierto">Déficit pendiente:</span>
+                                    <span className={`font-black px-1.5 py-0.5 rounded border ${
+                                      Number(comp.saldo_restante) <= 0
+                                        ? 'text-emerald-800 bg-emerald-50 border-emerald-300'
+                                        : 'text-amber-800 bg-amber-50 border-amber-300'
+                                    }`} title="Saldo Deudor en Bolsa">
+                                      {Number(comp.saldo_restante) <= 0 ? '0.0h (Al Día ✅)' : `${Number(comp.saldo_restante).toFixed(1)}h a reponer`}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-stone-600 font-bold" title="Saldo Anterior">{Number(comp.deuda_previa).toFixed(1)}h previa</span>
+                                    <span className="text-stone-400 font-normal">➔</span>
+                                    <span className={`font-black px-1.5 py-0.5 rounded border ${
+                                      Number(comp.saldo_restante) <= 0
+                                        ? 'text-emerald-800 bg-emerald-50 border-emerald-300'
+                                        : 'text-rose-700 bg-rose-50 border-rose-300'
+                                    }`} title="Saldo Pendiente Actual">
+                                      {Number(comp.saldo_restante) <= 0 ? '0.0h (Al Día ✅)' : `${Number(comp.saldo_restante).toFixed(1)}h pendiente`}
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>

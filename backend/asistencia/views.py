@@ -1552,9 +1552,11 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
                     'fecha': s.fecha.strftime('%Y-%m-%d'),
                     'fecha_display': s.fecha.strftime('%d/%m/%Y'),
                     'horas_trabajadas': round(8.0 + disp, 1),
-                    'horas_faltaron': round(deficit_dia, 1),
+                    'horas_faltaron': 0.0,
+                    'horas_extra_origen': round(disp, 1),
                     'horas_aplicadas': round(aplicar, 1),
                     'saldo_dia': disp_nueva,
+                    'tipo': 'HORAS_EXTRA_ORIGEN',
                     'estado': "Consumida al 100%" if disp_nueva == 0 else f"Remanente pendiente ({disp_nueva} hrs)"
                 })
 
@@ -1571,7 +1573,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
                 empleado=empleado,
                 fecha_compensacion=fecha_hoy,
                 horas_trabajadas_hoy=round(horas_trabajadas_dia, 1),
-                horas_extra_generadas=round(total_extra_disponible, 1),
+                horas_extra_generadas=0.00,
                 horas_deducidas=round(horas_compensadas, 1),
                 deuda_previa=round(deficit_dia, 1),
                 saldo_restante=round(deficit_restante, 1),

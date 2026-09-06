@@ -120,8 +120,10 @@ export interface ItemDesgloseCompensacion {
   fecha_display: string;
   horas_trabajadas: number;
   horas_faltaron: number;
+  horas_extra_origen?: number;
   horas_aplicadas: number;
   saldo_dia: number;
+  tipo?: string;
   estado: string;
 }
 
