@@ -20,6 +20,7 @@ import {
 } from '@/lib/api-client';
 import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras } from '@/lib/types';
 import BoletaCompensacionModal from '@/components/BoletaCompensacionModal';
+import BoletaVacacionesModal from '@/components/BoletaVacacionesModal';
 import {
   FileSpreadsheet,
   Download,
@@ -2692,215 +2693,17 @@ export default function NominaAdminPage() {
         onClose={() => setSelectedCompensacion(null)}
       />
 
-      {/* ── MODAL 1: AUDITORÍA DETALLADA Y ESTADO DE CUENTA DE VACACIONES ── */}
-      {selectedVacacionesEmp && (() => {
-        const emp = selectedVacacionesEmp;
-        const vacAcum = parseFloat(String(emp.dias_vacaciones_acumuladas || 0));
-        const permisosVac = permisos.filter(
-          (p) =>
-            p.empleado === emp.id &&
-            (p.tipo === 'VACACIONES' ||
-              p.tipo === 'VACACIONES_PAGADAS' ||
-              (p.tipo === 'PERMISO_AUTORIZADO' && (p.motivo || '').toLowerCase().includes('vacaciones')))
-        );
-        const vacTom = permisosVac.reduce((acc, p) => acc + (p.total_dias || 0), 0);
-        const vacDisp = Number((vacAcum - vacTom).toFixed(1));
-        const corteStr = emp.ultimo_corte_vacaciones
-          ? new Date(emp.ultimo_corte_vacaciones + 'T00:00:00').toLocaleDateString('es-NI', {
-              month: 'long',
-              year: 'numeric',
-            })
-          : 'Mes en curso';
-
-        return (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200 print:p-0 print:bg-white">
-            <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-stone-200/80 p-5 sm:p-7 space-y-6 print:shadow-none print:border-none print:p-4">
-              {/* Header del Modal */}
-              <div className="flex items-start justify-between gap-3 border-b border-stone-200/80 pb-4">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-[#1c6856] text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0">
-                    🏖️
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-base sm:text-lg font-display font-black text-stone-900 leading-tight">
-                        {emp.nombre} {emp.apellido}
-                      </h2>
-                      <span className="text-[10px] font-bold text-[#1c6856] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                        {emp.cargo_display}
-                      </span>
-                    </div>
-                    <p className="text-xs text-stone-500 font-medium mt-0.5">
-                      Estado de Cuenta y Auditoría Legal de Vacaciones (Art. 76 Ley Nicaragua)
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedVacacionesEmp(null)}
-                  className="p-2 hover:bg-stone-100 rounded-full text-stone-400 hover:text-stone-700 transition-colors print:hidden cursor-pointer"
-                  title="Cerrar modal"
-                >
-                  <XCircle className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Hero Card: Saldo Disponible Destacado */}
-              <div
-                className={`rounded-2xl p-5 border text-center space-y-1 shadow-sm ${
-                  vacDisp >= 0
-                    ? 'bg-gradient-to-br from-emerald-50 via-teal-50/40 to-emerald-100/50 border-emerald-200 text-emerald-950'
-                    : 'bg-gradient-to-br from-rose-50 via-amber-50/40 to-rose-100/50 border-rose-200 text-rose-950'
-                }`}
-              >
-                <span className="text-[11px] uppercase font-bold tracking-wider opacity-75 block">
-                  Saldo Disponible Actual de Vacaciones
-                </span>
-                <div className="text-3xl sm:text-4xl font-display font-black font-mono tracking-tight">
-                  {vacDisp.toFixed(1)} {Math.abs(vacDisp) === 1 ? 'Día' : 'Días'}
-                </div>
-                <p className="text-xs font-medium opacity-80 pt-0.5">
-                  {vacDisp >= 0
-                    ? '✅ Días hábiles remunerados disponibles para gozar conforme a la ley.'
-                    : '⚠️ El colaborador tiene días pendientes de corte o acumulación.'}
-                </p>
-              </div>
-
-              {/* Desglose Matemático y Legal en 3 Tarjetas */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* 1. Acumuladas */}
-                <div className="bg-stone-50 border border-stone-200/80 rounded-2xl p-4 space-y-1">
-                  <span className="text-[10px] text-stone-500 uppercase font-bold tracking-wider block">
-                    📈 1. Acumuladas
-                  </span>
-                  <div className="text-xl font-mono font-black text-stone-900">
-                    +{vacAcum.toFixed(1)} <span className="text-xs font-sans font-bold text-stone-500">días</span>
-                  </div>
-                  <p className="text-[11px] text-stone-500 font-medium leading-tight">
-                    +2.5 días/mes por ley + saldo inicial auditado.
-                  </p>
-                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded inline-block mt-1">
-                    Corte: {corteStr}
-                  </span>
-                </div>
-
-                {/* 2. Tomadas */}
-                <div className="bg-stone-50 border border-stone-200/80 rounded-2xl p-4 space-y-1">
-                  <span className="text-[10px] text-stone-500 uppercase font-bold tracking-wider block">
-                    📉 2. Días Gozados
-                  </span>
-                  <div className="text-xl font-mono font-black text-amber-700">
-                    {vacTom > 0 ? `-${vacTom.toFixed(1)}` : '0.0'}{' '}
-                    <span className="text-xs font-sans font-bold text-stone-500">días</span>
-                  </div>
-                  <p className="text-[11px] text-stone-500 font-medium leading-tight">
-                    Restados de {permisosVac.length} período(s) registrado(s).
-                  </p>
-                  <span className="text-[10px] font-mono text-stone-600 bg-white border border-stone-200 px-1.5 py-0.5 rounded inline-block mt-1">
-                    {permisosVac.length} ausencia(s)
-                  </span>
-                </div>
-
-                {/* 3. Fórmula */}
-                <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-4 space-y-1">
-                  <span className="text-[10px] text-emerald-800 uppercase font-bold tracking-wider block">
-                    🧮 3. Fórmula Legal
-                  </span>
-                  <div className="text-sm font-mono font-black text-emerald-950 pt-1">
-                    {vacAcum.toFixed(1)} - {vacTom.toFixed(1)} =
-                  </div>
-                  <div className="text-lg font-mono font-black text-emerald-800">
-                    {vacDisp.toFixed(1)} días
-                  </div>
-                  <p className="text-[10px] text-emerald-700 font-medium">
-                    Art. 76 Código del Trabajo Nic.
-                  </p>
-                </div>
-              </div>
-
-              {/* Historial Detallado de Ausencias de Vacaciones */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center justify-between">
-                  <span>📋 Historial de Períodos de Vacaciones Gozados</span>
-                  <span className="text-[11px] font-mono text-stone-400 font-normal">
-                    {permisosVac.length} registro{permisosVac.length !== 1 ? 's' : ''}
-                  </span>
-                </h4>
-
-                {permisosVac.length === 0 ? (
-                  <div className="bg-stone-50 border border-dashed border-stone-200 rounded-2xl p-6 text-center text-xs text-stone-400">
-                    🌴 Este colaborador no tiene ausencias registradas por vacaciones aún.
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                    {permisosVac.map((p) => (
-                      <div
-                        key={p.id}
-                        className="bg-white border border-stone-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs hover:border-emerald-300 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-lg text-center font-mono font-bold text-xs shrink-0">
-                            -{p.total_dias || 1} d
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-stone-900 flex items-center gap-2">
-                              <span>Del {p.fecha_inicio} al {p.fecha_fin}</span>
-                              <span className="text-[10px] font-bold text-[#1c6856] bg-[#1c6856]/5 px-2 py-0.5 rounded">
-                                {p.tipo_display}
-                              </span>
-                            </div>
-                            {p.motivo && (
-                              <p className="text-[11px] text-stone-500 font-medium italic mt-0.5">
-                                &ldquo;{p.motivo}&rdquo;
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <span className="text-[10px] text-stone-400 font-mono self-end sm:self-center">
-                          Registrado: {p.created_at ? new Date(p.created_at).toLocaleDateString('es-NI') : '-'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Botones y Acciones */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-stone-200/80 pt-4 print:hidden">
-                <button
-                  type="button"
-                  onClick={() => handleOpenAjuste(emp)}
-                  className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Ajustar Saldo Acumulado</span>
-                </button>
-
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="bg-white hover:bg-emerald-50 text-[#1c6856] border border-emerald-300 px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>Imprimir Constancia</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedVacacionesEmp(null)}
-                    className="bg-[#1c6856] hover:bg-[#154f42] text-white px-5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-sm"
-                  >
-                    Entendido / Cerrar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* ── MODAL 1: AUDITORÍA DETALLADA Y ESTADO DE CUENTA DE VACACIONES (HOJA IMPRIMIBLE EJECUTIVA) ── */}
+      <BoletaVacacionesModal
+        empleado={selectedVacacionesEmp}
+        permisos={permisos}
+        onClose={() => setSelectedVacacionesEmp(null)}
+        onAjustar={() => {
+          if (selectedVacacionesEmp) {
+            handleOpenAjuste(selectedVacacionesEmp);
+          }
+        }}
+      />
 
       {/* ── MODAL 2: AJUSTE RÁPIDO DE SALDO INICIAL POR ADMINISTRACIÓN ── */}
       {ajustandoEmp && (() => {

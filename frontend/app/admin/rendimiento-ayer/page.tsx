@@ -450,19 +450,29 @@ export default function RendimientoAyerPage() {
       const conPermiso = reporteJornada.filas.filter((f) => f.estadoCierre === 'PERMISO');
 
       // Calcular altura dinámica del Canvas
-      const headerH = 150;
-      const kpiH = 110;
-      const tableHeaderH = 65;
-      const rowH = 44;
+      const headerH = 138;
+      const kpiH = 116;
+      const tableHeaderH = 68;
+      const rowH = 50;
       const tableH = tableHeaderH + Math.max(1, presentes.length) * rowH;
+
       const totalNovedadesCount =
         ausentes.length +
         conPermiso.length +
         reporteJornada.hePendientes.length +
         reporteJornada.sinSalida.length;
-      const novedadesH = Math.max(75, totalNovedadesCount * 36 + 55);
-      const footerH = 55;
-      const paddingBottom = 35;
+
+      // Calcular altura exacta de novedades para que no sobre espacio en blanco ni se corte texto
+      const heRows = Math.ceil(reporteJornada.hePendientes.length / 2);
+      const novedadesContentH =
+        (ausentes.length + conPermiso.length + reporteJornada.sinSalida.length) * 32 +
+        (reporteJornada.hePendientes.length > 0 ? 32 + heRows * 36 : 0);
+      const novedadesCardH =
+        totalNovedadesCount === 0 ? 52 : Math.max(60, novedadesContentH + 24);
+      const novedadesH = novedadesCardH + 42;
+
+      const footerH = 46;
+      const paddingBottom = 30;
 
       const logicalHeight =
         headerH + kpiH + tableH + novedadesH + footerH + paddingBottom;
@@ -520,19 +530,19 @@ export default function RendimientoAyerPage() {
       const contentW = logicalWidth - marginX * 2;
       let curY = 24;
 
-      drawCardRect(marginX, curY, contentW, 116, 14, '#1c6856');
+      drawCardRect(marginX, curY, contentW, 122, 16, '#1c6856');
+
+      ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = '#fef08a';
+      ctx.fillText('🍽️ RESTAURANTE EL BODEGÓN', marginX + 24, curY + 34);
+
+      ctx.font = '900 24px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('INFORME OPERATIVO DIARIO', marginX + 24, curY + 68);
 
       ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
-      ctx.fillStyle = '#fef08a';
-      ctx.fillText('🍽️ RESTAURANTE EL BODEGÓN', marginX + 22, curY + 32);
-
-      ctx.font = '900 20px system-ui, -apple-system, sans-serif';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText('INFORME OPERATIVO DIARIO', marginX + 22, curY + 64);
-
-      ctx.font = '600 12px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#a7f3d0';
-      ctx.fillText(`Jornada: ${fechaDisplay}`, marginX + 22, curY + 92);
+      ctx.fillText(`Jornada: ${fechaDisplay}`, marginX + 24, curY + 98);
 
       // Badge de Diagnóstico
       const semaforoColor =
@@ -549,18 +559,18 @@ export default function RendimientoAyerPage() {
           ? 'NOVEDADES DE CIERRE ⚠️'
           : 'ATENCIÓN REQUERIDA 🔴';
 
-      const pillW = 200;
-      const pillH = 32;
-      drawCardRect(marginX + contentW - pillW - 20, curY + 42, pillW, pillH, 8, semaforoColor);
-      ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+      const pillW = 230;
+      const pillH = 38;
+      drawCardRect(marginX + contentW - pillW - 22, curY + 42, pillW, pillH, 10, semaforoColor);
+      ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
-      ctx.fillText(semaforoTxt, marginX + contentW - pillW / 2 - 20, curY + 62);
+      ctx.fillText(semaforoTxt, marginX + contentW - pillW / 2 - 22, curY + 66);
       ctx.textAlign = 'left';
 
-      // 2. 4 Tarjetas de Métricas
-      curY += 132;
-      const kpiGap = 10;
+      // 2. 4 Tarjetas de Métricas (KPIs)
+      curY += 138;
+      const kpiGap = 12;
       const kpiCardW = (contentW - kpiGap * 3) / 4;
       const kpis = [
         {
@@ -591,66 +601,66 @@ export default function RendimientoAyerPage() {
 
       kpis.forEach((c, idx) => {
         const kX = marginX + idx * (kpiCardW + kpiGap);
-        drawCardRect(kX, curY, kpiCardW, 84, 10, '#ffffff', '#e7e5e4');
+        drawCardRect(kX, curY, kpiCardW, 90, 12, '#ffffff', '#e7e5e4');
 
-        ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+        ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
         ctx.fillStyle = '#78716c';
-        ctx.fillText(`${c.icon} ${c.label}`, kX + 12, curY + 22);
+        ctx.fillText(`${c.icon} ${c.label}`, kX + 14, curY + 24);
 
-        ctx.font = '900 19px system-ui, -apple-system, sans-serif';
+        ctx.font = '900 23px system-ui, -apple-system, sans-serif';
         ctx.fillStyle = '#1c1917';
-        ctx.fillText(c.val, kX + 12, curY + 50);
+        ctx.fillText(c.val, kX + 14, curY + 54);
 
-        ctx.font = '500 10px system-ui, -apple-system, sans-serif';
+        ctx.font = '600 11.5px system-ui, -apple-system, sans-serif';
         ctx.fillStyle = '#a8a29e';
-        ctx.fillText(c.sub, kX + 12, curY + 70);
+        ctx.fillText(c.sub, kX + 14, curY + 76);
       });
 
       // 3. Tabla de Asistencia del Equipo Presente
-      curY += 100;
-      ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+      curY += 106;
+      ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#1c1917';
-      ctx.fillText('📋 ASISTENCIA Y JORNADAS REGISTRADAS', marginX, curY + 14);
+      ctx.fillText('📋 ASISTENCIA Y JORNADAS REGISTRADAS', marginX, curY + 16);
 
-      ctx.font = '500 11px system-ui, -apple-system, sans-serif';
+      ctx.font = '600 13px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#78716c';
-      ctx.fillText(`(${presentes.length} colaboradores en operación)`, marginX + 320, curY + 14);
+      ctx.fillText(`(${presentes.length} colaboradores en operación)`, marginX + 350, curY + 16);
 
-      curY += 24;
+      curY += 28;
       // Header de la tabla
-      drawCardRect(marginX, curY, contentW, 32, 6, '#ebe9e4');
-      ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-      ctx.fillStyle = '#57534e';
-      ctx.fillText('COLABORADOR', marginX + 14, curY + 20);
-      ctx.fillText('MODALIDAD', marginX + 230, curY + 20);
-      ctx.fillText('MARCAJES', marginX + 390, curY + 20);
-      ctx.fillText('HORAS', marginX + 680, curY + 20);
-      ctx.fillText('ESTATUS', marginX + 780, curY + 20);
+      drawCardRect(marginX, curY, contentW, 36, 6, '#ebe9e4');
+      ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = '#44403c';
+      ctx.fillText('COLABORADOR', marginX + 16, curY + 23);
+      ctx.fillText('MODALIDAD', marginX + 250, curY + 23);
+      ctx.fillText('MARCAJES', marginX + 400, curY + 23);
+      ctx.fillText('HORAS BASE', marginX + 675, curY + 23);
+      ctx.fillText('ESTATUS', marginX + 785, curY + 23);
 
-      curY += 32;
+      curY += 36;
       presentes.forEach((f, i) => {
         const rowBg = i % 2 === 0 ? '#ffffff' : '#f5f4f0';
-        drawCardRect(marginX, curY, contentW, rowH, 4, rowBg);
+        drawCardRect(marginX, curY, contentW, rowH, 5, rowBg);
 
         // Nombre
-        ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+        ctx.font = 'bold 13.5px system-ui, -apple-system, sans-serif';
         ctx.fillStyle = '#1c1917';
         const nombreCompleto = `${f.empleado.nombre} ${f.empleado.apellido || ''}`.trim();
-        ctx.fillText(nombreCompleto, marginX + 14, curY + 27);
+        ctx.fillText(nombreCompleto, marginX + 16, curY + 31);
 
         // Modalidad
-        ctx.font = '600 10px system-ui, -apple-system, sans-serif';
+        ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
         if (f.pausa) {
           ctx.fillStyle = '#b45309';
-          ctx.fillText('Quebrado ☕', marginX + 230, curY + 27);
+          ctx.fillText('Quebrado ☕', marginX + 250, curY + 31);
         } else {
-          ctx.fillStyle = '#78716c';
-          ctx.fillText('Corrido ⏱️', marginX + 230, curY + 27);
+          ctx.fillStyle = '#57534e';
+          ctx.fillText('Corrido ⏱️', marginX + 250, curY + 31);
         }
 
         // Marcajes
-        ctx.font = '500 11px monospace';
-        ctx.fillStyle = '#44403c';
+        ctx.font = '600 12.5px monospace';
+        ctx.fillStyle = '#292524';
         const entStr = f.horaEntradaMarcadaStr || '--:--';
         const salStr = f.salida
           ? new Date(f.salida.fecha_hora).toLocaleTimeString('es-NI', {
@@ -659,34 +669,36 @@ export default function RendimientoAyerPage() {
               hour12: true,
             })
           : 'Sin salida';
-        ctx.fillText(`${entStr} → ${salStr}`, marginX + 390, curY + 27);
+        ctx.fillText(`${entStr} → ${salStr}`, marginX + 400, curY + 31);
 
         // Horas Ordinarias (Base 8.0h máx)
-        ctx.font = 'bold 12px monospace';
+        ctx.font = 'bold 14px monospace';
         ctx.fillStyle = '#1c1917';
-        ctx.fillText(`${f.horasOrdinarias.toFixed(1)}h`, marginX + 680, curY + 27);
+        ctx.fillText(`${f.horasOrdinarias.toFixed(1)}h`, marginX + 675, curY + 31);
 
         // Badge
+        const badgeW = 104;
+        const badgeH = 26;
         if (f.estadoCierre === 'SIN_SALIDA') {
-          drawCardRect(marginX + 775, curY + 11, 95, 22, 5, '#fee2e2');
-          ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+          drawCardRect(marginX + 778, curY + 12, badgeW, badgeH, 6, '#fee2e2');
+          ctx.font = 'bold 10.5px system-ui, -apple-system, sans-serif';
           ctx.fillStyle = '#dc2626';
           ctx.textAlign = 'center';
-          ctx.fillText('SIN SALIDA ⚠️', marginX + 775 + 47, curY + 25);
+          ctx.fillText('SIN SALIDA ⚠️', marginX + 778 + badgeW / 2, curY + 29);
           ctx.textAlign = 'left';
         } else if (!f.puntual) {
-          drawCardRect(marginX + 775, curY + 11, 95, 22, 5, '#fef3c7');
-          ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+          drawCardRect(marginX + 778, curY + 12, badgeW, badgeH, 6, '#fef3c7');
+          ctx.font = 'bold 10.5px system-ui, -apple-system, sans-serif';
           ctx.fillStyle = '#b45309';
           ctx.textAlign = 'center';
-          ctx.fillText(`TARDE +${f.minutosTarde}m`, marginX + 775 + 47, curY + 25);
+          ctx.fillText(`TARDE +${f.minutosTarde}m`, marginX + 778 + badgeW / 2, curY + 29);
           ctx.textAlign = 'left';
         } else {
-          drawCardRect(marginX + 775, curY + 11, 95, 22, 5, '#dcfce7');
-          ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+          drawCardRect(marginX + 778, curY + 12, badgeW, badgeH, 6, '#dcfce7');
+          ctx.font = 'bold 10.5px system-ui, -apple-system, sans-serif';
           ctx.fillStyle = '#15803d';
           ctx.textAlign = 'center';
-          ctx.fillText('PUNTUAL ✅', marginX + 775 + 47, curY + 25);
+          ctx.fillText('PUNTUAL ✅', marginX + 778 + badgeW / 2, curY + 29);
           ctx.textAlign = 'left';
         }
 
@@ -694,94 +706,122 @@ export default function RendimientoAyerPage() {
       });
 
       // 4. Novedades, Ausencias y Permisos
-      curY += 20;
-      ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+      curY += 22;
+      ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#1c1917';
-      ctx.fillText('⚠️ NOVEDADES, AUSENCIAS Y SOLICITUDES', marginX, curY + 14);
+      ctx.fillText('⚠️ NOVEDADES, AUSENCIAS Y SOLICITUDES', marginX, curY + 16);
 
-      curY += 24;
+      curY += 28;
       if (totalNovedadesCount === 0) {
-        drawCardRect(marginX, curY, contentW, 42, 6, '#dcfce7', '#bbf7d0');
-        ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+        drawCardRect(marginX, curY, contentW, 46, 8, '#dcfce7', '#bbf7d0');
+        ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
         ctx.fillStyle = '#15803d';
         ctx.fillText(
           '✅ Jornada Impecable: Cero ausencias injustificadas, todas las salidas registradas y sin anomalías.',
-          marginX + 14,
-          curY + 26
+          marginX + 16,
+          curY + 28
         );
-        curY += 52;
+        curY += 56;
       } else {
-        const boxH = Math.max(48, totalNovedadesCount * 30 + 16);
-        drawCardRect(marginX, curY, contentW, boxH, 8, '#ffffff', '#e7e5e4');
+        drawCardRect(marginX, curY, contentW, novedadesCardH, 10, '#ffffff', '#e7e5e4');
 
-        let subY = curY + 22;
+        let subY = curY + 24;
 
         ausentes.forEach((a) => {
-          ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
+          ctx.font = 'bold 11.5px system-ui, -apple-system, sans-serif';
           ctx.fillStyle = '#dc2626';
-          ctx.fillText('🔴 AUSENCIA:', marginX + 14, subY);
+          ctx.fillText('🔴 AUSENCIA:', marginX + 18, subY);
           ctx.fillStyle = '#1c1917';
+          ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
           ctx.fillText(
-            `${a.empleado.nombre} ${a.empleado.apellido || ''} (Sin registro de entrada)`,
-            marginX + 105,
+            `${a.empleado.nombre} ${a.empleado.apellido || ''} — Sin registro de entrada en la jornada`,
+            marginX + 120,
             subY
           );
-          subY += 26;
+          subY += 30;
         });
 
         conPermiso.forEach((p) => {
-          ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
+          ctx.font = 'bold 11.5px system-ui, -apple-system, sans-serif';
           ctx.fillStyle = '#2563eb';
-          ctx.fillText('📄 PERMISO:', marginX + 14, subY);
+          ctx.fillText('📄 PERMISO:', marginX + 18, subY);
           ctx.fillStyle = '#1c1917';
+          ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
           ctx.fillText(
-            `${p.empleado.nombre} ${p.empleado.apellido || ''} (Ausencia justificada / con permiso)`,
-            marginX + 105,
+            `${p.empleado.nombre} ${p.empleado.apellido || ''} — Ausencia justificada / con permiso`,
+            marginX + 120,
             subY
           );
-          subY += 26;
+          subY += 30;
         });
 
         reporteJornada.sinSalida.forEach((s) => {
-          ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
+          ctx.font = 'bold 11.5px system-ui, -apple-system, sans-serif';
           ctx.fillStyle = '#d97706';
-          ctx.fillText('⏱️ SIN SALIDA:', marginX + 14, subY);
+          ctx.fillText('⏱️ SIN SALIDA:', marginX + 18, subY);
           ctx.fillStyle = '#1c1917';
+          ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
           ctx.fillText(
-            `${s.empleado.nombre} ${s.empleado.apellido || ''} (Marcaje de salida pendiente)`,
-            marginX + 105,
+            `${s.empleado.nombre} ${s.empleado.apellido || ''} — Marcaje de salida pendiente al cierre`,
+            marginX + 120,
             subY
           );
-          subY += 26;
+          subY += 30;
         });
 
         if (reporteJornada.hePendientes.length > 0) {
-          ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
+          ctx.font = 'bold 11.5px system-ui, -apple-system, sans-serif';
           ctx.fillStyle = '#7c3aed';
-          ctx.fillText('⭐ HORAS EXTRA:', marginX + 14, subY);
-          ctx.fillStyle = '#1c1917';
-          const nombresHE = reporteJornada.hePendientes
-            .map((h) => {
-              const emp = empleados.find((e) => e.id === h.empleado);
-              const nombre = emp ? `${emp.nombre} ${emp.apellido || ''}`.trim() : (h.empleado_detalle?.nombre || 'Colaborador');
-              return `${nombre} (+${h.horas_extra_solicitadas}h)`;
-            })
-            .join(', ');
+          ctx.fillText('⭐ HORAS EXTRA:', marginX + 18, subY);
+          ctx.fillStyle = '#4c1d95';
+          ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
           ctx.fillText(
-            `${reporteJornada.hePendientes.length} solicitud(es) por autorizar: ${nombresHE}`,
-            marginX + 105,
+            `${reporteJornada.hePendientes.length} solicitud(es) pendientes por autorizar en nómina:`,
+            marginX + 120,
             subY
           );
           subY += 26;
+
+          // Renderizar solicitudes en cuadrícula limpia de 2 columnas de chips
+          reporteJornada.hePendientes.forEach((h, idx) => {
+            const emp = empleados.find((e) => e.id === h.empleado);
+            const nombre = emp
+              ? `${emp.nombre} ${emp.apellido || ''}`.trim()
+              : (h.empleado_detalle?.nombre || 'Colaborador');
+            const horasVal = parseFloat(String(h.horas_extra_solicitadas || 0));
+            const horasStr = `+${horasVal.toFixed(1)}h`;
+
+            const col = idx % 2;
+            const gapX = 14;
+            const chipW = (contentW - 36 - gapX) / 2;
+            const chipX = col === 0 ? marginX + 18 : marginX + 18 + chipW + gapX;
+            const chipH = 28;
+
+            drawCardRect(chipX, subY - 4, chipW, chipH, 6, '#f5f3ff', '#ddd6fe', 1);
+
+            ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+            ctx.fillStyle = '#4c1d95';
+            ctx.fillText(`• ${nombre}`, chipX + 10, subY + 15);
+
+            ctx.font = 'bold 12.5px monospace';
+            ctx.fillStyle = '#6d28d9';
+            ctx.textAlign = 'right';
+            ctx.fillText(horasStr, chipX + chipW - 10, subY + 15);
+            ctx.textAlign = 'left';
+
+            if (col === 1 || idx === reporteJornada.hePendientes.length - 1) {
+              subY += 34;
+            }
+          });
         }
 
-        curY += boxH + 16;
+        curY += novedadesCardH + 18;
       }
 
       // 5. Pie de Página
-      drawCardRect(marginX, curY, contentW, 36, 6, '#f5f4f0');
-      ctx.font = '500 9px system-ui, -apple-system, sans-serif';
-      ctx.fillStyle = '#78716c';
+      drawCardRect(marginX, curY, contentW, 38, 6, '#f5f4f0', '#e7e5e4');
+      ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = '#57534e';
       const nowStr = new Date().toLocaleTimeString('es-NI', {
         hour: '2-digit',
         minute: '2-digit',
@@ -789,14 +829,14 @@ export default function RendimientoAyerPage() {
       });
       ctx.fillText(
         'Sistema de Asistencia y Nómina • Restaurante El Bodegón',
-        marginX + 14,
-        curY + 22
+        marginX + 16,
+        curY + 24
       );
       ctx.textAlign = 'right';
       ctx.fillText(
         `Generado: ${fechaSeleccionada} a las ${nowStr}`,
-        marginX + contentW - 14,
-        curY + 22
+        marginX + contentW - 16,
+        curY + 24
       );
       ctx.textAlign = 'left';
 
