@@ -5,6 +5,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
 from django.db import transaction
+from django.db.models import Q, Sum
 from django.utils import timezone
 from django.http import HttpResponse
 from rest_framework import viewsets, permissions, status
@@ -489,7 +490,17 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                     created_at__date__gte=inicio_semana
                 ).exists()
 
-                if not alerta_existente:
+                # Blindaje extra: verificar si ya fue gestionada en la bitácora durante la semana
+                ya_gestionada = BitacoraAccion.objects.filter(
+                    created_at__date__gte=inicio_semana,
+                    descripcion__icontains=f"{emp.nombre} {emp.apellido}"
+                ).filter(
+                    Q(descripcion__icontains="justificó") |
+                    Q(descripcion__icontains="deuda") |
+                    Q(descripcion__icontains="ausencia")
+                ).exists()
+
+                if not alerta_existente and not ya_gestionada:
                     fechas_str = ", ".join(d.strftime('%d/%m') for d in dias_sin_marcaje)
                     AlertaAsistencia.objects.create(
                         tipo='SEGUNDA_AUSENCIA',
@@ -507,35 +518,102 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
     def resolver_alerta(self, request, pk=None):
         """
         Resuelve una alerta:
-        decision='JUSTIFICAR': Marca como justificada (no genera deuda)
-        decision='SUMAR_DEUDA': Suma 8 horas al saldo de horas_pendientes del empleado
+        decision='JUSTIFICAR': Marca como justificada (no genera deuda, crea PermisoAusencia)
+        decision='SUMAR_DEUDA': Suma 8 horas al saldo de horas_pendientes del empleado y registra la falta
         """
         alerta = self.get_object()
         decision = request.data.get('decision', 'JUSTIFICAR')  # 'JUSTIFICAR' o 'SUMAR_DEUDA'
         empleado = alerta.empleado
 
         if empleado:
-            if decision == 'SUMAR_DEUDA' and alerta.tipo == 'SEGUNDA_AUSENCIA':
-                hoy = timezone.localdate()
-                primer_dia_mes = hoy.replace(day=1)
-                if empleado.periodo_horas_pendientes != primer_dia_mes:
-                    empleado.horas_pendientes = 0.00
-                    empleado.periodo_horas_pendientes = primer_dia_mes
+            if alerta.tipo == 'SEGUNDA_AUSENCIA':
+                fecha_ref = alerta.created_at.date() if alerta.created_at else timezone.localdate()
+                inicio_semana = fecha_ref - datetime.timedelta(days=fecha_ref.weekday())
 
-                empleado.horas_pendientes = float(empleado.horas_pendientes) + 8.00
-                empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
-                
-                BitacoraAccion.objects.create(
-                    usuario=request.user if request.user.is_authenticated else None,
-                    accion='REGISTRO_MANUAL',
-                    descripcion=f"Se sumaron 8.0 hrs de deuda a {empleado.nombre} {empleado.apellido} por ausencia no justificada (Alerta #{alerta.id}).",
-                    ip_address=_get_clean_ip(request)
+                feriados = set(DiaFeriado.objects.filter(
+                    fecha__gte=inicio_semana,
+                    fecha__lte=fecha_ref
+                ).values_list('fecha', flat=True))
+
+                dias_con_marcaje = set(RegistroAsistencia.objects.filter(
+                    empleado=empleado,
+                    fecha_hora__date__gte=inicio_semana,
+                    fecha_hora__date__lte=fecha_ref
+                ).dates('fecha_hora', 'day'))
+
+                permisos_emp = PermisoAusencia.objects.filter(
+                    empleado=empleado,
+                    fecha_inicio__lte=fecha_ref,
+                    fecha_fin__gte=inicio_semana
                 )
+                dias_permiso = set()
+                for p in permisos_emp:
+                    d_c = max(p.fecha_inicio, inicio_semana)
+                    d_f = min(p.fecha_fin, fecha_ref)
+                    while d_c <= d_f:
+                        dias_permiso.add(d_c)
+                        d_c += datetime.timedelta(days=1)
+
+                dias_sin_marcaje = []
+                curr = inicio_semana
+                while curr <= fecha_ref:
+                    if curr not in feriados and curr not in dias_con_marcaje and curr not in dias_permiso:
+                        dias_sin_marcaje.append(curr)
+                    curr += datetime.timedelta(days=1)
+
+                # El 1er día es su día libre semanal; del 2do en adelante son las ausencias a registrar
+                dias_a_registrar = dias_sin_marcaje[1:] if len(dias_sin_marcaje) >= 2 else (dias_sin_marcaje if dias_sin_marcaje else [fecha_ref])
+
+                if decision == 'SUMAR_DEUDA':
+                    hoy = timezone.localdate()
+                    primer_dia_mes = hoy.replace(day=1)
+                    if empleado.periodo_horas_pendientes != primer_dia_mes:
+                        empleado.horas_pendientes = 0.00
+                        empleado.periodo_horas_pendientes = primer_dia_mes
+
+                    empleado.horas_pendientes = float(empleado.horas_pendientes) + 8.00
+                    empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+
+                    for dia_ausente in dias_a_registrar:
+                        PermisoAusencia.objects.get_or_create(
+                            empleado=empleado,
+                            fecha_inicio=dia_ausente,
+                            fecha_fin=dia_ausente,
+                            defaults={
+                                'tipo': 'PERMISO_AUTORIZADO',
+                                'motivo': f"Ausencia cargada a deuda de horas (Alerta #{alerta.id})"
+                            }
+                        )
+
+                    BitacoraAccion.objects.create(
+                        usuario=request.user if request.user.is_authenticated else None,
+                        accion='REGISTRO_MANUAL',
+                        descripcion=f"Se sumaron 8.0 hrs de deuda a {empleado.nombre} {empleado.apellido} por ausencia no justificada (Alerta #{alerta.id}).",
+                        ip_address=_get_clean_ip(request)
+                    )
+                else:
+                    for dia_ausente in dias_a_registrar:
+                        PermisoAusencia.objects.get_or_create(
+                            empleado=empleado,
+                            fecha_inicio=dia_ausente,
+                            fecha_fin=dia_ausente,
+                            defaults={
+                                'tipo': 'PERMISO_AUTORIZADO',
+                                'motivo': f"Falta semanal justificada por administración (Alerta #{alerta.id})"
+                            }
+                        )
+
+                    BitacoraAccion.objects.create(
+                        usuario=request.user if request.user.is_authenticated else None,
+                        accion='REGISTRO_MANUAL',
+                        descripcion=f"Se justificó la alerta #{alerta.id} de {empleado.nombre} {empleado.apellido} (sin recargo de horas).",
+                        ip_address=_get_clean_ip(request)
+                    )
             else:
                 BitacoraAccion.objects.create(
                     usuario=request.user if request.user.is_authenticated else None,
                     accion='REGISTRO_MANUAL',
-                    descripcion=f"Se justificó la alerta #{alerta.id} de {empleado.nombre} {empleado.apellido} (sin recargo de horas).",
+                    descripcion=f"Se gestionó la alerta #{alerta.id} de {empleado.nombre} {empleado.apellido}.",
                     ip_address=_get_clean_ip(request)
                 )
 

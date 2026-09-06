@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AlertaAsistencia } from '@/lib/types';
-import { fetchAlertas, updateAlerta } from '@/lib/api-client';
+import { fetchAlertas, updateAlerta, resolverAlerta } from '@/lib/api-client';
 import {
   Utensils,
   LayoutDashboard,
@@ -35,6 +35,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [alerts, setAlerts] = useState<AlertaAsistencia[]>([]);
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
   const [selectedBoletaAlerta, setSelectedBoletaAlerta] = useState<AlertaAsistencia | null>(null);
+  const [resolvingAlertId, setResolvingAlertId] = useState<number | null>(null);
 
   const navItems = [
     { label: 'Dashboard', href: '/admin', icon: <LayoutDashboard className="w-4 h-4" /> },
@@ -128,6 +129,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       loadAlerts();
     } catch (e) {
       console.warn(e);
+    }
+  };
+
+  const handleResolverAlerta = async (alertId: number, decision: 'JUSTIFICAR' | 'SUMAR_DEUDA') => {
+    try {
+      setResolvingAlertId(alertId);
+      // Actualización optimista inmediata en UI
+      setAlerts((prev) =>
+        prev.map((a) => (a.id === alertId ? { ...a, leida: true } : a))
+      );
+      await resolverAlerta(alertId, decision);
+      await loadAlerts();
+    } catch (err) {
+      console.warn('Error al resolver alerta:', err);
+      await loadAlerts();
+    } finally {
+      setResolvingAlertId(null);
     }
   };
 
@@ -434,28 +452,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                           </div>
 
                           {/* Acciones interactivas para Segunda Ausencia */}
-                          {!al.leida && al.tipo === 'SEGUNDA_AUSENCIA' && (
-                            <div className="flex gap-2 pt-2 border-t border-rose-100">
-                              <button
-                                onClick={async () => {
-                                  const { resolverAlerta } = await import('@/lib/api-client');
-                                  await resolverAlerta(al.id!, 'JUSTIFICAR');
-                                  loadAlerts();
-                                }}
-                                className="flex-1 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors"
-                              >
-                                ✅ Justificar Falta
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  const { resolverAlerta } = await import('@/lib/api-client');
-                                  await resolverAlerta(al.id!, 'SUMAR_DEUDA');
-                                  loadAlerts();
-                                }}
-                                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors shadow-sm"
-                              >
-                                ⏳ Sumar 8h de Deuda
-                              </button>
+                          {al.tipo === 'SEGUNDA_AUSENCIA' && (
+                            <div className="pt-2 border-t border-stone-200">
+                              {al.leida ? (
+                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg">
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span>Alerta resuelta</span>
+                                </div>
+                              ) : (
+                                <div className="flex gap-2">
+                                  <button
+                                    disabled={resolvingAlertId === al.id}
+                                    onClick={() => handleResolverAlerta(al.id!, 'JUSTIFICAR')}
+                                    className="flex-1 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
+                                  >
+                                    {resolvingAlertId === al.id ? (
+                                      <RefreshCw className="w-3 h-3 animate-spin text-stone-500" />
+                                    ) : (
+                                      '✅ Justificar Falta'
+                                    )}
+                                  </button>
+                                  <button
+                                    disabled={resolvingAlertId === al.id}
+                                    onClick={() => handleResolverAlerta(al.id!, 'SUMAR_DEUDA')}
+                                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
+                                  >
+                                    {resolvingAlertId === al.id ? (
+                                      <RefreshCw className="w-3 h-3 animate-spin text-white" />
+                                    ) : (
+                                      '⏳ Sumar 8h de Deuda'
+                                    )}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
 
