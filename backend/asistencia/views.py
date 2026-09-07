@@ -567,11 +567,8 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                 if decision == 'SUMAR_DEUDA':
                     hoy = timezone.localdate()
                     primer_dia_mes = hoy.replace(day=1)
-                    if empleado.periodo_horas_pendientes != primer_dia_mes:
-                        empleado.horas_pendientes = 0.00
-                        empleado.periodo_horas_pendientes = primer_dia_mes
-
-                    empleado.horas_pendientes = float(empleado.horas_pendientes) + 8.00
+                    empleado.periodo_horas_pendientes = primer_dia_mes
+                    empleado.horas_pendientes = float(empleado.horas_pendientes or 0.0) + 8.00
                     empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
 
                     for dia_ausente in dias_a_registrar:
@@ -1518,13 +1515,8 @@ def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
         return  # No hay deuda que acumular este día
 
     primer_dia_mes = fecha_hoy.replace(day=1)
-
-    # Reiniciar si el período cambió (nuevo mes)
-    if empleado.periodo_horas_pendientes != primer_dia_mes:
-        empleado.horas_pendientes = 0.0
-        empleado.periodo_horas_pendientes = primer_dia_mes
-
-    empleado.horas_pendientes = float(empleado.horas_pendientes) + round(deficit, 1)
+    empleado.periodo_horas_pendientes = primer_dia_mes
+    empleado.horas_pendientes = float(empleado.horas_pendientes or 0.0) + round(deficit, 1)
     empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
 
 
@@ -1541,10 +1533,8 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
     tz_ni = timezone.get_current_timezone()
     primer_dia_mes = fecha_referencia.replace(day=1)
 
-    if empleado.periodo_horas_pendientes != primer_dia_mes:
-        empleado.horas_pendientes = 0.00
-        empleado.periodo_horas_pendientes = primer_dia_mes
-        empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+    empleado.periodo_horas_pendientes = primer_dia_mes
+    empleado.save(update_fields=['periodo_horas_pendientes'])
 
     deuda_actual = float(empleado.horas_pendientes or 0.0)
     if deuda_actual <= 0 or horas_a_amortizar <= 0:
@@ -1713,10 +1703,8 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
        - A la tabla de solicitudes de Horas Extra solo se envía el remanente limpio por pagar en nómina.
     """
     primer_dia_mes = fecha_hoy.replace(day=1)
-    if empleado.periodo_horas_pendientes != primer_dia_mes:
-        empleado.horas_pendientes = 0.00
-        empleado.periodo_horas_pendientes = primer_dia_mes
-        empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+    empleado.periodo_horas_pendientes = primer_dia_mes
+    empleado.save(update_fields=['periodo_horas_pendientes'])
 
     es_septimo_dia = _es_septimo_dia_semana(empleado, fecha_hoy)
 

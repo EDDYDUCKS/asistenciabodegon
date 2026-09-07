@@ -594,43 +594,91 @@ export default function NominaAdminPage() {
             let deficitSemana = 0;
             let excedenteSemana = 0;
             const sCurr = new Date(sInicio);
+
+            const hoyObj = new Date();
+            const anioHoy = hoyObj.getFullYear();
+            const mesHoy = String(hoyObj.getMonth() + 1).padStart(2, '0');
+            const diaHoy = String(hoyObj.getDate()).padStart(2, '0');
+            const hoyStr = `${anioHoy}-${mesHoy}-${diaHoy}`;
+
             while (sCurr <= sFin) {
               const dateStr = sCurr.toISOString().slice(0, 10);
+              const esHoy = (dateStr === hoyStr);
+
               // Si es feriado o tiene permiso/vacaciones autorizadas, se exonera de falta y deuda
               if (!feriadosSet.has(dateStr) && !diasPermisoEmp.has(dateStr)) {
-                if (!diasMap[dateStr]) {
-                  if (ausenciasSemana === 0) {
-                    diasLibres++; // 1er día = día libre tomado
-                  } else {
-                    deficitSemana += 8.0; // 2do+ día = falta
-                  }
-                  ausenciasSemana++;
-                } else {
-                  // Día trabajado: calcular déficit de horas
-                  const regs = diasMap[dateStr];
-                  regs.sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
-                  let entradaTemp: number | null = null;
-                  let horasDia = 0;
-                  regs.forEach((r) => {
-                    if (r.tipo_evento === 'ENTRADA' || r.tipo_evento === 'ENTRADA_QUEBRADA') {
-                      entradaTemp = new Date(r.fecha_hora).getTime();
-                    } else if (
-                      (r.tipo_evento === 'SALIDA_QUEBRADA' || r.tipo_evento === 'SALIDA_DEFINITIVA') &&
-                      entradaTemp
-                    ) {
-                      const diff = new Date(r.fecha_hora).getTime() - entradaTemp;
-                      if (diff > 0) horasDia += diff / (1000 * 60 * 60);
-                      entradaTemp = null;
+                if (esHoy) {
+                  // Escudo para el día en curso: mientras la jornada no haya cerrado definitivamente, no imputar deudas
+                  if (diasMap[dateStr]) {
+                    const regs = diasMap[dateStr];
+                    const tieneSalidaDefinitiva = regs.some((r) => r.tipo_evento === 'SALIDA_DEFINITIVA');
+                    if (tieneSalidaDefinitiva) {
+                      // Ya cerró formalmente hoy: calcular horas efectivas
+                      regs.sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
+                      let entradaTemp: number | null = null;
+                      let horasDia = 0;
+                      regs.forEach((r) => {
+                        if (r.tipo_evento === 'ENTRADA' || r.tipo_evento === 'ENTRADA_QUEBRADA') {
+                          entradaTemp = new Date(r.fecha_hora).getTime();
+                        } else if (
+                          (r.tipo_evento === 'SALIDA_QUEBRADA' || r.tipo_evento === 'SALIDA_DEFINITIVA') &&
+                          entradaTemp
+                        ) {
+                          const diff = new Date(r.fecha_hora).getTime() - entradaTemp;
+                          if (diff > 0) horasDia += diff / (1000 * 60 * 60);
+                          entradaTemp = null;
+                        }
+                      });
+                      const horasOrd = Math.min(horasDia, 8.0);
+                      if (sCurr.getDay() !== 0) {
+                        const deficit = Math.max(0, 8.0 - horasOrd);
+                        deficitSemana += deficit;
+                      }
+                      if (horasDia > 8.0) {
+                        excedenteSemana += (horasDia - 8.0);
+                      }
+                    } else {
+                      // Turno en curso hoy -> sin déficit prematuro
                     }
-                  });
-                  const horasOrd = Math.min(horasDia, 8.0);
-                  // En domingo (getDay() === 0) la administración autoriza salida temprana por cierre a las 10 PM, sin generar deuda
-                  if (sCurr.getDay() !== 0) {
-                    const deficit = Math.max(0, 8.0 - horasOrd);
-                    deficitSemana += deficit;
+                  } else {
+                    // Turno aún no iniciado hoy -> sin falta ni déficit prematuro
                   }
-                  if (horasDia > 8.0) {
-                    excedenteSemana += (horasDia - 8.0);
+                } else {
+                  // Días pasados ya cerrados
+                  if (!diasMap[dateStr]) {
+                    if (ausenciasSemana === 0) {
+                      diasLibres++; // 1er día = día libre tomado
+                    } else {
+                      deficitSemana += 8.0; // 2do+ día = falta
+                    }
+                    ausenciasSemana++;
+                  } else {
+                    // Día trabajado: calcular déficit de horas
+                    const regs = diasMap[dateStr];
+                    regs.sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
+                    let entradaTemp: number | null = null;
+                    let horasDia = 0;
+                    regs.forEach((r) => {
+                      if (r.tipo_evento === 'ENTRADA' || r.tipo_evento === 'ENTRADA_QUEBRADA') {
+                        entradaTemp = new Date(r.fecha_hora).getTime();
+                      } else if (
+                        (r.tipo_evento === 'SALIDA_QUEBRADA' || r.tipo_evento === 'SALIDA_DEFINITIVA') &&
+                        entradaTemp
+                      ) {
+                        const diff = new Date(r.fecha_hora).getTime() - entradaTemp;
+                        if (diff > 0) horasDia += diff / (1000 * 60 * 60);
+                        entradaTemp = null;
+                      }
+                    });
+                    const horasOrd = Math.min(horasDia, 8.0);
+                    // En domingo (getDay() === 0) la administración autoriza salida temprana por cierre a las 10 PM, sin generar deuda
+                    if (sCurr.getDay() !== 0) {
+                      const deficit = Math.max(0, 8.0 - horasOrd);
+                      deficitSemana += deficit;
+                    }
+                    if (horasDia > 8.0) {
+                      excedenteSemana += (horasDia - 8.0);
+                    }
                   }
                 }
               }
@@ -667,7 +715,16 @@ export default function NominaAdminPage() {
 
       // Sincronizar con el saldo real auditado de la Bolsa de Horas del colaborador
       const deudaOficialBolsa = parseFloat(String(emp.horas_pendientes || 0));
-      const horasDebidasFinal = Math.max(horasDebidas, deudaOficialBolsa);
+      let horasDebidasFinal = Math.max(horasDebidas, deudaOficialBolsa);
+
+      // Si el colaborador debe horas y tiene horas extra solicitadas pendientes en el período,
+      // las horas extra PRIMERO amortizan la deuda al 100%. Solo el remanente neto queda pendiente de aprobación.
+      let horasExtraPendientesFinal = horasExtraPendientes;
+      if (horasDebidasFinal > 0 && horasExtraPendientesFinal > 0) {
+        const amortizar = Math.min(horasDebidasFinal, horasExtraPendientesFinal);
+        horasDebidasFinal = Math.max(0, Number((horasDebidasFinal - amortizar).toFixed(1)));
+        horasExtraPendientesFinal = Math.max(0, Number((horasExtraPendientesFinal - amortizar).toFixed(1)));
+      }
 
       // Cálculo de vacaciones acumuladas, tomadas y saldo restante
       const vacAcumuladas = parseFloat(String(emp.dias_vacaciones_acumuladas || 0));
@@ -689,7 +746,7 @@ export default function NominaAdminPage() {
         feriadosTrabajadosDias,
         feriadosDetalle,
         horasExtraAprobadas,
-        horasExtraPendientes,
+        horasExtraPendientes: horasExtraPendientesFinal,
         horasDebidas: horasDebidasFinal,
         permisosInfo: permisosInfoPorEmpleado[emp.id] || [],
         vacAcumuladas,
@@ -1136,7 +1193,7 @@ export default function NominaAdminPage() {
                     <th className="px-6 py-4 text-right">Horas Extra Aprobadas</th>
                     <th className="px-6 py-4 text-right text-amber-800 bg-amber-50/60">H. Extra por Aprobar</th>
                     <th className="px-6 py-4 text-right text-rose-700 bg-rose-50/50">Horas Debidas (Déficit)</th>
-                    <th className="px-6 py-4 text-right text-emerald-800 bg-emerald-50/60">🏖️ Vacaciones Restantes</th>
+                    <th className="px-6 py-4 text-right text-emerald-800 bg-emerald-50/60">Vacaciones Restantes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
@@ -1174,7 +1231,7 @@ export default function NominaAdminPage() {
                                 className="inline-block px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700"
                                 title={item.permisosInfo.join('\n')}
                               >
-                                🏖️ {item.permisosInfo[0]}
+                                {item.permisosInfo[0]}
                               </span>
                             )}
                           </div>
@@ -1268,10 +1325,9 @@ export default function NominaAdminPage() {
                           <button
                             type="button"
                             onClick={() => setSelectedVacacionesEmp(item.emp)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-black bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all hover:scale-105 active:scale-95 cursor-pointer group"
                             title="Haga clic para ver el desglose legal auditado de días acumulados, tomados y saldo disponible"
                           >
-                            <span>🏖️</span>
                             <span className={item.vacRestantes < 0 ? 'text-rose-600' : 'text-emerald-800'}>
                               {item.vacRestantes.toFixed(1)} {Math.abs(item.vacRestantes) === 1 ? 'día' : 'días'}
                             </span>
