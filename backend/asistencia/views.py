@@ -373,7 +373,8 @@ class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
                 empleado=empleado,
                 fecha_referencia=autorizacion.fecha,
                 horas_a_amortizar=horas_aprobadas,
-                request=self.request
+                request=self.request,
+                origen='APROBACION_ADMIN'
             )
             horas_deducidas = res['horas_amortizadas']
             remanente = res['remanente']
@@ -1520,13 +1521,14 @@ def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
     empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
 
 
-def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amortizar, request=None):
+def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amortizar, request=None, origen='SALIDA_KIOSCO'):
     """
-    Aplica formalmente la amortización de deuda acumulada (Bolsa de Horas)
-    cuando el Administrador APRUEBA una solicitud de horas extra con PIN 2322.
+    Aplica formalmente la amortización de deuda acumulada (Bolsa de Horas):
+    1. Si origen == 'SALIDA_KIOSCO': Se aplica automáticamente en el marcaje de salida con el excedente trabajado.
+    2. Si origen == 'APROBACION_ADMIN': Se aplica cuando el Administrador APRUEBA una solicitud con PIN 2322.
     - Descuenta hasta min(horas_a_amortizar, deuda_actual) de empleado.horas_pendientes.
     - Genera registro auditable en CompensacionHoras con desglose FIFO de días adeudados.
-    - Genera notificación en AlertaAsistencia(tipo='COMPENSACION_HORAS').
+    - Genera notificación clara y verídica en AlertaAsistencia(tipo='COMPENSACION_HORAS').
     - Registra en BitacoraAccion.
     """
     import datetime
@@ -1562,69 +1564,46 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
         fecha_hora__range=(start_periodo, end_ayer)
     ).order_by('fecha_hora')
 
-    dias_anteriores = {}
+    por_dia = {}
     for r in regs_periodo:
-        dia_local = r.fecha_hora.astimezone(tz_ni).date()
-        dias_anteriores.setdefault(dia_local, []).append(r)
+        d = r.fecha_hora.astimezone(tz_ni).date()
+        por_dia.setdefault(d, []).append(r)
 
-    dias_deficit = []
-    for dia_k, regs_k in sorted(dias_anteriores.items()):
-        h_dia = _calcular_horas_netas_dia(regs_k)
-        if 0 < h_dia < 8.0:
-            deficit_k = round(8.0 - h_dia, 1)
-            dias_deficit.append({
-                'fecha': dia_k,
-                'horas_trabajadas': round(h_dia, 1),
-                'horas_faltaron': deficit_k,
-            })
-
+    horas_por_cubrir = horas_amortizadas
     desglose = []
-    bolsa_disponible = horas_amortizadas
 
-    for dd in dias_deficit:
-        if bolsa_disponible <= 0:
+    for d in sorted(por_dia.keys()):
+        if horas_por_cubrir <= 0:
             break
-        faltan = dd['horas_faltaron']
-        aplicadas = min(faltan, bolsa_disponible)
-        saldo_dia = round(faltan - aplicadas, 1)
-        estado_dia = "Liquidada al 100%" if saldo_dia == 0 else f"Abonada ({saldo_dia} hrs pendientes)"
-
-        desglose.append({
-            'fecha': dd['fecha'].strftime('%Y-%m-%d'),
-            'fecha_display': dd['fecha'].strftime('%d/%m/%Y'),
-            'horas_trabajadas': dd['horas_trabajadas'],
-            'horas_faltaron': faltan,
-            'horas_aplicadas': round(aplicadas, 1),
-            'saldo_dia': saldo_dia,
-            'estado': estado_dia,
-        })
-        bolsa_disponible = round(bolsa_disponible - aplicadas, 1)
+        regs_d = por_dia[d]
+        tiene_salida_def = any(r.tipo_evento == 'SALIDA_DEFINITIVA' for r in regs_d)
+        if tiene_salida_def:
+            horas_dia = _calcular_horas_netas_dia(regs_d)
+            if d.weekday() != 6 and horas_dia < 8.0:
+                deficit_dia = round(8.0 - horas_dia, 1)
+                aplicado = min(horas_por_cubrir, deficit_dia)
+                if aplicado > 0:
+                    desglose.append({
+                        'fecha': str(d),
+                        'deficit_original': deficit_dia,
+                        'horas_compensadas': round(aplicado, 1),
+                        'saldo_post': round(deficit_dia - aplicado, 1)
+                    })
+                    horas_por_cubrir = round(horas_por_cubrir - aplicado, 1)
 
     if not desglose and horas_amortizadas > 0:
         desglose.append({
-            'fecha': primer_dia_mes.strftime('%Y-%m-%d'),
-            'fecha_display': f"Período {primer_dia_mes.strftime('%m/%Y')}",
-            'horas_trabajadas': round(8.0 - deuda_actual, 1) if deuda_actual < 8.0 else 0.0,
-            'horas_faltaron': deuda_actual,
-            'horas_aplicadas': horas_amortizadas,
-            'saldo_dia': nueva_deuda,
-            'estado': "Liquidada al 100%" if nueva_deuda == 0 else f"Abonada ({nueva_deuda} hrs pendientes)",
+            'fecha': str(fecha_referencia),
+            'deficit_original': round(deuda_actual, 1),
+            'horas_compensadas': round(horas_amortizadas, 1),
+            'saldo_post': round(nueva_deuda, 1)
         })
-
-    # Calcular horas trabajadas en la fecha de referencia
-    start_dia_ref = timezone.make_aware(datetime.datetime.combine(fecha_referencia, datetime.time.min), tz_ni)
-    end_dia_ref = timezone.make_aware(datetime.datetime.combine(fecha_referencia, datetime.time.max), tz_ni)
-    regs_ref = list(RegistroAsistencia.objects.filter(
-        empleado=empleado,
-        fecha_hora__range=(start_dia_ref, end_dia_ref)
-    ).order_by('fecha_hora'))
-    horas_dia_ref = _calcular_horas_netas_dia(regs_ref) if regs_ref else round(8.0 + horas_a_amortizar, 1)
 
     # Registrar CompensacionHoras auditable
     comp = CompensacionHoras.objects.create(
         empleado=empleado,
         fecha_compensacion=fecha_referencia,
-        horas_trabajadas_hoy=round(horas_dia_ref, 1),
+        horas_trabajadas_hoy=round(8.0 + horas_a_amortizar, 1),
         horas_extra_generadas=round(horas_a_amortizar, 1),
         horas_deducidas=round(horas_amortizadas, 1),
         deuda_previa=round(deuda_actual, 1),
@@ -1633,16 +1612,36 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
         desglose=desglose,
     )
 
-    # Crear notificación en campanita para el Administrador
+    # Crear notificación en campanita para el Administrador distinguiendo el origen real
+    if origen == 'APROBACION_ADMIN':
+        titulo_alerta = f"Compensación Autorizada: {empleado.nombre} {empleado.apellido}"
+        mensaje_alerta = (
+            f"Al autorizar horas extra del {fecha_referencia.strftime('%d/%m/%Y')}, "
+            f"se aplicaron {round(horas_amortizadas, 1)} hrs para amortizar su déficit acumulado. "
+            f"Saldo de horas debidas actualizado a: {round(nueva_deuda, 1)} hrs."
+        )
+        desc_bitacora = (
+            f"Bolsa de Horas Aprobada: {round(horas_amortizadas, 1)} hrs compensadas para "
+            f"{empleado.nombre} {empleado.apellido}. Deuda actualizada a {round(nueva_deuda, 1)} hrs."
+        )
+    else:
+        titulo_alerta = f"Amortización Automática en Salida: {empleado.nombre} {empleado.apellido}"
+        mensaje_alerta = (
+            f"En su marcaje de salida del {fecha_referencia.strftime('%d/%m/%Y')}, "
+            f"se aplicaron automáticamente {round(horas_amortizadas, 1)} hrs adicionales de su jornada "
+            f"para amortizar su déficit acumulado en la Bolsa de Horas. "
+            f"Saldo restante de horas debidas: {round(nueva_deuda, 1)} hrs."
+        )
+        desc_bitacora = (
+            f"Amortización Automática en Salida: {round(horas_amortizadas, 1)} hrs aplicadas a "
+            f"{empleado.nombre} {empleado.apellido}. Deuda actualizada a {round(nueva_deuda, 1)} hrs."
+        )
+
     AlertaAsistencia.objects.create(
         tipo='COMPENSACION_HORAS',
         empleado=empleado,
-        titulo=f"Compensación Autorizada: {empleado.nombre} {empleado.apellido}",
-        mensaje=(
-            f"Al autorizar horas extra del {fecha_referencia.strftime('%d/%m/%Y')}, "
-            f"se aplicaron {round(horas_amortizadas, 1)} hrs extra para amortizar su déficit acumulado. "
-            f"Saldo de horas debidas actualizado a: {round(nueva_deuda, 1)} hrs."
-        ),
+        titulo=titulo_alerta,
+        mensaje=mensaje_alerta,
         leida=False
     )
 
@@ -1650,10 +1649,7 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
     BitacoraAccion.objects.create(
         usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
         accion='REGISTRO_MANUAL',
-        descripcion=(
-            f"Bolsa de Horas Aprobada: {round(horas_amortizadas, 1)} hrs compensadas para "
-            f"{empleado.nombre} {empleado.apellido}. Deuda actualizada a {round(nueva_deuda, 1)} hrs."
-        ),
+        descripcion=desc_bitacora,
         ip_address=_get_clean_ip(request) if request else None
     )
 
