@@ -9,6 +9,7 @@ import {
   Camera,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   QrCode,
   Utensils,
   ArrowLeft,
@@ -532,7 +533,7 @@ export default function KioscoPage() {
             fecha_hora: undefined,
           });
 
-          if (res.status === 'cooldown') {
+          if (res.status === 'cooldown' || res.advertencia_quiebre) {
             playAudioFeedback('cooldown');
           } else {
             const ev = res.registro?.tipo_evento;
@@ -543,7 +544,7 @@ export default function KioscoPage() {
             }
           }
           setFeedback(res);
-          setFeedbackTimer(6);
+          setFeedbackTimer(res.advertencia_quiebre ? 8 : 6);
           setEmpleadoDetectado(null);
 
           // Agregar al feed de actividad del Kiosco
@@ -1019,6 +1020,47 @@ export default function KioscoPage() {
 
                     // SALIDA_DEFINITIVA o por defecto
                     const totalH = feedback.horas_trabajadas_hoy || 0;
+
+                    if (feedback.advertencia_quiebre) {
+                      return (
+                        <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
+                          <div className="w-14 h-14 rounded-2xl bg-amber-500 border-2 border-amber-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-amber-950/50 animate-bounce">
+                            <AlertTriangle className="w-8 h-8" />
+                          </div>
+                          <div>
+                            <span className="inline-block px-3 py-0.5 rounded-full bg-amber-500/25 border border-amber-400 text-amber-300 text-[11px] sm:text-xs font-black uppercase tracking-wider mb-1">
+                              ATENCIÓN: FALTA ENTRADA DE RETORNO ⚠️
+                            </span>
+                            <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight">
+                              ¡Ojo, {empNombre}!
+                            </h2>
+                            <p className="text-xs sm:text-sm font-medium text-amber-100 mt-0.5">
+                              Salida registrada a las <strong>{horaMarcada}</strong>
+                            </p>
+                          </div>
+
+                          <div className="bg-amber-500/20 border border-amber-300/40 rounded-2xl p-3 text-left space-y-1.5">
+                            <div className="flex items-center gap-2 text-amber-200 text-xs font-black uppercase">
+                              <AlertCircle className="w-4 h-4 shrink-0 text-amber-300" />
+                              <span>No marcaste tu regreso de descanso</span>
+                            </div>
+                            <p className="text-[11px] text-amber-100 font-medium leading-relaxed">
+                              El sistema registró tu salida de cierre, pero <strong>no encontró tu entrada de quiebre</strong>. Ya se envió una alerta automática a Administración para que registre tu hora de regreso.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+                            <span className="bg-white/15 border border-white/20 text-white text-xs sm:text-sm font-bold px-3 py-1 rounded-xl font-mono">
+                              ⏱️ Primer bloque: {totalH.toFixed(1)} hrs
+                            </span>
+                            <span className="bg-amber-400 text-stone-950 text-xs sm:text-sm font-black px-3 py-1 rounded-xl">
+                              Avisar al Administrador
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
                         <div className="w-14 h-14 rounded-2xl bg-purple-600 border-2 border-purple-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-purple-950/50">
@@ -1157,6 +1199,31 @@ export default function KioscoPage() {
                           ) : null}
                         </div>
                       )}
+                    </div>
+                  </>
+                ) : feedback.advertencia_quiebre ? (
+                  <>
+                    <div className="w-11 h-11 rounded-2xl bg-amber-500 flex items-center justify-center text-white mx-auto shadow-md shadow-amber-500/20">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      {feedback.registro?.empleado_detalle && (
+                        <h3 className="font-display font-black text-base text-stone-900 mb-0.5">
+                          {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
+                        </h3>
+                      )}
+                      <h4 className="font-bold text-xs text-amber-800 uppercase tracking-wide">⚠️ Falta Entrada de Retorno</h4>
+                      <p className="text-xs font-medium text-amber-900 mt-1 max-w-md mx-auto">
+                        {feedback.mensaje}
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                        <span className="inline-block bg-amber-100 text-amber-900 text-[11px] font-bold px-3 py-1 rounded-lg font-mono">
+                          Primer bloque: {feedback.horas_trabajadas_hoy !== undefined ? feedback.horas_trabajadas_hoy.toFixed(1) : '0.0'} hrs
+                        </span>
+                        <span className="inline-block bg-amber-200 text-amber-950 text-[11px] font-bold px-3 py-1 rounded-lg">
+                          Aviso enviado a Administración
+                        </span>
+                      </div>
                     </div>
                   </>
                 ) : (

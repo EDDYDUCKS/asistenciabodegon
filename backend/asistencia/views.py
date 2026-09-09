@@ -916,43 +916,63 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                 )
 
         elif tipo == 'SALIDA_DEFINITIVA':
-            # Detectar si el colaborador inició en el turno vespertino especial de las 5:00 PM (ej. Xiomara Castillo)
-            primera_ent = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA'), None)
-            es_turno_5pm = False
-            if primera_ent:
-                dt_pe = primera_ent.fecha_hora.astimezone(timezone.get_current_timezone())
-                mins_pe = dt_pe.hour * 60 + dt_pe.minute
-                if abs(mins_pe - 1020) <= 45:  # Entrada entre 4:15 PM y 5:45 PM
-                    es_turno_5pm = True
+            # Verificar si hubo omisión de Entrada Quebrada (quiebre partido sin retorno)
+            pausas_q = [r for r in registros_actualizados if r.tipo_evento == 'SALIDA_QUEBRADA']
+            retornos_q = [r for r in registros_actualizados if r.tipo_evento == 'ENTRADA_QUEBRADA']
+            omision_entrada_quebrada = False
+            if pausas_q and not retornos_q:
+                omision_entrada_quebrada = True
+            elif pausas_q and retornos_q and pausas_q[-1].fecha_hora > retornos_q[-1].fecha_hora:
+                omision_entrada_quebrada = True
 
-            if es_turno_5pm:
-                # Turno especial de 6 horas acordadas (5:00 PM a 11:00 PM):
-                # Solo alertar si se retira con más de 10 min de anticipación a sus 6 horas (< 5.83h)
-                if horas_netas_hoy < 5.83:
-                    deficit_mins = int(round((6.0 - horas_netas_hoy) * 60))
-                    if deficit_mins > 10:
-                        alerta_creada = True
-                        alerta_tipo = 'SALIDA_ANTICIPADA'
-                        alerta_titulo = f"Salida anticipada (Turno 5 PM){tag_offline}: {empleado.nombre} {empleado.apellido}"
-                        alerta_mensaje = (
-                            f"Se retiró antes de cumplir su jornada acordada de 6 horas. Acumuló {round(horas_netas_hoy, 1)} hrs "
-                            f"(Déficit de {deficit_mins} min)."
-                        )
+            if omision_entrada_quebrada:
+                ultima_pausa_dt = pausas_q[-1].fecha_hora.astimezone(timezone.get_current_timezone())
+                alerta_creada = True
+                alerta_tipo = 'REGISTRO_INCOMPLETO'
+                alerta_titulo = f"⚠️ Falta Entrada de Quiebre{tag_offline}: {empleado.nombre} {empleado.apellido}"
+                alerta_mensaje = (
+                    f"El colaborador registró Salida Definitiva a las {hora_actual.strftime('%I:%M %p')}, "
+                    f"pero olvidó registrar su Entrada de Retorno tras salir a pausa a las {ultima_pausa_dt.strftime('%I:%M %p')}. "
+                    f"Por favor ingrese a Asistencia para colocar la hora de entrada y evitar computar déficit injusto."
+                )
             else:
-                # Jornada estándar de 8 horas:
-                # En domingo la administración autoriza la salida temprana por cierre anticipado del restaurante a las 10:00 PM.
-                # Solo alertar si NO es domingo y el déficit supera los 10 minutos (menos de 7.83h):
-                es_domingo = (hora_actual.weekday() == 6)
-                if not es_domingo and horas_netas_hoy < 7.83:
-                    deficit_mins = int(round((8.0 - horas_netas_hoy) * 60))
-                    if deficit_mins > 10:
-                        alerta_creada = True
-                        alerta_tipo = 'SALIDA_ANTICIPADA'
-                        alerta_titulo = f"Jornada incompleta{tag_offline}: {empleado.nombre} {empleado.apellido}"
-                        alerta_mensaje = (
-                            f"Se retiró antes de cumplir sus 8 horas. Acumuló {round(horas_netas_hoy, 1)} hrs "
-                            f"(Déficit de {deficit_mins} min)."
-                        )
+                # Detectar si el colaborador inició en el turno vespertino especial de las 5:00 PM (ej. Xiomara Castillo)
+                primera_ent = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA'), None)
+                es_turno_5pm = False
+                if primera_ent:
+                    dt_pe = primera_ent.fecha_hora.astimezone(timezone.get_current_timezone())
+                    mins_pe = dt_pe.hour * 60 + dt_pe.minute
+                    if abs(mins_pe - 1020) <= 45:  # Entrada entre 4:15 PM y 5:45 PM
+                        es_turno_5pm = True
+
+                if es_turno_5pm:
+                    # Turno especial de 6 horas acordadas (5:00 PM a 11:00 PM):
+                    # Solo alertar si se retira con más de 10 min de anticipación a sus 6 horas (< 5.83h)
+                    if horas_netas_hoy < 5.83:
+                        deficit_mins = int(round((6.0 - horas_netas_hoy) * 60))
+                        if deficit_mins > 10:
+                            alerta_creada = True
+                            alerta_tipo = 'SALIDA_ANTICIPADA'
+                            alerta_titulo = f"Salida anticipada (Turno 5 PM){tag_offline}: {empleado.nombre} {empleado.apellido}"
+                            alerta_mensaje = (
+                                f"Se retiró antes de cumplir su jornada acordada de 6 horas. Acumuló {round(horas_netas_hoy, 1)} hrs "
+                                f"(Déficit de {deficit_mins} min)."
+                            )
+                else:
+                    # Jornada estándar de 8 horas:
+                    # En domingo la administración autoriza la salida temprana por cierre anticipado del restaurante a las 10:00 PM.
+                    # Solo alertar si NO es domingo y el déficit supera los 10 minutos (menos de 7.83h):
+                    es_domingo = (hora_actual.weekday() == 6)
+                    if not es_domingo and horas_netas_hoy < 7.83:
+                        deficit_mins = int(round((8.0 - horas_netas_hoy) * 60))
+                        if deficit_mins > 10:
+                            alerta_creada = True
+                            alerta_tipo = 'SALIDA_ANTICIPADA'
+                            alerta_titulo = f"Jornada incompleta{tag_offline}: {empleado.nombre} {empleado.apellido}"
+                            alerta_mensaje = (
+                                f"Se retiró antes de cumplir sus 8 horas. Acumuló {round(horas_netas_hoy, 1)} hrs "
+                                f"(Déficit de {deficit_mins} min)."
+                            )
 
         if alerta_creada:
             AlertaAsistencia.objects.create(
@@ -1175,7 +1195,22 @@ def marcar_asistencia_kiosco(request):
     elif tipo_evento == 'ENTRADA_QUEBRADA':
         mensaje_kiosco = f"¡Bienvenido de vuelta, {empleado.nombre}! Llevas {round(horas_netas_hoy, 1)} hrs del primer turno. Te restan {round(horas_restantes_hoy, 1)} hrs para tus 8h."
     elif tipo_evento == 'SALIDA_DEFINITIVA':
-        if comp_info.get('es_septimo_dia'):
+        pausas_kiosco = [r for r in registros_actualizados if r.tipo_evento == 'SALIDA_QUEBRADA']
+        retornos_kiosco = [r for r in registros_actualizados if r.tipo_evento == 'ENTRADA_QUEBRADA']
+        omision_retorno_kiosco = False
+        if pausas_kiosco and not retornos_kiosco:
+            omision_retorno_kiosco = True
+        elif pausas_kiosco and retornos_kiosco and pausas_kiosco[-1].fecha_hora > retornos_kiosco[-1].fecha_hora:
+            omision_retorno_kiosco = True
+
+        if omision_retorno_kiosco:
+            ult_pausa_dt = pausas_kiosco[-1].fecha_hora.astimezone(timezone.get_current_timezone())
+            mensaje_kiosco = (
+                f"⚠️ ¡Atención, {empleado.nombre}! Se registró tu Salida Definitiva, pero olvidaste marcar tu Entrada de Quiebre hoy "
+                f"(saliste a pausa a las {ult_pausa_dt.strftime('%I:%M %p')}). "
+                f"Notifica a Administración para que agreguen tu hora de retorno y no pierdas tus horas de la tarde."
+            )
+        elif comp_info.get('es_septimo_dia'):
             if comp_info['horas_amortizadas'] > 0:
                 if comp_info['deuda_restante'] <= 0:
                     mensaje_kiosco = (
@@ -1243,6 +1278,7 @@ def marcar_asistencia_kiosco(request):
     return Response({
         'status': 'ok',
         'mensaje': mensaje_kiosco,
+        'advertencia_quiebre': (tipo_evento == 'SALIDA_DEFINITIVA' and omision_retorno_kiosco),
         'registro': RegistroAsistenciaSerializer(registro, context={'request': request}).data,
         'horas_trabajadas_hoy': round(horas_netas_hoy, 1),
         'horas_restantes_hoy': round(horas_restantes_hoy, 1),

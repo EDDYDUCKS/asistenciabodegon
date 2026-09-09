@@ -67,6 +67,7 @@ export interface MarcajeKioscoResponse {
   horas_trabajadas_hoy?: number;
   horas_restantes_hoy?: number;
   cumplio_meta_8h?: boolean;
+  advertencia_quiebre?: boolean;
   detail?: string;
 }
 
