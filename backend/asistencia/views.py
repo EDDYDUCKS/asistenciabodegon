@@ -39,8 +39,11 @@ def _get_clean_ip(request):
 
 def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
     """
-    Acredita automáticamente +2.5 días por cada mes completo transcurrido desde el último corte
-    conforme al Art. 76 del Código del Trabajo de Nicaragua.
+    Acredita automáticamente las vacaciones de forma diaria continua:
+    Factor diario = 2.5 días / 30 días comerciales = 0.0833... días/día conforme al Art. 76 Código del Trabajo.
+    Para cada día transcurrido dentro del mes (hasta día 30), devenga su fracción exacta:
+      round(D * 2.5 / 30, 2) - round((D-1) * 2.5 / 30, 2)
+    Garantizando exactamente 2.50 días acumulados al finalizar el día 30 del mes comercial.
     """
     if not emp.activo:
         return False
@@ -48,41 +51,41 @@ def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
         fecha_referencia = timezone.now().astimezone(timezone.get_current_timezone()).date()
 
     if not emp.ultimo_corte_vacaciones:
-        emp.ultimo_corte_vacaciones = datetime.date(fecha_referencia.year, fecha_referencia.month, 1)
+        emp.ultimo_corte_vacaciones = datetime.date(fecha_referencia.year, fecha_referencia.month, 1) - datetime.timedelta(days=1)
         emp.save(update_fields=['ultimo_corte_vacaciones'])
-        return False
 
     corte = emp.ultimo_corte_vacaciones
-    meses_a_acreditar = 0
-    curr_year = corte.year
-    curr_month = corte.month
+    if corte >= fecha_referencia:
+        return False
 
-    while True:
-        if curr_month == 12:
-            next_year = curr_year + 1
-            next_month = 1
+    curr = corte + datetime.timedelta(days=1)
+    total_incremento = Decimal('0.00')
+    dias_acreditados = 0
+
+    while curr <= fecha_referencia:
+        day_num = curr.day
+        if day_num <= 30:
+            val_curr = round(Decimal(str(day_num)) * Decimal('2.5') / Decimal('30'), 2)
+            val_prev = round(Decimal(str(day_num - 1)) * Decimal('2.5') / Decimal('30'), 2) if day_num > 1 else Decimal('0.00')
+            inc = val_curr - val_prev
         else:
-            next_year = curr_year
-            next_month = curr_month + 1
+            inc = Decimal('0.00')
+        total_incremento += inc
+        dias_acreditados += 1
+        curr += datetime.timedelta(days=1)
 
-        next_corte = datetime.date(next_year, next_month, 1)
-        if next_corte <= fecha_referencia:
-            meses_a_acreditar += 1
-            curr_year = next_year
-            curr_month = next_month
-        else:
-            break
-
-    if meses_a_acreditar > 0:
-        dias_nuevos = round(meses_a_acreditar * 2.5, 1)
-        emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.0')) + Decimal(str(dias_nuevos))
-        emp.ultimo_corte_vacaciones = datetime.date(curr_year, curr_month, 1)
+    if total_incremento > Decimal('0.00') or dias_acreditados > 0:
+        emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + total_incremento
+        emp.ultimo_corte_vacaciones = fecha_referencia
         emp.save(update_fields=['dias_vacaciones_acumuladas', 'ultimo_corte_vacaciones'])
 
         BitacoraAccion.objects.create(
             usuario=None,
             accion='EDITAR_EMPLEADO',
-            descripcion=f"Acreditación automática Ley Nic. Art. 76: +{dias_nuevos} días de vacaciones acumulados para {emp.nombre} {emp.apellido} ({meses_a_acreditar} mes(es)).",
+            descripcion=(
+                f"Acreditación diaria continua Ley Nic. Art. 76: +{total_incremento:.2f} días de vacaciones "
+                f"acumulados para {emp.nombre} {emp.apellido} ({dias_acreditados} día(s) evaluado(s) hasta {fecha_referencia})."
+            ),
             ip_address='127.0.0.1'
         )
         return True
@@ -91,13 +94,11 @@ def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
 
 def _verificar_acreditacion_vacaciones_todos():
     """
-    Verifica y devenga las vacaciones de todos los colaboradores activos
-    únicamente si hay alguno con corte anterior al mes actual.
+    Verifica y devenga las vacaciones de todos los colaboradores activos diariamente.
     """
     hoy = timezone.now().astimezone(timezone.get_current_timezone()).date()
-    primer_dia_este_mes = datetime.date(hoy.year, hoy.month, 1)
     candidatos = list(Empleado.objects.filter(activo=True).filter(
-        models.Q(ultimo_corte_vacaciones__isnull=True) | models.Q(ultimo_corte_vacaciones__lt=primer_dia_este_mes)
+        Q(ultimo_corte_vacaciones__isnull=True) | Q(ultimo_corte_vacaciones__lt=hoy)
     ))
     if not candidatos:
         return
@@ -129,14 +130,13 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         if dias is None:
             return Response({'error': 'El campo dias_vacaciones_acumuladas es obligatorio.'}, status=400)
         try:
-            val = round(float(dias), 1)
+            val = round(float(dias), 2)
         except (ValueError, TypeError):
             return Response({'error': 'Valor de días inválido.'}, status=400)
 
         empleado.dias_vacaciones_acumuladas = Decimal(str(val))
-        if not empleado.ultimo_corte_vacaciones:
-            now_dt = timezone.now().astimezone(timezone.get_current_timezone()).date()
-            empleado.ultimo_corte_vacaciones = datetime.date(now_dt.year, now_dt.month, 1)
+        now_dt = timezone.now().astimezone(timezone.get_current_timezone()).date()
+        empleado.ultimo_corte_vacaciones = now_dt
         empleado.save()
 
         BitacoraAccion.objects.create(

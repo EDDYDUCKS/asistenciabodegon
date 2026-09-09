@@ -2093,9 +2093,10 @@ export default function NominaAdminPage() {
                             (p.tipo === 'PERMISO_AUTORIZADO' && (p.motivo || '').toLowerCase().includes('vacaciones')))
                       );
                       const vacTom = permisosVac.reduce((acc, p) => acc + (p.total_dias || 0), 0);
-                      const vacDisp = Number((vacAcum - vacTom).toFixed(1));
+                      const vacDisp = Number((vacAcum - vacTom).toFixed(2));
                       const corteStr = emp.ultimo_corte_vacaciones
                         ? new Date(emp.ultimo_corte_vacaciones + 'T00:00:00').toLocaleDateString('es-NI', {
+                            day: '2-digit',
                             month: 'short',
                             year: 'numeric',
                           })
@@ -2108,10 +2109,10 @@ export default function NominaAdminPage() {
                             <span className="text-[10px] text-stone-500 font-medium">{emp.cargo_display}</span>
                           </td>
                           <td className="px-4 py-3 text-right font-mono font-bold text-stone-700">
-                            +{vacAcum.toFixed(1)} días
+                            +{vacAcum.toFixed(2)} días
                           </td>
                           <td className="px-4 py-3 text-right font-mono font-bold text-amber-700">
-                            {vacTom > 0 ? `-${vacTom.toFixed(1)} días` : '0.0 días'}
+                            {vacTom > 0 ? `-${vacTom.toFixed(2)} días` : '0.00 días'}
                           </td>
                           <td className="px-4 py-3 text-right bg-emerald-50/20">
                             <span
@@ -2121,7 +2122,7 @@ export default function NominaAdminPage() {
                                   : 'bg-emerald-50 text-emerald-800 border-emerald-300'
                               }`}
                             >
-                              {vacDisp.toFixed(1)} {Math.abs(vacDisp) === 1 ? 'día' : 'días'}
+                              {vacDisp.toFixed(2)} {Math.abs(vacDisp) === 1 ? 'día' : 'días'}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center text-[11px] font-mono text-stone-500">

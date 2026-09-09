@@ -64,7 +64,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
                 if p.tipo in ('VACACIONES', 'VACACIONES_PAGADAS')
                 or (p.tipo == 'PERMISO_AUTORIZADO' and 'vacaciones' in (p.motivo or '').lower())
             )
-            val = round(float(total), 1)
+            val = round(float(total), 2)
             obj._vacaciones_tomadas_cache = val
             return val
         except Exception:
@@ -74,7 +74,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
         try:
             acumuladas = float(obj.dias_vacaciones_acumuladas or 0.0)
             tomadas = self.get_dias_vacaciones_tomadas(obj)
-            return round(acumuladas - tomadas, 1)
+            return round(acumuladas - tomadas, 2)
         except Exception:
             return 0.0
 

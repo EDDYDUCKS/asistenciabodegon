@@ -37,14 +37,15 @@ export default function BoletaVacacionesModal({
         (p.tipo === 'PERMISO_AUTORIZADO' && (p.motivo || '').toLowerCase().includes('vacaciones')))
   );
   const vacTom = permisosVac.reduce((acc, p) => acc + (p.total_dias || 0), 0);
-  const vacDisp = Number((vacAcum - vacTom).toFixed(1));
+  const vacDisp = Number((vacAcum - vacTom).toFixed(2));
 
   const corteStr = emp.ultimo_corte_vacaciones
     ? new Date(emp.ultimo_corte_vacaciones + 'T00:00:00').toLocaleDateString('es-NI', {
-        month: 'long',
+        day: '2-digit',
+        month: 'short',
         year: 'numeric',
       })
-    : 'Mes en curso';
+    : 'Al día';
 
   const fechaEmision = new Date().toLocaleDateString('es-NI', {
     day: '2-digit',
@@ -256,7 +257,7 @@ export default function BoletaVacacionesModal({
                 Saldo Disponible Actual de Vacaciones
               </span>
               <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight leading-tight">
-                {vacDisp.toFixed(1)} {Math.abs(vacDisp) === 1 ? 'Día' : 'Días'}
+                {vacDisp.toFixed(2)} {Math.abs(vacDisp) === 1 ? 'Día' : 'Días'}
               </div>
               <p className="text-[10px] font-medium opacity-90">
                 {vacDisp >= 0
@@ -273,10 +274,10 @@ export default function BoletaVacacionesModal({
                   📈 1. Acumuladas
                 </span>
                 <div className="text-base font-mono font-black text-stone-900">
-                  +{vacAcum.toFixed(1)} <span className="text-[10px] font-sans font-bold text-stone-500">días</span>
+                  +{vacAcum.toFixed(2)} <span className="text-[10px] font-sans font-bold text-stone-500">días</span>
                 </div>
                 <p className="text-[9px] text-stone-500 font-medium leading-tight">
-                  +2.5 días/mes por ley + saldo inicial auditado.
+                  +0.0833 días/día (+2.5d/mes) acumulado diario continuo.
                 </p>
                 <span className="text-[8.5px] font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-1 py-0.2 rounded inline-block mt-0.5">
                   Corte: {corteStr}
@@ -289,7 +290,7 @@ export default function BoletaVacacionesModal({
                   📉 2. Días Gozados
                 </span>
                 <div className="text-base font-mono font-black text-amber-800">
-                  {vacTom > 0 ? `-${vacTom.toFixed(1)}` : '0.0'}{' '}
+                  {vacTom > 0 ? `-${vacTom.toFixed(2)}` : '0.00'}{' '}
                   <span className="text-[10px] font-sans font-bold text-stone-500">días</span>
                 </div>
                 <p className="text-[9px] text-stone-500 font-medium leading-tight">
@@ -306,13 +307,13 @@ export default function BoletaVacacionesModal({
                   🧮 3. Fórmula Legal
                 </span>
                 <div className="text-[11px] font-mono font-black text-emerald-950">
-                  {vacAcum.toFixed(1)} - {vacTom.toFixed(1)} =
+                  {vacAcum.toFixed(2)} - {vacTom.toFixed(2)} =
                 </div>
                 <div className="text-base font-mono font-black text-emerald-800">
-                  {vacDisp.toFixed(1)} días
+                  {vacDisp.toFixed(2)} días
                 </div>
                 <p className="text-[8.5px] text-emerald-700 font-medium leading-tight">
-                  Art. 76 Código del Trabajo Nic.
+                  2.5d / 30d = 0.0833d/día Art. 76 C.T.
                 </p>
               </div>
             </div>
