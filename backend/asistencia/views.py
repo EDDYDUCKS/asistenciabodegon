@@ -395,9 +395,19 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
     def list(self, request, *args, **kwargs):
-        # Al listar alertas, verificar ausencias de la semana y mantenimiento semestral
-        self._verificar_ausencias_semanales()
-        self._verificar_mantenimiento_semestral()
+        # Al listar alertas, verificar ausencias de la semana y mantenimiento semestral con blindaje
+        try:
+            self._verificar_ausencias_semanales()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error verificando ausencias semanales: {e}")
+
+        try:
+            self._verificar_mantenimiento_semestral()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error verificando mantenimiento semestral: {e}")
+
         return super().list(request, *args, **kwargs)
 
     def _verificar_mantenimiento_semestral(self):
@@ -431,8 +441,11 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
         y no es feriado, genera la alerta de SEGUNDA_AUSENCIA para que el admin tome una decisión.
         """
         import datetime
+        tz = timezone.get_current_timezone()
         hoy = timezone.localdate()
         inicio_semana = hoy - datetime.timedelta(days=hoy.weekday())
+        inicio_dt = timezone.make_aware(datetime.datetime.combine(inicio_semana, datetime.time.min), tz)
+        hoy_fin_dt = timezone.make_aware(datetime.datetime.combine(hoy, datetime.time.max), tz)
         
         # Obtener feriados de la semana
         feriados = set(DiaFeriado.objects.filter(
@@ -441,7 +454,7 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
         ).values_list('fecha', flat=True))
 
         # Si no hay registros de asistencia en la semana (sistema recién estrenado o purgado), no generar falsas alertas
-        if not RegistroAsistencia.objects.filter(fecha_hora__date__gte=inicio_semana).exists():
+        if not RegistroAsistencia.objects.filter(fecha_hora__gte=inicio_dt).exists():
             return
 
         empleados = Empleado.objects.filter(activo=True)
@@ -451,12 +464,15 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             if not primer_registro:
                 continue
 
-            # Obtener días con marcajes en la semana
-            dias_con_marcaje = set(RegistroAsistencia.objects.filter(
-                empleado=emp,
-                fecha_hora__date__gte=inicio_semana,
-                fecha_hora__date__lte=hoy
-            ).dates('fecha_hora', 'day'))
+            # Obtener días con marcajes en la semana evaluando en Python para total compatibilidad DB
+            dias_con_marcaje = {
+                fh.astimezone(tz).date()
+                for fh in RegistroAsistencia.objects.filter(
+                    empleado=emp,
+                    fecha_hora__gte=inicio_dt,
+                    fecha_hora__lte=hoy_fin_dt
+                ).values_list('fecha_hora', flat=True)
+            }
 
             # Obtener días con permiso o vacaciones autorizadas
             permisos_emp = PermisoAusencia.objects.filter(
@@ -473,7 +489,7 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                     d_curr += datetime.timedelta(days=1)
 
             dias_sin_marcaje = []
-            fecha_inicio_eval = max(inicio_semana, primer_registro.fecha_hora.date())
+            fecha_inicio_eval = max(inicio_semana, primer_registro.fecha_hora.astimezone(tz).date())
             curr = fecha_inicio_eval
             # Revisar hasta ayer (hoy aún puede marcar durante su turno)
             while curr < hoy:
@@ -488,12 +504,12 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                 alerta_existente = AlertaAsistencia.objects.filter(
                     empleado=emp,
                     tipo='SEGUNDA_AUSENCIA',
-                    created_at__date__gte=inicio_semana
+                    created_at__gte=inicio_dt
                 ).exists()
 
                 # Blindaje extra: verificar si ya fue gestionada en la bitácora durante la semana
                 ya_gestionada = BitacoraAccion.objects.filter(
-                    created_at__date__gte=inicio_semana,
+                    created_at__gte=inicio_dt,
                     descripcion__icontains=f"{emp.nombre} {emp.apellido}"
                 ).filter(
                     Q(descripcion__icontains="justificó") |
@@ -528,19 +544,25 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
 
         if empleado:
             if alerta.tipo == 'SEGUNDA_AUSENCIA':
-                fecha_ref = alerta.created_at.date() if alerta.created_at else timezone.localdate()
+                tz = timezone.get_current_timezone()
+                fecha_ref = alerta.created_at.astimezone(tz).date() if alerta.created_at else timezone.localdate()
                 inicio_semana = fecha_ref - datetime.timedelta(days=fecha_ref.weekday())
+                inicio_dt = timezone.make_aware(datetime.datetime.combine(inicio_semana, datetime.time.min), tz)
+                fin_dt = timezone.make_aware(datetime.datetime.combine(fecha_ref, datetime.time.max), tz)
 
                 feriados = set(DiaFeriado.objects.filter(
                     fecha__gte=inicio_semana,
                     fecha__lte=fecha_ref
                 ).values_list('fecha', flat=True))
 
-                dias_con_marcaje = set(RegistroAsistencia.objects.filter(
-                    empleado=empleado,
-                    fecha_hora__date__gte=inicio_semana,
-                    fecha_hora__date__lte=fecha_ref
-                ).dates('fecha_hora', 'day'))
+                dias_con_marcaje = {
+                    fh.astimezone(tz).date()
+                    for fh in RegistroAsistencia.objects.filter(
+                        empleado=empleado,
+                        fecha_hora__gte=inicio_dt,
+                        fecha_hora__lte=fin_dt
+                    ).values_list('fecha_hora', flat=True)
+                }
 
                 permisos_emp = PermisoAusencia.objects.filter(
                     empleado=empleado,
@@ -1705,13 +1727,20 @@ def _es_septimo_dia_semana(empleado, fecha_hoy):
     hoy es su 7mo día (día de descanso / día libre trabajado).
     """
     import datetime
+    tz = timezone.get_current_timezone()
     inicio_semana = fecha_hoy - datetime.timedelta(days=fecha_hoy.weekday())
-    dias_trabajados = RegistroAsistencia.objects.filter(
-        empleado=empleado,
-        tipo_evento='ENTRADA',
-        fecha_hora__date__gte=inicio_semana,
-        fecha_hora__date__lt=fecha_hoy,
-    ).dates('fecha_hora', 'day').count()
+    inicio_dt = timezone.make_aware(datetime.datetime.combine(inicio_semana, datetime.time.min), tz)
+    ayer_fin_dt = timezone.make_aware(datetime.datetime.combine(fecha_hoy - datetime.timedelta(days=1), datetime.time.max), tz)
+
+    dias_trabajados = len({
+        fh.astimezone(tz).date()
+        for fh in RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            tipo_evento='ENTRADA',
+            fecha_hora__gte=inicio_dt,
+            fecha_hora__lte=ayer_fin_dt,
+        ).values_list('fecha_hora', flat=True)
+    })
 
     return dias_trabajados >= 6
 
