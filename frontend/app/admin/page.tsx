@@ -15,6 +15,9 @@ import {
   Utensils,
   TrendingUp,
   Coins,
+  X,
+  Copy,
+  Check,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -22,6 +25,8 @@ export default function AdminDashboardPage() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [asistencias, setAsistencias] = useState<RegistroAsistencia[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModalPropinas, setShowModalPropinas] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -68,6 +73,36 @@ export default function AdminDashboardPage() {
 
   // Trabajadores que han llegado / registrado asistencia hoy (base para reparto de propinas)
   const llegaronHoy = empleados.filter((e) => e.activo && !!estadoMap[e.id]);
+
+  const getPrimerMarcajeHoy = (empleadoId: number) => {
+    const empMarcajes = asistenciasHoy.filter((a) => a.empleado === empleadoId);
+    if (empMarcajes.length === 0) return null;
+    return [...empMarcajes].sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora))[0];
+  };
+
+  const getFotoHoy = (empleadoId: number) => {
+    const withFoto = asistenciasHoy.find((a) => a.empleado === empleadoId && a.foto_verificacion_url);
+    return withFoto?.foto_verificacion_url;
+  };
+
+  const copiarLista = () => {
+    if (llegaronHoy.length === 0) return;
+    const lineas = llegaronHoy.map((e, idx) => {
+      const primer = getPrimerMarcajeHoy(e.id);
+      const horaStr = primer
+        ? ` (${new Date(primer.fecha_hora).toLocaleTimeString('es-NI', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          })})`
+        : '';
+      return `${idx + 1}. ${e.nombre} ${e.apellido} - ${e.cargo_display}${horaStr}`;
+    });
+    const texto = `Personal Presente El Bodegón (${llegaronHoy.length}):\n` + lineas.join('\n');
+    navigator.clipboard.writeText(texto);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  };
 
   // Fecha de ayer para acceso directo al informe
   const ayerDate = new Date();
@@ -117,32 +152,30 @@ export default function AdminDashboardPage() {
 
       {/* Tarjetas de Métricas de Hoy */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Tarjeta Propinas: Llegaron Hoy */}
-        <div
-          title={
-            llegaronHoy.length > 0
-              ? `Personal que ha llegado hoy:\n${llegaronHoy
-                  .map((e) => `• ${e.nombre} ${e.apellido}`)
-                  .join('\n')}`
-              : 'Sin asistencias registradas hoy'
-          }
-          className="glass-panel border border-amber-200/80 bg-gradient-to-br from-amber-50/70 via-white to-amber-50/20 rounded-3xl p-5 flex items-center gap-4 shadow-premium transition-all hover:border-amber-300"
+        {/* Tarjeta Propinas: Llegaron Hoy (Clickable) */}
+        <button
+          type="button"
+          onClick={() => setShowModalPropinas(true)}
+          title="Toca para ver el desglose detallado de quiénes asistieron hoy"
+          className="text-left glass-panel border border-amber-300/80 bg-gradient-to-br from-amber-50 via-white to-amber-50/30 rounded-3xl p-5 flex items-center justify-between gap-3 shadow-premium transition-all hover:scale-[1.02] hover:shadow-lg hover:border-amber-400 active:scale-[0.98] cursor-pointer group focus:outline-none focus:ring-2 focus:ring-amber-400/50"
         >
-          <div className="p-3 bg-amber-100/90 border border-amber-200 rounded-2xl text-amber-700 shadow-sm">
-            <Coins className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-amber-800/80 block mb-0.5">
-              Llegaron Hoy
-            </span>
-            <div className="text-2xl font-display font-black text-stone-900 leading-none">
-              {llegaronHoy.length}
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-amber-100/90 border border-amber-200 rounded-2xl text-amber-700 shadow-sm group-hover:bg-amber-200 group-hover:text-amber-800 transition-colors">
+              <Coins className="w-6 h-6" />
             </div>
-            <span className="text-[10px] text-amber-700 font-semibold">
-              División de propinas
-            </span>
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-amber-800/80 block mb-0.5">
+                Llegaron Hoy
+              </span>
+              <div className="text-2xl font-display font-black text-stone-900 leading-none">
+                {llegaronHoy.length}
+              </div>
+              <span className="text-[10px] text-amber-700 font-semibold flex items-center gap-1 mt-0.5 group-hover:underline">
+                Toca para ver lista &rarr;
+              </span>
+            </div>
           </div>
-        </div>
+        </button>
 
         <div className="glass-panel border border-white rounded-3xl p-5 flex items-center gap-4 shadow-premium">
           <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-600">
@@ -322,6 +355,159 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Lista de Trabajadores que Llegaron Hoy (Propinas) */}
+      {showModalPropinas && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+          onClick={() => setShowModalPropinas(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150 cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header con gradiente ámbar */}
+            <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 text-white p-5 flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-2xl text-white">
+                  <Coins className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-lg leading-tight">
+                    Personal que Llegó Hoy
+                  </h3>
+                  <p className="text-xs text-amber-100 font-medium">
+                    Base para división de propinas • {llegaronHoy.length}{' '}
+                    {llegaronHoy.length === 1 ? 'colaborador' : 'colaboradores'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModalPropinas(false)}
+                className="text-white/80 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                aria-label="Cerrar modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Listado de colaboradores */}
+            <div className="p-5 overflow-y-auto space-y-2.5 flex-1 divide-y divide-stone-100">
+              {llegaronHoy.length === 0 ? (
+                <div className="py-12 text-center text-stone-400">
+                  <Coins className="w-12 h-12 mx-auto mb-2 opacity-30 text-amber-500" />
+                  <p className="text-sm font-bold text-stone-600">
+                    Aún no hay marcajes hoy
+                  </p>
+                  <p className="text-xs text-stone-400 mt-1">
+                    Cuando el personal registre su asistencia, aparecerán listados aquí.
+                  </p>
+                </div>
+              ) : (
+                llegaronHoy.map((emp, index) => {
+                  const est = estadoMap[emp.id];
+                  const primer = getPrimerMarcajeHoy(emp.id);
+                  const foto = getFotoHoy(emp.id);
+
+                  let statusText = 'En turno';
+                  let statusBg = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                  if (est === 'SALIDA_QUEBRADA') {
+                    statusText = 'En Quebrada';
+                    statusBg = 'bg-amber-50 text-amber-700 border-amber-200';
+                  } else if (est === 'SALIDA_DEFINITIVA') {
+                    statusText = 'Terminó Jornada';
+                    statusBg = 'bg-stone-100 text-stone-600 border-stone-200';
+                  }
+
+                  return (
+                    <div
+                      key={emp.id}
+                      className="pt-2.5 first:pt-0 flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-stone-400 font-mono w-5">
+                          #{index + 1}
+                        </span>
+                        {foto ? (
+                          <img
+                            src={foto}
+                            alt="Foto"
+                            className="w-10 h-10 rounded-xl object-cover border border-stone-200 shadow-xs"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 font-black text-sm flex items-center justify-center border border-amber-200 shadow-xs">
+                            {emp.nombre[0]}
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="font-bold text-stone-900 text-xs sm:text-sm">
+                            {emp.nombre} {emp.apellido}
+                          </h4>
+                          <div className="flex items-center gap-2 text-[11px] text-stone-500 font-medium flex-wrap">
+                            <span>{emp.cargo_display}</span>
+                            {primer && (
+                              <>
+                                <span>•</span>
+                                <span className="font-mono text-stone-600 font-semibold">
+                                  Llegó:{' '}
+                                  {new Date(primer.fecha_hora).toLocaleTimeString('es-NI', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true,
+                                  })}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span
+                          className={`inline-block text-[10px] font-bold px-2.5 py-1 rounded-full border ${statusBg}`}
+                        >
+                          {statusText}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer con botón de copiar y cerrar */}
+            <div className="p-4 bg-stone-50 border-t border-stone-200 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={copiarLista}
+                disabled={llegaronHoy.length === 0}
+                className="bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50 shadow-xs"
+              >
+                {copiado ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-600" />
+                    <span className="text-emerald-700">¡Copiado al portapapeles!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 text-stone-500" />
+                    <span>Copiar Lista</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowModalPropinas(false)}
+                className="bg-stone-900 hover:bg-stone-800 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
