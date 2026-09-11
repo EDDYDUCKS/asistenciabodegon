@@ -14,6 +14,7 @@ import {
   ArrowRight,
   Utensils,
   TrendingUp,
+  Coins,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -65,6 +66,9 @@ export default function AdminDashboardPage() {
   const ausentes = empleados.filter((e) => e.activo && !estadoMap[e.id]);
   const totalActivos = empleados.filter((e) => e.activo).length;
 
+  // Trabajadores que han llegado / registrado asistencia hoy (base para reparto de propinas)
+  const llegaronHoy = empleados.filter((e) => e.activo && !!estadoMap[e.id]);
+
   // Fecha de ayer para acceso directo al informe
   const ayerDate = new Date();
   ayerDate.setDate(ayerDate.getDate() - 1);
@@ -112,7 +116,34 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Tarjetas de Métricas de Hoy */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Tarjeta Propinas: Llegaron Hoy */}
+        <div
+          title={
+            llegaronHoy.length > 0
+              ? `Personal que ha llegado hoy:\n${llegaronHoy
+                  .map((e) => `• ${e.nombre} ${e.apellido}`)
+                  .join('\n')}`
+              : 'Sin asistencias registradas hoy'
+          }
+          className="glass-panel border border-amber-200/80 bg-gradient-to-br from-amber-50/70 via-white to-amber-50/20 rounded-3xl p-5 flex items-center gap-4 shadow-premium transition-all hover:border-amber-300"
+        >
+          <div className="p-3 bg-amber-100/90 border border-amber-200 rounded-2xl text-amber-700 shadow-sm">
+            <Coins className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-amber-800/80 block mb-0.5">
+              Llegaron Hoy
+            </span>
+            <div className="text-2xl font-display font-black text-stone-900 leading-none">
+              {llegaronHoy.length}
+            </div>
+            <span className="text-[10px] text-amber-700 font-semibold">
+              División de propinas
+            </span>
+          </div>
+        </div>
+
         <div className="glass-panel border border-white rounded-3xl p-5 flex items-center gap-4 shadow-premium">
           <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-600">
             <CheckCircle2 className="w-6 h-6" />
