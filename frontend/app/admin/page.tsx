@@ -18,6 +18,7 @@ import {
   X,
   Copy,
   Check,
+  Gavel,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -137,6 +138,15 @@ export default function AdminDashboardPage() {
             <span className="bg-white/20 text-white text-[10px] font-mono px-1.5 py-0.5 rounded-md capitalize">
               {ayerDisplay}
             </span>
+          </Link>
+
+          <Link
+            href="/admin/notificaciones"
+            className="bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-200 text-stone-700 hover:text-rose-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-2 shadow-sm cursor-pointer"
+            title="Ir a Alertas y Sanciones Disciplinarias"
+          >
+            <Gavel className="w-3.5 h-3.5 text-rose-500" />
+            <span>Sanciones y Alertas</span>
           </Link>
 
           <button

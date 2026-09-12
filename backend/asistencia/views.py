@@ -394,6 +394,17 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
     serializer_class = AlertaAsistenciaSerializer
     permission_classes = [permissions.AllowAny]
 
+    def perform_create(self, serializer):
+        alerta = serializer.save()
+        if alerta.tipo == 'SANCION_DISCIPLINARIA':
+            emp_nombre = f"{alerta.empleado.nombre} {alerta.empleado.apellido}" if alerta.empleado else "Personal"
+            BitacoraAccion.objects.create(
+                usuario=self.request.user if self.request.user.is_authenticated else None,
+                accion='SANCION_DISCIPLINARIA',
+                descripcion=f"Sanción disciplinaria aplicada a {emp_nombre}: {alerta.titulo}. {alerta.mensaje}",
+                ip_address=_get_clean_ip(self.request)
+            )
+
     def list(self, request, *args, **kwargs):
         # Al listar alertas, verificar ausencias de la semana y mantenimiento semestral con blindaje
         try:

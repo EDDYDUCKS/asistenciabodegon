@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { AlertaAsistencia } from '@/lib/types';
+import { AlertaAsistencia, Empleado } from '@/lib/types';
 import {
   fetchAlertas,
+  fetchEmpleados,
   updateAlerta,
   resolverAlerta,
   marcarTodasAlertasLeidas,
   limpiarAlertasLeidas,
 } from '@/lib/api-client';
 import BoletaIncidenciaModal from '@/components/BoletaIncidenciaModal';
+import ModalAplicarSancion from '@/components/ModalAplicarSancion';
 import {
   Bell,
   Search,
@@ -24,23 +26,35 @@ import {
   Filter,
   Trash2,
   Scale,
+  Gavel,
 } from 'lucide-react';
 
-type FiltroTipo = 'TODAS' | 'COMPENSACION' | 'SEGUNDA_AUSENCIA' | 'TARDANZA' | 'REGISTRO_INCOMPLETO' | 'LEIDAS';
+type FiltroTipo = 'TODAS' | 'SANCION' | 'COMPENSACION' | 'SEGUNDA_AUSENCIA' | 'TARDANZA' | 'REGISTRO_INCOMPLETO' | 'LEIDAS';
 
 export default function NotificacionesDetalladasPage() {
   const [alertas, setAlertas] = useState<AlertaAsistencia[]>([]);
+  const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>('TODAS');
   const [search, setSearch] = useState('');
   const [selectedAlerta, setSelectedAlerta] = useState<AlertaAsistencia | null>(null);
   const [processingId, setProcessingId] = useState<number | null>(null);
 
+  // Estados para Modal de Sanción
+  const [showModalSancion, setShowModalSancion] = useState(false);
+  const [sancionEmpleadoId, setSancionEmpleadoId] = useState<number | null>(null);
+  const [sancionFecha, setSancionFecha] = useState<string>('');
+  const [sancionInfraccion, setSancionInfraccion] = useState<string>('OMISION_SALIDA');
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const data = await fetchAlertas();
-      setAlertas(data);
+      const [alertasData, empsData] = await Promise.all([
+        fetchAlertas(),
+        fetchEmpleados(),
+      ]);
+      setAlertas(alertasData);
+      setEmpleados(empsData);
     } catch (e) {
       console.error('Error cargando alertas:', e);
     } finally {
@@ -112,6 +126,7 @@ export default function NotificacionesDetalladasPage() {
   const counts = useMemo(() => {
     return {
       todas: alertas.length,
+      sanciones: alertas.filter((a) => a.tipo === 'SANCION_DISCIPLINARIA' || a.titulo.toLowerCase().includes('sanción') || a.titulo.toLowerCase().includes('sancion')).length,
       compensaciones: alertas.filter((a) => a.tipo === 'COMPENSACION_HORAS').length,
       ausencias: alertas.filter((a) => a.tipo === 'SEGUNDA_AUSENCIA').length,
       tardanzas: alertas.filter((a) => a.tipo === 'TARDANZA' || a.tipo === 'SALIDA_ANTICIPADA').length,
@@ -125,6 +140,10 @@ export default function NotificacionesDetalladasPage() {
   const filteredAlertas = useMemo(() => {
     return alertas.filter((al) => {
       // Filtro por tab
+      if (filtroTipo === 'SANCION') {
+        const isS = al.tipo === 'SANCION_DISCIPLINARIA' || al.titulo.toLowerCase().includes('sanción') || al.titulo.toLowerCase().includes('sancion');
+        if (!isS) return false;
+      }
       if (filtroTipo === 'COMPENSACION' && al.tipo !== 'COMPENSACION_HORAS') return false;
       if (filtroTipo === 'SEGUNDA_AUSENCIA' && al.tipo !== 'SEGUNDA_AUSENCIA') return false;
       if (filtroTipo === 'TARDANZA' && al.tipo !== 'TARDANZA' && al.tipo !== 'SALIDA_ANTICIPADA') return false;
@@ -145,6 +164,14 @@ export default function NotificacionesDetalladasPage() {
   }, [alertas, filtroTipo, search]);
 
   const getTipoStyle = (tipo: string, leida: boolean) => {
+    const isS = tipo === 'SANCION_DISCIPLINARIA' || (typeof tipo === 'string' && tipo.includes('SANCION'));
+    if (isS) {
+      return {
+        badge: 'bg-rose-100 text-rose-900 border-rose-300 font-black',
+        border: 'border-rose-300 bg-rose-50/30 shadow-xs',
+        label: 'Sanción Disciplinaria',
+      };
+    }
     if (leida) {
       return {
         badge: 'bg-stone-100 text-stone-600 border-stone-200',
@@ -203,10 +230,23 @@ export default function NotificacionesDetalladasPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setSancionEmpleadoId(null);
+              setSancionInfraccion('OMISION_SALIDA');
+              setSancionFecha(new Date().toISOString().slice(0, 10));
+              setShowModalSancion(true);
+            }}
+            className="bg-rose-700 hover:bg-rose-800 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+          >
+            <Gavel className="w-4 h-4 text-rose-200" />
+            Aplicar Sanción
+          </button>
+
           {counts.pendientes > 0 && (
             <button
               onClick={handleMarcarTodas}
-              className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5"
+              className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Check className="w-4 h-4" />
               Marcar Todo Leído
@@ -216,7 +256,7 @@ export default function NotificacionesDetalladasPage() {
           {counts.leidas > 0 && (
             <button
               onClick={handleLimpiarLeidas}
-              className="bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 text-rose-700 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5"
+              className="bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 text-rose-700 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               title="Eliminar permanentemente las notificaciones ya leídas o resueltas"
             >
               <Trash2 className="w-4 h-4" />
@@ -226,7 +266,7 @@ export default function NotificacionesDetalladasPage() {
 
           <button
             onClick={loadData}
-            className="bg-[#1c6856]/10 border border-[#1c6856]/20 hover:bg-[#1c6856]/20 text-[#1c6856] px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5"
+            className="bg-[#1c6856]/10 border border-[#1c6856]/20 hover:bg-[#1c6856]/20 text-[#1c6856] px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Actualizar
@@ -240,7 +280,7 @@ export default function NotificacionesDetalladasPage() {
         <div className="flex flex-wrap sm:flex-nowrap gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0 min-w-0">
           <button
             onClick={() => setFiltroTipo('TODAS')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               filtroTipo === 'TODAS'
                 ? 'bg-[#1c6856] text-white shadow-sm'
                 : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
@@ -250,8 +290,20 @@ export default function NotificacionesDetalladasPage() {
           </button>
 
           <button
+            onClick={() => setFiltroTipo('SANCION')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              filtroTipo === 'SANCION'
+                ? 'bg-rose-700 text-white shadow-sm'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+            }`}
+          >
+            <Gavel className="w-3.5 h-3.5" />
+            Sanciones ({counts.sanciones})
+          </button>
+
+          <button
             onClick={() => setFiltroTipo('COMPENSACION')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               filtroTipo === 'COMPENSACION'
                 ? 'bg-emerald-700 text-white shadow-sm'
                 : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
@@ -423,13 +475,30 @@ export default function NotificacionesDetalladasPage() {
                     )}
 
                     {!al.leida && al.tipo !== 'SEGUNDA_AUSENCIA' && (
-                      <button
-                        onClick={() => handleMarkAsRead(al.id!)}
-                        className="text-[11px] font-bold text-stone-500 hover:text-stone-800 px-2 py-1 rounded-lg hover:bg-stone-100 transition-colors flex items-center gap-1 self-end"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        Marcar Leída
-                      </button>
+                      <div className="flex items-center gap-1.5 self-end">
+                        {(al.tipo === 'REGISTRO_INCOMPLETO' || al.tipo === 'TARDANZA') && (
+                          <button
+                            onClick={() => {
+                              setSancionEmpleadoId(al.empleado || null);
+                              setSancionInfraccion(al.tipo === 'REGISTRO_INCOMPLETO' ? 'OMISION_SALIDA' : 'TARDANZA_SEVERA');
+                              setSancionFecha(al.created_at ? al.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10));
+                              setShowModalSancion(true);
+                            }}
+                            className="text-[11px] font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Aplicar sanción disciplinaria y emitir memorándum"
+                          >
+                            <Gavel className="w-3.5 h-3.5" />
+                            Sancionar Falta
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleMarkAsRead(al.id!)}
+                          className="text-[11px] font-bold text-stone-500 hover:text-stone-800 px-2 py-1 rounded-lg hover:bg-stone-100 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Marcar Leída
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -443,6 +512,20 @@ export default function NotificacionesDetalladasPage() {
       <BoletaIncidenciaModal
         alerta={selectedAlerta}
         onClose={() => setSelectedAlerta(null)}
+      />
+
+      {/* Modal para Aplicar Sanción Disciplinaria */}
+      <ModalAplicarSancion
+        isOpen={showModalSancion}
+        onClose={() => setShowModalSancion(false)}
+        empleados={empleados}
+        empleadoInicialId={sancionEmpleadoId}
+        fechaInicial={sancionFecha}
+        infraccionInicial={sancionInfraccion}
+        onSancionAplicada={(nuevaAlerta) => {
+          loadData();
+          setSelectedAlerta(nuevaAlerta);
+        }}
       />
     </div>
   );

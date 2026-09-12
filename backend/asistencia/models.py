@@ -107,6 +107,7 @@ class BitacoraAccion(models.Model):
         ('ELIMINAR_EMPLEADO', 'Eliminar Empleado'),
         ('REGISTRO_MANUAL', 'Registro Manual de Asistencia'),
         ('EXPORTAR_NOMINA', 'Exportar Nómina / Reporte Excel'),
+        ('SANCION_DISCIPLINARIA', 'Sanción Disciplinaria'),
     ]
 
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
@@ -166,6 +167,7 @@ class AlertaAsistencia(models.Model):
         ('REGISTRO_INCOMPLETO', 'Registro Incompleto — Falta Salida'),
         ('MANTENIMIENTO', 'Recordatorio de Mantenimiento Semestral'),
         ('COMPENSACION_HORAS', 'Compensación de Horas (Bolsa de Horas)'),
+        ('SANCION_DISCIPLINARIA', 'Sanción y Amonestación Disciplinaria'),
     ]
     tipo = models.CharField(max_length=30, choices=TIPOS)
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='alertas', null=True, blank=True)

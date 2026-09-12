@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AlertaAsistencia } from '@/lib/types';
-import { Utensils, Printer, X, AlertTriangle, User, FileText } from 'lucide-react';
+import { Utensils, Printer, X, AlertTriangle, User, FileText, Gavel } from 'lucide-react';
 
 interface BoletaIncidenciaModalProps {
   alerta: AlertaAsistencia | null;
@@ -15,6 +15,26 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
   const handlePrint = () => {
     window.print();
   };
+
+  const isSancion =
+    alerta.tipo === 'SANCION_DISCIPLINARIA' ||
+    alerta.titulo.toLowerCase().includes('sanción') ||
+    alerta.titulo.toLowerCase().includes('sancion') ||
+    alerta.mensaje.includes('SANCIÓN IMPUESTA:');
+
+  const parsedSancion = isSancion
+    ? (() => {
+        const hechosMatch = alerta.mensaje.match(/HECHOS:\s*([\s\S]*?)(?=SANCI[OÓ]N IMPUESTA:|$)/i);
+        const sancionMatch = alerta.mensaje.match(/SANCI[OÓ]N IMPUESTA:\s*([\s\S]*?)(?=OBSERVACIONES:|$)/i);
+        const obsMatch = alerta.mensaje.match(/OBSERVACIONES:\s*([\s\S]*?)$/i);
+
+        return {
+          hechos: hechosMatch ? hechosMatch[1].trim() : alerta.mensaje,
+          sancion: sancionMatch ? sancionMatch[1].trim() : '',
+          observaciones: obsMatch ? obsMatch[1].trim() : '',
+        };
+      })()
+    : null;
 
   const fechaAlerta = alerta.created_at
     ? new Date(alerta.created_at).toLocaleDateString('es-NI', {
@@ -34,7 +54,10 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
     : '';
 
   const getTipoLabel = (tipo: string) => {
+    if (isSancion) return 'SANCIÓN Y AMONESTACIÓN DISCIPLINARIA';
     switch (tipo) {
+      case 'SANCION_DISCIPLINARIA':
+        return 'SANCIÓN Y AMONESTACIÓN DISCIPLINARIA';
       case 'TARDANZA':
         return 'LLEGADA TARDÍA / RETRASO';
       case 'SEGUNDA_AUSENCIA':
@@ -228,15 +251,17 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
             {/* Título Principal del Documento */}
             <div className="text-center mb-3">
               <h2 className="text-xs sm:text-sm font-black tracking-wider uppercase text-stone-900 border-b border-stone-200 pb-1 inline-block px-3">
-                Notificación de Incidencia Laboral
+                {isSancion ? 'Memorándum de Sanción Disciplinaria' : 'Notificación de Incidencia Laboral'}
               </h2>
               <p className="text-[9.5px] text-stone-500 font-medium mt-0.5">
-                Constancia de Cumplimiento de Horario y Reglamento Interno de Trabajo
+                {isSancion
+                  ? 'Medida Disciplinaria Conforme al Reglamento Interno y Código del Trabajo'
+                  : 'Constancia de Cumplimiento de Horario y Reglamento Interno de Trabajo'}
               </p>
             </div>
 
             {/* Cuadro de Datos del Colaborador */}
-            <div className="bg-stone-50/90 border border-stone-200 rounded-lg p-2.5 mb-3">
+            <div className="bg-stone-50/90 border border-stone-200 rounded-lg p-2.5 mb-2.5">
               <h3 className="text-[10px] font-black text-[#1c6856] uppercase tracking-wider mb-1.5 flex items-center gap-1">
                 <User className="w-3 h-3" />
                 1. Datos del Colaborador
@@ -269,32 +294,51 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
               </div>
             </div>
 
-            {/* Cuadro de Descripción Formal de la Incidencia */}
-            <div className="border border-stone-200 rounded-lg p-2.5 mb-3">
-              <h3 className="text-[10px] font-black text-rose-800 uppercase tracking-wider mb-1 flex items-center gap-1">
+            {/* Cuadro de Descripción Formal de la Incidencia / Hechos */}
+            <div className="border border-stone-200 rounded-lg p-2.5 mb-2.5">
+              <h3 className="text-[10px] font-black text-stone-800 uppercase tracking-wider mb-1 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3 text-rose-600" />
-                2. Descripción de la Falta o Incidencia
+                2. Descripción de los Hechos e Infracción
               </h3>
-              <div className="bg-rose-50/40 border border-rose-100 rounded-md p-2 text-xs space-y-1">
-                <div className="flex justify-between items-center border-b border-rose-200/50 pb-1">
-                  <span className="font-bold text-rose-950 uppercase text-[9px]">Tipo de Falta:</span>
+              <div className="bg-stone-50 border border-stone-200 rounded-md p-2 text-xs space-y-1">
+                <div className="flex justify-between items-center border-b border-stone-200 pb-1">
+                  <span className="font-bold text-stone-700 uppercase text-[9px]">Clasificación:</span>
                   <span className="font-black text-rose-700 text-[10.5px]">{getTipoLabel(alerta.tipo)}</span>
                 </div>
                 <p className="text-stone-800 leading-relaxed font-normal text-[11px] pt-0.5">
-                  {formatDetalleFormal(alerta)}
+                  {parsedSancion ? parsedSancion.hechos : formatDetalleFormal(alerta)}
                 </p>
               </div>
             </div>
 
+            {/* Medida Disciplinaria si es sanción */}
+            {isSancion && parsedSancion?.sancion && (
+              <div className="border border-rose-300 bg-rose-50/40 rounded-lg p-2.5 mb-2.5">
+                <h3 className="text-[10px] font-black text-rose-900 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  <Gavel className="w-3 h-3 text-rose-700" />
+                  3. Medida Disciplinaria / Sanción Aplicada
+                </h3>
+                <div className="bg-white border border-rose-200 rounded-md p-2 text-xs">
+                  <p className="text-rose-950 font-black text-[11.5px] leading-snug">
+                    {parsedSancion.sancion}
+                  </p>
+                  {parsedSancion.observaciones && (
+                    <p className="text-stone-500 font-medium text-[10px] mt-1.5 pt-1 border-t border-rose-100 italic">
+                      Observaciones adicionales: {parsedSancion.observaciones}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Espacio para Descargo u Observaciones del Colaborador (A mano) */}
-            <div className="border border-dashed border-stone-300 rounded-lg p-2.5 mb-4">
+            <div className="border border-dashed border-stone-300 rounded-lg p-2.5 mb-3">
               <h3 className="text-[10px] font-bold text-stone-700 uppercase tracking-wider mb-1">
-                3. Descargo u Observaciones del Colaborador (Completar a mano):
+                {isSancion && parsedSancion?.sancion ? '4.' : '3.'} Descargo u Observaciones del Colaborador (Completar a mano):
               </h3>
-              <div className="space-y-3.5 pt-1.5 pb-0.5">
-                <div className="border-b border-stone-300 h-3.5"></div>
-                <div className="border-b border-stone-300 h-3.5"></div>
-                <div className="border-b border-stone-300 h-3.5"></div>
+              <div className="space-y-3 pt-1 pb-0.5">
+                <div className="border-b border-stone-300 h-3"></div>
+                <div className="border-b border-stone-300 h-3"></div>
               </div>
             </div>
 

@@ -324,6 +324,20 @@ export async function fetchAlertas(): Promise<AlertaAsistencia[]> {
   return [];
 }
 
+export async function createAlerta(payload: {
+  tipo: string;
+  empleado?: number | null;
+  titulo: string;
+  mensaje: string;
+  leida?: boolean;
+}): Promise<AlertaAsistencia> {
+  return apiRequest<AlertaAsistencia>('/alertas/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateAlerta(id: number, payload: Partial<AlertaAsistencia>): Promise<AlertaAsistencia> {
   return apiRequest<AlertaAsistencia>(`/alertas/${id}/`, {
     method: 'PATCH',
