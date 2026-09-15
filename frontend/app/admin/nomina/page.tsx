@@ -17,10 +17,13 @@ import {
   fetchCompensaciones,
   deleteCompensacion,
   ajustarVacacionesEmpleado,
+  fetchCompensacionesFeriados,
+  sincronizarFeriados,
 } from '@/lib/api-client';
-import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras } from '@/lib/types';
+import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras, CompensacionFeriado } from '@/lib/types';
 import BoletaCompensacionModal from '@/components/BoletaCompensacionModal';
 import BoletaVacacionesModal from '@/components/BoletaVacacionesModal';
+import ModalLiquidarFeriado from '@/components/ModalLiquidarFeriado';
 import {
   FileSpreadsheet,
   Download,
@@ -47,6 +50,8 @@ import {
   Edit3,
   BookOpen,
   FileCheck,
+  Coins,
+  Sparkles,
 } from 'lucide-react';
 
 const MESES_NOMBRES: Record<number, string> = {
@@ -64,6 +69,10 @@ export default function NominaAdminPage() {
   const [permisos, setPermisos] = useState<PermisoAusencia[]>([]);
   const [compensaciones, setCompensaciones] = useState<CompensacionHoras[]>([]);
   const [selectedCompensacion, setSelectedCompensacion] = useState<CompensacionHoras | null>(null);
+  const [compensacionesFeriados, setCompensacionesFeriados] = useState<CompensacionFeriado[]>([]);
+  const [selectedCompensacionFeriado, setSelectedCompensacionFeriado] = useState<CompensacionFeriado | null>(null);
+  const [showModalLiquidarFeriado, setShowModalLiquidarFeriado] = useState(false);
+  const [syncingFeriados, setSyncingFeriados] = useState(false);
   const [subTabExtras, setSubTabExtras] = useState<'pendientes' | 'compensaciones'>('pendientes');
   const [searchCompensacion, setSearchCompensacion] = useState('');
   const [searchExtra, setSearchExtra] = useState('');
@@ -130,13 +139,14 @@ export default function NominaAdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empList, asisList, feriadosList, extrasList, permisosList, compList] = await Promise.all([
+      const [empList, asisList, feriadosList, extrasList, permisosList, compList, compFeriadosList] = await Promise.all([
         fetchEmpleados(),
         fetchAsistencias(),
         fetchFeriados(),
         fetchHorasExtra(),
         fetchPermisos(),
         fetchCompensaciones(),
+        fetchCompensacionesFeriados(),
       ]);
       setEmpleados(empList);
       setAsistencias(asisList);
@@ -144,6 +154,7 @@ export default function NominaAdminPage() {
       setHorasExtra(extrasList);
       setPermisos(permisosList);
       setCompensaciones(compList);
+      setCompensacionesFeriados(compFeriadosList);
       if (empList.length > 0 && nuevoPermisoEmp === 0) {
         setNuevoPermisoEmp(empList[0].id);
       }
@@ -204,7 +215,59 @@ export default function NominaAdminPage() {
     }
   };
 
-  // ── PERMISOS Y VACACIONES ACCIONES ─────────────────────────────────────────
+  // ── LIQUIDACIÓN DE FERIADOS ACCIONES ───────────────────────────────────────
+  const handleOpenLiquidarFeriado = async (empId: number, feriadoFecha: string, feriadoNombre: string) => {
+    let comp = compensacionesFeriados.find(
+      (c) => c.empleado === empId && c.fecha_feriado === feriadoFecha
+    );
+    if (!comp) {
+      try {
+        await sincronizarFeriados();
+        const updatedList = await fetchCompensacionesFeriados();
+        setCompensacionesFeriados(updatedList);
+        comp = updatedList.find(
+          (c) => c.empleado === empId && c.fecha_feriado === feriadoFecha
+        );
+      } catch (e) {
+        console.error('Error sincronizando feriados:', e);
+      }
+    }
+    if (comp) {
+      setSelectedCompensacionFeriado(comp);
+      setShowModalLiquidarFeriado(true);
+    } else {
+      alert(`No se encontró registro de compensación para ${feriadoNombre} (${feriadoFecha}). Se ejecutó sincronización automática.`);
+    }
+  };
+
+  const handleFeriadoLiquidado = async (updatedComp: CompensacionFeriado, nuevoSaldoVac?: number) => {
+    setCompensacionesFeriados((prev) =>
+      prev.map((c) => (c.id === updatedComp.id ? updatedComp : c))
+    );
+    if (nuevoSaldoVac !== undefined) {
+      setEmpleados((prev) =>
+        prev.map((e) =>
+          e.id === updatedComp.empleado ? { ...e, dias_vacaciones_acumuladas: nuevoSaldoVac } : e
+        )
+      );
+    }
+    await loadData();
+  };
+
+  const handleSincronizarFeriados = async () => {
+    setSyncingFeriados(true);
+    try {
+      const res = await sincronizarFeriados();
+      const updatedList = await fetchCompensacionesFeriados();
+      setCompensacionesFeriados(updatedList);
+      alert(res.mensaje);
+    } catch (e) {
+      console.error(e);
+      alert('Error sincronizando feriados.');
+    } finally {
+      setSyncingFeriados(false);
+    }
+  };
   const handleAddPermiso = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoPermisoEmp || !nuevoPermisoInicio || !nuevoPermisoFin) {
@@ -544,9 +607,12 @@ export default function NominaAdminPage() {
         // Limitar a jornada ordinaria diaria máxima (8h)
         let horasOrd = Math.min(horasDia, 8.0);
         
+        // El día trabajado cuenta en sus horas ordinarias normales siempre
+        horasNormalesTrabajadas += horasOrd;
+
         if (feriadosSet.has(dia)) {
-          // Cuenta como feriado doble únicamente si completa 8.0 horas
-          if (horasOrd >= 8.0) {
+          // Si cumple la jornada de feriado (mínimo 7.5h) cuenta como feriado laborado
+          if (horasOrd >= 7.5) {
             feriadosTrabajadosDias++;
             const fObj = feriados.find((f) => f.fecha === dia);
             feriadosDetalle.push({
@@ -554,12 +620,7 @@ export default function NominaAdminPage() {
               descripcion: fObj ? fObj.descripcion : 'Día Feriado',
               horas: horasOrd,
             });
-          } else {
-            // Si no completa las 8 horas en feriado, se suman como horas ordinarias simples
-            horasNormalesTrabajadas += horasOrd;
           }
-        } else {
-          horasNormalesTrabajadas += horasOrd;
         }
       });
 
@@ -1246,45 +1307,69 @@ export default function NominaAdminPage() {
                           {item.horasOrdinarias.toFixed(1)} hrs
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-[#1c6856] relative">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <span>{item.feriadosTrabajadosDias} {item.feriadosTrabajadosDias === 1 ? 'día' : 'días'}</span>
-                            {item.feriadosTrabajadosDias > 0 && (
-                              <div className="relative inline-block text-left group">
-                                <button
-                                  type="button"
-                                  className="text-stone-400 hover:text-[#1c6856] transition-colors p-0.5 rounded-full hover:bg-stone-100"
-                                >
-                                  <AlertCircle className="w-3.5 h-3.5" />
-                                </button>
-                                
-                                <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block w-64 bg-white border border-stone-200 rounded-xl p-3 shadow-xl z-50 text-left normal-case text-stone-800 font-sans font-medium animate-in fade-in slide-in-from-bottom-2 duration-150">
-                                  <h4 className="text-[11px] font-bold text-stone-900 border-b border-stone-100 pb-1.5 mb-1.5 uppercase tracking-wide">
-                                    Feriados Completados:
-                                  </h4>
-                                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                                    {item.feriadosDetalle.map((f, idx) => (
-                                      <div key={idx} className="flex justify-between items-start text-[11px] gap-2">
-                                        <div>
-                                          <span className="font-bold text-stone-900 font-mono block">
-                                            {new Date(f.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
-                                              day: '2-digit',
-                                              month: '2-digit',
-                                            })}
-                                          </span>
-                                          <span className="text-[10px] text-stone-500 block truncate max-w-[140px]" title={f.descripcion}>
-                                            {f.descripcion}
-                                          </span>
-                                        </div>
-                                        <span className="font-mono font-bold text-[#1c6856] shrink-0">
-                                          {f.horas.toFixed(1)} hrs
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <div className="absolute right-3 top-full w-2 h-2 bg-white border-r border-b border-stone-200 rotate-45 -mt-1.5" />
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span>{item.feriadosTrabajadosDias} {item.feriadosTrabajadosDias === 1 ? 'feriado' : 'feriados'}</span>
+                              {item.feriadosTrabajadosDias > 0 && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#1c6856]/10 text-[#1c6856]">
+                                  +{item.feriadosTrabajadosDias * 2}d comp.
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Botones / Estados de Liquidación de Feriados */}
+                            {item.feriadosDetalle.map((f, idx) => {
+                              const compF = compensacionesFeriados.find(
+                                (c) => c.empleado === item.emp.id && c.fecha_feriado === f.fecha
+                              );
+                              const estado = compF?.estado || 'PENDIENTE';
+
+                              return (
+                                <div key={idx} className="flex items-center gap-1 mt-0.5">
+                                  {estado === 'PENDIENTE' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenLiquidarFeriado(item.emp.id, f.fecha, f.descripcion)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
+                                      title={`Liquidar feriado del ${f.fecha}: Dinero, Vacaciones o Mixto`}
+                                    >
+                                      <Coins className="w-3 h-3 text-amber-700" />
+                                      <span>Liquidar (+2d)</span>
+                                    </button>
+                                  )}
+                                  {estado === 'DINERO' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenLiquidarFeriado(item.emp.id, f.fecha, f.descripcion)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors cursor-pointer"
+                                      title={`Liquidado en Dinero (${compF?.dias_pagados_dinero}d). Clic para modificar.`}
+                                    >
+                                      <span>💰 Pagado ({compF?.dias_pagados_dinero}d)</span>
+                                    </button>
+                                  )}
+                                  {estado === 'VACACIONES' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenLiquidarFeriado(item.emp.id, f.fecha, f.descripcion)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 transition-colors cursor-pointer"
+                                      title={`Acreditado a Vacaciones (+${compF?.dias_acreditados_vacaciones}d). Clic para modificar.`}
+                                    >
+                                      <span>🏖️ Acred. Vac (+{compF?.dias_acreditados_vacaciones}d)</span>
+                                    </button>
+                                  )}
+                                  {estado === 'MIXTO' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenLiquidarFeriado(item.emp.id, f.fecha, f.descripcion)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 transition-colors cursor-pointer"
+                                      title={`Mixto: ${compF?.dias_pagados_dinero}d Dinero + ${compF?.dias_acreditados_vacaciones}d Vacaciones. Clic para modificar.`}
+                                    >
+                                      <span>⚖️ Mixto ({compF?.dias_pagados_dinero}d/{compF?.dias_acreditados_vacaciones}d)</span>
+                                    </button>
+                                  )}
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700">
@@ -2583,6 +2668,112 @@ export default function NominaAdminPage() {
                 </div>
               )}
             </div>
+
+            {/* Historial de Liquidaciones de Feriados Laborados */}
+            <div className="lg:col-span-12 bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-4 mt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3">
+                <div>
+                  <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5">
+                    <Coins className="w-4 h-4" />
+                    Liquidación de Feriados Laborados
+                  </h3>
+                  <p className="text-xs text-stone-500 font-medium mt-0.5">
+                    Cada jornada de 8 horas en feriado genera 2 días compensatorios. Liquídelos en dinero, a vacaciones o mixto.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSincronizarFeriados}
+                  disabled={syncingFeriados}
+                  className="bg-stone-50 hover:bg-[#1c6856]/10 text-[#1c6856] border border-[#1c6856]/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncingFeriados ? 'animate-spin' : ''}`} />
+                  <span>Sincronizar Feriados Laborados</span>
+                </button>
+              </div>
+
+              {compensacionesFeriados.length === 0 ? (
+                <div className="py-8 text-center text-stone-400 text-xs">
+                  No hay feriados laborados registrados. Presione &quot;Sincronizar Feriados Laborados&quot; para escanear las asistencias de los días festivos.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-stone-200 text-stone-400 font-bold uppercase text-[10px]">
+                        <th className="py-2.5 px-3">Colaborador</th>
+                        <th className="py-2.5 px-3">Fecha Feriado</th>
+                        <th className="py-2.5 px-3">Feriado</th>
+                        <th className="py-2.5 px-3 text-center">Días Comp.</th>
+                        <th className="py-2.5 px-3 text-center">Estado</th>
+                        <th className="py-2.5 px-3 text-right">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {compensacionesFeriados.map((comp) => {
+                        const empNombre = comp.empleado_detalle
+                          ? `${comp.empleado_detalle.nombre} ${comp.empleado_detalle.apellido}`
+                          : `Colaborador #${comp.empleado}`;
+                        const cargo = comp.empleado_detalle?.cargo_display || '';
+
+                        return (
+                          <tr key={comp.id} className="hover:bg-stone-50/60 transition-colors">
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-stone-900 block">{empNombre}</span>
+                              {cargo && <span className="text-[10px] text-stone-400">{cargo}</span>}
+                            </td>
+                            <td className="py-3 px-3 font-mono text-stone-700">
+                              {comp.fecha_feriado}
+                            </td>
+                            <td className="py-3 px-3 font-medium text-stone-800">
+                              {comp.nombre_feriado || 'Día Feriado'}
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono font-bold text-[#1c6856]">
+                              +{Number(comp.dias_compensatorios_totales || 2.0).toFixed(1)} días
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              {comp.estado === 'PENDIENTE' && (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                  Pendiente
+                                </span>
+                              )}
+                              {comp.estado === 'DINERO' && (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                  Pagado Dinero ({comp.dias_pagados_dinero}d)
+                                </span>
+                              )}
+                              {comp.estado === 'VACACIONES' && (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                                  Acred. Vacaciones (+{comp.dias_acreditados_vacaciones}d)
+                                </span>
+                              )}
+                              {comp.estado === 'MIXTO' && (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
+                                  Mixto ({comp.dias_pagados_dinero}d / {comp.dias_acreditados_vacaciones}d)
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCompensacionFeriado(comp);
+                                  setShowModalLiquidarFeriado(true);
+                                }}
+                                className="px-3 py-1 rounded-xl text-xs font-bold bg-[#1c6856] hover:bg-[#154f42] text-white transition-colors cursor-pointer shadow-2xs"
+                              >
+                                {comp.estado === 'PENDIENTE' ? 'Liquidar' : 'Modificar'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -2887,6 +3078,17 @@ export default function NominaAdminPage() {
           </div>
         );
       })()}
+
+      {/* ── MODAL 3: LIQUIDACIÓN DE FERIADO LABORADO (DINERO / VACACIONES / MIXTO) ── */}
+      <ModalLiquidarFeriado
+        isOpen={showModalLiquidarFeriado}
+        onClose={() => {
+          setShowModalLiquidarFeriado(false);
+          setSelectedCompensacionFeriado(null);
+        }}
+        compensacion={selectedCompensacionFeriado}
+        onLiquidado={handleFeriadoLiquidado}
+      />
     </div>
   );
 }

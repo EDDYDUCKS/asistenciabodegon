@@ -146,3 +146,20 @@ export interface CompensacionHoras {
   desglose: ItemDesgloseCompensacion[];
   created_at: string;
 }
+
+export interface CompensacionFeriado {
+  id: number;
+  empleado: number;
+  empleado_detalle?: Empleado;
+  fecha_feriado: string;
+  nombre_feriado: string;
+  horas_trabajadas: number;
+  dias_compensatorios_totales: number;
+  estado: 'PENDIENTE' | 'DINERO' | 'VACACIONES' | 'MIXTO';
+  estado_display: string;
+  dias_pagados_dinero: number;
+  dias_acreditados_vacaciones: number;
+  fecha_liquidacion?: string | null;
+  observaciones?: string;
+  created_at?: string;
+}

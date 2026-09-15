@@ -14,8 +14,8 @@ from rest_framework.response import Response
 from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia, CompensacionHoras
-from .serializers import EmpleadoSerializer, RegistroAsistenciaSerializer, BitacoraAccionSerializer, DiaFeriadoSerializer, AutorizacionHorasExtraSerializer, AlertaAsistenciaSerializer, PermisoAusenciaSerializer, CompensacionHorasSerializer
+from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia, CompensacionHoras, CompensacionFeriado
+from .serializers import EmpleadoSerializer, RegistroAsistenciaSerializer, BitacoraAccionSerializer, DiaFeriadoSerializer, AutorizacionHorasExtraSerializer, AlertaAsistenciaSerializer, PermisoAusenciaSerializer, CompensacionHorasSerializer, CompensacionFeriadoSerializer
 
 
 class ExcelBinaryRenderer(BaseRenderer):
@@ -340,6 +340,135 @@ class DiaFeriadoViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
 
+class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
+    queryset = CompensacionFeriado.objects.all().select_related('empleado')
+    serializer_class = CompensacionFeriadoSerializer
+    permission_classes = [permissions.AllowAny]
+
+    @action(detail=False, methods=['post'], url_path='sincronizar')
+    def sincronizar(self, request):
+        """
+        Escanea todas las asistencias registradas en fechas feriadas y genera
+        los registros de CompensacionFeriado pendientes correspondientes (2 días compensatorios por cada 8h).
+        """
+        from decimal import Decimal
+        tz = timezone.get_current_timezone()
+        feriados = list(DiaFeriado.objects.all())
+        if not feriados:
+            return Response({'status': 'ok', 'creados': 0, 'mensaje': 'No hay días feriados configurados.'})
+
+        feriados_map = {f.fecha: f.descripcion for f in feriados}
+        empleados = Empleado.objects.filter(activo=True)
+        creados = 0
+
+        for emp in empleados:
+            for f_fecha, f_nombre in feriados_map.items():
+                start_dt = timezone.make_aware(datetime.datetime.combine(f_fecha, datetime.time.min), tz)
+                end_dt = timezone.make_aware(datetime.datetime.combine(f_fecha, datetime.time.max), tz) + datetime.timedelta(hours=5)
+
+                regs = RegistroAsistencia.objects.filter(
+                    empleado=emp,
+                    fecha_hora__range=(start_dt, end_dt)
+                ).order_by('fecha_hora')
+
+                if not regs.exists():
+                    continue
+
+                horas_dia = _calcular_horas_netas_dia(regs)
+                horas_ord = min(horas_dia, 8.0)
+
+                if horas_ord >= 7.5:  # Tolera margen de marcaje para jornada completa de feriado
+                    comp, created = CompensacionFeriado.objects.get_or_create(
+                        empleado=emp,
+                        fecha_feriado=f_fecha,
+                        defaults={
+                            'nombre_feriado': f_nombre,
+                            'horas_trabajadas': Decimal(str(round(horas_ord, 2))),
+                            'dias_compensatorios_totales': Decimal('2.0'),
+                            'estado': 'PENDIENTE',
+                        }
+                    )
+                    if created:
+                        creados += 1
+
+        return Response({
+            'status': 'ok',
+            'creados': creados,
+            'mensaje': f'Sincronización completada. {creados} nuevo(s) registro(s) de feriados compensatorios generados.'
+        })
+
+    @action(detail=True, methods=['post'], url_path='liquidar')
+    def liquidar(self, request, pk=None):
+        """
+        Liquida una compensación de feriado:
+        - dias_dinero: número de días a pagar en nómina/efectivo
+        - dias_vacaciones: número de días a acreditar al saldo de vacaciones
+        - observaciones: texto opcional
+        """
+        from decimal import Decimal
+        comp = self.get_object()
+        dias_dinero = Decimal(str(request.data.get('dias_dinero', 0)))
+        dias_vacaciones = Decimal(str(request.data.get('dias_vacaciones', 0)))
+        observaciones = request.data.get('observaciones', '').strip()
+
+        if dias_dinero < 0 or dias_vacaciones < 0:
+            return Response({'error': 'Los días a liquidar no pueden ser negativos.'}, status=400)
+
+        total_liquidar = dias_dinero + dias_vacaciones
+        if total_liquidar <= Decimal('0.0'):
+            return Response({'error': 'Debe especificar al menos una cantidad de días a liquidar.'}, status=400)
+
+        empleado = comp.empleado
+
+        # Si se acredita a vacaciones
+        if dias_vacaciones > Decimal('0.0'):
+            empleado.dias_vacaciones_acumuladas = (empleado.dias_vacaciones_acumuladas or Decimal('0.00')) + dias_vacaciones
+            empleado.save(update_fields=['dias_vacaciones_acumuladas'])
+
+            # Registrar en PermisoAusencia como abono oficial de vacaciones pagadas
+            PermisoAusencia.objects.create(
+                empleado=empleado,
+                tipo='VACACIONES_PAGADAS',
+                fecha_inicio=comp.fecha_feriado,
+                fecha_fin=comp.fecha_feriado,
+                motivo=f"Abono de vacaciones por feriado laborado: {comp.nombre_feriado or comp.fecha_feriado} (+{dias_vacaciones} d)"
+            )
+
+        # Determinar estado
+        if dias_dinero > 0 and dias_vacaciones > 0:
+            nuevo_estado = 'MIXTO'
+        elif dias_vacaciones > 0:
+            nuevo_estado = 'VACACIONES'
+        else:
+            nuevo_estado = 'DINERO'
+
+        comp.estado = nuevo_estado
+        comp.dias_pagados_dinero = dias_dinero
+        comp.dias_acreditados_vacaciones = dias_vacaciones
+        comp.fecha_liquidacion = timezone.now()
+        comp.observaciones = observaciones
+        comp.save()
+
+        BitacoraAccion.objects.create(
+            usuario=request.user if request.user.is_authenticated else None,
+            accion='LIQUIDAR_FERIADO',
+            descripcion=(
+                f"Feriado {comp.fecha_feriado} ({comp.nombre_feriado}) liquidado para {empleado.nombre} {empleado.apellido}: "
+                f"{dias_dinero} días en dinero, {dias_vacaciones} días a vacaciones. "
+                f"Nuevo saldo vacaciones: {empleado.dias_vacaciones_acumuladas} d."
+            ),
+            ip_address=_get_clean_ip(request)
+        )
+
+        serializer = self.get_serializer(comp)
+        return Response({
+            'status': 'ok',
+            'mensaje': f'Feriado liquidado exitosamente como {comp.get_estado_display()}.',
+            'compensacion': serializer.data,
+            'empleado_vacaciones_acumuladas': float(empleado.dias_vacaciones_acumuladas) if empleado.dias_vacaciones_acumuladas else 0.0
+        })
+
+
 class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
     queryset = AutorizacionHorasExtra.objects.all().select_related('empleado')
     serializer_class = AutorizacionHorasExtraSerializer
@@ -622,6 +751,30 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                         descripcion=f"Se sumaron 8.0 hrs de deuda a {empleado.nombre} {empleado.apellido} por ausencia no justificada (Alerta #{alerta.id}).",
                         ip_address=_get_clean_ip(request)
                     )
+                elif decision == 'RESTAR_VACACIONES':
+                    from decimal import Decimal
+                    # Descontar 1 día de vacaciones
+                    dias_antes = float(empleado.dias_vacaciones_acumuladas or 0.0)
+                    empleado.dias_vacaciones_acumuladas = max(Decimal('0.00'), (empleado.dias_vacaciones_acumuladas or Decimal('0.00')) - Decimal('1.00'))
+                    empleado.save(update_fields=['dias_vacaciones_acumuladas'])
+
+                    for dia_ausente in dias_a_registrar:
+                        PermisoAusencia.objects.get_or_create(
+                            empleado=empleado,
+                            fecha_inicio=dia_ausente,
+                            fecha_fin=dia_ausente,
+                            defaults={
+                                'tipo': 'VACACIONES',
+                                'motivo': f"Inasistencia deducida de saldo de vacaciones (Alerta #{alerta.id})"
+                            }
+                        )
+
+                    BitacoraAccion.objects.create(
+                        usuario=request.user if request.user.is_authenticated else None,
+                        accion='REGISTRO_MANUAL',
+                        descripcion=f"Se descontó 1.0 día de vacaciones a {empleado.nombre} {empleado.apellido} por inasistencia (Alerta #{alerta.id}). Saldo previo: {dias_antes:.2f} d, nuevo saldo: {empleado.dias_vacaciones_acumuladas} d.",
+                        ip_address=_get_clean_ip(request)
+                    )
                 else:
                     for dia_ausente in dias_a_registrar:
                         PermisoAusencia.objects.get_or_create(
@@ -653,7 +806,8 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
         return Response({
             'status': 'ok',
             'mensaje': 'Alerta procesada correctamente.',
-            'empleado_horas_pendientes': float(empleado.horas_pendientes) if empleado else 0.0
+            'empleado_horas_pendientes': float(empleado.horas_pendientes) if empleado else 0.0,
+            'empleado_vacaciones_acumuladas': float(empleado.dias_vacaciones_acumuladas) if (empleado and empleado.dias_vacaciones_acumuladas is not None) else 0.0,
         })
 
     @action(detail=False, methods=['post'], url_path='marcar-todas-leidas')
@@ -2140,15 +2294,26 @@ def exportar_reporte_nomina_excel(request):
                 horas_dia = _calcular_horas_netas_dia(regs)
                 horas_ord = min(horas_dia, 8.0)
                 if dia in feriados_set:
-                    if horas_ord >= 8.0:
+                    # El día trabajado cuenta en sus horas ordinarias normales
+                    horas_normales_trabajadas += horas_ord
+                    if horas_ord >= 7.5:
                         feriados_trabajados_dias += 1
                         desc_feriado = DiaFeriado.objects.filter(fecha=dia).first()
                         nombre_feriado = desc_feriado.descripcion if desc_feriado else "Día Feriado"
-                        feriados_trabajados_info.append(
-                            f"- {dia.strftime('%d/%m/%Y')}: {nombre_feriado} ({round(horas_ord, 1)} hrs)"
+                        from decimal import Decimal
+                        CompensacionFeriado.objects.get_or_create(
+                            empleado=emp,
+                            fecha_feriado=dia,
+                            defaults={
+                                'nombre_feriado': nombre_feriado,
+                                'horas_trabajadas': Decimal(str(round(horas_ord, 2))),
+                                'dias_compensatorios_totales': Decimal('2.0'),
+                                'estado': 'PENDIENTE',
+                            }
                         )
-                    else:
-                        horas_normales_trabajadas += horas_ord
+                        feriados_trabajados_info.append(
+                            f"- {dia.strftime('%d/%m/%Y')}: {nombre_feriado} ({round(horas_ord, 1)} hrs -> 2 días comp.)"
+                        )
                 else:
                     horas_normales_trabajadas += horas_ord
 
@@ -2546,6 +2711,80 @@ def exportar_reporte_vacaciones_excel(request):
         ws.column_dimensions['G'].width = 16
         ws.column_dimensions['H'].width = 32
         ws.column_dimensions['I'].width = 20
+
+        # ── Hoja 2: Saldos Consolidados de Vacaciones por Colaborador ──
+        ws_saldos = wb.create_sheet(title="Saldos por Colaborador")
+        ws_saldos.views.sheetView[0].showGridLines = True
+
+        ws_saldos.merge_cells('A1:F1')
+        ws_saldos['A1'] = "EL BODEGÓN — BALANCE DE SALDOS DE VACACIONES"
+        ws_saldos['A1'].font = font_titulo
+        ws_saldos['A1'].fill = fill_title
+        ws_saldos['A1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws_saldos.row_dimensions[1].height = 28
+
+        ws_saldos.merge_cells('A2:F2')
+        ws_saldos['A2'] = f"Corte al {hoy.strftime('%d/%m/%Y')} — Incluye abonos por feriados laborados y deducciones por inasistencias"
+        ws_saldos['A2'].font = font_sub
+        ws_saldos['A2'].fill = fill_title
+        ws_saldos['A2'].alignment = Alignment(horizontal='center', vertical='center')
+        ws_saldos.row_dimensions[2].height = 18
+
+        headers_saldos = [
+            "N°",
+            "Colaborador",
+            "Cargo",
+            "Días Acumulados Ley",
+            "Días Tomados / Deducidos",
+            "Saldo Neto Disponible",
+        ]
+        ws_saldos.row_dimensions[4].height = 24
+        for col_idx, h in enumerate(headers_saldos, 1):
+            c = ws_saldos.cell(row=4, column=col_idx, value=h)
+            c.font = font_header
+            c.fill = fill_header
+            c.alignment = Alignment(horizontal='center', vertical='center')
+            c.border = thin_border
+
+        empleados_activos = Empleado.objects.filter(activo=True).order_by('nombre', 'apellido')
+        r_idx = 5
+        for i, emp in enumerate(empleados_activos, 1):
+            permisos_emp = PermisoAusencia.objects.filter(
+                empleado=emp,
+                tipo__in=['VACACIONES', 'VACACIONES_PAGADAS']
+            )
+            total_tomadas = sum(p.total_dias for p in permisos_emp)
+            acumuladas = float(emp.dias_vacaciones_acumuladas or 0.0)
+            disponible = round(acumuladas - float(total_tomadas), 1)
+
+            row_s = [
+                i,
+                f"{emp.nombre} {emp.apellido}",
+                emp.get_cargo_display() if hasattr(emp, 'get_cargo_display') else emp.cargo,
+                round(acumuladas, 2),
+                round(float(total_tomadas), 1),
+                disponible,
+            ]
+            for col_idx, val in enumerate(row_s, 1):
+                c = ws_saldos.cell(row=r_idx, column=col_idx, value=val)
+                c.font = font_data
+                c.border = thin_border
+                if r_idx % 2 == 0:
+                    c.fill = fill_zebra
+                if col_idx in [1, 4, 5, 6]:
+                    c.alignment = Alignment(horizontal='center', vertical='center')
+                    if col_idx == 6:
+                        c.font = font_bold
+                else:
+                    c.alignment = Alignment(horizontal='left', vertical='center')
+            r_idx += 1
+
+        ws_saldos.column_dimensions['A'].width = 6
+        ws_saldos.column_dimensions['B'].width = 26
+        ws_saldos.column_dimensions['C'].width = 20
+        ws_saldos.column_dimensions['D'].width = 22
+        ws_saldos.column_dimensions['E'].width = 24
+        ws_saldos.column_dimensions['F'].width = 22
 
         buffer = BytesIO()
         wb.save(buffer)

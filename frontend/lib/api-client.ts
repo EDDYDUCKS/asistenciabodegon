@@ -9,6 +9,7 @@ import {
   AlertaAsistencia,
   PermisoAusencia,
   CompensacionHoras,
+  CompensacionFeriado,
 } from './types';
 
 const API_BASE_URL =
@@ -346,11 +347,61 @@ export async function updateAlerta(id: number, payload: Partial<AlertaAsistencia
   });
 }
 
-export async function resolverAlerta(id: number, decision: 'JUSTIFICAR' | 'SUMAR_DEUDA'): Promise<{ status: string; mensaje: string; empleado_horas_pendientes?: number }> {
-  return apiRequest<{ status: string; mensaje: string; empleado_horas_pendientes?: number }>(`/alertas/${id}/resolver/`, {
+export async function resolverAlerta(
+  id: number,
+  decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES'
+): Promise<{
+  status: string;
+  mensaje: string;
+  empleado_horas_pendientes?: number;
+  empleado_vacaciones_acumuladas?: number;
+}> {
+  return apiRequest<{
+    status: string;
+    mensaje: string;
+    empleado_horas_pendientes?: number;
+    empleado_vacaciones_acumuladas?: number;
+  }>(`/alertas/${id}/resolver/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ decision }),
+  });
+}
+
+// ── COMPENSACIÓN Y LIQUIDACIÓN DE DÍAS FERIADOS ─────────────────────────────
+export async function fetchCompensacionesFeriados(): Promise<CompensacionFeriado[]> {
+  const data = await apiRequest<CompensacionFeriado[] | { results: CompensacionFeriado[] }>('/compensaciones-feriados/');
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray((data as { results: CompensacionFeriado[] }).results)) {
+    return (data as { results: CompensacionFeriado[] }).results;
+  }
+  return [];
+}
+
+export async function sincronizarFeriados(): Promise<{ status: string; creados: number; mensaje: string }> {
+  return apiRequest<{ status: string; creados: number; mensaje: string }>('/compensaciones-feriados/sincronizar/', {
+    method: 'POST',
+  });
+}
+
+export async function liquidarCompensacionFeriado(
+  id: number,
+  payload: { dias_dinero: number; dias_vacaciones: number; observaciones?: string }
+): Promise<{
+  status: string;
+  mensaje: string;
+  compensacion: CompensacionFeriado;
+  empleado_vacaciones_acumuladas?: number;
+}> {
+  return apiRequest<{
+    status: string;
+    mensaje: string;
+    compensacion: CompensacionFeriado;
+    empleado_vacaciones_acumuladas?: number;
+  }>(`/compensaciones-feriados/${id}/liquidar/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
   });
 }
 

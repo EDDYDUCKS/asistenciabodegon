@@ -132,7 +132,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   };
 
-  const handleResolverAlerta = async (alertId: number, decision: 'JUSTIFICAR' | 'SUMAR_DEUDA') => {
+  const handleResolverAlerta = async (
+    alertId: number,
+    decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES'
+  ) => {
     try {
       setResolvingAlertId(alertId);
       // Actualización optimista inmediata en UI
@@ -460,30 +463,46 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                   <span>Alerta resuelta</span>
                                 </div>
                               ) : (
-                                <div className="flex gap-2">
-                                  <button
-                                    disabled={resolvingAlertId === al.id}
-                                    onClick={() => handleResolverAlerta(al.id!, 'JUSTIFICAR')}
-                                    className="flex-1 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
-                                  >
-                                    {resolvingAlertId === al.id ? (
-                                      <RefreshCw className="w-3 h-3 animate-spin text-stone-500" />
-                                    ) : (
-                                      '✅ Justificar Falta'
-                                    )}
-                                  </button>
-                                  <button
-                                    disabled={resolvingAlertId === al.id}
-                                    onClick={() => handleResolverAlerta(al.id!, 'SUMAR_DEUDA')}
-                                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
-                                  >
-                                    {resolvingAlertId === al.id ? (
-                                      <RefreshCw className="w-3 h-3 animate-spin text-white" />
-                                    ) : (
-                                      '⏳ Sumar 8h de Deuda'
-                                    )}
-                                  </button>
-                                </div>
+                                 <div className="flex flex-col gap-1.5">
+                                   <div className="flex gap-1.5">
+                                     <button
+                                       disabled={resolvingAlertId === al.id}
+                                       onClick={() => handleResolverAlerta(al.id!, 'JUSTIFICAR')}
+                                       className="flex-1 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
+                                       title="Justificar falta sin deuda ni descuento de vacaciones"
+                                     >
+                                       {resolvingAlertId === al.id ? (
+                                         <RefreshCw className="w-3 h-3 animate-spin text-stone-500" />
+                                       ) : (
+                                         '✅ Justificar'
+                                       )}
+                                     </button>
+                                     <button
+                                       disabled={resolvingAlertId === al.id}
+                                       onClick={() => handleResolverAlerta(al.id!, 'SUMAR_DEUDA')}
+                                       className="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
+                                       title="Sumar 8 horas de deuda a la Bolsa de Horas"
+                                     >
+                                       {resolvingAlertId === al.id ? (
+                                         <RefreshCw className="w-3 h-3 animate-spin text-white" />
+                                       ) : (
+                                         '⏳ Sumar 8h Deuda'
+                                       )}
+                                     </button>
+                                   </div>
+                                   <button
+                                     disabled={resolvingAlertId === al.id}
+                                     onClick={() => handleResolverAlerta(al.id!, 'RESTAR_VACACIONES')}
+                                     className="w-full bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
+                                     title="Descontar 1 día de su saldo de vacaciones acumuladas"
+                                   >
+                                     {resolvingAlertId === al.id ? (
+                                       <RefreshCw className="w-3 h-3 animate-spin text-white" />
+                                     ) : (
+                                       '🏖️ Restar de Vacaciones (-1d)'
+                                     )}
+                                   </button>
+                                 </div>
                               )}
                             </div>
                           )}

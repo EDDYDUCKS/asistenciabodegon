@@ -108,6 +108,7 @@ class BitacoraAccion(models.Model):
         ('REGISTRO_MANUAL', 'Registro Manual de Asistencia'),
         ('EXPORTAR_NOMINA', 'Exportar Nómina / Reporte Excel'),
         ('SANCION_DISCIPLINARIA', 'Sanción Disciplinaria'),
+        ('LIQUIDAR_FERIADO', 'Liquidación de Feriado'),
     ]
 
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
@@ -228,3 +229,33 @@ class CompensacionHoras(models.Model):
 
     def __str__(self):
         return f"Compensación {self.empleado.nombre} {self.empleado.apellido} - {self.fecha_compensacion} (-{self.horas_deducidas} hrs)"
+
+
+class CompensacionFeriado(models.Model):
+    MODALIDADES = [
+        ('PENDIENTE', 'Pendiente de Liquidar'),
+        ('DINERO', 'Pagado en Dinero'),
+        ('VACACIONES', 'Acreditado a Vacaciones'),
+        ('MIXTO', 'Pago Mixto (Dinero y Vacaciones)'),
+    ]
+
+    empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='compensaciones_feriados')
+    fecha_feriado = models.DateField(help_text="Fecha del día feriado laborado")
+    nombre_feriado = models.CharField(max_length=150, blank=True, default='')
+    horas_trabajadas = models.DecimalField(max_digits=5, decimal_places=2, default=8.00)
+    dias_compensatorios_totales = models.DecimalField(max_digits=4, decimal_places=1, default=2.0)
+
+    # Liquidación
+    estado = models.CharField(max_length=20, choices=MODALIDADES, default='PENDIENTE')
+    dias_pagados_dinero = models.DecimalField(max_digits=4, decimal_places=1, default=0.0)
+    dias_acreditados_vacaciones = models.DecimalField(max_digits=4, decimal_places=1, default=0.0)
+    fecha_liquidacion = models.DateTimeField(null=True, blank=True)
+    observaciones = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_feriado', '-created_at']
+        unique_together = ['empleado', 'fecha_feriado']
+
+    def __str__(self):
+        return f"Compensación Feriado {self.empleado.nombre} {self.empleado.apellido} - {self.fecha_feriado} ({self.get_estado_display()})"

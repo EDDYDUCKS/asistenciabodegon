@@ -78,7 +78,10 @@ export default function NotificacionesDetalladasPage() {
     };
   }, [selectedAlerta]);
 
-  const handleResolver = async (id: number, decision: 'JUSTIFICAR' | 'SUMAR_DEUDA') => {
+  const handleResolver = async (
+    id: number,
+    decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES'
+  ) => {
     setProcessingId(id);
     try {
       await resolverAlerta(id, decision);
@@ -456,20 +459,30 @@ export default function NotificacionesDetalladasPage() {
 
                     {/* Acciones interactivas para Segunda Ausencia */}
                     {!al.leida && al.tipo === 'SEGUNDA_AUSENCIA' && (
-                      <div className="flex gap-2 w-full sm:w-auto">
+                      <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                         <button
                           disabled={processingId === al.id}
                           onClick={() => handleResolver(al.id!, 'JUSTIFICAR')}
-                          className="flex-1 sm:flex-initial bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors disabled:opacity-50"
+                          className="flex-1 sm:flex-initial bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                          title="Autorizar la falta sin recargo de deuda ni deducción de vacaciones"
                         >
                           ✅ Justificar
                         </button>
                         <button
                           disabled={processingId === al.id}
                           onClick={() => handleResolver(al.id!, 'SUMAR_DEUDA')}
-                          className="flex-1 sm:flex-initial bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50"
+                          className="flex-1 sm:flex-initial bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                          title="Cargar 1 día (8.0 hrs) a su saldo deudor en la Bolsa de Horas"
                         >
                           ⏳ Sumar 8h Deuda
+                        </button>
+                        <button
+                          disabled={processingId === al.id}
+                          onClick={() => handleResolver(al.id!, 'RESTAR_VACACIONES')}
+                          className="flex-1 sm:flex-initial bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                          title="Deducir 1.0 día de su saldo de vacaciones acumuladas (sin deuda de horas)"
+                        >
+                          🏖️ Restar Vacaciones (-1d)
                         </button>
                       </div>
                     )}
