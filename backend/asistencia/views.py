@@ -2193,26 +2193,27 @@ def exportar_reporte_nomina_excel(request):
             bottom=Side(style='thin', color='CCCCCC')
         )
 
-        # Headers — 9 Columnas Ejecutivas
+        # Headers — 10 Columnas Ejecutivas con Feriados Pagados
         headers = [
             "Empleado y Puesto",
             "Días Trabajados",
             "Días Libres (Tomados)",
             "Horas Ordinarias",
-            "Horas Feriados (Días)",
+            "Feriados Trabajados (Días)",
+            "Feriados Pagados (Días)",
             "Horas Extra Aprobadas",
             "H. Extra por Aprobar",
             "Horas Debidas (Déficit)",
             "Vacaciones Restantes (Días)",
         ]
 
-        ws.merge_cells('A1:I1')
+        ws.merge_cells('A1:J1')
         ws['A1'] = "BODEGÓN PASS — REPORTE DE ASISTENCIA Y PERSONAL"
         ws['A1'].font = font_titulo
         ws['A1'].fill = fill_title
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
 
-        ws.merge_cells('A2:I2')
+        ws.merge_cells('A2:J2')
         ws['A2'] = f"Período del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')} — Generado el {hoy.strftime('%d/%m/%Y')}"
         ws['A2'].font = font_sub
         ws['A2'].fill = fill_title
@@ -2221,7 +2222,7 @@ def exportar_reporte_nomina_excel(request):
         ws.append([])        # Fila 3 vacía
         ws.append(headers)   # Fila 4 Headers
 
-        for col in range(1, 10):
+        for col in range(1, 11):
             cell = ws.cell(row=4, column=col)
             cell.font = font_header
             cell.fill = fill_header
@@ -2394,12 +2395,24 @@ def exportar_reporte_nomina_excel(request):
             total_vac_tomadas += sum(p.total_dias for p in permisos_cta_emp)
             vacaciones_restantes = round(float(emp.dias_vacaciones_acumuladas or 0.0) - float(total_vac_tomadas), 1)
 
+            # Feriados pagados (dinero / vacaciones) para este empleado en el período
+            comp_feriados_emp = CompensacionFeriado.objects.filter(
+                empleado=emp,
+                fecha_feriado__gte=fecha_inicio,
+                fecha_feriado__lte=fecha_fin,
+                estado__in=['DINERO', 'VACACIONES', 'MIXTO']
+            )
+            dias_pagados_feriados = sum(float(c.dias_pagados_dinero + c.dias_acreditados_vacaciones) for c in comp_feriados_emp)
+            dias_pagados_dinero = sum(float(c.dias_pagados_dinero) for c in comp_feriados_emp)
+            dias_pagados_vac = sum(float(c.dias_acreditados_vacaciones) for c in comp_feriados_emp)
+
             fila = [
                 f"{emp.nombre} {emp.apellido} ({emp.get_cargo_display()})",
                 dias_trabajados,
                 dias_libres,
                 round(horas_normales_trabajadas, 1),
                 feriados_trabajados_dias,
+                round(dias_pagados_feriados, 1),
                 round(float(horas_extra_aprobadas), 1),
                 round(float(horas_extra_pendientes), 1),
                 round(horas_debidas, 1),
@@ -2419,13 +2432,22 @@ def exportar_reporte_nomina_excel(request):
                 cell_feriado = ws.cell(row=row_idx, column=5)
                 cell_feriado.comment = Comment(comentario_texto, "BodegónPass")
 
-            for col in range(1, 10):
+            if dias_pagados_feriados > 0:
+                cell_pagado = ws.cell(row=row_idx, column=6)
+                detalles_p = []
+                if dias_pagados_dinero > 0:
+                    detalles_p.append(f"Dinero: {dias_pagados_dinero}d")
+                if dias_pagados_vac > 0:
+                    detalles_p.append(f"Vacaciones: {dias_pagados_vac}d")
+                cell_pagado.comment = Comment("Liquidación de Feriados:\n" + ", ".join(detalles_p), "BodegónPass")
+
+            for col in range(1, 11):
                 cell = ws.cell(row=row_idx, column=col)
                 cell.font = font_data
                 cell.border = thin_border
                 if row_idx % 2 == 0:
                     cell.fill = fill_zebra
-                if col in [2, 3, 4, 5, 6, 7, 8, 9]:
+                if col in [2, 3, 4, 5, 6, 7, 8, 9, 10]:
                     cell.alignment = Alignment(horizontal='right')
                 else:
                     cell.alignment = Alignment(horizontal='left')
@@ -2440,7 +2462,7 @@ def exportar_reporte_nomina_excel(request):
         ws[f'A{row_idx}'].font = font_bold
         ws[f'A{row_idx}'].alignment = Alignment(horizontal='right')
 
-        for col_letter in ['D', 'E', 'F', 'G', 'H', 'I']:
+        for col_letter in ['D', 'E', 'F', 'G', 'H', 'I', 'J']:
             cell = ws[f'{col_letter}{row_idx}']
             cell.value = f"=SUM({col_letter}5:{col_letter}{row_idx-2})"
             cell.font = font_bold
