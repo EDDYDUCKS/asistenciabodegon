@@ -225,10 +225,10 @@ export default function NotificacionesDetalladasPage() {
             <div className="w-9 h-9 rounded-2xl bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center">
               <Bell className="w-5 h-5" />
             </div>
-            Notificaciones Detalladas
+            Alertas y Sanciones
           </h1>
           <p className="text-xs text-stone-500 font-medium mt-1">
-            Historial permanente de incidencias, ausencias de 2 días y emisión de actas para expediente físico.
+            Historial de incidencias, tardanzas, ausencias y emisión de actas para expediente físico.
           </p>
         </div>
 

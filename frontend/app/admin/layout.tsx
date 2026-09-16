@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Users,
   CalendarCheck,
+  TrendingUp,
   FileSpreadsheet,
   QrCode,
   RefreshCw,
@@ -39,10 +40,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const navItems = [
     { label: 'Dashboard', href: '/admin', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { label: 'Empleados & Carnets', href: '/admin/empleados', icon: <Users className="w-4 h-4" /> },
-    { label: 'Asistencia & Fotos', href: '/admin/asistencia', icon: <CalendarCheck className="w-4 h-4" /> },
-    { label: 'Nómina & Horas', href: '/admin/nomina', icon: <FileSpreadsheet className="w-4 h-4" /> },
-    { label: 'Notificaciones Detalladas', href: '/admin/notificaciones', icon: <Bell className="w-4 h-4" /> },
+    { label: 'Empleados', href: '/admin/empleados', icon: <Users className="w-4 h-4" /> },
+    { label: 'Asistencia', href: '/admin/asistencia', icon: <CalendarCheck className="w-4 h-4" /> },
+    { label: 'Rendimiento', href: '/admin/rendimiento-ayer', icon: <TrendingUp className="w-4 h-4" /> },
+    { label: 'Nómina', href: '/admin/nomina', icon: <FileSpreadsheet className="w-4 h-4" /> },
+    { label: 'Alertas', href: '/admin/notificaciones', icon: <Bell className="w-4 h-4" /> },
   ];
 
   const handleLogout = useCallback(() => {
@@ -333,7 +335,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Navegación Desktop */}
           <nav className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
-              const active = pathname === item.href;
+              const active = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
@@ -549,7 +551,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       onClick={() => setShowAlertsDropdown(false)}
                       className="text-[11px] font-bold text-[#1c6856] hover:underline flex items-center justify-center gap-1 py-1"
                     >
-                      Ver todas en Notificaciones Detalladas &rarr;
+                      Ver todas las alertas &rarr;
                     </Link>
                   </div>
                 </div>
@@ -582,7 +584,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="print:hidden md:hidden bg-white/95 backdrop-blur-md border-b border-stone-200/80 px-2.5 py-2 flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar shadow-2xs sticky top-16 z-30">
       <div className="flex items-center gap-1.5 min-w-max">
         {navItems.map((item) => {
-          const active = pathname === item.href;
+          const active = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

@@ -1170,7 +1170,7 @@ export default function NominaAdminPage() {
           }`}
         >
           <Clock className="w-3.5 h-3.5 inline-block mr-1.5" />
-          Aprobaciones Horas Extra
+          Horas Extra
           {horasExtra.filter((h) => h.estado === 'PENDIENTE').length > 0 && (
             <span className="ml-1.5 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
           )}
@@ -1195,7 +1195,7 @@ export default function NominaAdminPage() {
           }`}
         >
           <Calendar className="w-3.5 h-3.5 inline-block mr-1.5" />
-          Gestor de Feriados
+          Feriados
         </button>
         <button
           onClick={() => setActiveTab('vacaciones_pagadas')}
