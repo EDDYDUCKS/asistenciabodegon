@@ -1209,11 +1209,11 @@ def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro, empleado=None)
 
 def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=False):
     """
-    Evalúa puntualidad con la regla de gracia de 10 min de El Bodegón:
+    Evalúa puntualidad con las reglas de El Bodegón:
     - 4 Franjas Base de Entrada: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900).
-    - Margen de gracia: 10 minutos (1 a 10 min retraso leve informativo, NO alerta al admin).
-    - Tardanza severa: > 10 minutos (genera alerta en campanita y acta imprimible).
-    - Salida definitiva: alerta solo si déficit > 10 minutos de las 8 horas (horas_netas_hoy < 7.83).
+    - Margen de cortesía/retraso menor: hasta 19 minutos (informativo, NO satura con notificación al admin).
+    - Tardanza severa: >= 20 minutos (genera alerta oficial en campanita y acta imprimible para expediente).
+    - Salida definitiva: alerta si déficit > 10 minutos de la jornada (horas_netas_hoy < 7.83).
     """
     try:
         hora_actual = registro.fecha_hora.astimezone(timezone.get_current_timezone())
@@ -1251,8 +1251,8 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
             diff = mins_marcados - franja_base
             HORA_LABELS = {540: '9:00 AM', 660: '11:00 AM', 690: '11:30 AM', 720: '12:00 PM', 900: '3:00 PM', 1020: '5:00 PM'}
             
-            # Solo alertar si excede los 10 minutos de gracia respecto a su turno
-            if diff > 10:
+            # Solo alertar si la tardanza es grave (20 minutos o más de retraso respecto a su turno)
+            if diff >= 20:
                 alerta_creada = True
                 alerta_tipo = 'TARDANZA'
                 alerta_titulo = f"Tardanza severa{tag_offline}: {empleado.nombre} {empleado.apellido}"
@@ -1281,7 +1281,8 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
             diff_ret = mins_marcados - hora_esperada
             ret_labels = {1140: '7:00 PM', 1110: '6:30 PM', 1080: '6:00 PM'}
             ret_label = ret_labels.get(hora_esperada, '6:00 PM')
-            if diff_ret > 10:
+            # Solo alertar si la tardanza de retorno es grave (20 minutos o más)
+            if diff_ret >= 20:
                 alerta_creada = True
                 alerta_tipo = 'TARDANZA'
                 alerta_titulo = f"Tardanza Retorno de Pausa{tag_offline}: {empleado.nombre} {empleado.apellido}"

@@ -1663,7 +1663,7 @@ export default function RendimientoAyerPage() {
             <div className="bg-emerald-50/50 border border-emerald-200/60 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-emerald-950 font-medium">
               <Info className="w-4 h-4 text-[#1c6856] shrink-0 mt-0.5" />
               <span>
-                <strong>Regla Institucional:</strong> Restaurante El Bodegón concede <strong>10 minutos de cortesía</strong> después de la hora oficial programada antes de registrar tardanza administrativa.
+                <strong>Regla Institucional:</strong> Restaurante El Bodegón concede <strong>10 minutos de cortesía</strong> después de la hora oficial programada. Los retrasos menores a 20 minutos no emiten notificación de alerta para no saturar al administrador, reservándose la alerta oficial únicamente para tardanzas severas de <strong>20 minutos en adelante</strong>.
               </span>
             </div>
 

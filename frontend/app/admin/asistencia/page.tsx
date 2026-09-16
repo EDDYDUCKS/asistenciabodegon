@@ -519,7 +519,7 @@ export default function AsistenciaLogPage() {
               Jornada 8h
             </span>
           ) : analisis.estado === 'Retraso Leve' ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700" title="Dentro de los 10 minutos de gracia. No se alerta al administrador.">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700" title="Retraso menor a 20 min. No genera alerta al administrador salvo que alcance o supere los 20 min.">
               <Clock className="w-3 h-3" />
               Gracia (+{analisis.desviacionMinutos} min)
             </span>
