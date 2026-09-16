@@ -122,14 +122,17 @@ export interface PermisoAusencia {
 
 export interface ItemDesgloseCompensacion {
   fecha: string;
-  fecha_display: string;
-  horas_trabajadas: number;
-  horas_faltaron: number;
+  fecha_display?: string;
+  horas_trabajadas?: number;
+  horas_faltaron?: number;
+  deficit_original?: number;
   horas_extra_origen?: number;
-  horas_aplicadas: number;
-  saldo_dia: number;
+  horas_aplicadas?: number;
+  horas_compensadas?: number;
+  saldo_dia?: number;
+  saldo_post?: number;
   tipo?: string;
-  estado: string;
+  estado?: string;
 }
 
 export interface CompensacionHoras {

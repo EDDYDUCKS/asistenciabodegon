@@ -343,11 +343,16 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                     <tbody className="divide-y divide-stone-100 font-medium">
                       {compensacion.desglose.map((item, idx) => {
                         const esSalidaAnt = Number(compensacion.horas_trabajadas_hoy) < 7.95;
+                        const horasFaltaron = Number(item.horas_faltaron ?? item.deficit_original ?? 0);
+                        const horasAplicadas = Number(item.horas_aplicadas ?? item.horas_compensadas ?? 0);
+                        const saldoDia = Number(item.saldo_dia ?? item.saldo_post ?? Math.max(0, horasFaltaron - horasAplicadas));
+                        const horasTrabajadas = Number(item.horas_trabajadas ?? Math.max(0, 8.0 - horasFaltaron));
+                        const estado = item.estado || (saldoDia <= 0.05 ? 'Liquidado al 100%' : `Pendiente (${saldoDia.toFixed(1)} hrs)`);
                         const horasExtraOrigen = Number(
                           item.horas_extra_origen ?? (
-                            item.horas_trabajadas > 8.0
-                              ? item.horas_trabajadas - 8.0
-                              : item.horas_aplicadas
+                            horasTrabajadas > 8.0
+                              ? horasTrabajadas - 8.0
+                              : horasAplicadas
                           )
                         );
 
@@ -357,26 +362,26 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
                               {item.fecha_display || item.fecha}
                             </td>
                             <td className="py-1 px-1.5 text-center font-mono text-stone-700">
-                              {Number(item.horas_trabajadas).toFixed(1)} hrs
+                              {horasTrabajadas.toFixed(1)} hrs
                             </td>
                             <td className={`py-1 px-1.5 text-center font-mono font-bold ${
                               esSalidaAnt ? 'text-emerald-800' : 'text-rose-700'
                             }`}>
                               {esSalidaAnt
                                 ? `+${horasExtraOrigen.toFixed(1)} hrs`
-                                : `-${Number(item.horas_faltaron).toFixed(1)} hrs`}
+                                : `-${horasFaltaron.toFixed(1)} hrs`}
                             </td>
                             <td className={`py-1 px-1.5 text-center font-mono font-black ${
                               esSalidaAnt ? 'text-stone-800' : 'text-emerald-800'
                             }`}>
-                              {esSalidaAnt ? '-' : '+'}{Number(item.horas_aplicadas).toFixed(1)} hrs
+                              {esSalidaAnt ? '-' : '+'}{horasAplicadas.toFixed(1)} hrs
                             </td>
                             <td className="py-1 px-1.5 text-center font-mono text-stone-900 font-bold">
-                              {Number(item.saldo_dia).toFixed(1)} hrs
+                              {saldoDia.toFixed(1)} hrs
                             </td>
                             <td className="py-1 px-1.5 text-right">
                               <span className="text-[9px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                {item.estado}
+                                {estado}
                               </span>
                             </td>
                           </tr>

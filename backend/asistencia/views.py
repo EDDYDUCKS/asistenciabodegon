@@ -1995,20 +1995,35 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
                 deficit_dia = round(8.0 - horas_dia, 1)
                 aplicado = min(horas_por_cubrir, deficit_dia)
                 if aplicado > 0:
+                    saldo_item = round(deficit_dia - aplicado, 1)
                     desglose.append({
                         'fecha': str(d),
+                        'fecha_display': d.strftime('%d/%m/%Y'),
+                        'horas_trabajadas': round(horas_dia, 1),
+                        'horas_faltaron': deficit_dia,
                         'deficit_original': deficit_dia,
+                        'horas_aplicadas': round(aplicado, 1),
                         'horas_compensadas': round(aplicado, 1),
-                        'saldo_post': round(deficit_dia - aplicado, 1)
+                        'saldo_dia': saldo_item,
+                        'saldo_post': saldo_item,
+                        'estado': "Liquidado al 100%" if saldo_item == 0 else f"Saldo pendiente ({saldo_item} hrs)"
                     })
                     horas_por_cubrir = round(horas_por_cubrir - aplicado, 1)
 
     if not desglose and horas_amortizadas > 0:
+        saldo_item = round(nueva_deuda, 1)
+        horas_trab_est = max(0.0, round(8.0 - deuda_actual, 1))
         desglose.append({
             'fecha': str(fecha_referencia),
+            'fecha_display': fecha_referencia.strftime('%d/%m/%Y'),
+            'horas_trabajadas': horas_trab_est,
+            'horas_faltaron': round(deuda_actual, 1),
             'deficit_original': round(deuda_actual, 1),
+            'horas_aplicadas': round(horas_amortizadas, 1),
             'horas_compensadas': round(horas_amortizadas, 1),
-            'saldo_post': round(nueva_deuda, 1)
+            'saldo_dia': saldo_item,
+            'saldo_post': saldo_item,
+            'estado': "Liquidado al 100%" if saldo_item == 0 else f"Saldo pendiente ({saldo_item} hrs)"
         })
 
     # Registrar CompensacionHoras auditable
