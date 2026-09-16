@@ -37,7 +37,7 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
   const esSaldada = Number(compensacion.saldo_restante) === 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print-boleta-backdrop">
+    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 pt-6 sm:pt-8 pb-10 print-boleta-backdrop overflow-y-auto">
       {/* Estilos estrictos de impresión: 1 SOLA PÁGINA EXACTA */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {

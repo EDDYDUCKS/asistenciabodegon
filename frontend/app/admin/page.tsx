@@ -369,7 +369,7 @@ export default function AdminDashboardPage() {
       {/* Modal de Lista de Trabajadores que Llegaron Hoy (Propinas) */}
       {showModalPropinas && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
           onClick={() => setShowModalPropinas(false)}
         >
           <div

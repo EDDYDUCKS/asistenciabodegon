@@ -312,7 +312,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-[#fcf9f5] text-stone-850 flex flex-col font-sans">
       {/* Navbar Superior con Efecto Cristal (Glassmorphic) */}
-      <header className="print:hidden glass-dock sticky top-0 z-50 shadow-premium border-b border-stone-200/40">
+      <header className="print:hidden glass-dock sticky top-0 z-30 shadow-premium border-b border-stone-200/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" onClick={handleLogout} className="flex items-center gap-3 hover:opacity-90 transition-opacity">

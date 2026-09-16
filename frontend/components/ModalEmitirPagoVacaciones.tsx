@@ -103,7 +103,7 @@ export default function ModalEmitirPagoVacaciones({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 pt-6 sm:pt-8 pb-10 overflow-y-auto">
       <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Header institucional */}
         <div className="flex items-center justify-between px-6 py-4 bg-[#1c6856] text-white">

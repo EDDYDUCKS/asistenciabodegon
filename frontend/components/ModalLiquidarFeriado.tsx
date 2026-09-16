@@ -92,7 +92,7 @@ export default function ModalLiquidarFeriado({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-8 pb-10 overflow-y-auto bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="bg-white rounded-3xl shadow-2xl border border-stone-200/80 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
         {/* Encabezado */}
         <div className="bg-gradient-to-r from-[#1c6856] to-[#154f42] text-white p-5 flex items-center justify-between">

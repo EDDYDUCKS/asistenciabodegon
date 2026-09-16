@@ -41,7 +41,7 @@ export default function BoletaPagoVacacionesModal({
   const montoNum = parseFloat(String(pago.monto_pagado || 0));
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 print-pago-vacaciones-backdrop overflow-y-auto">
+    <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-xs flex items-start sm:items-center justify-center p-2 sm:p-4 pt-6 sm:pt-8 pb-10 print-pago-vacaciones-backdrop overflow-y-auto">
       {/* Estilos estrictos de impresión: AISLAMIENTO TOTAL EN 1 SOLA PÁGINA */}
       <style
         dangerouslySetInnerHTML={{

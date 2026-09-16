@@ -668,7 +668,7 @@ export default function EmpleadosAdminPage() {
       {showModal && (
         <div
           onClick={() => setShowModal(false)}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print-hide cursor-pointer"
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print-hide cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -791,7 +791,7 @@ export default function EmpleadosAdminPage() {
       {showQrBadge && (
         <div
           onClick={() => setShowQrBadge(null)}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print-modal-wrapper cursor-pointer"
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print-modal-wrapper cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
