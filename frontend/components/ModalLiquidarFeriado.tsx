@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { CompensacionFeriado } from '@/lib/types';
 import { liquidarCompensacionFeriado } from '@/lib/api-client';
 import {
@@ -27,6 +28,18 @@ export default function ModalLiquidarFeriado({
   compensacion,
   onLiquidado,
 }: ModalLiquidarFeriadoProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (isOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [isOpen]);
   const [diasDinero, setDiasDinero] = useState<number>(2);
   const [diasVacaciones, setDiasVacaciones] = useState<number>(0);
   const [observaciones, setObservaciones] = useState<string>('');
@@ -50,7 +63,7 @@ export default function ModalLiquidarFeriado({
     }
   }, [compensacion, isOpen]);
 
-  if (!isOpen || !compensacion) return null;
+  if (!isOpen || !compensacion || !mounted) return null;
 
   const emp = compensacion.empleado_detalle;
   const nombreEmp = emp ? `${emp.nombre} ${emp.apellido}` : `Colaborador #${compensacion.empleado}`;
@@ -91,9 +104,9 @@ export default function ModalLiquidarFeriado({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 pt-6 sm:pt-8 pb-10 overflow-y-auto bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl shadow-2xl border border-stone-200/80 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-start justify-center p-4 overflow-y-auto bg-stone-900/75 backdrop-blur-md animate-in fade-in duration-150">
+      <div className="bg-white rounded-3xl shadow-2xl border border-stone-200/80 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh] my-6 sm:my-8">
         {/* Encabezado */}
         <div className="bg-gradient-to-r from-[#1c6856] to-[#154f42] text-white p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -319,6 +332,7 @@ export default function ModalLiquidarFeriado({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

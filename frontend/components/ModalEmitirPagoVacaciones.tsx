@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Empleado, PagoVacaciones, PermisoAusencia } from '@/lib/types';
 import { crearPagoVacaciones } from '@/lib/api-client';
 import { X, Banknote, AlertCircle, Calendar, User, FileText, CheckCircle2 } from 'lucide-react';
@@ -22,6 +23,18 @@ export default function ModalEmitirPagoVacaciones({
   onPagoCompletado,
   empleadoPreseleccionado,
 }: ModalEmitirPagoVacacionesProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (isOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [isOpen]);
   const [selectedEmpId, setSelectedEmpId] = useState<number | ''>(
     empleadoPreseleccionado?.id || ''
   );
@@ -37,7 +50,7 @@ export default function ModalEmitirPagoVacaciones({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const currentEmp = empleados.find((e) => e.id === Number(selectedEmpId));
 
@@ -73,12 +86,14 @@ export default function ModalEmitirPagoVacaciones({
     }
 
     if (numDias <= 0) {
-      setErrorMsg('La cantidad de días a pagar debe ser mayor a 0.');
+      setErrorMsg('La cantidad de días debe ser mayor a 0.');
       return;
     }
 
     if (numDias > saldoDisponible) {
-      setErrorMsg(`El colaborador solo cuenta con ${saldoDisponible} días de vacaciones disponibles.`);
+      setErrorMsg(
+        `No puede pagar ${numDias} días porque el colaborador solo tiene ${saldoDisponible} días disponibles.`
+      );
       return;
     }
 
@@ -87,10 +102,10 @@ export default function ModalEmitirPagoVacaciones({
       const nuevoPago = await crearPagoVacaciones({
         empleado: Number(selectedEmpId),
         dias_pagados: numDias,
-        monto_pagado: numMonto,
-        motivo: motivo.trim() || 'Pago de vacaciones en dinero',
-        observaciones: observaciones.trim(),
+        monto_pagado: numMonto > 0 ? numMonto : null,
         fecha_pago: fechaPago,
+        motivo: motivo.trim() || 'Pago de vacaciones en dinero',
+        observaciones: observaciones.trim() || undefined,
       });
 
       onPagoCompletado(nuevoPago);
@@ -102,9 +117,9 @@ export default function ModalEmitirPagoVacaciones({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 pt-6 sm:pt-8 pb-10 overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden my-6 sm:my-8 animate-in fade-in zoom-in-95 duration-200">
         {/* Header institucional */}
         <div className="flex items-center justify-between px-6 py-4 bg-[#1c6856] text-white">
           <div className="flex items-center gap-2.5">
@@ -292,6 +307,7 @@ export default function ModalEmitirPagoVacaciones({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

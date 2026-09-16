@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Empleado, PermisoAusencia, CompensacionFeriado, PagoVacaciones } from '@/lib/types';
 import { Utensils, Printer, X, Palmtree, User, CheckCircle, Clock, Edit3, Award, Banknote } from 'lucide-react';
 
@@ -21,7 +22,18 @@ export default function BoletaVacacionesModal({
   onClose,
   onAjustar,
 }: BoletaVacacionesModalProps) {
-  if (!empleado) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!empleado || !mounted) return null;
 
   const handlePrint = () => {
     window.print();
@@ -114,8 +126,8 @@ export default function BoletaVacacionesModal({
     year: 'numeric',
   });
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-xs flex items-start sm:items-center justify-center p-2 sm:p-4 pt-6 sm:pt-8 pb-10 print-vacaciones-backdrop overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto print-vacaciones-backdrop">
       {/* Estilos estrictos de impresión: AISLAMIENTO TOTAL EN 1 SOLA PÁGINA */}
       <style
         dangerouslySetInnerHTML={{
@@ -510,6 +522,7 @@ export default function BoletaVacacionesModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

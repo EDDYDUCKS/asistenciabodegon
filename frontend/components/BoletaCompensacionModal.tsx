@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CompensacionHoras } from '@/lib/types';
 import { Utensils, Printer, X, Scale, User, CheckCircle, Clock } from 'lucide-react';
 
@@ -10,7 +11,18 @@ interface BoletaCompensacionModalProps {
 }
 
 export default function BoletaCompensacionModal({ compensacion, onClose }: BoletaCompensacionModalProps) {
-  if (!compensacion) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!compensacion || !mounted) return null;
 
   const handlePrint = () => {
     window.print();
@@ -36,8 +48,8 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
 
   const esSaldada = Number(compensacion.saldo_restante) === 0;
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 pt-6 sm:pt-8 pb-10 print-boleta-backdrop overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto print-boleta-backdrop">
       {/* Estilos estrictos de impresión: 1 SOLA PÁGINA EXACTA */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
@@ -556,6 +568,7 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

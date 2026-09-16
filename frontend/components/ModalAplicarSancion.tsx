@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Empleado, AlertaAsistencia } from '@/lib/types';
 import { createAlerta } from '@/lib/api-client';
 import {
@@ -83,6 +84,19 @@ export default function ModalAplicarSancion({
   const [guardando, setGuardando] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (isOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen) {
       const selectedId = empleadoInicialId || (empleados.length > 0 ? empleados[0].id : 0);
@@ -103,7 +117,7 @@ export default function ModalAplicarSancion({
     }
   }, [isOpen, empleadoInicialId, fechaInicial, infraccionInicial, empleados]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const empSeleccionado = empleados.find((e) => e.id === Number(empleadoId));
   const empNombre = empSeleccionado
@@ -185,10 +199,10 @@ export default function ModalAplicarSancion({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-5 pt-6 sm:pt-8 pb-10 overflow-y-auto animate-in fade-in duration-150">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-start justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-150">
       <div
-        className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150"
+        className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] my-6 sm:my-8 animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Encabezado Modal */}
@@ -374,6 +388,7 @@ export default function ModalAplicarSancion({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

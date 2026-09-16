@@ -515,7 +515,7 @@ export async function fetchPagosVacaciones(params?: {
 export async function crearPagoVacaciones(payload: {
   empleado: number;
   dias_pagados: number;
-  monto_pagado: number;
+  monto_pagado?: number | null;
   motivo?: string;
   observaciones?: string;
   fecha_pago?: string;

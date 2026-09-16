@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AutorizacionHorasExtra, RegistroAsistencia } from '@/lib/types';
 import { Printer, X, CheckCircle, XCircle, Clock, User, Calendar, FileText, UtensilsCrossed, Shield, Award } from 'lucide-react';
 
@@ -15,7 +16,18 @@ export default function BoletaHorasExtraModal({
   asistencias = [],
   onClose,
 }: BoletaHorasExtraModalProps) {
-  if (!horaExtra) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!horaExtra || !mounted) return null;
 
   const handlePrint = () => {
     window.print();
@@ -87,8 +99,8 @@ export default function BoletaHorasExtraModal({
 
   const areaOperativa = getAreaOperativa(cargoColaborador);
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-xs flex items-start sm:items-center justify-center p-2 sm:p-4 pt-6 sm:pt-8 pb-10 print-horas-extra-backdrop overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto print-horas-extra-backdrop">
       {/* Estilos estrictos de impresión: AISLAMIENTO TOTAL EN 1 SOLA PÁGINA */}
       <style
         dangerouslySetInnerHTML={{
@@ -398,7 +410,27 @@ export default function BoletaHorasExtraModal({
             </div>
           </div>
         </div>
+
+        {/* Footer del Modal con Acciones Rápidas (Oculto al Imprimir) */}
+        <div className="print-hide bg-stone-100 px-6 py-4 border-t border-stone-200 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl border border-stone-300 text-stone-700 hover:bg-stone-200/80 font-bold text-xs transition-colors cursor-pointer"
+          >
+            Cerrar
+          </button>
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="px-6 py-2.5 rounded-xl bg-[#1c6856] hover:bg-[#154f42] text-white font-bold text-xs transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer active:scale-95"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Imprimir Boleta Oficial / Guardar PDF</span>
+          </button>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
