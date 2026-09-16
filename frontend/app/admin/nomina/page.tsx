@@ -3194,52 +3194,74 @@ export default function NominaAdminPage() {
           </div>
 
           {/* Tarjetas KPI de Resumen */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Días Pagados Totales</span>
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-[#1c6856]">
-                  <Palmtree className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-black font-mono text-stone-900">
-                  {pagosVacaciones.reduce((acc, p) => acc + parseFloat(String(p.dias_pagados || 0)), 0).toFixed(1)}
-                </span>
-                <span className="text-xs font-bold text-stone-500">días liquidados</span>
-              </div>
-            </div>
+          {(() => {
+            const totDias = pagosVacaciones.reduce((acc, p) => acc + parseFloat(String(p.dias_pagados || 0)), 0);
+            const totMonto = pagosVacaciones.reduce((acc, p) => acc + parseFloat(String(p.monto_pagado || 0)), 0);
+            const tarifaProm = totDias > 0 ? totMonto / totDias : 0;
 
-            <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Monto Total Pagado</span>
-                <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800">
-                  <Coins className="w-4 h-4" />
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Días Pagados Totales</span>
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-[#1c6856]">
+                      <Palmtree className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-stone-900">
+                      {totDias.toFixed(1)}
+                    </span>
+                    <span className="text-xs font-bold text-stone-500">días ({(totDias * 8).toFixed(1)} hrs)</span>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-2 flex items-baseline gap-1.5">
-                <span className="text-xs font-bold text-stone-400 font-mono">C$</span>
-                <span className="text-2xl font-black font-mono text-emerald-800">
-                  {pagosVacaciones
-                    .reduce((acc, p) => acc + parseFloat(String(p.monto_pagado || 0)), 0)
-                    .toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
 
-            <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Boletas Oficiales</span>
-                <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
-                  <FileText className="w-4 h-4" />
+                <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Monto Desembolsado</span>
+                    <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800">
+                      <Coins className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                    <span className="text-xs font-bold text-stone-400 font-mono">C$</span>
+                    <span className="text-2xl font-black font-mono text-emerald-800">
+                      {totMonto.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Tarifa Promedio</span>
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700">
+                      <Scale className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                    <span className="text-xs font-bold text-stone-400 font-mono">C$</span>
+                    <span className="text-2xl font-black font-mono text-stone-900">
+                      {tarifaProm > 0 ? tarifaProm.toFixed(2) : '0.00'}
+                    </span>
+                    <span className="text-xs font-bold text-stone-500">/ día</span>
+                  </div>
+                </div>
+
+                <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Boletas Oficiales</span>
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-stone-900">{pagosVacaciones.length}</span>
+                    <span className="text-xs font-bold text-stone-500">recibos firmados</span>
+                  </div>
                 </div>
               </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-black font-mono text-stone-900">{pagosVacaciones.length}</span>
-                <span className="text-xs font-bold text-stone-500">comprobantes emitidos</span>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Historial de Boletas / Pagos de Vacaciones */}
           <div className="glass-panel border border-white rounded-3xl p-5 shadow-premium space-y-4">
@@ -3247,7 +3269,7 @@ export default function NominaAdminPage() {
               <div>
                 <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5">
                   <FileText className="w-4 h-4" />
-                  Historial de Boletas y Pagos de Vacaciones
+                  Historial Detallado de Boletas y Pagos de Vacaciones
                 </h3>
                 <p className="text-xs text-stone-500 font-medium mt-0.5">
                   Consulte comprobantes generados, reimprima boletas para firmas o anule registros erróneos.
@@ -3313,16 +3335,22 @@ export default function NominaAdminPage() {
                         <th className="px-4 py-3">N° Boleta</th>
                         <th className="px-4 py-3">Fecha Pago</th>
                         <th className="px-4 py-3">Colaborador</th>
-                        <th className="px-4 py-3 text-right">Días Pagados</th>
-                        <th className="px-4 py-3 text-right">Monto Pagado</th>
-                        <th className="px-4 py-3 text-center">Saldo (Antes → Después)</th>
-                        <th className="px-4 py-3">Motivo</th>
+                        <th className="px-4 py-3 text-right">Días Liquidados</th>
+                        <th className="px-4 py-3 text-right">Tarifa / Día</th>
+                        <th className="px-4 py-3 text-right">Total Pagado</th>
+                        <th className="px-4 py-3 text-center">Impacto en Saldo</th>
+                        <th className="px-4 py-3">Motivo / Notas</th>
                         <th className="px-4 py-3 text-right">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100 font-medium text-stone-800">
                       {filtered.map((p) => {
                         const empDet = p.empleado_detalle;
+                        const diasP = parseFloat(String(p.dias_pagados || 0));
+                        const montoP = parseFloat(String(p.monto_pagado || 0));
+                        const tarifaDia = diasP > 0 && montoP > 0 ? montoP / diasP : 0;
+                        const carnetStr = empDet?.cedula_carnet || `#BOD-${String(empDet?.id || p.empleado).padStart(3, '0')}`;
+
                         return (
                           <tr key={p.id} className="hover:bg-stone-50/60 transition-colors">
                             <td className="px-4 py-3.5 font-mono font-bold text-[#1c6856]">
@@ -3341,36 +3369,61 @@ export default function NominaAdminPage() {
                               <div className="font-bold text-stone-900 leading-tight">
                                 {empDet ? `${empDet.nombre} ${empDet.apellido || ''}` : `Empleado #${p.empleado}`}
                               </div>
-                              {empDet && (
-                                <span className="text-[10px] text-stone-500 font-semibold block mt-0.5">
-                                  {empDet.cargo_display}
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                {empDet && (
+                                  <span className="text-[10px] text-stone-500 font-semibold">
+                                    {empDet.cargo_display}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-mono text-stone-400">
+                                  • {carnetStr}
                                 </span>
-                              )}
+                              </div>
                             </td>
-                            <td className="px-4 py-3.5 text-right font-mono font-bold text-stone-900 whitespace-nowrap">
-                              {parseFloat(String(p.dias_pagados)).toFixed(1)} d
+                            <td className="px-4 py-3.5 text-right font-mono whitespace-nowrap">
+                              <span className="font-black text-emerald-800 text-sm block">
+                                {diasP.toFixed(1)} d
+                              </span>
+                              <span className="text-[10px] text-stone-400 block font-mono">
+                                ({(diasP * 8).toFixed(1)} hrs)
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 text-right font-mono font-bold text-stone-700 whitespace-nowrap">
+                              {tarifaDia > 0 ? `C$ ${tarifaDia.toFixed(2)}` : 'Convenio'}
                             </td>
                             <td className="px-4 py-3.5 text-right font-mono font-black text-emerald-800 whitespace-nowrap">
-                              C$ {parseFloat(String(p.monto_pagado)).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                              C$ {montoP.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
                             <td className="px-4 py-3.5 text-center font-mono text-xs whitespace-nowrap">
-                              <span className="text-stone-500">{parseFloat(String(p.dias_saldo_anterior)).toFixed(1)}d</span>
-                              <span className="mx-1 text-stone-400">→</span>
-                              <strong className="text-emerald-700 font-bold">{parseFloat(String(p.dias_saldo_nuevo)).toFixed(1)}d</strong>
+                              <div className="flex items-center justify-center gap-1">
+                                <span className="text-stone-500">{parseFloat(String(p.dias_saldo_anterior)).toFixed(1)}d</span>
+                                <span className="text-stone-400">&rarr;</span>
+                                <strong className="text-emerald-700 font-black">{parseFloat(String(p.dias_saldo_nuevo)).toFixed(1)}d</strong>
+                              </div>
+                              <span className="text-[10px] text-rose-600 font-bold block">
+                                (-{diasP.toFixed(1)}d deducidos)
+                              </span>
                             </td>
-                            <td className="px-4 py-3.5 max-w-[200px] truncate text-stone-600 text-xs" title={p.motivo}>
-                              {p.motivo}
+                            <td className="px-4 py-3.5 max-w-[220px] text-xs">
+                              <div className="font-medium text-stone-800 truncate" title={p.motivo}>
+                                {p.motivo}
+                              </div>
+                              {p.observaciones && (
+                                <div className="text-[10px] text-stone-500 italic truncate mt-0.5" title={p.observaciones}>
+                                  {p.observaciones}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3.5 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => setSelectedPagoVacaciones(p)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-[#1c6856] hover:bg-[#154f42] text-white transition-all shadow-2xs cursor-pointer active:scale-95"
-                                  title="Ver boleta oficial en formato de impresión"
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#1c6856] hover:bg-[#154f42] text-white transition-all shadow-2xs cursor-pointer active:scale-95"
+                                  title="Ver boleta oficial completa en formato de impresión"
                                 >
                                   <FileText className="w-3.5 h-3.5" />
-                                  <span>Boleta</span>
+                                  <span>Ver Boleta</span>
                                 </button>
                                 <button
                                   type="button"

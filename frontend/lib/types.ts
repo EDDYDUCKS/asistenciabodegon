@@ -15,6 +15,8 @@ export interface Empleado {
   apellido: string;
   cargo: CargoType;
   cargo_display: string;
+  tipo_turno?: 'CORRIDO' | 'QUEBRADO';
+  tipo_turno_display?: string;
   cedula_carnet?: string | null;
   telefono?: string | null;
   tarifa_hora: number | string;
