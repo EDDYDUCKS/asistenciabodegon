@@ -3785,6 +3785,7 @@ export default function NominaAdminPage() {
       {/* ── MODAL 6: BOLETA OFICIAL DE HORAS EXTRA (APROBADAS / RECHAZADAS) ── */}
       <BoletaHorasExtraModal
         horaExtra={selectedExtraParaBoleta}
+        asistencias={asistencias}
         onClose={() => setSelectedExtraParaBoleta(null)}
       />
 

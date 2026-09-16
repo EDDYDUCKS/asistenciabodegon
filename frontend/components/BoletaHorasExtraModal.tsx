@@ -1,16 +1,18 @@
 'use client';
 
 import React from 'react';
-import { AutorizacionHorasExtra } from '@/lib/types';
-import { Printer, X, CheckCircle, XCircle, Clock, User, Calendar, FileText } from 'lucide-react';
+import { AutorizacionHorasExtra, RegistroAsistencia } from '@/lib/types';
+import { Printer, X, CheckCircle, XCircle, Clock, User, Calendar, FileText, UtensilsCrossed, Shield, Award } from 'lucide-react';
 
 interface BoletaHorasExtraModalProps {
   horaExtra: AutorizacionHorasExtra | null;
+  asistencias?: RegistroAsistencia[];
   onClose: () => void;
 }
 
 export default function BoletaHorasExtraModal({
   horaExtra,
+  asistencias = [],
   onClose,
 }: BoletaHorasExtraModalProps) {
   if (!horaExtra) return null;
@@ -47,6 +49,44 @@ export default function BoletaHorasExtraModal({
   const esAprobado = horaExtra.estado === 'APROBADO';
   const esRechazado = horaExtra.estado === 'RECHAZADO';
 
+  // Buscar marcaciones reales del reloj biométrico para este colaborador en esta fecha
+  const empId = typeof horaExtra.empleado === 'number' ? horaExtra.empleado : (emp?.id || 0);
+  const marcajesDia = asistencias
+    .filter((a) => {
+      const aEmpId = typeof a.empleado === 'number' ? a.empleado : (a.empleado_detalle?.id || 0);
+      return aEmpId === empId && a.fecha_hora && a.fecha_hora.startsWith(horaExtra.fecha);
+    })
+    .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));
+
+  const formatHora = (isoStr: string) => {
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch {
+      return '--:--';
+    }
+  };
+
+  const primerMarcaje = marcajesDia.length > 0 ? formatHora(marcajesDia[0].fecha_hora) : '08:00 AM (Aprox)';
+  const ultimoMarcaje = marcajesDia.length > 1
+    ? formatHora(marcajesDia[marcajesDia.length - 1].fecha_hora)
+    : (marcajesDia.length === 1
+      ? formatHora(marcajesDia[0].fecha_hora)
+      : 'Conforme a Turno');
+
+  // Clasificación de área operativa según cargo
+  const getAreaOperativa = (cargo: string) => {
+    const c = cargo.toLowerCase();
+    if (c.includes('cocin') || c.includes('chef') || c.includes('asistente de cocina') || c.includes('parrilla')) return 'Cocina & Producción Gastronómica';
+    if (c.includes('meser') || c.includes('atencion') || c.includes('salon') || c.includes('servicio')) return 'Salón & Servicio al Comensal';
+    if (c.includes('bar') || c.includes('bebida') || c.includes('bartender')) return 'Bar & Coctelería';
+    if (c.includes('caja') || c.includes('cajero') || c.includes('facturacion')) return 'Caja & Atención al Cliente';
+    if (c.includes('limpieza') || c.includes('mantenimiento') || c.includes('steward') || c.includes('lavaloza')) return 'Operaciones & Steward';
+    return 'Área Operativa de Restaurante';
+  };
+
+  const areaOperativa = getAreaOperativa(cargoColaborador);
+
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 print-horas-extra-backdrop overflow-y-auto">
       {/* Estilos estrictos de impresión: AISLAMIENTO TOTAL EN 1 SOLA PÁGINA */}
@@ -56,7 +96,7 @@ export default function BoletaHorasExtraModal({
         @media print {
           @page {
             size: letter portrait;
-            margin: 10mm 14mm 10mm 14mm;
+            margin: 8mm 12mm 8mm 12mm;
           }
 
           html, body {
@@ -88,21 +128,17 @@ export default function BoletaHorasExtraModal({
           .print-he-modal-container {
             border: 1.5px solid #1c6856 !important;
             box-shadow: none !important;
-            padding: 24px !important;
+            padding: 20px !important;
             margin: 0 !important;
             max-width: 100% !important;
             border-radius: 0 !important;
-          }
-
-          .print-border {
-            border-color: #000 !important;
           }
         }
         `,
         }}
       />
 
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden print-he-modal-container my-auto">
+      <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden print-he-modal-container my-auto">
         {/* Barra superior de acciones (Oculta al imprimir) */}
         <div className="print-hide flex items-center justify-between px-6 py-3.5 bg-stone-900 text-white border-b border-stone-800">
           <div className="flex items-center gap-2">
@@ -112,7 +148,7 @@ export default function BoletaHorasExtraModal({
               } animate-pulse`}
             />
             <span className="text-xs font-bold uppercase tracking-wider text-stone-200">
-              Boleta Oficial de Horas Extra
+              Boleta Oficial de Horas Extra — Restaurante El Bodegón
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -136,36 +172,36 @@ export default function BoletaHorasExtraModal({
         </div>
 
         {/* ── CONTENIDO IMPRIMIBLE DE LA BOLETA ── */}
-        <div className="p-6 sm:p-8 space-y-5 text-stone-900 font-sans">
-          {/* Encabezado Institucional */}
-          <div className="border-b-2 border-[#1c6856] pb-4">
+        <div className="p-6 sm:p-7 space-y-4 text-stone-900 font-sans">
+          {/* Encabezado Institucional: Restaurante El Bodegón & Administración */}
+          <div className="border-b-2 border-[#1c6856] pb-3.5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-[#1c6856] text-white flex items-center justify-center font-black text-sm shadow-xs">
-                    EB
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-[#1c6856] text-white flex items-center justify-center font-black shadow-xs">
+                    <UtensilsCrossed className="w-5 h-5" />
                   </div>
                   <div>
-                    <h1 className="text-lg font-black tracking-tight text-[#1c6856] uppercase leading-tight font-display">
-                      Comercial El Bodegón
+                    <h1 className="text-xl font-black tracking-tight text-[#1c6856] uppercase leading-tight font-display">
+                      Restaurante El Bodegón
                     </h1>
-                    <p className="text-[11px] font-bold text-stone-500 uppercase tracking-wider">
-                      Departamento de Recursos Humanos & Nómina
+                    <p className="text-xs font-bold text-stone-700 uppercase tracking-wider">
+                      Administración
                     </p>
                   </div>
                 </div>
-                <p className="text-[10px] text-stone-500 mt-1">
-                  Sistema Automatizado de Asistencia y Gestión de Jornadas Laborales
+                <p className="text-[10px] text-stone-500 mt-1 font-medium">
+                  Control Oficial de Asistencia, Turnos de Servicio y Jornadas Laborales
                 </p>
               </div>
 
               {/* Folio y Fecha */}
               <div className="text-right shrink-0">
-                <div className="inline-block border border-[#1c6856]/40 bg-[#1c6856]/5 rounded-xl px-3 py-1.5 text-right shadow-2xs">
+                <div className="inline-block border-2 border-[#1c6856]/40 bg-[#1c6856]/5 rounded-xl px-3.5 py-1.5 text-right shadow-2xs">
                   <span className="text-[9px] font-bold text-stone-500 uppercase tracking-widest block">
                     Comprobante N°
                   </span>
-                  <span className="text-sm font-mono font-black text-[#1c6856]">{folio}</span>
+                  <span className="text-base font-mono font-black text-[#1c6856]">{folio}</span>
                 </div>
                 <p className="text-[10px] font-mono text-stone-500 mt-1">
                   Resolución: {fechaEmision}
@@ -174,11 +210,11 @@ export default function BoletaHorasExtraModal({
             </div>
 
             {/* Título de la Boleta con Estado */}
-            <div className="mt-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-stone-150">
+            <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-stone-150">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#1c6856]" />
                 <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-stone-800">
-                  Resolución Oficial de Horas Extra
+                  Resolución de Jornada Extraordinaria
                 </h2>
               </div>
               <span
@@ -202,20 +238,24 @@ export default function BoletaHorasExtraModal({
             </div>
           </div>
 
-          {/* Datos del Colaborador */}
-          <div className="bg-stone-50 border border-stone-200/90 rounded-2xl p-4 shadow-xs">
+          {/* Datos Completos del Colaborador y Puesto */}
+          <div className="bg-stone-50/90 border border-stone-200 rounded-2xl p-3.5 shadow-xs">
             <span className="text-[10px] font-black uppercase tracking-wider text-[#1c6856] block mb-2 flex items-center gap-1.5">
               <User className="w-3.5 h-3.5" />
-              Datos del Colaborador
+              Información del Personal
             </span>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div>
                 <span className="text-stone-500 text-[10px] block uppercase font-bold">Colaborador:</span>
-                <strong className="text-stone-900 font-bold text-sm">{nombreColaborador}</strong>
+                <strong className="text-stone-900 font-bold text-sm block">{nombreColaborador}</strong>
               </div>
               <div>
                 <span className="text-stone-500 text-[10px] block uppercase font-bold">Puesto / Cargo:</span>
                 <span className="text-stone-800 font-semibold">{cargoColaborador}</span>
+              </div>
+              <div>
+                <span className="text-stone-500 text-[10px] block uppercase font-bold">Área Operativa:</span>
+                <span className="text-[#1c6856] font-semibold">{areaOperativa}</span>
               </div>
               <div>
                 <span className="text-stone-500 text-[10px] block uppercase font-bold">Cédula / Carnet:</span>
@@ -224,81 +264,116 @@ export default function BoletaHorasExtraModal({
             </div>
           </div>
 
-          {/* Detalle Técnico de las Horas Extra */}
+          {/* Desglose Detallado de la Jornada y Marcajes Biométricos */}
           <div className="border border-stone-200 rounded-2xl overflow-hidden shadow-xs">
-            <div className="bg-[#1c6856]/10 px-4 py-2.5 border-b border-stone-200 flex items-center justify-between">
+            <div className="bg-[#1c6856]/10 px-4 py-2 border-b border-stone-200 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-black uppercase tracking-wider text-[#1c6856] flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5" />
-                Detalle de la Jornada Extraordinaria
+                Desglose Técnico de la Jornada Laboral
               </span>
-              <span className="text-[11px] font-mono font-bold text-stone-600 capitalize">
+              <span className="text-xs font-mono font-bold text-stone-700 capitalize">
                 {fechaJornadaDisplay}
               </span>
             </div>
 
-            <div className="p-4 space-y-3 bg-white">
+            <div className="p-4 space-y-3.5 bg-white">
+              {/* Marcajes biométricos reales registrados */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-stone-50/70 p-3 rounded-xl border border-stone-150 text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-stone-500 uppercase block">Hora Entrada (Reloj):</span>
+                  <strong className="font-mono text-stone-900 text-xs">{primerMarcaje}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-stone-500 uppercase block">Hora Salida (Reloj):</span>
+                  <strong className="font-mono text-stone-900 text-xs">{ultimoMarcaje}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-stone-500 uppercase block">Jornada Ordinaria Base:</span>
+                  <span className="font-mono font-bold text-stone-700">8.0 hrs</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-stone-500 uppercase block">Total Registros Biométricos:</span>
+                  <span className="font-mono font-bold text-[#1c6856]">{marcajesDia.length} marcación(es)</span>
+                </div>
+              </div>
+
+              {/* Tarjetas de Horas Solicitadas vs Horas Autorizadas */}
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-stone-50 p-3 rounded-xl border border-stone-150">
+                <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200">
                   <span className="text-stone-500 text-[10px] block uppercase font-bold">
-                    Horas Solicitadas (Marcaje):
+                    Horas Extra Solicitadas (Biométrico):
                   </span>
-                  <span className="text-lg font-mono font-black text-stone-900">
+                  <span className="text-xl font-mono font-black text-stone-900 mt-0.5 block">
                     +{horasSolicitadas.toFixed(1)} hrs
                   </span>
-                  <p className="text-[10px] text-stone-500 mt-0.5">Tiempo extraordinario detectado por reloj</p>
+                  <p className="text-[10px] text-stone-500 mt-1">
+                    Tiempo extraordinario laborado fuera del horario habitual de turno
+                  </p>
                 </div>
 
-                <div className={`p-3 rounded-xl border ${
+                <div className={`p-3.5 rounded-xl border ${
                   esAprobado
-                    ? 'bg-emerald-50/60 border-emerald-200'
+                    ? 'bg-emerald-50/70 border-emerald-300'
                     : esRechazado
-                    ? 'bg-rose-50/60 border-rose-200'
-                    : 'bg-amber-50/60 border-amber-200'
+                    ? 'bg-rose-50/70 border-rose-300'
+                    : 'bg-amber-50/70 border-amber-300'
                 }`}>
                   <span className="text-stone-500 text-[10px] block uppercase font-bold">
-                    Horas Autorizadas (Nómina):
+                    Horas Extra Autorizadas por Administración:
                   </span>
-                  <span className={`text-lg font-mono font-black ${
+                  <span className={`text-xl font-mono font-black mt-0.5 block ${
                     esAprobado ? 'text-emerald-800' : esRechazado ? 'text-rose-700' : 'text-amber-800'
                   }`}>
                     {esAprobado ? `+${horasAutorizadas.toFixed(1)} hrs` : '0.0 hrs'}
                   </span>
-                  <p className="text-[10px] text-stone-500 mt-0.5">
+                  <p className="text-[10px] text-stone-600 font-medium mt-1">
                     {esAprobado
-                      ? 'Tiempo efectivo aprobado para compensación/pago'
+                      ? 'Tiempo efectivo aprobado para remuneración íntegra al 100%'
                       : esRechazado
-                      ? 'Solicitud no computada para nómina'
-                      : 'Pendiente de evaluación gerencial'}
+                      ? 'Solicitud no procedente descartada'
+                      : 'En proceso de validación administrativa'}
                   </p>
                 </div>
               </div>
 
-              {/* Dictamen y Observaciones */}
-              <div className="bg-stone-50/80 border border-stone-200/80 rounded-xl p-3 text-xs">
-                <span className="text-[10px] font-bold text-stone-500 uppercase block mb-1">
-                  Observaciones / Dictamen de Administración:
+              {/* Justificación Operativa y Dictamen de Administración */}
+              <div className="bg-stone-50/90 border border-stone-200 rounded-xl p-3 text-xs space-y-1">
+                <span className="text-[10px] font-black text-[#1c6856] uppercase tracking-wider block">
+                  Motivo Operativo & Dictamen de la Administración:
                 </span>
-                <p className="text-stone-800 font-medium italic">
-                  {horaExtra.comentario || (esAprobado ? 'Horas autorizadas conforme a actividades extraordinarias requeridas.' : esRechazado ? 'Horas extraordinarias no autorizadas por la gerencia.' : 'En espera de revisión administrativa.')}
+                <p className="text-stone-800 font-medium leading-relaxed italic">
+                  &ldquo;
+                  {horaExtra.comentario || (esAprobado
+                    ? `Tiempo extraordinario laborado por requerimientos operativos de ${areaOperativa} en Restaurante El Bodegón (atención continua a comensales, apoyo en horas de alta demanda y cierre de servicio). Horas autorizadas por la Administración.`
+                    : esRechazado
+                    ? 'Tiempo extraordinario no autorizado por la Administración por no corresponder a requerimientos de servicio justificados.'
+                    : 'En espera de revisión administrativa.')}
+                  &rdquo;
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Marco Legal Institucional */}
-          <div className="bg-stone-50/60 border border-stone-200/70 rounded-xl p-3 text-[10px] text-stone-500 leading-relaxed">
-            <p>
-              <strong>Aviso Institucional:</strong> El presente comprobante formaliza la resolución gerencial sobre la jornada extraordinaria indicada, en estricto cumplimiento del Código del Trabajo de Nicaragua y las políticas internas de <em>Comercial El Bodegón</em>. Las horas autorizadas son liquidadas en el balance de nómina correspondiente o amortizadas a la bolsa de horas compensatorias.
-            </p>
+          {/* Cláusula de Garantía Salarial Intocable (Cero Amortizaciones a Déficit) */}
+          <div className="bg-emerald-50/60 border border-emerald-300/80 rounded-2xl p-3 text-[11px] text-emerald-950 leading-relaxed shadow-2xs flex items-start gap-2.5">
+            <Shield className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+            <div>
+              <strong className="font-bold text-emerald-900 block">
+                Garantía de Remuneración Íntegra (Horas Intocables):
+              </strong>
+              <p className="text-stone-700 text-[10px] mt-0.5">
+                Por resolución expresa de la Administración de <strong>Restaurante El Bodegón</strong>, las horas extraordinarias aprobadas en el presente comprobante constituyen un derecho adquirido por tiempo efectivamente laborado. <u>No están sujetas a deducciones, compensaciones ni amortizaciones por déficit de horas o inasistencias</u>, y serán liquidadas al 100% en la nómina del colaborador.
+              </p>
+            </div>
           </div>
 
-          {/* Cuadro de Firmas Legales */}
-          <div className="pt-6 border-t border-stone-200">
+          {/* Cuadro Legal de Firmas Oficiales */}
+          <div className="pt-4 border-t border-stone-200">
             <div className="grid grid-cols-2 gap-8">
               {/* Firma Colaborador */}
               <div className="flex flex-col items-center justify-end text-center">
                 <div className="w-full border-b border-stone-400 pb-1 mb-2">
-                  <div className="h-14" />
+                  <div className="h-12" />
                 </div>
                 <strong className="text-xs font-bold text-stone-900 block">{nombreColaborador}</strong>
                 <span className="text-[10px] text-stone-500 font-medium block">
@@ -312,12 +387,12 @@ export default function BoletaHorasExtraModal({
               {/* Firma Administración */}
               <div className="flex flex-col items-center justify-end text-center">
                 <div className="w-full border-b border-stone-400 pb-1 mb-2">
-                  <div className="h-14" />
+                  <div className="h-12" />
                 </div>
-                <strong className="text-xs font-bold text-stone-900 block">Administración / Gerencia</strong>
-                <span className="text-[10px] text-stone-500 font-medium block">Comercial El Bodegón</span>
+                <strong className="text-xs font-bold text-stone-900 block">Administración</strong>
+                <span className="text-[10px] text-stone-600 font-semibold block">Restaurante El Bodegón</span>
                 <span className="text-[9px] text-stone-400 font-medium block mt-0.5">
-                  Resolución y Sello Autorizado
+                  Autorización Oficial y Sello Administrativo
                 </span>
               </div>
             </div>

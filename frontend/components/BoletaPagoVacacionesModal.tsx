@@ -131,14 +131,14 @@ export default function BoletaPagoVacacionesModal({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xl font-black tracking-tight text-[#1c6856]">
-                  ASADOS EL BODEGÓN
+                  RESTAURANTE EL BODEGÓN
                 </span>
               </div>
               <p className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider mt-0.5">
                 Sistema Integral de Gestión de Asistencia y Personal
               </p>
               <p className="text-[10px] text-stone-400">
-                Nicaragua • Comprobante Administrativo de Recursos Humanos
+                Nicaragua • Comprobante Oficial de Administración
               </p>
             </div>
             <div className="text-right">
@@ -263,7 +263,7 @@ export default function BoletaPagoVacacionesModal({
             <div className="space-y-1">
               <div className="border-t-2 border-stone-800 pt-2 w-48 mx-auto" />
               <p className="font-bold text-stone-900 uppercase tracking-wider">Administración</p>
-              <p className="text-[10px] text-stone-500">Asados El Bodegón</p>
+              <p className="text-[10px] text-stone-500">Restaurante El Bodegón</p>
               <p className="text-[10px] text-stone-400">Firma y Sello Autorizado</p>
             </div>
           </div>

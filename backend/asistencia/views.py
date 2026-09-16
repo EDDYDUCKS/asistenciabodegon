@@ -679,47 +679,12 @@ class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
     def perform_create(self, serializer):
-        autorizacion = serializer.save()
-        if autorizacion.estado == 'APROBADO':
-            self._procesar_amortizacion_si_aprobado(autorizacion)
+        # Las horas extra aprobadas son intocables y no se amortizan contra déficit de horas
+        serializer.save()
 
     def perform_update(self, serializer):
-        instancia_previa = self.get_object()
-        estado_previo = instancia_previa.estado
-
-        autorizacion = serializer.save()
-
-        # Si pasa a APROBADO desde otro estado (ej. de PENDIENTE a APROBADO)
-        if autorizacion.estado == 'APROBADO' and estado_previo != 'APROBADO':
-            self._procesar_amortizacion_si_aprobado(autorizacion)
-
-    def _procesar_amortizacion_si_aprobado(self, autorizacion):
-        empleado = autorizacion.empleado
-        horas_aprobadas = float(autorizacion.horas_extra_autorizadas or 0.0)
-        if horas_aprobadas <= 0:
-            horas_aprobadas = float(autorizacion.horas_extra_solicitadas or 0.0)
-
-        deuda_emp = float(empleado.horas_pendientes or 0.0)
-
-        if deuda_emp > 0 and horas_aprobadas > 0:
-            res = _aplicar_amortizacion_deuda_empleado(
-                empleado=empleado,
-                fecha_referencia=autorizacion.fecha,
-                horas_a_amortizar=horas_aprobadas,
-                request=self.request,
-                origen='APROBACION_ADMIN'
-            )
-            horas_deducidas = res['horas_amortizadas']
-            remanente = res['remanente']
-
-            autorizacion.horas_extra_autorizadas = remanente
-            nota_comp = f"[Bolsa de Horas: {horas_deducidas:.1f}h amortizadas a deuda previa (saldo: {res['deuda_restante']:.1f}h). {remanente:.1f}h enviadas a nómina]"
-            if autorizacion.comentario:
-                autorizacion.comentario = f"{autorizacion.comentario} | {nota_comp}"
-            else:
-                autorizacion.comentario = nota_comp
-
-            autorizacion.save(update_fields=['horas_extra_autorizadas', 'comentario', 'updated_at'])
+        # Las horas extra aprobadas son intocables y no se amortizan contra déficit de horas
+        serializer.save()
 
 
 class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
