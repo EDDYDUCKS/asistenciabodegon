@@ -29,6 +29,7 @@ import BoletaVacacionesModal from '@/components/BoletaVacacionesModal';
 import ModalLiquidarFeriado from '@/components/ModalLiquidarFeriado';
 import BoletaPagoVacacionesModal from '@/components/BoletaPagoVacacionesModal';
 import ModalEmitirPagoVacaciones from '@/components/ModalEmitirPagoVacaciones';
+import BoletaHorasExtraModal from '@/components/BoletaHorasExtraModal';
 import {
   FileSpreadsheet,
   Download,
@@ -86,7 +87,9 @@ export default function NominaAdminPage() {
   const [empleadoParaPagoVac, setEmpleadoParaPagoVac] = useState<Empleado | null>(null);
   const [searchPagoVac, setSearchPagoVac] = useState('');
   const [syncingDescansos, setSyncingDescansos] = useState(false);
-  const [subTabExtras, setSubTabExtras] = useState<'pendientes' | 'compensaciones'>('pendientes');
+  const [subTabExtras, setSubTabExtras] = useState<'pendientes' | 'historial' | 'compensaciones'>('pendientes');
+  const [selectedExtraParaBoleta, setSelectedExtraParaBoleta] = useState<AutorizacionHorasExtra | null>(null);
+  const [filtroEstadoHistorialExtra, setFiltroEstadoHistorialExtra] = useState<'TODOS' | 'APROBADO' | 'RECHAZADO'>('TODOS');
   const [searchCompensacion, setSearchCompensacion] = useState('');
   const [searchExtra, setSearchExtra] = useState('');
   const [separarPorDiaExtras, setSepararPorDiaExtras] = useState(true);
@@ -455,6 +458,10 @@ export default function NominaAdminPage() {
       setHorasExtra(updatedExtras);
       setCompensaciones(updatedComp);
       setEmpleados(updatedEmp);
+      const updatedRec = updatedExtras.find((h) => h.id === id);
+      if (updatedRec) {
+        setSelectedExtraParaBoleta(updatedRec);
+      }
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al guardar decisión');
     } finally {
@@ -1109,11 +1116,22 @@ export default function NominaAdminPage() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-end gap-3">
+            <div className="flex items-center justify-end gap-2">
               {item.estado !== 'PENDIENTE' && (
-                <span className="text-xs text-stone-500 font-normal italic max-w-[160px] truncate block" title={item.comentario || ''}>
-                  {item.comentario}
-                </span>
+                <>
+                  <span className="text-xs text-stone-500 font-normal italic max-w-[140px] truncate block" title={item.comentario || ''}>
+                    {item.comentario}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedExtraParaBoleta(item)}
+                    className="inline-flex items-center gap-1 bg-[#1c6856]/10 hover:bg-[#1c6856]/20 text-[#1c6856] border border-[#1c6856]/30 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                    title="Ver e imprimir boleta oficial con firmas"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Boleta</span>
+                  </button>
+                </>
               )}
               <button
                 onClick={() => startDecision(item)}
@@ -1536,6 +1554,25 @@ export default function NominaAdminPage() {
             </button>
 
             <button
+              onClick={() => setSubTabExtras('historial')}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 ${
+                subTabExtras === 'historial'
+                  ? 'bg-[#1c6856] text-white shadow-sm'
+                  : 'bg-white border border-stone-200 hover:bg-stone-50 text-stone-600'
+              }`}
+            >
+              <FileCheck className="w-4 h-4" />
+              <span>Historial de Resoluciones (Boletas)</span>
+              {horasExtra.filter((h) => h.estado !== 'PENDIENTE').length > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
+                  subTabExtras === 'historial' ? 'bg-white text-[#1c6856]' : 'bg-[#1c6856]/15 text-[#1c6856]'
+                }`}>
+                  {horasExtra.filter((h) => h.estado !== 'PENDIENTE').length}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => setSubTabExtras('compensaciones')}
               className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 ${
                 subTabExtras === 'compensaciones'
@@ -1756,7 +1793,289 @@ export default function NominaAdminPage() {
             </div>
           )}
 
-          {subTabExtras === 'compensaciones' && (
+{/* ── SUB-TAB: HISTORIAL DE RESOLUCIONES (HORAS EXTRA APROBADAS & RECHAZADAS) ── */}
+          {subTabExtras === 'historial' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Tarjetas Resumen de Resoluciones */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="bg-gradient-to-br from-emerald-50/90 to-emerald-100/40 border border-emerald-250 rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                      Horas Extra Aprobadas
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                      <CheckCircle className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-emerald-900">
+                      +{horasExtra.filter((h) => h.estado === 'APROBADO').reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_autorizadas)) || 0), 0).toFixed(1)} hrs
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/60 px-2 py-0.5 rounded-full">
+                      {horasExtra.filter((h) => h.estado === 'APROBADO').length} autorizadas
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                    Autorizadas formalmente para pago o nómina
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-rose-50/90 to-rose-100/40 border border-rose-250 rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-rose-900 uppercase tracking-wider">
+                      Horas Extra Rechazadas
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-xs">
+                      <XCircle className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-rose-900">
+                      {horasExtra.filter((h) => h.estado === 'RECHAZADO').reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_solicitadas)) || 0), 0).toFixed(1)} hrs
+                    </span>
+                    <span className="text-[10px] font-bold text-rose-800 bg-rose-200/60 px-2 py-0.5 rounded-full">
+                      {horasExtra.filter((h) => h.estado === 'RECHAZADO').length} denegadas
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-rose-700 font-medium mt-1">
+                    Solicitudes no procedentes descartadas
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-stone-50 to-stone-100/60 border border-stone-200/80 rounded-2xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-stone-700 uppercase tracking-wider">
+                      Total Boletas Disponibles
+                    </span>
+                    <div className="w-8 h-8 rounded-xl bg-stone-800 text-white flex items-center justify-center font-bold shadow-xs">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-stone-900">
+                      {horasExtra.filter((h) => h.estado !== 'PENDIENTE').length}
+                    </span>
+                    <span className="text-[10px] font-bold text-stone-600 bg-stone-200/70 px-2 py-0.5 rounded-full">
+                      comprobantes listos
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-500 font-medium mt-1">
+                    Listas para imprimir y recabar firmas
+                  </p>
+                </div>
+              </div>
+
+              {/* Filtros de Historial: Búsqueda y Selector de Estado */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-stone-200 shadow-xs">
+                <div className="relative flex-1 max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Buscar por colaborador, cargo, comentario o folio BHE-..."
+                    value={searchExtra}
+                    onChange={(e) => setSearchExtra(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-9 pr-8 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-medium"
+                  />
+                  <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  {searchExtra && (
+                    <button
+                      onClick={() => setSearchExtra('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => setFiltroEstadoHistorialExtra('TODOS')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                      filtroEstadoHistorialExtra === 'TODOS'
+                        ? 'bg-stone-900 text-white'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    Todos ({horasExtra.filter((h) => h.estado !== 'PENDIENTE').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroEstadoHistorialExtra('APROBADO')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors ${
+                      filtroEstadoHistorialExtra === 'APROBADO'
+                        ? 'bg-emerald-700 text-white'
+                        : 'bg-emerald-50 text-emerald-800 border border-emerald-250 hover:bg-emerald-100'
+                    }`}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Aprobadas ({horasExtra.filter((h) => h.estado === 'APROBADO').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFiltroEstadoHistorialExtra('RECHAZADO')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors ${
+                      filtroEstadoHistorialExtra === 'RECHAZADO'
+                        ? 'bg-rose-700 text-white'
+                        : 'bg-rose-50 text-rose-800 border border-rose-250 hover:bg-rose-100'
+                    }`}
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    Rechazadas ({horasExtra.filter((h) => h.estado === 'RECHAZADO').length})
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabla de Historial de Resoluciones */}
+              {(() => {
+                const term = searchExtra.toLowerCase().trim();
+                const itemsHistorial = horasExtra.filter((h) => {
+                  if (h.estado === 'PENDIENTE') return false;
+                  if (filtroEstadoHistorialExtra !== 'TODOS' && h.estado !== filtroEstadoHistorialExtra) return false;
+                  if (!term) return true;
+                  const empNombre = h.empleado_detalle ? `${h.empleado_detalle.nombre} ${h.empleado_detalle.apellido || ''}`.toLowerCase() : '';
+                  const empCargo = h.empleado_detalle?.cargo_display?.toLowerCase() || '';
+                  const com = (h.comentario || '').toLowerCase();
+                  const folioYear = h.fecha ? new Date(h.fecha + 'T00:00:00').getFullYear() : 2026;
+                  const folioStr = `bhe-${folioYear}-${String(h.id).padStart(4, '0')}`.toLowerCase();
+                  return empNombre.includes(term) || empCargo.includes(term) || com.includes(term) || folioStr.includes(term);
+                });
+
+                if (itemsHistorial.length === 0) {
+                  return (
+                    <div className="text-center py-12 bg-white rounded-2xl border border-stone-200 p-6 space-y-3">
+                      <FileCheck className="w-10 h-10 text-stone-300 mx-auto" />
+                      <h4 className="text-sm font-bold text-stone-800">
+                        {searchExtra || filtroEstadoHistorialExtra !== 'TODOS'
+                          ? 'No se encontraron resoluciones con los filtros aplicados.'
+                          : 'Aún no se han evaluado solicitudes de horas extra.'}
+                      </h4>
+                      <p className="text-xs text-stone-500 max-w-md mx-auto">
+                        Cuando evalúe y apruebe o rechace horas extra en la pestaña &quot;Solicitudes de Horas Extra&quot;, se archivarán automáticamente aquí con su boleta oficial imprimible.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs sm:text-sm">
+                        <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider text-[11px]">
+                          <tr>
+                            <th className="px-4 py-3.5">N° Boleta</th>
+                            <th className="px-4 py-3.5">Fecha Laborada</th>
+                            <th className="px-4 py-3.5">Colaborador</th>
+                            <th className="px-4 py-3.5 text-right">H. Solicitadas</th>
+                            <th className="px-4 py-3.5 text-right">H. Autorizadas</th>
+                            <th className="px-4 py-3.5 text-center">Estado</th>
+                            <th className="px-4 py-3.5">Dictamen / Observaciones</th>
+                            <th className="px-4 py-3.5 text-right">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-150 font-medium text-stone-800">
+                          {itemsHistorial.map((item) => {
+                            const empDet = item.empleado_detalle;
+                            const yearF = item.fecha ? new Date(item.fecha + 'T00:00:00').getFullYear() : 2026;
+                            const folioNum = `BHE-${yearF}-${String(item.id || 1).padStart(4, '0')}`;
+                            const esAprob = item.estado === 'APROBADO';
+
+                            return (
+                              <tr key={item.id} className="hover:bg-stone-50/70 transition-colors">
+                                <td className="px-4 py-3.5 font-mono font-bold text-[#1c6856] whitespace-nowrap">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-[#1c6856]/10 text-[#1c6856] border border-[#1c6856]/20 font-black text-xs">
+                                    {folioNum}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3.5 font-mono text-stone-600 whitespace-nowrap text-xs">
+                                  {new Date(item.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric',
+                                  })}
+                                </td>
+                                <td className="px-4 py-3.5">
+                                  <div className="font-bold text-stone-900 leading-tight">
+                                    {empDet ? `${empDet.nombre} ${empDet.apellido || ''}` : `Empleado #${item.empleado}`}
+                                  </div>
+                                  {empDet && (
+                                    <span className="text-[10px] text-stone-500 font-semibold block mt-0.5">
+                                      {empDet.cargo_display}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3.5 text-right font-mono font-bold text-stone-700 whitespace-nowrap">
+                                  +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+                                </td>
+                                <td className="px-4 py-3.5 text-right font-mono font-black whitespace-nowrap">
+                                  <span className={esAprob ? 'text-emerald-800' : 'text-stone-400'}>
+                                    {esAprob ? `+${parseFloat(String(item.horas_extra_autorizadas)).toFixed(1)} hrs` : '0.0 hrs'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide border ${
+                                      esAprob
+                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                        : 'bg-rose-50 text-rose-800 border-rose-300'
+                                    }`}
+                                  >
+                                    {esAprob ? <CheckCircle className="w-3 h-3 text-emerald-600" /> : <XCircle className="w-3 h-3 text-rose-600" />}
+                                    <span>{item.estado}</span>
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3.5 max-w-[240px] truncate text-stone-600 text-xs italic" title={item.comentario || ''}>
+                                  {item.comentario || (esAprob ? 'Autorizadas para nómina' : 'Denegadas por gerencia')}
+                                </td>
+                                <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedExtraParaBoleta(item)}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#1c6856] hover:bg-[#154f42] text-white transition-all shadow-2xs cursor-pointer active:scale-95"
+                                      title="Abrir comprobante imprimible con recuadro de firmas"
+                                    >
+                                      <FileText className="w-3.5 h-3.5" />
+                                      <span>Ver Boleta</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => startDecision(item)}
+                                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors cursor-pointer"
+                                      title="Modificar resolución con PIN gerencial"
+                                    >
+                                      Modificar
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="bg-stone-50 border-t border-stone-200 font-bold text-stone-800 text-xs">
+                          <tr>
+                            <td colSpan={3} className="px-4 py-3 text-right text-stone-500 uppercase">
+                              Totales Resoluciones Filtradas:
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-stone-700">
+                              +{itemsHistorial.reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_solicitadas)) || 0), 0).toFixed(1)} hrs
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono font-black text-emerald-800">
+                              +{itemsHistorial.filter((h) => h.estado === 'APROBADO').reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_autorizadas)) || 0), 0).toFixed(1)} hrs
+                            </td>
+                            <td colSpan={3} className="px-4 py-3 text-stone-500 font-medium">
+                              ({itemsHistorial.filter((h) => h.estado === 'APROBADO').length} aprobadas, {itemsHistorial.filter((h) => h.estado === 'RECHAZADO').length} rechazadas)
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+                    {subTabExtras === 'compensaciones' && (
             <div className="space-y-4 animate-in fade-in duration-200">
               {/* Barra de Filtro de Colaborador */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -3463,6 +3782,12 @@ export default function NominaAdminPage() {
       />
 
       {/* ── MODAL 5: BOLETA OFICIAL DE PAGO DE VACACIONES IMPRIMIBLE ── */}
+      {/* ── MODAL 6: BOLETA OFICIAL DE HORAS EXTRA (APROBADAS / RECHAZADAS) ── */}
+      <BoletaHorasExtraModal
+        horaExtra={selectedExtraParaBoleta}
+        onClose={() => setSelectedExtraParaBoleta(null)}
+      />
+
       <BoletaPagoVacacionesModal
         pago={selectedPagoVacaciones}
         onClose={() => setSelectedPagoVacaciones(null)}
