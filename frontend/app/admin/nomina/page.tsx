@@ -3620,6 +3620,8 @@ export default function NominaAdminPage() {
       <BoletaVacacionesModal
         empleado={selectedVacacionesEmp}
         permisos={permisos}
+        compensacionesFeriados={compensacionesFeriados}
+        pagosVacaciones={pagosVacaciones}
         onClose={() => setSelectedVacacionesEmp(null)}
         onAjustar={() => {
           if (selectedVacacionesEmp) {

@@ -384,15 +384,14 @@ class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
                     continue
 
                 horas_dia = _calcular_horas_netas_dia(regs)
-                horas_ord = min(horas_dia, 8.0)
 
-                if horas_ord >= 7.5:  # Tolera margen de marcaje para jornada completa de feriado
+                if horas_dia >= 4.0:  # Tolera margen de marcaje / medio turno o más en feriado
                     comp, created = CompensacionFeriado.objects.get_or_create(
                         empleado=emp,
                         fecha_feriado=f_fecha,
                         defaults={
                             'nombre_feriado': f_nombre,
-                            'horas_trabajadas': Decimal(str(round(horas_ord, 2))),
+                            'horas_trabajadas': Decimal(str(round(horas_dia, 2))),
                             'dias_compensatorios_totales': Decimal('2.0'),
                             'estado': 'VACACIONES',
                             'dias_acreditados_vacaciones': Decimal('2.0'),
@@ -406,20 +405,28 @@ class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
                         emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + Decimal('2.0')
                         emp.save(update_fields=['dias_vacaciones_acumuladas'])
 
-                        # Registrar en PermisoAusencia para la hoja de vacaciones
-                        PermisoAusencia.objects.create(
-                            empleado=emp,
-                            tipo='VACACIONES_PAGADAS',
-                            fecha_inicio=f_fecha,
-                            fecha_fin=f_fecha,
-                            total_dias=Decimal('2.0'),
-                            motivo=f"Abono por feriado laborado: {f_nombre} (+2 días)"
-                        )
-
                         BitacoraAccion.objects.create(
                             usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
                             accion='ACREDITAR_FERIADO_VACACIONES',
                             descripcion=f"Acreditados automáticamente +2.0 días de vacaciones a {emp.nombre} {emp.apellido} por feriado {f_fecha} ({f_nombre}). Nuevo saldo: {emp.dias_vacaciones_acumuladas} d.",
+                            ip_address=_get_clean_ip(request) if request else None
+                        )
+                    elif comp.estado == 'PENDIENTE' or (comp.dias_acreditados_vacaciones or Decimal('0.0')) == Decimal('0.0'):
+                        # Actualizar compensación existente que aún no tenía acreditados los 2 días
+                        comp.estado = 'VACACIONES'
+                        comp.dias_acreditados_vacaciones = Decimal('2.0')
+                        comp.fecha_liquidacion = timezone.now()
+                        comp.observaciones = 'Acreditación automática a vacaciones por feriado laborado (+2d)'
+                        comp.save(update_fields=['estado', 'dias_acreditados_vacaciones', 'fecha_liquidacion', 'observaciones'])
+
+                        emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + Decimal('2.0')
+                        emp.save(update_fields=['dias_vacaciones_acumuladas'])
+                        creados += 1
+
+                        BitacoraAccion.objects.create(
+                            usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
+                            accion='ACREDITAR_FERIADO_VACACIONES',
+                            descripcion=f"Acreditados +2.0 días de vacaciones a {emp.nombre} {emp.apellido} por feriado previo {f_fecha} ({f_nombre}). Nuevo saldo: {emp.dias_vacaciones_acumuladas} d.",
                             ip_address=_get_clean_ip(request) if request else None
                         )
 
@@ -472,28 +479,28 @@ class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
                 }
 
                 if len(fechas_trabajadas) >= 7:
-                    emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + Decimal('1.0')
-                    emp.save(update_fields=['dias_vacaciones_acumuladas'])
-
-                    PermisoAusencia.objects.create(
-                        empleado=emp,
-                        tipo='VACACIONES_PAGADAS',
-                        fecha_inicio=domingo_w,
-                        fecha_fin=domingo_w,
-                        total_dias=Decimal('1.0'),
-                        motivo=f"Abono por {motivo_busqueda} (+1 día)"
-                    )
-
-                    BitacoraAccion.objects.create(
-                        usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
+                    # Verificar que no se haya acreditado previamente esta misma semana
+                    ya_acreditado = BitacoraAccion.objects.filter(
                         accion='ACREDITAR_SEPTIMO_DIA_VACACIONES',
-                        descripcion=(
-                            f"Acreditado +1.0 día de vacaciones a {emp.nombre} {emp.apellido} por laborar su día libre semanal "
-                            f"(Semana del {lunes_w} al {domingo_w}, 7 días laborados). Nuevo saldo: {emp.dias_vacaciones_acumuladas} d."
-                        ),
-                        ip_address=_get_clean_ip(request) if request else None
-                    )
-                    acreditados += 1
+                        descripcion__contains=f"{emp.nombre} {emp.apellido}"
+                    ).filter(
+                        descripcion__contains=f"Semana del {lunes_w} al {domingo_w}"
+                    ).exists()
+
+                    if not ya_acreditado:
+                        emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + Decimal('1.0')
+                        emp.save(update_fields=['dias_vacaciones_acumuladas'])
+
+                        BitacoraAccion.objects.create(
+                            usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
+                            accion='ACREDITAR_SEPTIMO_DIA_VACACIONES',
+                            descripcion=(
+                                f"Acreditado +1.0 día de vacaciones a {emp.nombre} {emp.apellido} por laborar su día libre semanal "
+                                f"(Semana del {lunes_w} al {domingo_w}, 7 días laborados). Nuevo saldo: {emp.dias_vacaciones_acumuladas} d."
+                            ),
+                            ip_address=_get_clean_ip(request) if request else None
+                        )
+                        acreditados += 1
 
         return Response({
             'status': 'ok',
@@ -648,15 +655,9 @@ class PagoVacacionesViewSet(viewsets.ModelViewSet):
             registrado_por=request.user if (request.user and request.user.is_authenticated) else None,
         )
 
-        PermisoAusencia.objects.create(
-            empleado=empleado,
-            tipo='VACACIONES_PAGADAS',
-            fecha_inicio=fecha_pago,
-            fecha_fin=fecha_pago,
-            total_dias=dias_pagados,
-            motivo=f"Liquidación en dinero: Recibo {numero_recibo}. {motivo}".strip(),
-            aprobado_por=request.user if (request.user and request.user.is_authenticated) else None,
-        )
+        # Descontar los días pagados en dinero del saldo acumulado de vacaciones del colaborador
+        empleado.dias_vacaciones_acumuladas = (empleado.dias_vacaciones_acumuladas or Decimal('0.00')) - dias_pagados
+        empleado.save(update_fields=['dias_vacaciones_acumuladas'])
 
         BitacoraAccion.objects.create(
             usuario=request.user if (request.user and request.user.is_authenticated) else None,
@@ -670,6 +671,24 @@ class PagoVacacionesViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(pago)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, *args, **kwargs):
+        pago = self.get_object()
+        empleado = pago.empleado
+        # Reintegrar los días pagados al saldo acumulado del colaborador si se anula la boleta
+        empleado.dias_vacaciones_acumuladas = (empleado.dias_vacaciones_acumuladas or Decimal('0.00')) + pago.dias_pagados
+        empleado.save(update_fields=['dias_vacaciones_acumuladas'])
+
+        BitacoraAccion.objects.create(
+            usuario=request.user if (request.user and request.user.is_authenticated) else None,
+            accion='PAGO_VACACIONES',
+            descripcion=(
+                f"Anulada Boleta de Pago de Vacaciones {pago.numero_recibo} de {empleado.nombre} {empleado.apellido}. "
+                f"Reintegrados +{pago.dias_pagados} días. Nuevo saldo: {empleado.dias_vacaciones_acumuladas}d."
+            ),
+            ip_address=_get_clean_ip(request),
+        )
+        return super().destroy(request, *args, **kwargs)
 
 
 
@@ -2918,8 +2937,9 @@ def exportar_reporte_vacaciones_excel(request):
             "N°",
             "Colaborador",
             "Cargo",
-            "Días Acumulados Ley",
-            "Días Tomados / Deducidos",
+            "Días Acumulados / Feriados",
+            "Días Gozados (Tiempo)",
+            "Días Pagados (Dinero)",
             "Saldo Neto Disponible",
         ]
         ws_saldos.row_dimensions[4].height = 24
@@ -2935,18 +2955,21 @@ def exportar_reporte_vacaciones_excel(request):
         for i, emp in enumerate(empleados_activos, 1):
             permisos_emp = PermisoAusencia.objects.filter(
                 empleado=emp,
-                tipo__in=['VACACIONES', 'VACACIONES_PAGADAS']
+                tipo='VACACIONES'
             )
-            total_tomadas = sum(p.total_dias for p in permisos_emp)
+            total_gozadas = sum(p.total_dias for p in permisos_emp)
+            pagos_emp = PagoVacaciones.objects.filter(empleado=emp)
+            total_pagadas_dinero = sum(pg.dias_pagados for pg in pagos_emp)
             acumuladas = float(emp.dias_vacaciones_acumuladas or 0.0)
-            disponible = round(acumuladas - float(total_tomadas), 1)
+            disponible = round(acumuladas - float(total_gozadas), 2)
 
             row_s = [
                 i,
                 f"{emp.nombre} {emp.apellido}",
                 emp.get_cargo_display() if hasattr(emp, 'get_cargo_display') else emp.cargo,
-                round(acumuladas, 2),
-                round(float(total_tomadas), 1),
+                round(acumuladas + float(total_pagadas_dinero), 2),
+                round(float(total_gozadas), 1),
+                round(float(total_pagadas_dinero), 1),
                 disponible,
             ]
             for col_idx, val in enumerate(row_s, 1):
@@ -2955,9 +2978,9 @@ def exportar_reporte_vacaciones_excel(request):
                 c.border = thin_border
                 if r_idx % 2 == 0:
                     c.fill = fill_zebra
-                if col_idx in [1, 4, 5, 6]:
+                if col_idx in [1, 4, 5, 6, 7]:
                     c.alignment = Alignment(horizontal='center', vertical='center')
-                    if col_idx == 6:
+                    if col_idx == 7:
                         c.font = font_bold
                 else:
                     c.alignment = Alignment(horizontal='left', vertical='center')
@@ -2966,9 +2989,161 @@ def exportar_reporte_vacaciones_excel(request):
         ws_saldos.column_dimensions['A'].width = 6
         ws_saldos.column_dimensions['B'].width = 26
         ws_saldos.column_dimensions['C'].width = 20
-        ws_saldos.column_dimensions['D'].width = 22
-        ws_saldos.column_dimensions['E'].width = 24
+        ws_saldos.column_dimensions['D'].width = 24
+        ws_saldos.column_dimensions['E'].width = 22
         ws_saldos.column_dimensions['F'].width = 22
+        ws_saldos.column_dimensions['G'].width = 22
+
+        # ── Hoja 3: Vacaciones Pagadas en Dinero ──
+        ws_pagos = wb.create_sheet(title="Vacaciones Pagadas Dinero")
+        ws_pagos.views.sheetView[0].showGridLines = True
+
+        ws_pagos.merge_cells('A1:I1')
+        ws_pagos['A1'] = "EL BODEGÓN — REGISTRO DE VACACIONES PAGADAS EN DINERO"
+        ws_pagos['A1'].font = font_titulo
+        ws_pagos['A1'].fill = fill_title
+        ws_pagos['A1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws_pagos.row_dimensions[1].height = 28
+
+        ws_pagos.merge_cells('A2:I2')
+        ws_pagos['A2'] = f"Período: {periodo_label} | Comprobantes Oficiales Emitidos (BVP)"
+        ws_pagos['A2'].font = font_sub
+        ws_pagos['A2'].fill = fill_title
+        ws_pagos['A2'].alignment = Alignment(horizontal='center', vertical='center')
+        ws_pagos.row_dimensions[2].height = 18
+
+        headers_pagos = [
+            "N°",
+            "N° Recibo",
+            "Fecha Pago",
+            "Colaborador",
+            "Cargo",
+            "Días Pagados",
+            "Monto Pagado (C$)",
+            "Saldo Resultante",
+            "Observaciones / Motivo",
+        ]
+        ws_pagos.row_dimensions[4].height = 24
+        for col_idx, h in enumerate(headers_pagos, 1):
+            c = ws_pagos.cell(row=4, column=col_idx, value=h)
+            c.font = font_header
+            c.fill = fill_header
+            c.alignment = Alignment(horizontal='center', vertical='center')
+            c.border = thin_border
+
+        pagos_qs = PagoVacaciones.objects.filter(
+            fecha_pago__range=(fecha_inicio, fecha_fin)
+        ).select_related('empleado', 'registrado_por').order_by('-fecha_pago')
+
+        r_pago_idx = 5
+        for i, pg in enumerate(pagos_qs, 1):
+            row_p = [
+                i,
+                pg.numero_recibo,
+                pg.fecha_pago.strftime('%d/%m/%Y'),
+                f"{pg.empleado.nombre} {pg.empleado.apellido}",
+                pg.empleado.get_cargo_display() if hasattr(pg.empleado, 'get_cargo_display') else pg.empleado.cargo,
+                float(pg.dias_pagados),
+                float(pg.monto_pagado),
+                float(pg.dias_saldo_nuevo),
+                pg.motivo or pg.observaciones or 'Liquidación de vacaciones',
+            ]
+            for col_idx, val in enumerate(row_p, 1):
+                c = ws_pagos.cell(row=r_pago_idx, column=col_idx, value=val)
+                c.font = font_data
+                c.border = thin_border
+                if r_pago_idx % 2 == 0:
+                    c.fill = fill_zebra
+                if col_idx in [1, 2, 3, 6, 7, 8]:
+                    c.alignment = Alignment(horizontal='center', vertical='center')
+                    if col_idx in [6, 7]:
+                        c.font = font_bold
+                else:
+                    c.alignment = Alignment(horizontal='left', vertical='center')
+            r_pago_idx += 1
+
+        ws_pagos.column_dimensions['A'].width = 6
+        ws_pagos.column_dimensions['B'].width = 16
+        ws_pagos.column_dimensions['C'].width = 14
+        ws_pagos.column_dimensions['D'].width = 24
+        ws_pagos.column_dimensions['E'].width = 18
+        ws_pagos.column_dimensions['F'].width = 16
+        ws_pagos.column_dimensions['G'].width = 18
+        ws_pagos.column_dimensions['H'].width = 18
+        ws_pagos.column_dimensions['I'].width = 30
+
+        # ── Hoja 4: Feriados Laborados Acreditados ──
+        ws_feriados = wb.create_sheet(title="Feriados Acreditados")
+        ws_feriados.views.sheetView[0].showGridLines = True
+
+        ws_feriados.merge_cells('A1:G1')
+        ws_feriados['A1'] = "EL BODEGÓN — FERIADOS LABORADOS ACREDITADOS A VACACIONES"
+        ws_feriados['A1'].font = font_titulo
+        ws_feriados['A1'].fill = fill_title
+        ws_feriados['A1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws_feriados.row_dimensions[1].height = 28
+
+        ws_feriados.merge_cells('A2:G2')
+        ws_feriados['A2'] = f"Período: {periodo_label} | Feriados con derecho a +2 días de vacaciones acumuladas"
+        ws_feriados['A2'].font = font_sub
+        ws_feriados['A2'].fill = fill_title
+        ws_feriados['A2'].alignment = Alignment(horizontal='center', vertical='center')
+        ws_feriados.row_dimensions[2].height = 18
+
+        headers_feriados = [
+            "N°",
+            "Fecha Feriado",
+            "Feriado Nacional",
+            "Colaborador",
+            "Cargo",
+            "Horas Trabajadas",
+            "Días Sumados a Vacaciones",
+        ]
+        ws_feriados.row_dimensions[4].height = 24
+        for col_idx, h in enumerate(headers_feriados, 1):
+            c = ws_feriados.cell(row=4, column=col_idx, value=h)
+            c.font = font_header
+            c.fill = fill_header
+            c.alignment = Alignment(horizontal='center', vertical='center')
+            c.border = thin_border
+
+        feriados_qs = CompensacionFeriado.objects.filter(
+            fecha_feriado__range=(fecha_inicio, fecha_fin),
+            estado='VACACIONES'
+        ).select_related('empleado').order_by('fecha_feriado', 'empleado__nombre')
+
+        r_fer_idx = 5
+        for i, cf in enumerate(feriados_qs, 1):
+            row_f = [
+                i,
+                cf.fecha_feriado.strftime('%d/%m/%Y'),
+                cf.nombre_feriado or 'Feriado Nacional',
+                f"{cf.empleado.nombre} {cf.empleado.apellido}",
+                cf.empleado.get_cargo_display() if hasattr(cf.empleado, 'get_cargo_display') else cf.empleado.cargo,
+                float(cf.horas_trabajadas),
+                float(cf.dias_acreditados_vacaciones or cf.dias_compensatorios_totales or 2.0),
+            ]
+            for col_idx, val in enumerate(row_f, 1):
+                c = ws_feriados.cell(row=r_fer_idx, column=col_idx, value=val)
+                c.font = font_data
+                c.border = thin_border
+                if r_fer_idx % 2 == 0:
+                    c.fill = fill_zebra
+                if col_idx in [1, 2, 6, 7]:
+                    c.alignment = Alignment(horizontal='center', vertical='center')
+                    if col_idx == 7:
+                        c.font = font_bold
+                else:
+                    c.alignment = Alignment(horizontal='left', vertical='center')
+            r_fer_idx += 1
+
+        ws_feriados.column_dimensions['A'].width = 6
+        ws_feriados.column_dimensions['B'].width = 16
+        ws_feriados.column_dimensions['C'].width = 30
+        ws_feriados.column_dimensions['D'].width = 24
+        ws_feriados.column_dimensions['E'].width = 18
+        ws_feriados.column_dimensions['F'].width = 18
+        ws_feriados.column_dimensions['G'].width = 26
 
         buffer = BytesIO()
         wb.save(buffer)
