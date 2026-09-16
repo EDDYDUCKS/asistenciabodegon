@@ -10,6 +10,7 @@ import {
   PermisoAusencia,
   CompensacionHoras,
   CompensacionFeriado,
+  PagoVacaciones,
 } from './types';
 
 const API_BASE_URL =
@@ -491,4 +492,51 @@ export async function deleteCompensacion(id: number): Promise<void> {
     method: 'DELETE',
   });
 }
+
+// ── VACACIONES PAGADAS EN DINERO ──────────────────────────────────────────
+export async function fetchPagosVacaciones(params?: {
+  empleado?: number;
+  fechaInicio?: string;
+  fechaFin?: string;
+}): Promise<PagoVacaciones[]> {
+  const q = new URLSearchParams();
+  if (params?.empleado) q.append('empleado', String(params.empleado));
+  if (params?.fechaInicio) q.append('fecha_inicio', params.fechaInicio);
+  if (params?.fechaFin) q.append('fecha_fin', params.fechaFin);
+  const queryStr = q.toString() ? `?${q.toString()}` : '';
+  const data = await apiRequest<PagoVacaciones[] | { results: PagoVacaciones[] }>(`/pagos-vacaciones/${queryStr}`);
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray((data as { results: PagoVacaciones[] }).results)) {
+    return (data as { results: PagoVacaciones[] }).results;
+  }
+  return [];
+}
+
+export async function crearPagoVacaciones(payload: {
+  empleado: number;
+  dias_pagados: number;
+  monto_pagado: number;
+  motivo?: string;
+  observaciones?: string;
+  fecha_pago?: string;
+}): Promise<PagoVacaciones> {
+  return apiRequest<PagoVacaciones>('/pagos-vacaciones/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePagoVacaciones(id: number): Promise<void> {
+  await apiRequest<void>(`/pagos-vacaciones/${id}/`, {
+    method: 'DELETE',
+  });
+}
+
+export async function sincronizarDescansosTrabajados(): Promise<{ status: string; mensaje: string; acreditados: number }> {
+  return apiRequest<{ status: string; mensaje: string; acreditados: number }>('/compensaciones-feriados/sincronizar-descansos-trabajados/', {
+    method: 'POST',
+  });
+}
+
 

@@ -1,5 +1,9 @@
 from rest_framework import serializers
-from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia, CompensacionHoras, CompensacionFeriado
+from .models import (
+    Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado,
+    AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia,
+    CompensacionHoras, CompensacionFeriado, PagoVacaciones
+)
 
 
 class EmpleadoSimpleSerializer(serializers.ModelSerializer):
@@ -230,3 +234,34 @@ class CompensacionFeriadoSerializer(serializers.ModelSerializer):
             'observaciones',
             'created_at',
         ]
+
+
+class PagoVacacionesSerializer(serializers.ModelSerializer):
+    empleado_detalle = EmpleadoSimpleSerializer(source='empleado', read_only=True)
+    registrado_por_nombre = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PagoVacaciones
+        fields = [
+            'id',
+            'empleado',
+            'empleado_detalle',
+            'fecha_pago',
+            'dias_pagados',
+            'monto_pagado',
+            'dias_saldo_anterior',
+            'dias_saldo_nuevo',
+            'motivo',
+            'observaciones',
+            'numero_recibo',
+            'registrado_por',
+            'registrado_por_nombre',
+            'created_at',
+        ]
+        read_only_fields = ['numero_recibo', 'dias_saldo_anterior', 'dias_saldo_nuevo', 'created_at']
+
+    def get_registrado_por_nombre(self, obj):
+        if obj.registrado_por:
+            return f"{obj.registrado_por.first_name} {obj.registrado_por.last_name}".strip() or obj.registrado_por.username
+        return 'Administración'
+

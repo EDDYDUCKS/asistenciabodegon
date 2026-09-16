@@ -14,8 +14,17 @@ from rest_framework.response import Response
 from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from .models import Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado, AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia, CompensacionHoras, CompensacionFeriado
-from .serializers import EmpleadoSerializer, RegistroAsistenciaSerializer, BitacoraAccionSerializer, DiaFeriadoSerializer, AutorizacionHorasExtraSerializer, AlertaAsistenciaSerializer, PermisoAusenciaSerializer, CompensacionHorasSerializer, CompensacionFeriadoSerializer
+from .models import (
+    Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado,
+    AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia,
+    CompensacionHoras, CompensacionFeriado, PagoVacaciones
+)
+from .serializers import (
+    EmpleadoSerializer, RegistroAsistenciaSerializer, BitacoraAccionSerializer,
+    DiaFeriadoSerializer, AutorizacionHorasExtraSerializer, AlertaAsistenciaSerializer,
+    PermisoAusenciaSerializer, CompensacionHorasSerializer, CompensacionFeriadoSerializer,
+    PagoVacacionesSerializer
+)
 
 
 class ExcelBinaryRenderer(BaseRenderer):
@@ -348,8 +357,8 @@ class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='sincronizar')
     def sincronizar(self, request):
         """
-        Escanea todas las asistencias registradas en fechas feriadas y genera
-        los registros de CompensacionFeriado pendientes correspondientes (2 días compensatorios por cada 8h).
+        Escanea todas las asistencias registradas en fechas feriadas y acredita
+        automáticamente los 2 días compensatorios al saldo de vacaciones del trabajador.
         """
         from decimal import Decimal
         tz = timezone.get_current_timezone()
@@ -385,25 +394,117 @@ class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
                             'nombre_feriado': f_nombre,
                             'horas_trabajadas': Decimal(str(round(horas_ord, 2))),
                             'dias_compensatorios_totales': Decimal('2.0'),
-                            'estado': 'PENDIENTE',
+                            'estado': 'VACACIONES',
+                            'dias_acreditados_vacaciones': Decimal('2.0'),
+                            'fecha_liquidacion': timezone.now(),
+                            'observaciones': 'Acreditación automática a vacaciones por feriado laborado (+2d)',
                         }
                     )
                     if created:
                         creados += 1
+                        # Acreditar automáticamente los 2 días al balance de vacaciones
+                        emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + Decimal('2.0')
+                        emp.save(update_fields=['dias_vacaciones_acumuladas'])
+
+                        # Registrar en PermisoAusencia para la hoja de vacaciones
+                        PermisoAusencia.objects.create(
+                            empleado=emp,
+                            tipo='VACACIONES_PAGADAS',
+                            fecha_inicio=f_fecha,
+                            fecha_fin=f_fecha,
+                            total_dias=Decimal('2.0'),
+                            motivo=f"Abono por feriado laborado: {f_nombre} (+2 días)"
+                        )
+
+                        BitacoraAccion.objects.create(
+                            usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
+                            accion='ACREDITAR_FERIADO_VACACIONES',
+                            descripcion=f"Acreditados automáticamente +2.0 días de vacaciones a {emp.nombre} {emp.apellido} por feriado {f_fecha} ({f_nombre}). Nuevo saldo: {emp.dias_vacaciones_acumuladas} d.",
+                            ip_address=_get_clean_ip(request) if request else None
+                        )
 
         return Response({
             'status': 'ok',
             'creados': creados,
-            'mensaje': f'Sincronización completada. {creados} nuevo(s) registro(s) de feriados compensatorios generados.'
+            'mensaje': f'Sincronización completada. {creados} feriado(s) laborado(s) acreditado(s) directamente a vacaciones (+2 días c/u).'
+        })
+
+    @action(detail=False, methods=['post'], url_path='sincronizar-descansos-trabajados')
+    def sincronizar_descansos_trabajados(self, request):
+        """
+        Escanea semanas completadas. Si un colaborador trabajó los 7 días de una semana ISO (lunes a domingo),
+        el sistema detecta que laboró su día libre semanal y le acredita automáticamente +1 día de descanso
+        a su saldo de vacaciones.
+        """
+        import datetime
+        from decimal import Decimal
+        tz = timezone.get_current_timezone()
+        hoy = timezone.localdate()
+        lunes_actual = hoy - datetime.timedelta(days=hoy.weekday())
+        empleados = Empleado.objects.filter(activo=True)
+        acreditados = 0
+
+        for emp in empleados:
+            for w in range(1, 9):
+                lunes_w = lunes_actual - datetime.timedelta(weeks=w)
+                domingo_w = lunes_w + datetime.timedelta(days=6)
+
+                motivo_busqueda = f"Día libre semanal laborado ({lunes_w.strftime('%d/%m')} al {domingo_w.strftime('%d/%m')})"
+                ya_acreditado = PermisoAusencia.objects.filter(
+                    empleado=emp,
+                    tipo='VACACIONES_PAGADAS',
+                    motivo__icontains=motivo_busqueda
+                ).exists()
+
+                if ya_acreditado:
+                    continue
+
+                start_dt = timezone.make_aware(datetime.datetime.combine(lunes_w, datetime.time.min), tz)
+                end_dt = timezone.make_aware(datetime.datetime.combine(domingo_w, datetime.time.max), tz) + datetime.timedelta(hours=5)
+
+                fechas_trabajadas = {
+                    r.fecha_hora.astimezone(tz).date()
+                    for r in RegistroAsistencia.objects.filter(
+                        empleado=emp,
+                        tipo_evento='ENTRADA',
+                        fecha_hora__range=(start_dt, end_dt)
+                    )
+                }
+
+                if len(fechas_trabajadas) >= 7:
+                    emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + Decimal('1.0')
+                    emp.save(update_fields=['dias_vacaciones_acumuladas'])
+
+                    PermisoAusencia.objects.create(
+                        empleado=emp,
+                        tipo='VACACIONES_PAGADAS',
+                        fecha_inicio=domingo_w,
+                        fecha_fin=domingo_w,
+                        total_dias=Decimal('1.0'),
+                        motivo=f"Abono por {motivo_busqueda} (+1 día)"
+                    )
+
+                    BitacoraAccion.objects.create(
+                        usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
+                        accion='ACREDITAR_SEPTIMO_DIA_VACACIONES',
+                        descripcion=(
+                            f"Acreditado +1.0 día de vacaciones a {emp.nombre} {emp.apellido} por laborar su día libre semanal "
+                            f"(Semana del {lunes_w} al {domingo_w}, 7 días laborados). Nuevo saldo: {emp.dias_vacaciones_acumuladas} d."
+                        ),
+                        ip_address=_get_clean_ip(request) if request else None
+                    )
+                    acreditados += 1
+
+        return Response({
+            'status': 'ok',
+            'acreditados': acreditados,
+            'mensaje': f'Se escanearon las semanas. Se acreditaron {acreditados} día(s) libre(s) laborado(s) a vacaciones (+1 día c/u).'
         })
 
     @action(detail=True, methods=['post'], url_path='liquidar')
     def liquidar(self, request, pk=None):
         """
-        Liquida una compensación de feriado:
-        - dias_dinero: número de días a pagar en nómina/efectivo
-        - dias_vacaciones: número de días a acreditar al saldo de vacaciones
-        - observaciones: texto opcional
+        Compatibilidad y ajuste manual si fuera requerido.
         """
         from decimal import Decimal
         comp = self.get_object()
@@ -412,20 +513,18 @@ class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
         observaciones = request.data.get('observaciones', '').strip()
 
         if dias_dinero < 0 or dias_vacaciones < 0:
-            return Response({'error': 'Los días a liquidar no pueden ser negativos.'}, status=400)
+            return Response({'error': 'Los días no pueden ser negativos.'}, status=400)
 
         total_liquidar = dias_dinero + dias_vacaciones
         if total_liquidar <= Decimal('0.0'):
-            return Response({'error': 'Debe especificar al menos una cantidad de días a liquidar.'}, status=400)
+            return Response({'error': 'Debe especificar al menos una cantidad de días.'}, status=400)
 
         empleado = comp.empleado
 
-        # Si se acredita a vacaciones
         if dias_vacaciones > Decimal('0.0'):
             empleado.dias_vacaciones_acumuladas = (empleado.dias_vacaciones_acumuladas or Decimal('0.00')) + dias_vacaciones
             empleado.save(update_fields=['dias_vacaciones_acumuladas'])
 
-            # Registrar en PermisoAusencia como abono oficial de vacaciones pagadas
             PermisoAusencia.objects.create(
                 empleado=empleado,
                 tipo='VACACIONES_PAGADAS',
@@ -434,7 +533,6 @@ class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
                 motivo=f"Abono de vacaciones por feriado laborado: {comp.nombre_feriado or comp.fecha_feriado} (+{dias_vacaciones} d)"
             )
 
-        # Determinar estado
         if dias_dinero > 0 and dias_vacaciones > 0:
             nuevo_estado = 'MIXTO'
         elif dias_vacaciones > 0:
@@ -453,7 +551,7 @@ class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
             usuario=request.user if request.user.is_authenticated else None,
             accion='LIQUIDAR_FERIADO',
             descripcion=(
-                f"Feriado {comp.fecha_feriado} ({comp.nombre_feriado}) liquidado para {empleado.nombre} {empleado.apellido}: "
+                f"Feriado {comp.fecha_feriado} ({comp.nombre_feriado}) actualizado para {empleado.nombre} {empleado.apellido}: "
                 f"{dias_dinero} días en dinero, {dias_vacaciones} días a vacaciones. "
                 f"Nuevo saldo vacaciones: {empleado.dias_vacaciones_acumuladas} d."
             ),
@@ -463,10 +561,116 @@ class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(comp)
         return Response({
             'status': 'ok',
-            'mensaje': f'Feriado liquidado exitosamente como {comp.get_estado_display()}.',
+            'mensaje': f'Feriado actualizado exitosamente como {comp.get_estado_display()}.',
             'compensacion': serializer.data,
             'empleado_vacaciones_acumuladas': float(empleado.dias_vacaciones_acumuladas) if empleado.dias_vacaciones_acumuladas else 0.0
         })
+
+
+class PagoVacacionesViewSet(viewsets.ModelViewSet):
+    """
+    CRUD y emisión de Boletas de Pago de Vacaciones en Dinero.
+    """
+    queryset = PagoVacaciones.objects.all().select_related('empleado', 'registrado_por')
+    serializer_class = PagoVacacionesSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        emp_id = self.request.query_params.get('empleado')
+        if emp_id:
+            qs = qs.filter(empleado_id=emp_id)
+        fecha_inicio = self.request.query_params.get('fecha_inicio')
+        fecha_fin = self.request.query_params.get('fecha_fin')
+        if fecha_inicio:
+            qs = qs.filter(fecha_pago__gte=fecha_inicio)
+        if fecha_fin:
+            qs = qs.filter(fecha_pago__lte=fecha_fin)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        from decimal import Decimal
+        empleado_id = request.data.get('empleado')
+        dias_pagados = Decimal(str(request.data.get('dias_pagados', '0')))
+        monto_pagado = Decimal(str(request.data.get('monto_pagado', '0.00')))
+        motivo = request.data.get('motivo', 'Pago de Vacaciones en Dinero')
+        observaciones = request.data.get('observaciones', '')
+        fecha_pago = request.data.get('fecha_pago') or timezone.localdate().isoformat()
+
+        if not empleado_id:
+            return Response({'detail': 'Debe especificar el colaborador.'}, status=status.HTTP_400_BAD_REQUEST)
+        if dias_pagados <= Decimal('0.0'):
+            return Response({'detail': 'La cantidad de días a pagar debe ser mayor a 0.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            empleado = Empleado.objects.get(id=empleado_id)
+        except Empleado.DoesNotExist:
+            return Response({'detail': 'Colaborador no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        saldo_acumulado = Decimal(str(empleado.dias_vacaciones_acumuladas or 0))
+        permisos_vac = PermisoAusencia.objects.filter(
+            empleado=empleado,
+            tipo__in=['VACACIONES', 'VACACIONES_PAGADAS']
+        )
+        dias_tomados = sum(Decimal(str(p.total_dias)) for p in permisos_vac)
+        saldo_disponible = saldo_acumulado - dias_tomados
+
+        if dias_pagados > saldo_disponible:
+            return Response({
+                'detail': f'El colaborador solo cuenta con {saldo_disponible:.1f} días de vacaciones disponibles para pagar.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        year_str = timezone.localdate().strftime('%Y')
+        ultimo_pago = PagoVacaciones.objects.filter(numero_recibo__startswith=f'BVP-{year_str}-').order_by('-id').first()
+        if ultimo_pago and ultimo_pago.numero_recibo:
+            try:
+                seq = int(ultimo_pago.numero_recibo.split('-')[-1]) + 1
+            except Exception:
+                seq = PagoVacaciones.objects.count() + 1
+        else:
+            seq = PagoVacaciones.objects.count() + 1
+
+        numero_recibo = f"BVP-{year_str}-{str(seq).zfill(4)}"
+
+        saldo_anterior = saldo_disponible
+        saldo_nuevo = saldo_disponible - dias_pagados
+
+        pago = PagoVacaciones.objects.create(
+            empleado=empleado,
+            fecha_pago=fecha_pago,
+            dias_pagados=dias_pagados,
+            monto_pagado=monto_pagado,
+            dias_saldo_anterior=saldo_anterior,
+            dias_saldo_nuevo=saldo_nuevo,
+            motivo=motivo,
+            observaciones=observaciones,
+            numero_recibo=numero_recibo,
+            registrado_por=request.user if (request.user and request.user.is_authenticated) else None,
+        )
+
+        PermisoAusencia.objects.create(
+            empleado=empleado,
+            tipo='VACACIONES_PAGADAS',
+            fecha_inicio=fecha_pago,
+            fecha_fin=fecha_pago,
+            total_dias=dias_pagados,
+            motivo=f"Liquidación en dinero: Recibo {numero_recibo}. {motivo}".strip(),
+            aprobado_por=request.user if (request.user and request.user.is_authenticated) else None,
+        )
+
+        BitacoraAccion.objects.create(
+            usuario=request.user if (request.user and request.user.is_authenticated) else None,
+            accion='PAGO_VACACIONES',
+            descripcion=(
+                f"Emitida Boleta de Pago de Vacaciones en Dinero {numero_recibo} a {empleado.nombre} {empleado.apellido}: "
+                f"{dias_pagados} días (C$ {monto_pagado}). Saldo previo: {saldo_anterior:.1f}d -> Saldo nuevo: {saldo_nuevo:.1f}d."
+            ),
+            ip_address=_get_clean_ip(request),
+        )
+
+        serializer = self.get_serializer(pago)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 
 
 class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
@@ -2193,14 +2397,14 @@ def exportar_reporte_nomina_excel(request):
             bottom=Side(style='thin', color='CCCCCC')
         )
 
-        # Headers — 10 Columnas Ejecutivas con Feriados Pagados
+        # Headers — 10 Columnas Ejecutivas con Vacaciones Pagadas
         headers = [
             "Empleado y Puesto",
             "Días Trabajados",
             "Días Libres (Tomados)",
             "Horas Ordinarias",
             "Feriados Trabajados (Días)",
-            "Feriados Pagados (Días)",
+            "Vacaciones Pagadas (Días)",
             "Horas Extra Aprobadas",
             "H. Extra por Aprobar",
             "Horas Debidas (Déficit)",
@@ -2395,16 +2599,13 @@ def exportar_reporte_nomina_excel(request):
             total_vac_tomadas += sum(p.total_dias for p in permisos_cta_emp)
             vacaciones_restantes = round(float(emp.dias_vacaciones_acumuladas or 0.0) - float(total_vac_tomadas), 1)
 
-            # Feriados pagados (dinero / vacaciones) para este empleado en el período
-            comp_feriados_emp = CompensacionFeriado.objects.filter(
+            # Vacaciones pagadas en dinero (PagoVacaciones) en el período
+            pagos_vac_emp = PagoVacaciones.objects.filter(
                 empleado=emp,
-                fecha_feriado__gte=fecha_inicio,
-                fecha_feriado__lte=fecha_fin,
-                estado__in=['DINERO', 'VACACIONES', 'MIXTO']
+                fecha_pago__gte=fecha_inicio,
+                fecha_pago__lte=fecha_fin,
             )
-            dias_pagados_feriados = sum(float(c.dias_pagados_dinero + c.dias_acreditados_vacaciones) for c in comp_feriados_emp)
-            dias_pagados_dinero = sum(float(c.dias_pagados_dinero) for c in comp_feriados_emp)
-            dias_pagados_vac = sum(float(c.dias_acreditados_vacaciones) for c in comp_feriados_emp)
+            dias_vacaciones_pagadas = sum(float(p.dias_pagados) for p in pagos_vac_emp)
 
             fila = [
                 f"{emp.nombre} {emp.apellido} ({emp.get_cargo_display()})",
@@ -2412,7 +2613,7 @@ def exportar_reporte_nomina_excel(request):
                 dias_libres,
                 round(horas_normales_trabajadas, 1),
                 feriados_trabajados_dias,
-                round(dias_pagados_feriados, 1),
+                round(dias_vacaciones_pagadas, 1),
                 round(float(horas_extra_aprobadas), 1),
                 round(float(horas_extra_pendientes), 1),
                 round(horas_debidas, 1),
@@ -2432,14 +2633,10 @@ def exportar_reporte_nomina_excel(request):
                 cell_feriado = ws.cell(row=row_idx, column=5)
                 cell_feriado.comment = Comment(comentario_texto, "BodegónPass")
 
-            if dias_pagados_feriados > 0:
+            if dias_vacaciones_pagadas > 0:
                 cell_pagado = ws.cell(row=row_idx, column=6)
-                detalles_p = []
-                if dias_pagados_dinero > 0:
-                    detalles_p.append(f"Dinero: {dias_pagados_dinero}d")
-                if dias_pagados_vac > 0:
-                    detalles_p.append(f"Vacaciones: {dias_pagados_vac}d")
-                cell_pagado.comment = Comment("Liquidación de Feriados:\n" + ", ".join(detalles_p), "BodegónPass")
+                detalles_p = [f"Recibo {p.numero_recibo}: {p.dias_pagados}d (C$ {p.monto_pagado})" for p in pagos_vac_emp]
+                cell_pagado.comment = Comment("Vacaciones Pagadas en Dinero:\n" + "\n".join(detalles_p), "BodegónPass")
 
             for col in range(1, 11):
                 cell = ws.cell(row=row_idx, column=col)

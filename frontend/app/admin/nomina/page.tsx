@@ -19,11 +19,16 @@ import {
   ajustarVacacionesEmpleado,
   fetchCompensacionesFeriados,
   sincronizarFeriados,
+  fetchPagosVacaciones,
+  deletePagoVacaciones,
+  sincronizarDescansosTrabajados,
 } from '@/lib/api-client';
-import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras, CompensacionFeriado } from '@/lib/types';
+import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras, CompensacionFeriado, PagoVacaciones } from '@/lib/types';
 import BoletaCompensacionModal from '@/components/BoletaCompensacionModal';
 import BoletaVacacionesModal from '@/components/BoletaVacacionesModal';
 import ModalLiquidarFeriado from '@/components/ModalLiquidarFeriado';
+import BoletaPagoVacacionesModal from '@/components/BoletaPagoVacacionesModal';
+import ModalEmitirPagoVacaciones from '@/components/ModalEmitirPagoVacaciones';
 import {
   FileSpreadsheet,
   Download,
@@ -52,6 +57,8 @@ import {
   FileCheck,
   Coins,
   Sparkles,
+  Banknote,
+  FileText,
 } from 'lucide-react';
 
 const MESES_NOMBRES: Record<number, string> = {
@@ -60,7 +67,7 @@ const MESES_NOMBRES: Record<number, string> = {
 };
 
 export default function NominaAdminPage() {
-  const [activeTab, setActiveTab] = useState<'reporte' | 'extras' | 'feriados' | 'permisos'>('reporte');
+  const [activeTab, setActiveTab] = useState<'reporte' | 'extras' | 'feriados' | 'permisos' | 'vacaciones_pagadas'>('reporte');
   
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [asistencias, setAsistencias] = useState<RegistroAsistencia[]>([]);
@@ -73,6 +80,12 @@ export default function NominaAdminPage() {
   const [selectedCompensacionFeriado, setSelectedCompensacionFeriado] = useState<CompensacionFeriado | null>(null);
   const [showModalLiquidarFeriado, setShowModalLiquidarFeriado] = useState(false);
   const [syncingFeriados, setSyncingFeriados] = useState(false);
+  const [pagosVacaciones, setPagosVacaciones] = useState<PagoVacaciones[]>([]);
+  const [selectedPagoVacaciones, setSelectedPagoVacaciones] = useState<PagoVacaciones | null>(null);
+  const [showModalEmitirPagoVac, setShowModalEmitirPagoVac] = useState(false);
+  const [empleadoParaPagoVac, setEmpleadoParaPagoVac] = useState<Empleado | null>(null);
+  const [searchPagoVac, setSearchPagoVac] = useState('');
+  const [syncingDescansos, setSyncingDescansos] = useState(false);
   const [subTabExtras, setSubTabExtras] = useState<'pendientes' | 'compensaciones'>('pendientes');
   const [searchCompensacion, setSearchCompensacion] = useState('');
   const [searchExtra, setSearchExtra] = useState('');
@@ -139,7 +152,7 @@ export default function NominaAdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empList, asisList, feriadosList, extrasList, permisosList, compList, compFeriadosList] = await Promise.all([
+      const [empList, asisList, feriadosList, extrasList, permisosList, compList, compFeriadosList, pagosVacList] = await Promise.all([
         fetchEmpleados(),
         fetchAsistencias(),
         fetchFeriados(),
@@ -147,6 +160,7 @@ export default function NominaAdminPage() {
         fetchPermisos(),
         fetchCompensaciones(),
         fetchCompensacionesFeriados(),
+        fetchPagosVacaciones(),
       ]);
       setEmpleados(empList);
       setAsistencias(asisList);
@@ -155,6 +169,7 @@ export default function NominaAdminPage() {
       setPermisos(permisosList);
       setCompensaciones(compList);
       setCompensacionesFeriados(compFeriadosList);
+      setPagosVacaciones(pagosVacList);
       if (empList.length > 0 && nuevoPermisoEmp === 0) {
         setNuevoPermisoEmp(empList[0].id);
       }
@@ -266,6 +281,32 @@ export default function NominaAdminPage() {
       alert('Error sincronizando feriados.');
     } finally {
       setSyncingFeriados(false);
+    }
+  };
+
+  const handleSincronizarDescansos = async () => {
+    setSyncingDescansos(true);
+    try {
+      const res = await sincronizarDescansosTrabajados();
+      alert(`Sincronización completada: ${res.acreditados} día(s) de descanso semanal laborado(s) acreditados a vacaciones (+1d c/u).`);
+      await loadData();
+    } catch (e: any) {
+      console.error(e);
+      alert('Error sincronizando días de descanso laborados: ' + (e?.message || ''));
+    } finally {
+      setSyncingDescansos(false);
+    }
+  };
+
+  const handleDeletePagoVacaciones = async (pagoId: number) => {
+    if (!confirm('¿Está seguro de anular este recibo de pago de vacaciones? Los días pagados serán reintegrados automáticamente al saldo acumulado del colaborador.')) return;
+    try {
+      await deletePagoVacaciones(pagoId);
+      alert('Pago de vacaciones anulado correctamente. El saldo fue reintegrado.');
+      await loadData();
+    } catch (e: any) {
+      console.error(e);
+      alert('Error al anular el pago de vacaciones: ' + (e?.message || ''));
     }
   };
   const handleAddPermiso = async (e: React.FormEvent) => {
@@ -799,21 +840,13 @@ export default function NominaAdminPage() {
       const vacTomadas = permisosVacEmp.reduce((acc, p) => acc + (p.total_dias || 0), 0);
       const vacRestantes = Number((vacAcumuladas - vacTomadas).toFixed(1));
 
-      // Compensaciones de feriados para este empleado en el período
-      const compFeriadosEmp = compensacionesFeriados.filter(
-        (c) => c.empleado === emp.id && c.fecha_feriado >= fechaInicio && c.fecha_feriado <= fechaFin
+      // Vacaciones pagadas en dinero (PagoVacaciones) en el período
+      const pagosVacEmp = pagosVacaciones.filter(
+        (p) => p.empleado === emp.id && p.fecha_pago >= fechaInicio && p.fecha_pago <= fechaFin
       );
-      const diasFeriadosPagadosDinero = compFeriadosEmp.reduce(
-        (acc, c) => acc + (parseFloat(String(c.dias_pagados_dinero || 0))),
-        0
+      const vacacionesPagadasDias = Number(
+        pagosVacEmp.reduce((acc, p) => acc + (parseFloat(String(p.dias_pagados || 0))), 0).toFixed(1)
       );
-      const diasFeriadosAcreditadosVac = compFeriadosEmp.reduce(
-        (acc, c) => acc + (parseFloat(String(c.dias_acreditados_vacaciones || 0))),
-        0
-      );
-      const feriadosPagadosDias = Number((diasFeriadosPagadosDinero + diasFeriadosAcreditadosVac).toFixed(1));
-      const diasCompensatoriosTotales = feriadosTrabajadosDias * 2;
-      const diasCompensatoriosPendientes = Math.max(0, Number((diasCompensatoriosTotales - feriadosPagadosDias).toFixed(1)));
 
       return {
         emp,
@@ -821,10 +854,8 @@ export default function NominaAdminPage() {
         diasLibres,
         horasOrdinarias: horasNormalesTrabajadas,
         feriadosTrabajadosDias,
-        feriadosPagadosDias,
-        diasFeriadosPagadosDinero,
-        diasFeriadosAcreditadosVac,
-        diasCompensatoriosPendientes,
+        vacacionesPagadasDias,
+        pagosVacEmp,
         feriadosDetalle,
         horasExtraAprobadas,
         horasExtraPendientes: horasExtraPendientesFinal,
@@ -849,7 +880,7 @@ export default function NominaAdminPage() {
 
   const totalOrdinariasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasOrdinarias, 0);
   const totalFeriadasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.feriadosTrabajadosDias, 0);
-  const totalFeriadosPagadosPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.feriadosPagadosDias, 0);
+  const totalVacacionesPagadasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.vacacionesPagadasDias, 0);
   const totalExtrasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasExtraAprobadas, 0);
   const totalExtrasPendientesPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasExtraPendientes, 0);
   const totalDebidasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasDebidas, 0);
@@ -1148,6 +1179,17 @@ export default function NominaAdminPage() {
           <Calendar className="w-3.5 h-3.5 inline-block mr-1.5" />
           Gestor de Feriados
         </button>
+        <button
+          onClick={() => setActiveTab('vacaciones_pagadas')}
+          className={`px-4 py-2.5 font-bold text-xs rounded-t-xl border-t border-x transition-colors flex items-center ${
+            activeTab === 'vacaciones_pagadas'
+              ? 'bg-white border-stone-200 text-[#1c6856] -mb-[1px] z-10'
+              : 'border-transparent text-stone-500 hover:text-stone-700'
+          }`}
+        >
+          <Banknote className="w-3.5 h-3.5 inline-block mr-1.5" />
+          Vacaciones Pagadas
+        </button>
       </div>
 
       {/* ── TAB 1: REPORTE DE HORAS (7 COLUMNAS EJECUTIVAS) ─────────────────── */}
@@ -1272,7 +1314,7 @@ export default function NominaAdminPage() {
                     <th className="px-6 py-4 text-center">Días Libres (Tomados)</th>
                     <th className="px-6 py-4 text-right">Horas Ordinarias</th>
                     <th className="px-6 py-4 text-right">Feriados Trabajados (Días)</th>
-                    <th className="px-6 py-4 text-right text-amber-900 bg-amber-50/40 border-x border-amber-100/50">Feriados Pagados</th>
+                    <th className="px-6 py-4 text-right text-amber-900 bg-amber-50/40 border-x border-amber-100/50">Vacaciones Pagadas</th>
                     <th className="px-6 py-4 text-right">Horas Extra Aprobadas</th>
                     <th className="px-6 py-4 text-right text-amber-800 bg-amber-50/60">H. Extra por Aprobar</th>
                     <th className="px-6 py-4 text-right text-rose-700 bg-rose-50/50">Horas Debidas (Déficit)</th>
@@ -1332,83 +1374,47 @@ export default function NominaAdminPage() {
                           <div className="flex flex-col items-end">
                             <span>{item.feriadosTrabajadosDias} {item.feriadosTrabajadosDias === 1 ? 'feriado' : 'feriados'}</span>
                             {item.feriadosTrabajadosDias > 0 && (
-                              <span className="text-[10px] font-bold text-stone-500 font-sans">
-                                +{item.feriadosTrabajadosDias * 2}d comp.
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded mt-0.5 font-sans">
+                                +{item.feriadosTrabajadosDias * 2}d vac.
                               </span>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold bg-amber-50/20 border-x border-amber-100/30">
-                          {item.feriadosTrabajadosDias === 0 ? (
-                            <span className="text-stone-400 font-normal">0 feriados</span>
-                          ) : (
-                            <div className="flex flex-col items-end gap-1">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <span className={item.feriadosPagadosDias > 0 ? "text-emerald-800 font-bold font-mono text-xs sm:text-sm" : "text-stone-500 font-medium text-xs sm:text-sm"}>
-                                  {item.feriadosPagadosDias} {item.feriadosPagadosDias === 1 ? 'día pagado' : 'días pagados'}
-                                </span>
-                                {item.diasCompensatoriosPendientes > 0 && (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300">
-                                    {item.diasCompensatoriosPendientes}d pend.
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Botones / Estados de Liquidación de Feriados */}
-                              {item.feriadosDetalle.map((f, idx) => {
-                                const compF = compensacionesFeriados.find(
-                                  (c) => c.empleado === item.emp.id && c.fecha_feriado === f.fecha
-                                );
-                                const estado = compF?.estado || 'PENDIENTE';
-
-                                return (
-                                  <div key={idx} className="flex items-center gap-1 mt-0.5">
-                                    {estado === 'PENDIENTE' && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenLiquidarFeriado(item.emp.id, f.fecha, f.descripcion)}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
-                                        title={`Liquidar feriado del ${f.fecha}: Dinero, Vacaciones o Mixto`}
-                                      >
-                                        <Coins className="w-3 h-3 text-amber-700" />
-                                        <span>Liquidar (+2d)</span>
-                                      </button>
-                                    )}
-                                    {estado === 'DINERO' && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenLiquidarFeriado(item.emp.id, f.fecha, f.descripcion)}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition-colors cursor-pointer"
-                                        title={`Liquidado en Dinero (${compF?.dias_pagados_dinero}d). Clic para modificar.`}
-                                      >
-                                        <span>💰 Pagado ({compF?.dias_pagados_dinero}d)</span>
-                                      </button>
-                                    )}
-                                    {estado === 'VACACIONES' && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenLiquidarFeriado(item.emp.id, f.fecha, f.descripcion)}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-300 transition-colors cursor-pointer"
-                                        title={`Acreditado a Vacaciones (+${compF?.dias_acreditados_vacaciones}d). Clic para modificar.`}
-                                      >
-                                        <span>🏖️ Acred. Vac (+{compF?.dias_acreditados_vacaciones}d)</span>
-                                      </button>
-                                    )}
-                                    {estado === 'MIXTO' && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenLiquidarFeriado(item.emp.id, f.fecha, f.descripcion)}
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 transition-colors cursor-pointer"
-                                        title={`Mixto: ${compF?.dias_pagados_dinero}d Dinero + ${compF?.dias_acreditados_vacaciones}d Vacaciones. Clic para modificar.`}
-                                      >
-                                        <span>⚖️ Mixto ({compF?.dias_pagados_dinero}d/{compF?.dias_acreditados_vacaciones}d)</span>
-                                      </button>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span className={item.vacacionesPagadasDias > 0 ? "text-emerald-800 font-bold font-mono text-xs sm:text-sm" : "text-stone-400 font-normal text-xs sm:text-sm"}>
+                                {item.vacacionesPagadasDias} {item.vacacionesPagadasDias === 1 ? 'día' : 'días'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEmpleadoParaPagoVac(item.emp);
+                                  setShowModalEmitirPagoVac(true);
+                                }}
+                                className="inline-flex items-center p-1 rounded-lg text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
+                                title={`Emitir pago de vacaciones en dinero para ${item.emp.nombre}`}
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
                             </div>
-                          )}
+                            {item.pagosVacEmp.length > 0 && (
+                              <div className="flex flex-col items-end gap-0.5 mt-0.5">
+                                {item.pagosVacEmp.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => setSelectedPagoVacaciones(p)}
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1c6856] hover:text-[#154f42] hover:underline bg-[#1c6856]/10 px-1.5 py-0.5 rounded border border-[#1c6856]/20 transition-all cursor-pointer"
+                                    title={`Ver Boleta N° ${p.numero_recibo} (C$ ${parseFloat(String(p.monto_pagado)).toLocaleString('es-NI', { minimumFractionDigits: 2 })})`}
+                                  >
+                                    <FileText className="w-3 h-3" />
+                                    <span>{p.numero_recibo}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700">
                           {item.horasExtraAprobadas.toFixed(1)} hrs
@@ -1473,7 +1479,7 @@ export default function NominaAdminPage() {
                       {totalFeriadasPeriodo} {totalFeriadasPeriodo === 1 ? 'día' : 'días'}
                     </td>
                     <td className="px-6 py-4 text-right text-amber-900 bg-amber-50/50 text-base font-mono font-black border-x border-amber-100/50">
-                      {totalFeriadosPagadosPeriodo.toFixed(1)} {totalFeriadosPagadosPeriodo === 1 ? 'día' : 'días'}
+                      {totalVacacionesPagadasPeriodo.toFixed(1)} {totalVacacionesPagadasPeriodo === 1 ? 'día' : 'días'}
                     </td>
                     <td className="px-6 py-4 text-right text-emerald-700 text-base font-mono font-black">
                       {totalExtrasPeriodo.toFixed(1)} hrs
@@ -2819,7 +2825,316 @@ export default function NominaAdminPage() {
         </div>
       )}
 
-      {/* ── MODAL DE AUTORIZACIÓN CON PIN 2322 PARA HORAS EXTRA ── */}
+{/* ── TAB 5: VACACIONES PAGADAS EN DINERO (BOLETAS & SUBMENÚ OFICIAL) ──── */}
+      {activeTab === 'vacaciones_pagadas' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-5">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-display font-black text-stone-900 tracking-tight flex items-center gap-2">
+                <Banknote className="w-6 h-6 text-[#1c6856]" />
+                Vacaciones Pagadas en Dinero
+              </h1>
+              <p className="text-xs text-stone-500 font-medium mt-1">
+                Submenú oficial de liquidación de vacaciones en dinero para colaboradores, generación de boletas imprimibles y registro legal.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={handleSincronizarDescansos}
+                disabled={syncingDescansos}
+                className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                title="Escanear semanas completas trabajadas (7 días) y acreditar +1 día a vacaciones por descanso laborado"
+              >
+                <Sparkles className={`w-3.5 h-3.5 text-amber-600 ${syncingDescansos ? 'animate-spin' : ''}`} />
+                <span>Sincronizar Días Libres (+1d)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmpleadoParaPagoVac(null);
+                  setShowModalEmitirPagoVac(true);
+                }}
+                className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Emitir Pago en Dinero</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Tarjetas KPI de Resumen */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Días Pagados Totales</span>
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-[#1c6856]">
+                  <Palmtree className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-black font-mono text-stone-900">
+                  {pagosVacaciones.reduce((acc, p) => acc + parseFloat(String(p.dias_pagados || 0)), 0).toFixed(1)}
+                </span>
+                <span className="text-xs font-bold text-stone-500">días liquidados</span>
+              </div>
+            </div>
+
+            <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Monto Total Pagado</span>
+                <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800">
+                  <Coins className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2 flex items-baseline gap-1.5">
+                <span className="text-xs font-bold text-stone-400 font-mono">C$</span>
+                <span className="text-2xl font-black font-mono text-emerald-800">
+                  {pagosVacaciones
+                    .reduce((acc, p) => acc + parseFloat(String(p.monto_pagado || 0)), 0)
+                    .toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Boletas Oficiales</span>
+                <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+                  <FileText className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-black font-mono text-stone-900">{pagosVacaciones.length}</span>
+                <span className="text-xs font-bold text-stone-500">comprobantes emitidos</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Historial de Boletas / Pagos de Vacaciones */}
+          <div className="glass-panel border border-white rounded-3xl p-5 shadow-premium space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5">
+                  <FileText className="w-4 h-4" />
+                  Historial de Boletas y Pagos de Vacaciones
+                </h3>
+                <p className="text-xs text-stone-500 font-medium mt-0.5">
+                  Consulte comprobantes generados, reimprima boletas para firmas o anule registros erróneos.
+                </p>
+              </div>
+
+              {/* Buscador */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar recibo, colaborador..."
+                  value={searchPagoVac}
+                  onChange={(e) => setSearchPagoVac(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                />
+              </div>
+            </div>
+
+            {(() => {
+              const term = searchPagoVac.toLowerCase().trim();
+              const filtered = pagosVacaciones.filter((p) => {
+                if (!term) return true;
+                const nom = p.empleado_detalle ? `${p.empleado_detalle.nombre} ${p.empleado_detalle.apellido || ''}`.toLowerCase() : '';
+                const puesto = p.empleado_detalle?.cargo_display?.toLowerCase() || '';
+                const rec = (p.numero_recibo || '').toLowerCase();
+                const mot = (p.motivo || '').toLowerCase();
+                return nom.includes(term) || puesto.includes(term) || rec.includes(term) || mot.includes(term);
+              });
+
+              if (loading) {
+                return <p className="text-xs text-stone-400 text-center py-8">Cargando pagos de vacaciones...</p>;
+              }
+
+              if (filtered.length === 0) {
+                return (
+                  <div className="text-center py-10 bg-stone-50 rounded-2xl border border-stone-150 p-6 space-y-3">
+                    <Banknote className="w-10 h-10 text-stone-300 mx-auto" />
+                    <p className="text-xs font-bold text-stone-600">
+                      {searchPagoVac ? 'No se encontraron pagos con ese criterio de búsqueda.' : 'Aún no se han emitido pagos de vacaciones en dinero.'}
+                    </p>
+                    {!searchPagoVac && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmpleadoParaPagoVac(null);
+                          setShowModalEmitirPagoVac(true);
+                        }}
+                        className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                      >
+                        + Emitir Primera Boleta de Pago
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs sm:text-sm">
+                    <thead className="bg-stone-50 text-stone-600 border-b border-stone-200 font-bold uppercase tracking-wider text-[11px]">
+                      <tr>
+                        <th className="px-4 py-3">N° Boleta</th>
+                        <th className="px-4 py-3">Fecha Pago</th>
+                        <th className="px-4 py-3">Colaborador</th>
+                        <th className="px-4 py-3 text-right">Días Pagados</th>
+                        <th className="px-4 py-3 text-right">Monto Pagado</th>
+                        <th className="px-4 py-3 text-center">Saldo (Antes → Después)</th>
+                        <th className="px-4 py-3">Motivo</th>
+                        <th className="px-4 py-3 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100 font-medium text-stone-800">
+                      {filtered.map((p) => {
+                        const empDet = p.empleado_detalle;
+                        return (
+                          <tr key={p.id} className="hover:bg-stone-50/60 transition-colors">
+                            <td className="px-4 py-3.5 font-mono font-bold text-[#1c6856]">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-50 text-[#1c6856] border border-emerald-200 font-black text-xs">
+                                {p.numero_recibo}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 font-mono text-stone-600 whitespace-nowrap text-xs">
+                              {new Date(p.fecha_pago + 'T00:00:00').toLocaleDateString('es-NI', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                              })}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="font-bold text-stone-900 leading-tight">
+                                {empDet ? `${empDet.nombre} ${empDet.apellido || ''}` : `Empleado #${p.empleado}`}
+                              </div>
+                              {empDet && (
+                                <span className="text-[10px] text-stone-500 font-semibold block mt-0.5">
+                                  {empDet.cargo_display}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-right font-mono font-bold text-stone-900 whitespace-nowrap">
+                              {parseFloat(String(p.dias_pagados)).toFixed(1)} d
+                            </td>
+                            <td className="px-4 py-3.5 text-right font-mono font-black text-emerald-800 whitespace-nowrap">
+                              C$ {parseFloat(String(p.monto_pagado)).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-3.5 text-center font-mono text-xs whitespace-nowrap">
+                              <span className="text-stone-500">{parseFloat(String(p.dias_saldo_anterior)).toFixed(1)}d</span>
+                              <span className="mx-1 text-stone-400">→</span>
+                              <strong className="text-emerald-700 font-bold">{parseFloat(String(p.dias_saldo_nuevo)).toFixed(1)}d</strong>
+                            </td>
+                            <td className="px-4 py-3.5 max-w-[200px] truncate text-stone-600 text-xs" title={p.motivo}>
+                              {p.motivo}
+                            </td>
+                            <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedPagoVacaciones(p)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-[#1c6856] hover:bg-[#154f42] text-white transition-all shadow-2xs cursor-pointer active:scale-95"
+                                  title="Ver boleta oficial en formato de impresión"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  <span>Boleta</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePagoVacaciones(p.id)}
+                                  className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Anular este pago y reintegrar saldo al colaborador"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Panel Rápido: Saldos Disponibles de Todo el Personal */}
+          <div className="glass-panel border border-white rounded-3xl p-5 shadow-premium space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5">
+                  <Palmtree className="w-4 h-4" />
+                  Saldos de Vacaciones Disponibles del Personal
+                </h3>
+                <p className="text-xs text-stone-500 font-medium mt-0.5">
+                  Acceso directo para pagar vacaciones en dinero a cualquier colaborador con saldo a favor.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {empleados
+                .filter((e) => e.activo)
+                .map((emp) => {
+                  const acum = parseFloat(String(emp.dias_vacaciones_acumuladas || 0));
+                  const tom = permisos
+                    .filter(
+                      (p) =>
+                        p.empleado === emp.id &&
+                        (p.tipo === 'VACACIONES' ||
+                          p.tipo === 'VACACIONES_PAGADAS' ||
+                          (p.tipo === 'PERMISO_AUTORIZADO' && (p.motivo || '').toLowerCase().includes('vacaciones')))
+                    )
+                    .reduce((acc, p) => acc + (p.total_dias || 0), 0);
+                  const disp = Number((acum - tom).toFixed(1));
+
+                  return (
+                    <div
+                      key={emp.id}
+                      className="bg-stone-50/70 border border-stone-200/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 hover:border-emerald-300 transition-colors"
+                    >
+                      <div>
+                        <h4 className="font-bold text-stone-900 text-xs leading-tight">
+                          {emp.nombre} {emp.apellido || ''}
+                        </h4>
+                        <span className="text-[10px] text-stone-500 font-semibold block mt-0.5">
+                          {emp.cargo_display}
+                        </span>
+                        <div className="mt-1.5 flex items-center gap-2 font-mono text-[11px]">
+                          <span className="text-stone-400">Disp:</span>
+                          <strong className={disp > 0 ? 'text-emerald-700 font-black' : 'text-stone-500'}>
+                            {disp.toFixed(1)} d
+                          </strong>
+                          <span className="text-stone-300">|</span>
+                          <span className="text-stone-400">Acum: {acum.toFixed(1)}d</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEmpleadoParaPagoVac(emp);
+                          setShowModalEmitirPagoVac(true);
+                        }}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                      >
+                        Pagar
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+
+            {/* ── MODAL DE AUTORIZACIÓN CON PIN 2322 PARA HORAS EXTRA ── */}
       {showExtraPinModal && pendingExtraAction && (
         <div
           onClick={() => {
@@ -3129,6 +3444,28 @@ export default function NominaAdminPage() {
         }}
         compensacion={selectedCompensacionFeriado}
         onLiquidado={handleFeriadoLiquidado}
+      />
+
+      {/* ── MODAL 4: EMITIR PAGO DE VACACIONES EN DINERO ── */}
+      <ModalEmitirPagoVacaciones
+        isOpen={showModalEmitirPagoVac}
+        onClose={() => {
+          setShowModalEmitirPagoVac(false);
+          setEmpleadoParaPagoVac(null);
+        }}
+        empleados={empleados}
+        permisos={permisos}
+        empleadoPreseleccionado={empleadoParaPagoVac}
+        onPagoCompletado={(nuevoPago) => {
+          setSelectedPagoVacaciones(nuevoPago);
+          loadData();
+        }}
+      />
+
+      {/* ── MODAL 5: BOLETA OFICIAL DE PAGO DE VACACIONES IMPRIMIBLE ── */}
+      <BoletaPagoVacacionesModal
+        pago={selectedPagoVacaciones}
+        onClose={() => setSelectedPagoVacaciones(null)}
       />
     </div>
   );

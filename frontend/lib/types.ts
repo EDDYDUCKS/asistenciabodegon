@@ -163,3 +163,21 @@ export interface CompensacionFeriado {
   observaciones?: string;
   created_at?: string;
 }
+
+export interface PagoVacaciones {
+  id: number;
+  empleado: number;
+  empleado_detalle?: Empleado;
+  fecha_pago: string;
+  dias_pagados: number;
+  monto_pagado: number;
+  dias_saldo_anterior: number;
+  dias_saldo_nuevo: number;
+  motivo: string;
+  observaciones?: string;
+  numero_recibo: string;
+  registrado_por?: number | null;
+  registrado_por_nombre?: string;
+  created_at: string;
+}
+

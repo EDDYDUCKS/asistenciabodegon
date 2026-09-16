@@ -109,6 +109,9 @@ class BitacoraAccion(models.Model):
         ('EXPORTAR_NOMINA', 'Exportar Nómina / Reporte Excel'),
         ('SANCION_DISCIPLINARIA', 'Sanción Disciplinaria'),
         ('LIQUIDAR_FERIADO', 'Liquidación de Feriado'),
+        ('PAGO_VACACIONES', 'Pago de Vacaciones en Dinero'),
+        ('ACREDITAR_FERIADO_VACACIONES', 'Acreditación de Feriado a Vacaciones'),
+        ('ACREDITAR_SEPTIMO_DIA_VACACIONES', 'Acreditación de Día Libre a Vacaciones'),
     ]
 
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
@@ -259,3 +262,24 @@ class CompensacionFeriado(models.Model):
 
     def __str__(self):
         return f"Compensación Feriado {self.empleado.nombre} {self.empleado.apellido} - {self.fecha_feriado} ({self.get_estado_display()})"
+
+
+class PagoVacaciones(models.Model):
+    empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='pagos_vacaciones')
+    fecha_pago = models.DateField(default=timezone.localdate, help_text="Fecha de emisión del pago")
+    dias_pagados = models.DecimalField(max_digits=5, decimal_places=1, help_text="Cantidad de días de vacaciones liquidados en dinero")
+    monto_pagado = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Monto en Córdobas acordado/pagado manualmente por Administración")
+    dias_saldo_anterior = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
+    dias_saldo_nuevo = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
+    motivo = models.CharField(max_length=255, blank=True, default='Pago de Vacaciones en Dinero')
+    observaciones = models.TextField(blank=True, default='')
+    numero_recibo = models.CharField(max_length=50, unique=True, help_text="Número correlativo de boleta oficial (ej. BVP-2026-0001)")
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_pago', '-created_at']
+
+    def __str__(self):
+        return f"Pago Vacaciones {self.numero_recibo} - {self.empleado.nombre} {self.empleado.apellido} ({self.dias_pagados}d - C$ {self.monto_pagado})"
+

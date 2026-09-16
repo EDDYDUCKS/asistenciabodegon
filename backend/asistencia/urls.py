@@ -12,6 +12,7 @@ router.register(r'alertas', views.AlertaAsistenciaViewSet, basename='alertas')
 router.register(r'permisos', views.PermisoAusenciaViewSet, basename='permisos')
 router.register(r'compensaciones', views.CompensacionHorasViewSet, basename='compensaciones')
 router.register(r'compensaciones-feriados', views.CompensacionFeriadoViewSet, basename='compensaciones-feriados')
+router.register(r'pagos-vacaciones', views.PagoVacacionesViewSet, basename='pagos-vacaciones')
 
 urlpatterns = [
     # Router CRUD
