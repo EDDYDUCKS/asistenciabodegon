@@ -22,6 +22,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#1c6856" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <link rel="icon" href="/icon.png" type="image/png" />
         <link rel="apple-touch-icon" href="/icon.png" />
       </head>
       <body className="min-h-full flex flex-col font-sans bg-[#fcf9f5] text-[#1c1917]">{children}</body>

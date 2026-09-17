@@ -251,8 +251,8 @@ export default function BoletaVacacionesModal({
             {/* Encabezado Institucional Compacto */}
             <div className="border-b-2 border-[#1c6856] pb-2.5 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#1c6856] flex items-center justify-center text-white shadow-xs shrink-0">
-                  <Utensils className="w-4 h-4" />
+                <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                  <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <h1 className="font-black text-base tracking-tight text-[#1c6856] uppercase leading-none">

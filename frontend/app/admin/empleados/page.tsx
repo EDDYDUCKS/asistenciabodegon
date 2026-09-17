@@ -54,8 +54,8 @@ function CarnetCardItem({ emp }: { emp: Empleado }) {
         <div>
           {/* Header Marca */}
           <div className="flex items-center gap-1.5 border-b border-[#1c6856]/20 pb-1 mb-1">
-            <div className="w-4 h-4 rounded-md bg-[#1c6856] flex items-center justify-center text-white shrink-0">
-              <Utensils className="w-2.5 h-2.5 text-white" />
+            <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
             <div className="leading-tight">
               <span className="font-black text-[10.5px] tracking-tight text-[#1c6856] block leading-none">
@@ -676,7 +676,9 @@ export default function EmpleadosAdminPage() {
           >
             <div className="flex items-center justify-between border-b border-stone-200 pb-3">
               <h2 className="text-base sm:text-lg font-black text-[#1c6856] flex items-center gap-2">
-                <Utensils className="w-5 h-5" />
+                <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                  <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
+                </div>
                 {editingEmp ? 'Editar Datos de Empleado' : 'Registrar Nuevo Empleado'}
               </h2>
               <button

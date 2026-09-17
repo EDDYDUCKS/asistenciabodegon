@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { fetchEmpleados, fetchAsistencias } from '@/lib/api-client';
 import { Empleado, RegistroAsistencia } from '@/lib/types';
 import {
@@ -119,8 +120,10 @@ export default function AdminDashboardPage() {
       {/* Encabezado Dashboard */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-5">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-black text-stone-900 tracking-tight flex items-center gap-2">
-            <Utensils className="w-7 h-7 text-[#1c6856]" />
+          <h1 className="text-2xl sm:text-3xl font-display font-black text-stone-900 tracking-tight flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-full overflow-hidden shadow-xs shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+              <Image src="/logo.png" alt="Logo" width={36} height={36} className="w-full h-full object-cover" />
+            </div>
             Monitoreo en Vivo
           </h1>
           <p className="text-xs text-stone-500 font-medium mt-1">

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { MarcajeKioscoResponse, TipoEventoType, Empleado } from '@/lib/types';
 import { marcarAsistenciaKiosco, consultarHorasKiosco, syncBatchAsistencias, fetchEmpleados } from '@/lib/api-client';
 import {
@@ -734,8 +735,15 @@ export default function KioscoPage() {
             <span className="text-xs font-bold text-[#1c6856] hidden sm:inline">Admin</span>
           </button>
           
-          <div className="w-10 h-10 rounded-xl bg-[#1c6856] flex items-center justify-center text-white shadow-md shadow-[#1c6856]/10">
-            <Utensils className="w-5 h-5" />
+          <div className="w-11 h-11 rounded-full overflow-hidden shadow-md shadow-[#1c6856]/15 shrink-0 border border-[#1c6856]/20 bg-[#1c6856]">
+            <Image
+              src="/logo.png"
+              alt="Restaurante El Bodegón"
+              width={44}
+              height={44}
+              className="w-full h-full object-cover"
+              priority
+            />
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-display font-black tracking-tight text-[#1c6856] flex items-center gap-2">

@@ -166,15 +166,20 @@ export default function BoletaPagoVacacionesModal({
           {/* Encabezado Institucional */}
           <div className="flex items-start justify-between border-b-2 border-[#1c6856] pb-3">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-black tracking-tight text-[#1c6856]">
-                  RESTAURANTE EL BODEGÓN
-                </span>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                  <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
+                </div>
+                <div>
+                  <span className="text-xl font-black tracking-tight text-[#1c6856]">
+                    RESTAURANTE EL BODEGÓN
+                  </span>
+                  <p className="text-[11px] font-bold text-stone-600 uppercase tracking-wider mt-0.5">
+                    Control de Nómina y Liquidación de Descanso Laboral
+                  </p>
+                </div>
               </div>
-              <p className="text-[11px] font-bold text-stone-600 uppercase tracking-wider mt-0.5">
-                Control de Nómina y Liquidación de Descanso Laboral
-              </p>
-              <p className="text-[10px] text-stone-400">
+              <p className="text-[10px] text-stone-400 mt-1">
                 Nicaragua • Comprobante Oficial de Administración
               </p>
             </div>

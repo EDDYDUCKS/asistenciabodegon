@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   fetchEmpleados,
   fetchAsistencias,
@@ -1499,8 +1500,8 @@ export default function RendimientoAyerPage() {
       {/* ── 5. BOTÓN DE CIERRE (VUELTA AL DASHBOARD) ─────────────────────────── */}
       <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center shrink-0">
-            <Utensils className="w-5 h-5" />
+          <div className="w-11 h-11 rounded-full overflow-hidden shadow-xs shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+            <Image src="/logo.png" alt="Restaurante El Bodegón" width={44} height={44} className="w-full h-full object-cover" />
           </div>
           <div>
             <h4 className="text-xs font-black uppercase text-stone-800">

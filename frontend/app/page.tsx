@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
-import { QrCode, LayoutDashboard, Utensils } from 'lucide-react';
+import Image from 'next/image';
+import { QrCode, LayoutDashboard } from 'lucide-react';
 
 export default function LandingPortalPage() {
   return (
@@ -9,8 +10,15 @@ export default function LandingPortalPage() {
       <div className="max-w-4xl mx-auto w-full my-auto space-y-12 text-center">
         {/* Header Branding */}
         <div className="space-y-4">
-          <div className="w-20 h-20 rounded-3xl bg-[#1c6856] flex items-center justify-center text-white mx-auto shadow-xl shadow-[#1c6856]/20">
-            <Utensils className="w-10 h-10" />
+          <div className="w-24 h-24 rounded-full overflow-hidden mx-auto shadow-xl shadow-[#1c6856]/25 border-2 border-[#1c6856]/20 bg-[#1c6856]">
+            <Image
+              src="/logo.png"
+              alt="Restaurante El Bodegón"
+              width={96}
+              height={96}
+              className="w-full h-full object-cover"
+              priority
+            />
           </div>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-[#1c6856]">
             BodegónPass

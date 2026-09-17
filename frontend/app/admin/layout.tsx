@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { AlertaAsistencia } from '@/lib/types';
 import { fetchAlertas, updateAlerta, resolverAlerta } from '@/lib/api-client';
@@ -232,8 +233,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return (
       <div className="min-h-screen bg-[#fcf9f5] flex flex-col justify-between p-6 sm:p-12 font-sans text-stone-850 select-none">
         <div className="max-w-md w-full mx-auto my-auto bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm text-center space-y-6">
-          <div className="w-14 h-14 rounded-2xl bg-[#1c6856] flex items-center justify-center text-white mx-auto shadow-md">
-            <Utensils className="w-7 h-7" />
+          <div className="w-20 h-20 rounded-full overflow-hidden mx-auto shadow-lg border-2 border-[#1c6856]/20 bg-[#1c6856]">
+            <Image
+              src="/logo.png"
+              alt="Restaurante El Bodegón"
+              width={80}
+              height={80}
+              className="w-full h-full object-cover"
+              priority
+            />
           </div>
           <div>
             <h2 className="font-black text-xl text-[#1c6856] tracking-tight">Acceso Administrativo</h2>
@@ -318,8 +326,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" onClick={handleLogout} className="flex items-center gap-3 hover:opacity-90 transition-opacity">
-              <div className="w-10 h-10 rounded-xl bg-[#1c6856] flex items-center justify-center text-white shadow-sm">
-                <Utensils className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shadow-sm shrink-0 border border-emerald-800/20 bg-[#1c6856]">
+                <Image
+                  src="/logo.png"
+                  alt="Restaurante El Bodegón"
+                  width={40}
+                  height={40}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div>
                 <span className="font-black text-lg text-[#1c6856] tracking-tight flex items-center gap-1.5">

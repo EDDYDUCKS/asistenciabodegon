@@ -288,8 +288,10 @@ function ImprimirCarnetsContent() {
             >
               {/* Encabezado Técnico de la Hoja */}
               <div className="flex items-center justify-between border-b border-dashed border-stone-300 pb-2 mb-6 text-stone-500 text-[10px] font-bold uppercase tracking-wider">
-                <span className="flex items-center gap-1.5 text-[#1c6856]">
-                  <Utensils className="w-3.5 h-3.5" />
+                <span className="flex items-center gap-2 text-[#1c6856]">
+                  <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                    <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
+                  </div>
                   Restaurante El Bodegón — BodegónPass Credenciales Oficiales
                 </span>
                 <span className="flex items-center gap-1">
@@ -324,8 +326,8 @@ function ImprimirCarnetsContent() {
                         <div>
                           {/* Logo y Marca */}
                           <div className="flex items-center gap-1.5 border-b border-[#1c6856]/20 pb-1 mb-1.5">
-                            <div className="w-4 h-4 rounded-md bg-[#1c6856] flex items-center justify-center text-white shrink-0">
-                              <Utensils className="w-2.5 h-2.5 text-white" />
+                            <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                              <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                             </div>
                             <div className="leading-tight">
                               <span className="font-black text-[11px] tracking-tight text-[#1c6856] block leading-none">

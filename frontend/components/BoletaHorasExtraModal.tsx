@@ -207,8 +207,8 @@ export default function BoletaHorasExtraModal({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-[#1c6856] text-white flex items-center justify-center font-black shadow-xs">
-                    <UtensilsCrossed className="w-5 h-5" />
+                  <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                    <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                   </div>
                   <div>
                     <h1 className="text-xl font-black tracking-tight text-[#1c6856] uppercase leading-tight font-display">
