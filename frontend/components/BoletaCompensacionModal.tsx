@@ -55,7 +55,15 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
         @media print {
           @page {
             size: letter portrait;
-            margin: 8mm 12mm 8mm 12mm;
+            margin: 6mm 10mm 6mm 10mm;
+          }
+
+          /* Ocultar absolutamente TODO lo que esté en el body excepto la boleta modal */
+          body > *:not(.print-boleta-backdrop) {
+            display: none !important;
+          }
+          main, header, nav, aside, footer, #__next, [role="main"] {
+            display: none !important;
           }
 
           html, body {
@@ -65,9 +73,11 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
             padding: 0 !important;
             width: 100% !important;
             height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
           }
 
-          .print-hide, header, nav, aside, footer, table:not(.print-table), button, a {
+          .print-hide, button, a {
             display: none !important;
           }
 
@@ -82,6 +92,7 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
             margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
+            overflow: visible !important;
           }
 
           .print-boleta-modal-container {

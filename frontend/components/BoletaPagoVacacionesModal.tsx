@@ -69,7 +69,15 @@ export default function BoletaPagoVacacionesModal({
         @media print {
           @page {
             size: letter portrait;
-            margin: 8mm 12mm 8mm 12mm;
+            margin: 6mm 10mm 6mm 10mm;
+          }
+
+          /* Ocultar absolutamente TODO lo que esté en el body excepto la boleta modal */
+          body > *:not(.print-pago-vacaciones-backdrop) {
+            display: none !important;
+          }
+          main, header, nav, aside, footer, #__next, [role="main"] {
+            display: none !important;
           }
 
           html, body {
@@ -79,9 +87,11 @@ export default function BoletaPagoVacacionesModal({
             padding: 0 !important;
             width: 100% !important;
             height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
           }
 
-          .print-hide, header, nav, aside, footer, table:not(.print-table), button, a {
+          .print-hide, button, a {
             display: none !important;
           }
 
@@ -96,15 +106,22 @@ export default function BoletaPagoVacacionesModal({
             margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
+            overflow: visible !important;
           }
 
           .print-pago-modal-container {
             border: 1.5px solid #1c6856 !important;
             box-shadow: none !important;
-            padding: 20px !important;
-            margin: 0 !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
             max-width: 100% !important;
-            border-radius: 0 !important;
+            border-radius: 6px !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
 
           .print-border {
@@ -145,7 +162,7 @@ export default function BoletaPagoVacacionesModal({
         </div>
 
         {/* ── CUERPO DEL COMPROBANTE IMPRIMIBLE ── */}
-        <div className="p-6 sm:p-8 space-y-4 text-stone-900 text-xs">
+        <div className="p-5 sm:p-7 space-y-3.5 text-stone-900 text-xs">
           {/* Encabezado Institucional */}
           <div className="flex items-start justify-between border-b-2 border-[#1c6856] pb-3">
             <div>
@@ -330,7 +347,7 @@ export default function BoletaPagoVacacionesModal({
           </p>
 
           {/* Firmas Formales */}
-          <div className="pt-8 pb-2 grid grid-cols-2 gap-8 text-center text-xs">
+          <div className="pt-5 pb-1 grid grid-cols-2 gap-8 text-center text-xs">
             <div className="space-y-1">
               <div className="border-t-2 border-stone-800 pt-2 w-48 mx-auto" />
               <p className="font-bold text-stone-900 uppercase tracking-wider text-xs">{nombreColaborador}</p>

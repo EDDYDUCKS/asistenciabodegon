@@ -108,7 +108,15 @@ export default function BoletaHorasExtraModal({
         @media print {
           @page {
             size: letter portrait;
-            margin: 8mm 12mm 8mm 12mm;
+            margin: 6mm 10mm 6mm 10mm;
+          }
+
+          /* Ocultar absolutamente TODO lo que esté en el body excepto la boleta modal */
+          body > *:not(.print-horas-extra-backdrop) {
+            display: none !important;
+          }
+          main, header, nav, aside, footer, #__next, [role="main"] {
+            display: none !important;
           }
 
           html, body {
@@ -118,9 +126,11 @@ export default function BoletaHorasExtraModal({
             padding: 0 !important;
             width: 100% !important;
             height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
           }
 
-          .print-hide, header, nav, aside, footer, table:not(.print-table), button, a {
+          .print-hide, button, a {
             display: none !important;
           }
 
@@ -135,15 +145,22 @@ export default function BoletaHorasExtraModal({
             margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
+            overflow: visible !important;
           }
 
           .print-he-modal-container {
             border: 1.5px solid #1c6856 !important;
             box-shadow: none !important;
-            padding: 20px !important;
-            margin: 0 !important;
+            padding: 0 !important;
+            margin: 0 auto !important;
             max-width: 100% !important;
-            border-radius: 0 !important;
+            border-radius: 6px !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
         `,
