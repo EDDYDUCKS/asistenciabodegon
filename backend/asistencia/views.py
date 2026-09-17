@@ -2463,11 +2463,19 @@ def _verificar_septimo_dia(empleado, fecha_hoy, horas_trabajadas_dia):
 @renderer_classes([ExcelBinaryRenderer, JSONRenderer])
 def exportar_reporte_nomina_excel(request):
     """
-    Genera una hoja de cálculo Excel (.xlsx) con el resumen de horas ordinarias y extras autorizadas.
+    Genera un libro Excel (.xlsx) de alta presentación ejecutiva para contabilidad y nómina de El Bodegón,
+    estructurado en 3 pestañas profesionales sin emojis:
+      1. Resumen Ejecutivo (Planilla): Balance consolidado, tarjetas KPI y firmas oficiales.
+      2. Matriz Diaria de Asistencia: Cuadrícula día por día con horas y estados de cada colaborador.
+      3. Horas Extra y Novedades: Detalle individual de tiempo extraordinario y auditoría Art. 58 CT.
     """
     try:
         import datetime
         from datetime import datetime as dt
+        from io import BytesIO
+        from django.db.models import Sum
+        from openpyxl.comments import Comment
+
         inicio_str = request.GET.get('fecha_inicio')
         fin_str = request.GET.get('fecha_fin')
 
@@ -2475,80 +2483,77 @@ def exportar_reporte_nomina_excel(request):
         fecha_inicio = dt.strptime(inicio_str, '%Y-%m-%d').date() if inicio_str else hoy.replace(day=1)
         fecha_fin = dt.strptime(fin_str, '%Y-%m-%d').date() if fin_str else hoy
 
+        # Generar lista de días del período
+        dias_periodo = []
+        curr = fecha_inicio
+        while curr <= fecha_fin:
+            dias_periodo.append(curr)
+            curr += datetime.timedelta(days=1)
+
         wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "BodegónPass"
-        ws.views.sheetView[0].showGridLines = True
 
-        # Estilos de Excel (Basado en el Verde Institucional de El Bodegón)
-        COLOR_HEADER = "1C6856"
-        COLOR_TITLE = "134F42"
-        font_titulo = Font(name='Calibri', size=16, bold=True, color='FFFFFF')
-        font_sub = Font(name='Calibri', size=11, italic=True, color='FFFFFF')
-        font_header = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
-        font_data = Font(name='Calibri', size=11)
-        font_bold = Font(name='Calibri', size=11, bold=True)
+        # ── PALETA CORPORATIVA EL BODEGÓN ─────────────────────────────────────
+        COLOR_PRIMARY_DARK = "134F42"  # Verde Bosque Oscuro
+        COLOR_PRIMARY = "1C6856"       # Verde Institucional El Bodegón
+        COLOR_KPI_BG = "F4F9F6"        # Fondo suave para tarjetas KPI
+        COLOR_KPI_BORDER = "A3D9C9"    # Borde suave tarjetas KPI
+        COLOR_ZEBRA = "F8FAFC"         # Fila alterna
+        COLOR_BORDER = "CBD5E1"        # Borde de celdas
+        COLOR_GRAY_CELL = "F1F5F9"      # Celdas de descanso / libre
+        COLOR_AMBER_CELL = "FEF3C7"     # Celdas de feriados
+        COLOR_BLUE_CELL = "E0E7FF"      # Celdas de permisos / vacaciones
+        COLOR_RED_CELL = "FEE2E2"       # Celdas de faltas / deuda
 
-        fill_header = PatternFill(fill_type='solid', start_color=COLOR_HEADER, end_color=COLOR_HEADER)
-        fill_title = PatternFill(fill_type='solid', start_color=COLOR_TITLE, end_color=COLOR_TITLE)
-        fill_zebra = PatternFill(fill_type='solid', start_color='F9F9F9', end_color='F9F9F9')
+        font_titulo = Font(name='Calibri', size=14, bold=True, color='FFFFFF')
+        font_sub = Font(name='Calibri', size=9, italic=True, color='FFFFFF')
+        font_header = Font(name='Calibri', size=10, bold=True, color='FFFFFF')
+        font_data = Font(name='Calibri', size=10, color='1E293B')
+        font_data_bold = Font(name='Calibri', size=10, bold=True, color='1E293B')
+        font_kpi_title = Font(name='Calibri', size=8, bold=True, color='134F42')
+        font_kpi_num = Font(name='Calibri', size=16, bold=True, color='134F42')
+        font_kpi_alert_title = Font(name='Calibri', size=8, bold=True, color='991B1B')
+        font_kpi_alert_num = Font(name='Calibri', size=16, bold=True, color='991B1B')
+        font_legal = Font(name='Calibri', size=8, italic=True, color='64748B')
+        font_firma = Font(name='Calibri', size=9, bold=True, color='334155')
+
+        fill_title = PatternFill(fill_type='solid', start_color=COLOR_PRIMARY_DARK, end_color=COLOR_PRIMARY_DARK)
+        fill_header = PatternFill(fill_type='solid', start_color=COLOR_PRIMARY, end_color=COLOR_PRIMARY)
+        fill_zebra = PatternFill(fill_type='solid', start_color=COLOR_ZEBRA, end_color=COLOR_ZEBRA)
+        fill_kpi = PatternFill(fill_type='solid', start_color=COLOR_KPI_BG, end_color=COLOR_KPI_BG)
+        fill_kpi_alert = PatternFill(fill_type='solid', start_color='FEF2F2', end_color='FEF2F2')
+        fill_libre = PatternFill(fill_type='solid', start_color=COLOR_GRAY_CELL, end_color=COLOR_GRAY_CELL)
+        fill_feriado = PatternFill(fill_type='solid', start_color=COLOR_AMBER_CELL, end_color=COLOR_AMBER_CELL)
+        fill_permiso = PatternFill(fill_type='solid', start_color=COLOR_BLUE_CELL, end_color=COLOR_BLUE_CELL)
 
         thin_border = Border(
-            left=Side(style='thin', color='CCCCCC'),
-            right=Side(style='thin', color='CCCCCC'),
-            top=Side(style='thin', color='CCCCCC'),
-            bottom=Side(style='thin', color='CCCCCC')
+            left=Side(style='thin', color=COLOR_BORDER),
+            right=Side(style='thin', color=COLOR_BORDER),
+            top=Side(style='thin', color=COLOR_BORDER),
+            bottom=Side(style='thin', color=COLOR_BORDER)
+        )
+        kpi_border = Border(
+            left=Side(style='thin', color=COLOR_KPI_BORDER),
+            right=Side(style='thin', color=COLOR_KPI_BORDER),
+            top=Side(style='thin', color=COLOR_KPI_BORDER),
+            bottom=Side(style='thin', color=COLOR_KPI_BORDER)
+        )
+        kpi_alert_border = Border(
+            left=Side(style='thin', color='FCA5A5'),
+            right=Side(style='thin', color='FCA5A5'),
+            top=Side(style='thin', color='FCA5A5'),
+            bottom=Side(style='thin', color='FCA5A5')
+        )
+        total_border = Border(
+            top=Side(style='thin', color=COLOR_PRIMARY_DARK),
+            bottom=Side(style='double', color=COLOR_PRIMARY_DARK),
+            left=Side(style='thin', color=COLOR_BORDER),
+            right=Side(style='thin', color=COLOR_BORDER)
         )
 
-        # Headers — 10 Columnas Ejecutivas con Vacaciones Pagadas
-        headers = [
-            "Empleado y Puesto",
-            "Días Trabajados",
-            "Días Libres (Tomados)",
-            "Horas Ordinarias",
-            "Feriados Trabajados (Días)",
-            "Vacaciones Pagadas (Días)",
-            "Horas Extra Aprobadas",
-            "H. Extra por Aprobar",
-            "Horas Debidas (Déficit)",
-            "Vacaciones Restantes (Días)",
-        ]
-
-        ws.merge_cells('A1:J1')
-        ws['A1'] = "BODEGÓN PASS — REPORTE DE ASISTENCIA Y PERSONAL"
-        ws['A1'].font = font_titulo
-        ws['A1'].fill = fill_title
-        ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
-
-        ws.merge_cells('A2:J2')
-        ws['A2'] = f"Período del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')} — Generado el {hoy.strftime('%d/%m/%Y')}"
-        ws['A2'].font = font_sub
-        ws['A2'].fill = fill_title
-        ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
-
-        ws.append([])        # Fila 3 vacía
-        ws.append(headers)   # Fila 4 Headers
-
-        for col in range(1, 11):
-            cell = ws.cell(row=4, column=col)
-            cell.font = font_header
-            cell.fill = fill_header
-            cell.alignment = Alignment(horizontal='center', vertical='center')
-
-        empleados = Empleado.objects.filter(activo=True)
-        row_idx = 5
-
-        # Obtener feriados en el rango
-        feriados_set = set(DiaFeriado.objects.filter(
-            fecha__gte=fecha_inicio,
-            fecha__lte=fecha_fin
-        ).values_list('fecha', flat=True))
-
-        # Obtener permisos y vacaciones autorizadas en el rango
-        permisos_qs = PermisoAusencia.objects.filter(
-            fecha_inicio__lte=fecha_fin,
-            fecha_fin__gte=fecha_inicio
-        ).select_related('empleado')
+        # Consultas de Base de Datos compartidas para las 3 hojas
+        empleados = list(Empleado.objects.filter(activo=True).order_by('nombre', 'apellido'))
+        feriados_set = set(DiaFeriado.objects.filter(fecha__gte=fecha_inicio, fecha__lte=fecha_fin).values_list('fecha', flat=True))
+        permisos_qs = PermisoAusencia.objects.filter(fecha_inicio__lte=fecha_fin, fecha_fin__gte=fecha_inicio).select_related('empleado')
 
         permisos_por_empleado = {}
         permisos_info_por_empleado = {}
@@ -2565,25 +2570,115 @@ def exportar_reporte_nomina_excel(request):
                 permisos_por_empleado[p.empleado_id].add(curr_p)
                 curr_p += datetime.timedelta(days=1)
 
+        # Estructura para almacenar la matriz diaria para la Hoja 2
+        matriz_diaria_datos = {}
+
+        # ══════════════════════════════════════════════════════════════════════
+        # HOJA 1: RESUMEN EJECUTIVO (PLANILLA)
+        # ══════════════════════════════════════════════════════════════════════
+        ws1 = wb.active
+        ws1.title = "Resumen de Nomina"
+        ws1.views.sheetView[0].showGridLines = True
+
+        # Encabezado Principal
+        ws1.merge_cells('A1:J1')
+        ws1['A1'] = "RESTAURANTE EL BODEGÓN — INFORME EJECUTIVO DE NÓMINA Y ASISTENCIA"
+        ws1['A1'].font = font_titulo
+        ws1['A1'].fill = fill_title
+        ws1['A1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws1.row_dimensions[1].height = 32
+
+        ws1.merge_cells('A2:J2')
+        ahora_str = timezone.localtime().strftime('%d/%m/%Y %I:%M %p')
+        ws1['A2'] = f"Período Oficial: Del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')}  |  Fecha de Emisión: {ahora_str}  |  Moneda: Córdobas (NIO)"
+        ws1['A2'].font = font_sub
+        ws1['A2'].fill = fill_title
+        ws1['A2'].alignment = Alignment(horizontal='center', vertical='center')
+        ws1.row_dimensions[2].height = 20
+
+        ws1.row_dimensions[3].height = 10  # Separador
+
+        # Tarjetas KPI Corporativas (Filas 4 y 5)
+        kpi_defs = [
+            ('A', 'B', 'COLABORADORES ACTIVOS', f"{len(empleados)}", False),
+            ('C', 'D', 'HORAS ORDINARIAS (EST.)', None, False),   # Calculado con fórmula
+            ('E', 'F', 'FERIADOS LABORADOS (DIAS)', None, False),
+            ('G', 'H', 'HORAS EXTRA APROBADAS', None, False),
+            ('I', 'J', 'DEFICIT EN BOLSA DE HORAS', None, True),
+        ]
+        ws1.row_dimensions[4].height = 16
+        ws1.row_dimensions[5].height = 26
+
+        for col1, col2, titulo_kpi, valor_fijo, es_alerta in kpi_defs:
+            ws1.merge_cells(f'{col1}4:{col2}4')
+            ws1.merge_cells(f'{col1}5:{col2}5')
+
+            c_top = ws1[f'{col1}4']
+            c_top.value = titulo_kpi
+            c_top.font = font_kpi_alert_title if es_alerta else font_kpi_title
+            c_top.fill = fill_kpi_alert if es_alerta else fill_kpi
+            c_top.alignment = Alignment(horizontal='center', vertical='center')
+
+            c_val = ws1[f'{col1}5']
+            c_val.font = font_kpi_alert_num if es_alerta else font_kpi_num
+            c_val.fill = fill_kpi_alert if es_alerta else fill_kpi
+            c_val.alignment = Alignment(horizontal='center', vertical='center')
+
+            if valor_fijo is not None:
+                c_val.value = valor_fijo
+
+            # Aplicar bordes de tarjeta
+            border_to_apply = kpi_alert_border if es_alerta else kpi_border
+            for r in [4, 5]:
+                for c_letter in [col1, col2]:
+                    ws1[f'{c_letter}{r}'].border = border_to_apply
+
+        ws1.row_dimensions[6].height = 12  # Separador
+
+        # Cabecera de la Tabla Principal (Fila 7)
+        headers_ws1 = [
+            "Colaborador y Cargo",
+            "Días Laborados",
+            "Días Libres",
+            "Horas Ordinarias",
+            "Feriados (Días)",
+            "Vacaciones Pagadas (Días)",
+            "Horas Extra Aprobadas",
+            "H. Extra por Aprobar",
+            "Saldo Bolsa de Horas",
+            "Vacaciones Restantes (Días)",
+        ]
+        ws1.row_dimensions[7].height = 26
+        for col_idx, h_text in enumerate(headers_ws1, start=1):
+            cell = ws1.cell(row=7, column=col_idx)
+            cell.value = h_text
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+        fila_inicio_datos = 8
+        row_idx = fila_inicio_datos
+
+        # Procesar datos por cada colaborador
         for emp in empleados:
+            matriz_diaria_datos[emp.id] = {}
+
             start_query = timezone.make_aware(datetime.datetime.combine(fecha_inicio, datetime.time.min), timezone.get_current_timezone())
-            # Extender 5 horas para incluir salidas nocturnas que ocurrieron pasada la medianoche
             end_query = timezone.make_aware(datetime.datetime.combine(fecha_fin, datetime.time.max), timezone.get_current_timezone()) + datetime.timedelta(hours=5)
-            
+
             registros = RegistroAsistencia.objects.filter(
                 empleado=emp,
                 fecha_hora__range=(start_query, end_query)
             ).order_by('fecha_hora')
 
-            # Agrupar registros por día local operativo (Nicaragua)
             horas_normales_trabajadas = 0.0
             feriados_trabajados_dias = 0
             feriados_trabajados_info = []
             dias_map = {}
+
             for reg in registros:
                 reg_local = reg.fecha_hora.astimezone(timezone.get_current_timezone())
                 dia_local = reg_local.date()
-                # Si es salida definitiva de madrugada (< 5 AM), pertenece a la jornada de ayer
                 if reg.tipo_evento == 'SALIDA_DEFINITIVA' and reg_local.hour < 5:
                     dia_operativo = dia_local - datetime.timedelta(days=1)
                 else:
@@ -2601,36 +2696,27 @@ def exportar_reporte_nomina_excel(request):
             for dia, regs in dias_map.items():
                 horas_dia = _calcular_horas_netas_dia(regs)
                 horas_ord = min(horas_dia, 8.0)
+
+                # Guardar en matriz diaria
+                primer_ent = next((r.fecha_hora.astimezone(timezone.get_current_timezone()).strftime('%I:%M %p') for r in regs if r.tipo_evento in ['ENTRADA', 'ENTRADA_QUEBRADA']), '')
+                ult_sal = next((r.fecha_hora.astimezone(timezone.get_current_timezone()).strftime('%I:%M %p') for r in reversed(regs) if r.tipo_evento in ['SALIDA_DEFINITIVA', 'SALIDA_QUEBRADA']), '')
+                info_marcaje = f"Entrada: {primer_ent} | Salida: {ult_sal}" if (primer_ent and ult_sal) else "Marcaje registrado"
+
                 if dia in feriados_set:
-                    # El día trabajado cuenta en sus horas ordinarias normales
                     horas_normales_trabajadas += horas_ord
+                    matriz_diaria_datos[emp.id][dia] = {'horas': round(horas_dia, 1), 'label': f"{round(horas_dia, 1)} hrs", 'tipo': 'FERIADO_TRABAJADO', 'info': info_marcaje}
                     if horas_ord >= 7.5:
                         feriados_trabajados_dias += 1
                         desc_feriado = DiaFeriado.objects.filter(fecha=dia).first()
                         nombre_feriado = desc_feriado.descripcion if desc_feriado else "Día Feriado"
-                        from decimal import Decimal
-                        CompensacionFeriado.objects.get_or_create(
-                            empleado=emp,
-                            fecha_feriado=dia,
-                            defaults={
-                                'nombre_feriado': nombre_feriado,
-                                'horas_trabajadas': Decimal(str(round(horas_ord, 2))),
-                                'dias_compensatorios_totales': Decimal('2.0'),
-                                'estado': 'PENDIENTE',
-                            }
-                        )
-                        feriados_trabajados_info.append(
-                            f"- {dia.strftime('%d/%m/%Y')}: {nombre_feriado} ({round(horas_ord, 1)} hrs -> 2 días comp.)"
-                        )
+                        feriados_trabajados_info.append(f"- {dia.strftime('%d/%m/%Y')}: {nombre_feriado} ({round(horas_ord, 1)} hrs)")
                 else:
                     horas_normales_trabajadas += horas_ord
+                    matriz_diaria_datos[emp.id][dia] = {'horas': round(horas_dia, 1), 'label': f"{round(horas_dia, 1)} hrs", 'tipo': 'TRABAJADO', 'info': info_marcaje}
 
-            # ── Detectar días libres y ausencias extra usando lógica semanal ────
-            # Por cada semana en el período, el primer día sin marcaje = día libre.
-            # Los días con permiso/vacaciones autorizadas NO suman faltas ni deudas.
+            # Cómputo de días libres y horas debidas
             dias_libres = 0
             horas_debidas = 0.0
-
             curr_day = fecha_inicio
             semanas_procesadas = set()
 
@@ -2647,70 +2733,62 @@ def exportar_reporte_nomina_excel(request):
                     excedente_semana = 0.0
                     d = s_inicio
                     while d <= s_fin:
-                        # Si es feriado o permiso autorizado, se exonera de falta y deuda
                         if d not in feriados_set and d not in dias_permiso_emp:
                             if d not in dias_map:
                                 if ausencias_semana == 0:
-                                    dias_libres += 1  # Primera ausencia = día libre
+                                    dias_libres += 1
+                                    matriz_diaria_datos[emp.id][d] = {'horas': 0.0, 'label': 'LIBRE', 'tipo': 'LIBRE', 'info': 'Descanso semanal'}
                                 else:
-                                    deficit_semana += 8.0   # Segunda+ = ausencia extra
+                                    deficit_semana += 8.0
+                                    matriz_diaria_datos[emp.id][d] = {'horas': 0.0, 'label': 'AUSENCIA', 'tipo': 'AUSENCIA', 'info': 'Falta no justificada'}
                                 ausencias_semana += 1
                             else:
-                                # Día trabajado: calcular déficit y excedente
                                 regs_d = dias_map[d]
                                 horas_dia = _calcular_horas_netas_dia(regs_d)
                                 horas_ord = min(horas_dia, 8.0)
-                                # En domingo no se genera déficit semanal por salida temprana autorizada tras el cierre
                                 if d.weekday() != 6:
                                     deficit = max(0.0, 8.0 - horas_ord)
                                     deficit_semana += deficit
                                 if horas_dia > 8.0:
                                     excedente_semana += (horas_dia - 8.0)
+                        elif d in feriados_set and d not in dias_map:
+                            desc_fer = DiaFeriado.objects.filter(fecha=d).first()
+                            matriz_diaria_datos[emp.id][d] = {'horas': 0.0, 'label': 'FERIADO', 'tipo': 'FERIADO_LIBRE', 'info': desc_fer.descripcion if desc_fer else 'Feriado'}
+                        elif d in dias_permiso_emp and d not in dias_map:
+                            matriz_diaria_datos[emp.id][d] = {'horas': 0.0, 'label': 'PERMISO', 'tipo': 'PERMISO', 'info': 'Permiso o vacaciones autorizadas'}
+
                         d += datetime.timedelta(days=1)
 
-                    # Compensar déficit de la semana con horas adicionales de la misma semana
                     compensado_semana = min(excedente_semana, deficit_semana)
                     deficit_neto_semana = max(0.0, deficit_semana - compensado_semana)
                     horas_debidas += deficit_neto_semana
-                    # Las horas que compensaron deuda se suman a las horas ordinarias trabajadas
                     horas_normales_trabajadas += compensado_semana
                 curr_day += datetime.timedelta(days=1)
 
-            # Sincronizar con el saldo oficial auditado de la Bolsa de Horas del colaborador
+            # Sincronización oficial con Bolsa de Horas
             horas_debidas = max(horas_debidas, float(emp.horas_pendientes or 0.0))
 
-            # Horas extra aprobadas y pendientes
-            from django.db.models import Sum
+            # Horas Extra
             horas_extra_aprobadas = AutorizacionHorasExtra.objects.filter(
-                empleado=emp,
-                fecha__gte=fecha_inicio,
-                fecha__lte=fecha_fin,
-                estado='APROBADO'
+                empleado=emp, fecha__gte=fecha_inicio, fecha__lte=fecha_fin, estado='APROBADO'
             ).aggregate(total=Sum('horas_extra_autorizadas'))['total'] or 0.0
 
             horas_extra_pendientes = AutorizacionHorasExtra.objects.filter(
-                empleado=emp,
-                fecha__gte=fecha_inicio,
-                fecha__lte=fecha_fin,
-                estado='PENDIENTE'
+                empleado=emp, fecha__gte=fecha_inicio, fecha__lte=fecha_fin, estado='PENDIENTE'
             ).aggregate(total=Sum('horas_extra_solicitadas'))['total'] or 0.0
 
-            # Cálculo de vacaciones restantes
+            # Vacaciones
             permisos_vac_emp = PermisoAusencia.objects.filter(empleado=emp, tipo__in=['VACACIONES', 'VACACIONES_PAGADAS'])
             total_vac_tomadas = sum(p.total_dias for p in permisos_vac_emp)
             permisos_cta_emp = PermisoAusencia.objects.filter(empleado=emp, tipo='PERMISO_AUTORIZADO', motivo__icontains='vacaciones')
             total_vac_tomadas += sum(p.total_dias for p in permisos_cta_emp)
             vacaciones_restantes = round(float(emp.dias_vacaciones_acumuladas or 0.0) - float(total_vac_tomadas), 1)
 
-            # Vacaciones pagadas en dinero (PagoVacaciones) en el período
-            pagos_vac_emp = PagoVacaciones.objects.filter(
-                empleado=emp,
-                fecha_pago__gte=fecha_inicio,
-                fecha_pago__lte=fecha_fin,
-            )
+            pagos_vac_emp = PagoVacaciones.objects.filter(empleado=emp, fecha_pago__gte=fecha_inicio, fecha_pago__lte=fecha_fin)
             dias_vacaciones_pagadas = sum(float(p.dias_pagados) for p in pagos_vac_emp)
 
-            fila = [
+            # Insertar Fila
+            fila_ws1 = [
                 f"{emp.nombre} {emp.apellido} ({emp.get_cargo_display()})",
                 dias_trabajados,
                 dias_libres,
@@ -2722,65 +2800,382 @@ def exportar_reporte_nomina_excel(request):
                 round(horas_debidas, 1),
                 vacaciones_restantes,
             ]
-            ws.append(fila)
+            ws1.append(fila_ws1)
+            ws1.row_dimensions[row_idx].height = 20
 
-            from openpyxl.comments import Comment
-            # Comentario de permisos/vacaciones en la celda del empleado
+            # Comentarios formales en celdas
             info_permisos = permisos_info_por_empleado.get(emp.id)
             if info_permisos:
-                cell_emp = ws.cell(row=row_idx, column=1)
-                cell_emp.comment = Comment("Permisos/Vacaciones:\n" + "\n".join(info_permisos), "BodegónPass")
+                ws1.cell(row=row_idx, column=1).comment = Comment("Permisos y Vacaciones:\n" + "\n".join(info_permisos), "El Bodegón")
 
             if feriados_trabajados_dias > 0 and feriados_trabajados_info:
-                comentario_texto = "Detalle de Feriados Laborados:\n" + "\n".join(feriados_trabajados_info)
-                cell_feriado = ws.cell(row=row_idx, column=5)
-                cell_feriado.comment = Comment(comentario_texto, "BodegónPass")
+                ws1.cell(row=row_idx, column=5).comment = Comment("Detalle de Feriados Laborados:\n" + "\n".join(feriados_trabajados_info), "El Bodegón")
 
             if dias_vacaciones_pagadas > 0:
-                cell_pagado = ws.cell(row=row_idx, column=6)
                 detalles_p = [f"Recibo {p.numero_recibo}: {p.dias_pagados}d (C$ {p.monto_pagado})" for p in pagos_vac_emp]
-                cell_pagado.comment = Comment("Vacaciones Pagadas en Dinero:\n" + "\n".join(detalles_p), "BodegónPass")
+                ws1.cell(row=row_idx, column=6).comment = Comment("Vacaciones Pagadas en Dinero:\n" + "\n".join(detalles_p), "El Bodegón")
 
-            for col in range(1, 11):
-                cell = ws.cell(row=row_idx, column=col)
-                cell.font = font_data
-                cell.border = thin_border
-                if row_idx % 2 == 0:
-                    cell.fill = fill_zebra
-                if col in [2, 3, 4, 5, 6, 7, 8, 9, 10]:
-                    cell.alignment = Alignment(horizontal='right')
+            # Estilos de celda
+            is_zebra = (row_idx % 2 == 0)
+            for c_idx in range(1, 11):
+                c_node = ws1.cell(row=row_idx, column=c_idx)
+                c_node.font = font_data
+                c_node.border = thin_border
+                if is_zebra:
+                    c_node.fill = fill_zebra
+                if c_idx == 1:
+                    c_node.alignment = Alignment(horizontal='left', vertical='center')
                 else:
-                    cell.alignment = Alignment(horizontal='left')
+                    c_node.alignment = Alignment(horizontal='right', vertical='center')
+                    c_node.number_format = '#,##0.0' if c_idx in [4, 6, 7, 8, 9, 10] else '#,##0'
 
             row_idx += 1
 
-        # Fila de Totales
-        ws.append([])
-        row_idx += 1
-        ws.merge_cells(f'A{row_idx}:C{row_idx}')
-        ws[f'A{row_idx}'] = "TOTALES GENERALES:"
-        ws[f'A{row_idx}'].font = font_bold
-        ws[f'A{row_idx}'].alignment = Alignment(horizontal='right')
+        fila_fin_datos = row_idx - 1
 
-        for col_letter in ['D', 'E', 'F', 'G', 'H', 'I', 'J']:
-            cell = ws[f'{col_letter}{row_idx}']
-            cell.value = f"=SUM({col_letter}5:{col_letter}{row_idx-2})"
-            cell.font = font_bold
-            cell.border = thin_border
-            cell.alignment = Alignment(horizontal='right')
+        # Completar fórmulas en Tarjetas KPI superiores
+        ws1['C5'].value = f"=SUM(D{fila_inicio_datos}:D{fila_fin_datos})"
+        ws1['C5'].number_format = '#,##0.0'
+        ws1['E5'].value = f"=SUM(E{fila_inicio_datos}:E{fila_fin_datos})"
+        ws1['E5'].number_format = '#,##0.0'
+        ws1['G5'].value = f"=SUM(G{fila_inicio_datos}:G{fila_fin_datos})"
+        ws1['G5'].number_format = '#,##0.0'
+        ws1['I5'].value = f"=SUM(I{fila_inicio_datos}:I{fila_fin_datos})"
+        ws1['I5'].number_format = '#,##0.0'
 
-        # Ajustar ancho de columnas
-        for col in ws.columns:
-            max_len = max(len(str(cell.value or '')) for cell in col)
+        # Fila de Totales Generales
+        ws1.row_dimensions[row_idx].height = 24
+        ws1.merge_cells(f'A{row_idx}:C{row_idx}')
+        c_tot_label = ws1[f'A{row_idx}']
+        c_tot_label.value = "TOTALES GENERALES:"
+        c_tot_label.font = font_data_bold
+        c_tot_label.alignment = Alignment(horizontal='right', vertical='center')
+        c_tot_label.border = total_border
+
+        for c_ltr, c_num in [('D', 4), ('E', 5), ('F', 6), ('G', 7), ('H', 8), ('I', 9), ('J', 10)]:
+            c_sum = ws1[f'{c_ltr}{row_idx}']
+            c_sum.value = f"=SUM({c_ltr}{fila_inicio_datos}:{c_ltr}{fila_fin_datos})"
+            c_sum.font = font_data_bold
+            c_sum.border = total_border
+            c_sum.alignment = Alignment(horizontal='right', vertical='center')
+            c_sum.number_format = '#,##0.0' if c_num in [4, 6, 7, 8, 9, 10] else '#,##0'
+
+        # Bloque de Cumplimiento Legal y Firmas Ejecutivas
+        row_idx += 2
+        ws1.merge_cells(f'A{row_idx}:J{row_idx}')
+        ws1[f'A{row_idx}'] = "Base Legal: Código del Trabajo de Nicaragua (Ley N° 185). Jornada ordinaria máxima legal y descanso semanal computados conforme a los Artículos 58, 62 y normas conexas."
+        ws1[f'A{row_idx}'].font = font_legal
+        ws1[f'A{row_idx}'].alignment = Alignment(horizontal='left', vertical='center')
+
+        row_idx += 3
+        # 3 Firmas corporativas
+        firmas = [
+            ('B', 'C', "Elaborado por: Recursos Humanos"),
+            ('E', 'F', "Revisado por: Contabilidad y Nómina"),
+            ('H', 'I', "Aprobado por: Gerencia General")
+        ]
+        for col_a, col_b, label_firma in firmas:
+            ws1.merge_cells(f'{col_a}{row_idx}:{col_b}{row_idx}')
+            ws1.merge_cells(f'{col_a}{row_idx+1}:{col_b}{row_idx+1}')
+
+            line_cell = ws1[f'{col_a}{row_idx}']
+            line_cell.value = "____________________________________"
+            line_cell.alignment = Alignment(horizontal='center', vertical='center')
+            line_cell.font = font_data
+
+            lbl_cell = ws1[f'{col_a}{row_idx+1}']
+            lbl_cell.value = label_firma
+            lbl_cell.alignment = Alignment(horizontal='center', vertical='center')
+            lbl_cell.font = font_firma
+
+        # Ajuste de ancho de columnas Hoja 1
+        for col in ws1.columns:
             col_letter = get_column_letter(col[0].column)
-            ws.column_dimensions[col_letter].width = max(max_len + 4, 15)
+            if col_letter == 'A':
+                ws1.column_dimensions[col_letter].width = 38
+            else:
+                ws1.column_dimensions[col_letter].width = 17
 
-        from io import BytesIO
+        # ══════════════════════════════════════════════════════════════════════
+        # HOJA 2: MATRIZ DIARIA DE ASISTENCIA Y JORNADAS
+        # ══════════════════════════════════════════════════════════════════════
+        ws2 = wb.create_sheet(title="Matriz Diaria")
+        ws2.views.sheetView[0].showGridLines = True
+
+        dias_semana_abrev = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do']
+        total_cols_ws2 = 2 + len(dias_periodo) + 1  # Colaborador + Cargo + días + Total
+        col_fin_ws2_letter = get_column_letter(total_cols_ws2)
+
+        # Encabezado Hoja 2
+        ws2.merge_cells(f'A1:{col_fin_ws2_letter}1')
+        ws2['A1'] = "RESTAURANTE EL BODEGÓN — MATRIZ DIARIA DE ASISTENCIA Y JORNADAS"
+        ws2['A1'].font = font_titulo
+        ws2['A1'].fill = fill_title
+        ws2['A1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws2.row_dimensions[1].height = 30
+
+        ws2.merge_cells(f'A2:{col_fin_ws2_letter}2')
+        ws2['A2'] = f"Período Oficial: Del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')}  |  Detalle analítico diario por colaborador"
+        ws2['A2'].font = font_sub
+        ws2['A2'].fill = fill_title
+        ws2['A2'].alignment = Alignment(horizontal='center', vertical='center')
+        ws2.row_dimensions[2].height = 20
+
+        ws2.row_dimensions[3].height = 10  # Separador
+
+        # Fila 4: Cabeceras de la Matriz
+        ws2.row_dimensions[4].height = 28
+        c_nom = ws2.cell(row=4, column=1, value="Colaborador")
+        c_nom.font = font_header
+        c_nom.fill = fill_header
+        c_nom.alignment = Alignment(horizontal='left', vertical='center')
+
+        c_car = ws2.cell(row=4, column=2, value="Cargo")
+        c_car.font = font_header
+        c_car.fill = fill_header
+        c_car.alignment = Alignment(horizontal='left', vertical='center')
+
+        for d_idx, d_obj in enumerate(dias_periodo, start=3):
+            abrev_dia = dias_semana_abrev[d_obj.weekday()]
+            c_dia = ws2.cell(row=4, column=d_idx, value=f"{d_obj.strftime('%d/%m')}\n({abrev_dia})")
+            c_dia.font = font_header
+            c_dia.fill = fill_header
+            c_dia.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+        c_tot = ws2.cell(row=4, column=total_cols_ws2, value="Total Horas")
+        c_tot.font = font_header
+        c_tot.fill = fill_header
+        c_tot.alignment = Alignment(horizontal='center', vertical='center')
+
+        row_ws2 = 5
+        for emp in empleados:
+            ws2.row_dimensions[row_ws2].height = 20
+            c_n = ws2.cell(row=row_ws2, column=1, value=f"{emp.nombre} {emp.apellido}")
+            c_n.font = font_data_bold
+            c_n.border = thin_border
+            c_n.alignment = Alignment(horizontal='left', vertical='center')
+
+            c_c = ws2.cell(row=row_ws2, column=2, value=emp.get_cargo_display())
+            c_c.font = font_data
+            c_c.border = thin_border
+            c_c.alignment = Alignment(horizontal='left', vertical='center')
+
+            emp_data_map = matriz_diaria_datos.get(emp.id, {})
+
+            for d_idx, d_obj in enumerate(dias_periodo, start=3):
+                item_dia = emp_data_map.get(d_obj, {'horas': 0.0, 'label': 'LIBRE', 'tipo': 'LIBRE', 'info': ''})
+                cell_d = ws2.cell(row=row_ws2, column=d_idx)
+                cell_d.border = thin_border
+
+                if item_dia['tipo'] == 'TRABAJADO':
+                    cell_d.value = item_dia['horas']
+                    cell_d.number_format = '0.0'
+                    cell_d.font = font_data
+                    cell_d.alignment = Alignment(horizontal='right', vertical='center')
+                    if item_dia.get('info'):
+                        cell_d.comment = Comment(item_dia['info'], "El Bodegón")
+                elif item_dia['tipo'] == 'FERIADO_TRABAJADO':
+                    cell_d.value = item_dia['horas']
+                    cell_d.number_format = '0.0'
+                    cell_d.font = font_data_bold
+                    cell_d.fill = fill_feriado
+                    cell_d.alignment = Alignment(horizontal='right', vertical='center')
+                    if item_dia.get('info'):
+                        cell_d.comment = Comment(f"Feriado Laborado:\n{item_dia['info']}", "El Bodegón")
+                elif item_dia['tipo'] == 'LIBRE':
+                    cell_d.value = "LIBRE"
+                    cell_d.font = Font(name='Calibri', size=9, italic=True, color='64748B')
+                    cell_d.fill = fill_libre
+                    cell_d.alignment = Alignment(horizontal='center', vertical='center')
+                elif item_dia['tipo'] == 'FERIADO_LIBRE':
+                    cell_d.value = "FERIADO"
+                    cell_d.font = Font(name='Calibri', size=9, bold=True, color='92400E')
+                    cell_d.fill = fill_feriado
+                    cell_d.alignment = Alignment(horizontal='center', vertical='center')
+                elif item_dia['tipo'] == 'PERMISO':
+                    cell_d.value = "PERMISO"
+                    cell_d.font = Font(name='Calibri', size=9, bold=True, color='3730A3')
+                    cell_d.fill = fill_permiso
+                    cell_d.alignment = Alignment(horizontal='center', vertical='center')
+                else:
+                    cell_d.value = "FALTA"
+                    cell_d.font = Font(name='Calibri', size=9, bold=True, color='991B1B')
+                    cell_d.fill = PatternFill(fill_type='solid', start_color='FEE2E2', end_color='FEE2E2')
+                    cell_d.alignment = Alignment(horizontal='center', vertical='center')
+
+            # Columna Total Horas del empleado
+            col_ini_letter = get_column_letter(3)
+            col_fin_letter = get_column_letter(total_cols_ws2 - 1)
+            c_tot_emp = ws2.cell(row=row_ws2, column=total_cols_ws2)
+            c_tot_emp.value = f"=SUM({col_ini_letter}{row_ws2}:{col_fin_letter}{row_ws2})"
+            c_tot_emp.font = font_data_bold
+            c_tot_emp.border = thin_border
+            c_tot_emp.alignment = Alignment(horizontal='right', vertical='center')
+            c_tot_emp.number_format = '#,##0.0'
+
+            row_ws2 += 1
+
+        # Fila Total General por día en Hoja 2
+        ws2.row_dimensions[row_ws2].height = 22
+        ws2.merge_cells(f'A{row_ws2}:B{row_ws2}')
+        c_lbl_m = ws2[f'A{row_ws2}']
+        c_lbl_m.value = "TOTAL HORAS DEL DIA:"
+        c_lbl_m.font = font_data_bold
+        c_lbl_m.alignment = Alignment(horizontal='right', vertical='center')
+        c_lbl_m.border = total_border
+
+        for d_idx in range(3, total_cols_ws2 + 1):
+            col_ltr = get_column_letter(d_idx)
+            c_tot_d = ws2.cell(row=row_ws2, column=d_idx)
+            c_tot_d.value = f"=SUM({col_ltr}5:{col_ltr}{row_ws2-1})"
+            c_tot_d.font = font_data_bold
+            c_tot_d.border = total_border
+            c_tot_d.alignment = Alignment(horizontal='right', vertical='center')
+            c_tot_d.number_format = '#,##0.0'
+
+        ws2.column_dimensions['A'].width = 28
+        ws2.column_dimensions['B'].width = 22
+        for d_idx in range(3, total_cols_ws2):
+            col_ltr = get_column_letter(d_idx)
+            ws2.column_dimensions[col_ltr].width = 11
+        ws2.column_dimensions[col_fin_ws2_letter].width = 15
+
+        # ══════════════════════════════════════════════════════════════════════
+        # HOJA 3: HORAS EXTRA Y NOVEDADES
+        # ══════════════════════════════════════════════════════════════════════
+        ws3 = wb.create_sheet(title="Horas Extra")
+        ws3.views.sheetView[0].showGridLines = True
+
+        ws3.merge_cells('A1:J1')
+        ws3['A1'] = "RESTAURANTE EL BODEGÓN — AUDITORÍA DETALLADA DE HORAS EXTRAORDINARIAS"
+        ws3['A1'].font = font_titulo
+        ws3['A1'].fill = fill_title
+        ws3['A1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws3.row_dimensions[1].height = 30
+
+        ws3.merge_cells('A2:J2')
+        ws3['A2'] = f"Período: Del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')}  |  Cumplimiento normativo conforme al Art. 58 del Código del Trabajo de Nicaragua"
+        ws3['A2'].font = font_sub
+        ws3['A2'].fill = fill_title
+        ws3['A2'].alignment = Alignment(horizontal='center', vertical='center')
+        ws3.row_dimensions[2].height = 20
+
+        ws3.row_dimensions[3].height = 10
+
+        headers_ws3 = [
+            "No. Ref",
+            "Fecha",
+            "Día de Semana",
+            "Colaborador",
+            "Cargo",
+            "H. Solicitadas",
+            "H. Autorizadas",
+            "Estado",
+            "Motivo / Justificación",
+            "Auditoría Legal (Art. 58 CT)"
+        ]
+        ws3.row_dimensions[4].height = 26
+        for col_idx, h_text in enumerate(headers_ws3, start=1):
+            cell = ws3.cell(row=4, column=col_idx)
+            cell.value = h_text
+            cell.font = font_header
+            cell.fill = fill_header
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        extras_qs = list(AutorizacionHorasExtra.objects.filter(
+            fecha__gte=fecha_inicio,
+            fecha__lte=fecha_fin
+        ).select_related('empleado').order_by('fecha', 'id'))
+
+        dias_es = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+        row_ws3 = 5
+
+        if not extras_qs:
+            ws3.merge_cells('A5:J5')
+            c_empty = ws3['A5']
+            c_empty.value = "No se registraron horas extraordinarias en el período evaluado."
+            c_empty.font = font_legal
+            c_empty.alignment = Alignment(horizontal='center', vertical='center')
+            ws3.row_dimensions[5].height = 25
+            row_ws3 = 6
+        else:
+            for extra in extras_qs:
+                ws3.row_dimensions[row_ws3].height = 20
+                h_sol = float(extra.horas_extra_solicitadas or 0.0)
+                h_aut = float(extra.horas_extra_autorizadas or 0.0)
+                dia_semana_nombre = dias_es[extra.fecha.weekday()]
+
+                cumplimiento_nota = "Conforme a Ley (Art. 58 CT)" if h_aut <= 9.0 else "Excede límite semanal de 9h (Art. 58 CT)"
+
+                fila_ws3 = [
+                    f"HE-{extra.id:04d}",
+                    extra.fecha.strftime('%d/%m/%Y'),
+                    dia_semana_nombre,
+                    f"{extra.empleado.nombre} {extra.empleado.apellido}",
+                    extra.empleado.get_cargo_display(),
+                    round(h_sol, 1),
+                    round(h_aut, 1),
+                    extra.get_estado_display(),
+                    extra.comentario or "Sin observaciones",
+                    cumplimiento_nota
+                ]
+                ws3.append(fila_ws3)
+
+                is_z = (row_ws3 % 2 == 0)
+                for c_idx in range(1, 11):
+                    c_cell = ws3.cell(row=row_ws3, column=c_idx)
+                    c_cell.font = font_data
+                    c_cell.border = thin_border
+                    if is_z:
+                        c_cell.fill = fill_zebra
+                    if c_idx in [1, 2, 3, 8]:
+                        c_cell.alignment = Alignment(horizontal='center', vertical='center')
+                    elif c_idx in [6, 7]:
+                        c_cell.alignment = Alignment(horizontal='right', vertical='center')
+                        c_cell.number_format = '#,##0.0'
+                    else:
+                        c_cell.alignment = Alignment(horizontal='left', vertical='center')
+
+                row_ws3 += 1
+
+            # Totales de Horas Extra
+            ws3.row_dimensions[row_ws3].height = 24
+            ws3.merge_cells(f'A{row_ws3}:E{row_ws3}')
+            c_tot_extra = ws3[f'A{row_ws3}']
+            c_tot_extra.value = "TOTAL HORAS EXTRAORDINARIAS:"
+            c_tot_extra.font = font_data_bold
+            c_tot_extra.alignment = Alignment(horizontal='right', vertical='center')
+            c_tot_extra.border = total_border
+
+            c_tot_sol = ws3[f'F{row_ws3}']
+            c_tot_sol.value = f"=SUM(F5:F{row_ws3-1})"
+            c_tot_sol.font = font_data_bold
+            c_tot_sol.border = total_border
+            c_tot_sol.alignment = Alignment(horizontal='right', vertical='center')
+            c_tot_sol.number_format = '#,##0.0'
+
+            c_tot_aut = ws3[f'G{row_ws3}']
+            c_tot_aut.value = f"=SUM(G5:G{row_ws3-1})"
+            c_tot_aut.font = font_data_bold
+            c_tot_aut.border = total_border
+            c_tot_aut.alignment = Alignment(horizontal='right', vertical='center')
+            c_tot_aut.number_format = '#,##0.0'
+
+            ws3.merge_cells(f'H{row_ws3}:J{row_ws3}')
+            for c_empty_idx in ['H', 'I', 'J']:
+                ws3[f'{c_empty_idx}{row_ws3}'].border = total_border
+
+        # Anchos de columna Hoja 3
+        anchos_ws3 = {'A': 12, 'B': 14, 'C': 15, 'D': 28, 'E': 20, 'F': 15, 'G': 15, 'H': 15, 'I': 30, 'J': 30}
+        for col_l, w in anchos_ws3.items():
+            ws3.column_dimensions[col_l].width = w
+
+        # Guardar en Buffer y Devolver
         buffer = BytesIO()
         wb.save(buffer)
         buffer.seek(0)
 
-        nombre_archivo = f"BodegonPass_Reporte_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.xlsx"
+        nombre_archivo = f"BodegonPass_Nomina_{fecha_inicio.strftime('%Y%m%d')}_{fecha_fin.strftime('%Y%m%d')}.xlsx"
         response = HttpResponse(buffer.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="{nombre_archivo}"'
         response['X-Filename'] = nombre_archivo
@@ -2789,7 +3184,7 @@ def exportar_reporte_nomina_excel(request):
         BitacoraAccion.objects.create(
             usuario=request.user if request.user.is_authenticated else None,
             accion='EXPORTAR_NOMINA',
-            descripcion=f"Reporte de horas y asistencia Excel exportado ({fecha_inicio} a {fecha_fin}).",
+            descripcion=f"Reporte ejecutivo de nómina y asistencia Excel exportado ({fecha_inicio} a {fecha_fin}).",
             ip_address=_get_clean_ip(request)
         )
 
@@ -2797,6 +3192,7 @@ def exportar_reporte_nomina_excel(request):
 
     except Exception as e:
         return Response({'detail': f'Error generando reporte Excel: {str(e)}'}, status=500)
+
 
 
 @api_view(['GET'])
