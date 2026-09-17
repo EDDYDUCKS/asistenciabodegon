@@ -998,6 +998,109 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             'empleado_vacaciones_acumuladas': float(empleado.dias_vacaciones_acumuladas) if (empleado and empleado.dias_vacaciones_acumuladas is not None) else 0.0,
         })
 
+    @action(detail=True, methods=['post'], url_path='cerrar-salida-11pm')
+    def cerrar_salida_11pm(self, request, pk=None):
+        """
+        Cierra automáticamente un marcaje huérfano (olvido de marcaje de salida)
+        creando un registro de SALIDA_DEFINITIVA a las 11:00 PM (23:00) del día correspondiente.
+        Calcula las horas trabajadas, marca la alerta como leída y registra en bitácora.
+        """
+        import re
+        import datetime
+        from django.utils import timezone
+
+        alerta = self.get_object()
+        empleado = alerta.empleado
+        if not empleado:
+            return Response(
+                {'status': 'error', 'mensaje': 'La alerta no está asociada a ningún empleado.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        tz = timezone.get_current_timezone()
+
+        # Determinar la fecha del turno huérfano
+        fecha_turno = None
+        if alerta.mensaje:
+            m = re.search(r'(\d{2})/(\d{2})/(\d{4})', alerta.mensaje)
+            if m:
+                d, mo, y = m.groups()
+                fecha_turno = datetime.date(int(y), int(mo), int(d))
+
+        if not fecha_turno:
+            # Si no se encontró en el texto, buscar el último registro incompleto del empleado
+            ultimo_reg = RegistroAsistencia.objects.filter(
+                empleado=empleado,
+                tipo_evento__in=['ENTRADA', 'ENTRADA_QUEBRADA']
+            ).order_by('-fecha_hora').first()
+            if ultimo_reg:
+                fecha_turno = ultimo_reg.fecha_hora.astimezone(tz).date()
+            elif alerta.created_at:
+                fecha_turno = alerta.created_at.astimezone(tz).date() - datetime.timedelta(days=1)
+            else:
+                fecha_turno = timezone.localdate() - datetime.timedelta(days=1)
+
+        start_dt = timezone.make_aware(datetime.datetime.combine(fecha_turno, datetime.time.min), tz)
+        end_dt = timezone.make_aware(datetime.datetime.combine(fecha_turno, datetime.time.max), tz)
+
+        # Verificar si ya existe una salida definitiva en esa fecha
+        salida_existente = RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            tipo_evento='SALIDA_DEFINITIVA',
+            fecha_hora__range=(start_dt, end_dt)
+        ).exists()
+
+        if salida_existente:
+            alerta.leida = True
+            alerta.save(update_fields=['leida'])
+            return Response({
+                'status': 'ok',
+                'mensaje': f'El colaborador {empleado.nombre} ya tiene una salida registrada para el {fecha_turno.strftime("%d/%m/%Y")}. La alerta fue marcada como resuelta.',
+            })
+
+        # Crear SALIDA_DEFINITIVA a las 11:00 PM (23:00:00) exactamente
+        fecha_hora_11pm = timezone.make_aware(datetime.datetime.combine(fecha_turno, datetime.time(23, 0, 0)), tz)
+
+        nuevo_registro = RegistroAsistencia.objects.create(
+            empleado=empleado,
+            tipo_evento='SALIDA_DEFINITIVA',
+            fecha_hora=fecha_hora_11pm,
+            ip_address=_get_clean_ip(request)
+        )
+
+        # Recalcular horas y actualizar bolsa de horas
+        _recalcular_horas_pendientes_empleado(empleado, fecha_turno)
+
+        regs_actualizados = list(RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            fecha_hora__range=(start_dt, end_dt)
+        ).order_by('fecha_hora'))
+        horas_netas = _calcular_horas_netas_dia(regs_actualizados)
+        _procesar_compensacion_y_horas_extra(empleado, fecha_turno, horas_netas, request)
+
+        # Resolver la alerta
+        alerta.leida = True
+        alerta.save(update_fields=['leida'])
+
+        # Registrar en la bitácora de auditoría
+        BitacoraAccion.objects.create(
+            usuario=request.user if request.user.is_authenticated else None,
+            accion='REGISTRO_MANUAL',
+            descripcion=(
+                f"Cierre administrativo de marcaje huérfano: Salida registrada a las 11:00 PM "
+                f"para {empleado.nombre} {empleado.apellido} el día {fecha_turno.strftime('%d/%m/%Y')} "
+                f"({horas_netas:.1f} hrs netas computadas). Alerta #{alerta.id} resuelta."
+            ),
+            ip_address=_get_clean_ip(request)
+        )
+
+        return Response({
+            'status': 'ok',
+            'mensaje': f'Salida de {empleado.nombre} {empleado.apellido} registrada exitosamente a las 11:00 PM ({horas_netas:.1f} hrs netas computadas).',
+            'horas_computadas': horas_netas,
+            'registro_id': nuevo_registro.id
+        })
+
     @action(detail=False, methods=['post'], url_path='marcar-todas-leidas')
     def marcar_todas_leidas(self, request):
         AlertaAsistencia.objects.filter(leida=False).update(leida=True)
@@ -3345,3 +3448,39 @@ def sync_batch_asistencia(request):
         respuestas.append({'status': 'ok', 'id': registro.id, 'empleado': empleado.nombre})
 
     return Response({'status': 'ok', 'sincronizados': respuestas})
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def exportar_respaldo_base_datos(request):
+    """
+    Genera y descarga un archivo JSON estructurado con el respaldo total e íntegro
+    de todas las tablas de Restaurante El Bodegón para resguardo de la administración.
+    """
+    from django.core import serializers
+    import json
+    from django.http import HttpResponse
+
+    data = {
+        'fecha_generacion': timezone.now().isoformat(),
+        'sistema': 'Restaurante El Bodegón - Sistema de Asistencia y Nómina',
+        'version': '2.0',
+        'tablas': {
+            'empleados': json.loads(serializers.serialize('json', Empleado.objects.all())),
+            'registros_asistencia': json.loads(serializers.serialize('json', RegistroAsistencia.objects.all())),
+            'autorizaciones_horas_extra': json.loads(serializers.serialize('json', AutorizacionHorasExtra.objects.all())),
+            'permisos_ausencias': json.loads(serializers.serialize('json', PermisoAusencia.objects.all())),
+            'feriados': json.loads(serializers.serialize('json', DiaFeriado.objects.all())),
+            'alertas': json.loads(serializers.serialize('json', AlertaAsistencia.objects.all())),
+            'compensaciones_horas': json.loads(serializers.serialize('json', CompensacionHoras.objects.all())),
+            'compensaciones_feriados': json.loads(serializers.serialize('json', CompensacionFeriado.objects.all())),
+            'pagos_vacaciones': json.loads(serializers.serialize('json', PagoVacaciones.objects.all())),
+            'bitacora': json.loads(serializers.serialize('json', BitacoraAccion.objects.all().order_by('-id')[:500])),
+        }
+    }
+
+    fecha_str = timezone.localdate().strftime('%Y%m%d')
+    filename = f"respaldo_bodegon_{fecha_str}.json"
+    response = HttpResponse(json.dumps(data, indent=2, ensure_ascii=False), content_type='application/json')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response

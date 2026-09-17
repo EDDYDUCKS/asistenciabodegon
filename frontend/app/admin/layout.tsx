@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { AlertaAsistencia } from '@/lib/types';
-import { fetchAlertas, updateAlerta, resolverAlerta } from '@/lib/api-client';
+import { fetchAlertas, updateAlerta, resolverAlerta, downloadDatabaseBackup, cerrarSalida11pm } from '@/lib/api-client';
 import {
   Utensils,
   LayoutDashboard,
@@ -23,6 +23,8 @@ import {
   LogOut,
   KeyRound,
   Printer,
+  Database,
+  Clock,
 } from 'lucide-react';
 import BoletaIncidenciaModal from '@/components/BoletaIncidenciaModal';
 
@@ -38,6 +40,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
   const [selectedBoletaAlerta, setSelectedBoletaAlerta] = useState<AlertaAsistencia | null>(null);
   const [resolvingAlertId, setResolvingAlertId] = useState<number | null>(null);
+  const [downloadingBackup, setDownloadingBackup] = useState(false);
+
+  const handleDownloadBackup = async () => {
+    setDownloadingBackup(true);
+    try {
+      await downloadDatabaseBackup();
+    } catch (e: unknown) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : 'Error al descargar la copia de seguridad de la base de datos.');
+    } finally {
+      setDownloadingBackup(false);
+    }
+  };
 
   // Garantizar que el scroll del body esté siempre activo al navegar entre rutas
   useEffect(() => {
@@ -549,13 +564,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
                           {/* Acción directa para Registro Incompleto */}
                           {!al.leida && al.tipo === 'REGISTRO_INCOMPLETO' && (
-                            <div className="pt-1.5 border-t border-orange-100 flex justify-end">
+                            <div className="pt-1.5 border-t border-orange-100 flex items-center justify-between gap-1">
+                              <button
+                                onClick={async () => {
+                                  if (confirm('¿Cerrar automáticamente este marcaje huérfano registrando la salida a las 11:00 PM del día del turno?')) {
+                                    try {
+                                      const res = await cerrarSalida11pm(al.id!);
+                                      alert(res.mensaje);
+                                      loadAlerts();
+                                    } catch (err: unknown) {
+                                      alert(err instanceof Error ? err.message : 'Error al cerrar el turno a las 11:00 PM');
+                                    }
+                                  }
+                                }}
+                                className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                              >
+                                <Clock className="w-3 h-3 text-indigo-600" />
+                                <span>🌙 Cerrar 11:00 PM</span>
+                              </button>
                               <Link
                                 href="/admin/asistencia"
                                 onClick={() => setShowAlertsDropdown(false)}
                                 className="text-[10px] font-bold text-orange-700 hover:underline flex items-center gap-1"
                               >
-                                📝 Corregir en Historial &rarr;
+                                📝 Historial &rarr;
                               </Link>
                             </div>
                           )}
@@ -577,6 +609,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </>
             )}
           </div>
+
+          <button
+            onClick={handleDownloadBackup}
+            disabled={downloadingBackup}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 hover:bg-stone-100 text-xs font-bold text-stone-700 transition-colors shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Descargar copia de seguridad completa (JSON) de la base de datos de El Bodegón"
+          >
+            {downloadingBackup ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#1c6856]" />
+            ) : (
+              <Database className="w-3.5 h-3.5 text-stone-600" />
+            )}
+            <span className="hidden lg:inline">Respaldo BD</span>
+          </button>
 
           <Link
             href="/kiosco"

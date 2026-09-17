@@ -813,6 +813,22 @@ export default function NominaAdminPage() {
         0
       );
 
+      // Calcular horas extras por semana (Lunes a Domingo) para auditar el límite del Art. 58 Código del Trabajo (máx 9h semanales)
+      const semanasExtrasMap: Record<string, number> = {};
+      extrasEmpPeriodo.forEach((h) => {
+        const parts = h.fecha.split('-');
+        if (parts.length === 3) {
+          const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+          const day = d.getDay();
+          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+          const lunes = new Date(d.setDate(diff)).toISOString().slice(0, 10);
+          const hrs = parseFloat(String(h.horas_extra_autorizadas)) || 0;
+          semanasExtrasMap[lunes] = (semanasExtrasMap[lunes] || 0) + hrs;
+        }
+      });
+      const maxHorasExtraSemana = Object.values(semanasExtrasMap).reduce((max, val) => Math.max(max, val), 0);
+      const excedeLimiteArt58 = maxHorasExtraSemana > 9.0;
+
       // Sumar horas extras pendientes por aprobar para este empleado en el período
       const extrasPendientesEmpPeriodo = horasExtra.filter(
         (h) => h.empleado === emp.id && h.fecha >= fechaInicio && h.fecha <= fechaFin && h.estado === 'PENDIENTE'
@@ -865,6 +881,8 @@ export default function NominaAdminPage() {
         pagosVacEmp,
         feriadosDetalle,
         horasExtraAprobadas,
+        maxHorasExtraSemana,
+        excedeLimiteArt58,
         horasExtraPendientes: horasExtraPendientesFinal,
         horasDebidas: horasDebidasFinal,
         permisosInfo: permisosInfoPorEmpleado[emp.id] || [],
@@ -1009,6 +1027,21 @@ export default function NominaAdminPage() {
     const emp = empleados.find((e) => e.id === empId);
     const deuda = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
 
+    // Calcular total semanal de horas extra autorizadas para este colaborador en la semana de esta fecha
+    const fechaObj = new Date(item.fecha + 'T12:00:00');
+    const dayOfWeek = fechaObj.getDay();
+    const diffToMon = fechaObj.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const mondayObj = new Date(fechaObj.setDate(diffToMon));
+    const sundayObj = new Date(mondayObj);
+    sundayObj.setDate(sundayObj.getDate() + 6);
+    const monStr = mondayObj.toISOString().slice(0, 10);
+    const sunStr = sundayObj.toISOString().slice(0, 10);
+    const extrasSemana = horasExtra.filter(
+      (h) => (h.empleado === empId || h.empleado_detalle?.id === empId) &&
+        h.fecha >= monStr && h.fecha <= sunStr && h.estado === 'APROBADO'
+    ).reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_autorizadas)) || 0), 0);
+    const excedeLimiteSemanal = extrasSemana > 9.0;
+
     return (
       <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
         <td className="px-6 py-4 font-mono font-bold text-stone-600">
@@ -1039,6 +1072,14 @@ export default function NominaAdminPage() {
               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
                 <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
                 Debe {deuda.toFixed(1)} hrs
+              </span>
+            )}
+            {excedeLimiteSemanal && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs"
+                title={`Límite Semanal Superado: Acumula ${extrasSemana.toFixed(1)} hrs autorizadas en esta semana (Art. 58 Código del Trabajo: máx 9h semanales)`}
+              >
+                ⚠️ &gt;9h sem (Art. 58 CT)
               </span>
             )}
           </div>
@@ -1439,7 +1480,17 @@ export default function NominaAdminPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700">
-                          {item.horasExtraAprobadas.toFixed(1)} hrs
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span>{item.horasExtraAprobadas.toFixed(1)} hrs</span>
+                            {item.excedeLimiteArt58 && (
+                              <span
+                                className="inline-flex items-center gap-1 text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded shadow-2xs"
+                                title={`Atención: Excede el límite de 9h semanales (${item.maxHorasExtraSemana.toFixed(1)} hrs en una sola semana - Art. 58 Código del Trabajo)`}
+                              >
+                                <span>⚠️ &gt;9h sem (Art. 58)</span>
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-right font-mono font-bold bg-amber-50/20">
                           {item.horasExtraPendientes > 0 ? (

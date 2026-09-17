@@ -539,4 +539,41 @@ export async function sincronizarDescansosTrabajados(): Promise<{ status: string
   });
 }
 
+// ── MARCAJES HUÉRFANOS (CIERRE A LAS 11:00 PM) ───────────────────────────
+export async function cerrarSalida11pm(alertaId: number): Promise<{
+  status: string;
+  mensaje: string;
+  horas_computadas?: number;
+}> {
+  return apiRequest<{ status: string; mensaje: string; horas_computadas?: number }>(
+    `/alertas/${alertaId}/cerrar-salida-11pm/`,
+    {
+      method: 'POST',
+    }
+  );
+}
+
+// ── RESPALDO TOTAL DE BASE DE DATOS ───────────────────────────────────────
+export async function downloadDatabaseBackup(): Promise<void> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const headers: HeadersInit = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE_URL}/admin/respaldo-datos/`, { headers });
+  if (!res.ok) {
+    throw new Error('Error al generar la copia de seguridad de la base de datos.');
+  }
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const hoyStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  a.download = `respaldo_bodegon_${hoyStr}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 
