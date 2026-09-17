@@ -37,7 +37,6 @@ export default function BoletaPagoVacacionesModal({
   const idCarnet = emp?.cedula_carnet
     ? emp.cedula_carnet
     : `Carnet: #BOD-${String(emp?.id || pago.empleado).padStart(3, '0')}`;
-  const turnoColaborador = emp?.tipo_turno === 'QUEBRADO' ? 'Horario Quebrado' : 'Horario Corrido (8h)';
 
   const fechaPagoStr = new Date(pago.fecha_pago + 'T00:00:00').toLocaleDateString('es-NI', {
     day: '2-digit',
@@ -213,14 +212,6 @@ export default function BoletaPagoVacacionesModal({
             </div>
             <div>
               <span className="text-[9px] uppercase font-bold text-stone-400 tracking-wider block">
-                Turno Asignado
-              </span>
-              <span className="font-medium text-stone-700 text-[11px]">
-                {turnoColaborador}
-              </span>
-            </div>
-            <div>
-              <span className="text-[9px] uppercase font-bold text-stone-400 tracking-wider block">
                 Saldo de Vacaciones Previo
               </span>
               <span className="font-mono font-bold text-stone-600 text-xs">
@@ -228,7 +219,15 @@ export default function BoletaPagoVacacionesModal({
               </span>
             </div>
             <div>
-              <span className="text-[9px] uppercase font-bold text-stone-400 tracking-wider block">
+              <span className="text-[9px] uppercase font-bold text-rose-500 tracking-wider block">
+                Días Liquidados (Deducción)
+              </span>
+              <span className="font-mono font-bold text-rose-700 text-xs">
+                -{diasPagados.toFixed(2)} días
+              </span>
+            </div>
+            <div>
+              <span className="text-[9px] uppercase font-bold text-emerald-800 tracking-wider block">
                 Saldo Restante en Cuenta
               </span>
               <span className="font-mono font-black text-emerald-800 text-xs">
