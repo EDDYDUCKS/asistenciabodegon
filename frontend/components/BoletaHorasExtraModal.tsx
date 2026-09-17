@@ -487,40 +487,38 @@ export default function BoletaHorasExtraModal({
                 )}
               </span>
             </div>
-
-            <p className="text-[9px] text-stone-500 leading-relaxed pt-0.5">
-              <strong>Marco Normativo:</strong> Certificación extendida de conformidad con el Art. 62 del Código del Trabajo de la República de Nicaragua. El tiempo extraordinario consignado corresponde a labores debidamente autorizadas y requeridas por el servicio de restaurante fuera de la jornada habitual, retribuido con el recargo legal del 100%.
-            </p>
           </div>
 
-          {/* Cuadro Legal de Firmas Oficiales */}
-          <div className="pt-4 border-t border-stone-200">
-            <div className="grid grid-cols-2 gap-8">
-              {/* Firma Colaborador */}
-              <div className="flex flex-col items-center justify-end text-center">
-                <div className="w-full border-b border-stone-400 pb-1 mb-2">
-                  <div className="h-12" />
-                </div>
-                <strong className="text-xs font-bold text-stone-900 block">{nombreColaborador}</strong>
-                <span className="text-[10px] text-stone-500 font-medium block">
-                  Colaborador — {cargoColaborador}
-                </span>
-                <span className="text-[9px] text-stone-400 font-medium block mt-0.5">
-                  Conformidad y Notificación Recibida
-                </span>
-              </div>
+          {/* Constancia Legal y Notificación Conforme */}
+          <p className="text-[10px] text-stone-600 leading-relaxed text-justify border-l-2 border-[#1c6856] pl-3 py-1 bg-stone-50/50 rounded-r-lg">
+            {esAprobado ? (
+              <>
+                Por medio del presente comprobante oficial, las partes hacen constar que el/la colaborador(a) abajo firmante ha laborado el tiempo extraordinario aquí detallado por requerimientos operativos de <strong>Restaurante El Bodegón</strong>, el cual ha sido debidamente verificado y autorizado por la Administración conforme a lo preceptuado en el Artículo 62 del Código del Trabajo de la República de Nicaragua. Con la firma de este documento, el/la colaborador(a) manifiesta su entera conformidad con la cantidad de horas autorizadas y su correspondiente liquidación en la nómina del período con el recargo legal del cien por ciento (100%), sirviendo el presente como formal notificación y constancia para ambas partes.
+              </>
+            ) : esRechazado ? (
+              <>
+                Por medio del presente comprobante oficial, la Administración de <strong>Restaurante El Bodegón</strong> notifica que el tiempo extraordinario registrado en la fecha indicada no ha sido autorizado conforme a las normativas operativas y de asignación de turnos del establecimiento. El/la colaborador(a) abajo firmante recibe la presente notificación para los fines correspondientes del expediente laboral.
+              </>
+            ) : (
+              <>
+                El presente comprobante refleja una solicitud de jornada extraordinaria en proceso de revisión por parte de la Administración de <strong>Restaurante El Bodegón</strong>, pendiente de dictamen oficial para su cómputo en nómina.
+              </>
+            )}
+          </p>
 
-              {/* Firma Administración */}
-              <div className="flex flex-col items-center justify-end text-center">
-                <div className="w-full border-b border-stone-400 pb-1 mb-2">
-                  <div className="h-12" />
-                </div>
-                <strong className="text-xs font-bold text-stone-900 block">Administración</strong>
-                <span className="text-[10px] text-stone-600 font-semibold block">Restaurante El Bodegón</span>
-                <span className="text-[9px] text-stone-400 font-medium block mt-0.5">
-                  Autorización Oficial y Sello Administrativo
-                </span>
-              </div>
+          {/* Firmas Formales Oficiales */}
+          <div className="pt-5 pb-1 grid grid-cols-2 gap-8 text-center text-xs">
+            <div className="space-y-1">
+              <div className="border-t-2 border-stone-800 pt-2 w-48 mx-auto" />
+              <p className="font-bold text-stone-900 uppercase tracking-wider text-xs">{nombreColaborador}</p>
+              <p className="text-[10px] text-stone-500">Firma del Colaborador(a) • Notificación Conforme</p>
+              <p className="text-[9px] text-stone-400 font-mono">Carnet: {idCarnet}</p>
+            </div>
+            <div className="space-y-1">
+              <div className="border-t-2 border-stone-800 pt-2 w-48 mx-auto" />
+              <p className="font-bold text-stone-900 uppercase tracking-wider text-xs">Administración General</p>
+              <p className="text-[10px] text-stone-500">Restaurante El Bodegón</p>
+              <p className="text-[9px] text-stone-400">Firma Autorizada y Sello Administrativo</p>
             </div>
           </div>
         </div>
