@@ -15,12 +15,16 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!alerta) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prev || '';
     };
-  }, []);
+  }, [alerta]);
 
   if (!alerta || !mounted) return null;
 

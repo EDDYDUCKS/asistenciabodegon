@@ -18,12 +18,16 @@ export default function BoletaPagoVacacionesModal({
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!pago) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prev || '';
     };
-  }, []);
+  }, [pago]);
 
   if (!pago || !mounted) return null;
 

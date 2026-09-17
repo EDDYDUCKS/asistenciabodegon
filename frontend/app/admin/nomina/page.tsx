@@ -3847,16 +3847,20 @@ export default function NominaAdminPage() {
 
       {/* ── MODAL 5: BOLETA OFICIAL DE PAGO DE VACACIONES IMPRIMIBLE ── */}
       {/* ── MODAL 6: BOLETA OFICIAL DE HORAS EXTRA (APROBADAS / RECHAZADAS) ── */}
-      <BoletaHorasExtraModal
-        horaExtra={selectedExtraParaBoleta}
-        asistencias={asistencias}
-        onClose={() => setSelectedExtraParaBoleta(null)}
-      />
+      {selectedExtraParaBoleta && (
+        <BoletaHorasExtraModal
+          horaExtra={selectedExtraParaBoleta}
+          asistencias={asistencias}
+          onClose={() => setSelectedExtraParaBoleta(null)}
+        />
+      )}
 
-      <BoletaPagoVacacionesModal
-        pago={selectedPagoVacaciones}
-        onClose={() => setSelectedPagoVacaciones(null)}
-      />
+      {selectedPagoVacaciones && (
+        <BoletaPagoVacacionesModal
+          pago={selectedPagoVacaciones}
+          onClose={() => setSelectedPagoVacaciones(null)}
+        />
+      )}
     </div>
   );
 }

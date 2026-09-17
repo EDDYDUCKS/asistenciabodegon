@@ -39,6 +39,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [selectedBoletaAlerta, setSelectedBoletaAlerta] = useState<AlertaAsistencia | null>(null);
   const [resolvingAlertId, setResolvingAlertId] = useState<number | null>(null);
 
+  // Garantizar que el scroll del body esté siempre activo al navegar entre rutas
+  useEffect(() => {
+    document.body.style.overflow = '';
+  }, [pathname]);
+
   const navItems = [
     { label: 'Dashboard', href: '/admin', icon: <LayoutDashboard className="w-4 h-4" /> },
     { label: 'Empleados', href: '/admin/empleados', icon: <Users className="w-4 h-4" /> },
@@ -631,10 +636,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </main>
 
       {/* Modal de Emisión de Boleta para Expediente Físico */}
-      <BoletaIncidenciaModal
-        alerta={selectedBoletaAlerta}
-        onClose={() => setSelectedBoletaAlerta(null)}
-      />
+      {selectedBoletaAlerta && (
+        <BoletaIncidenciaModal
+          alerta={selectedBoletaAlerta}
+          onClose={() => setSelectedBoletaAlerta(null)}
+        />
+      )}
     </div>
   );
 }

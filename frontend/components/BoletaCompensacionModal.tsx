@@ -15,12 +15,16 @@ export default function BoletaCompensacionModal({ compensacion, onClose }: Bolet
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!compensacion) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prev || '';
     };
-  }, []);
+  }, [compensacion]);
 
   if (!compensacion || !mounted) return null;
 

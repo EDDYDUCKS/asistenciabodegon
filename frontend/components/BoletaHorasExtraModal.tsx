@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AutorizacionHorasExtra, RegistroAsistencia } from '@/lib/types';
-import { Printer, X, CheckCircle, XCircle, Clock, User, Calendar, FileText, UtensilsCrossed, Shield, Award } from 'lucide-react';
+import { Printer, X, CheckCircle, XCircle, Clock, User, Calendar, FileText, UtensilsCrossed, Shield, Award, Receipt } from 'lucide-react';
 
 interface BoletaHorasExtraModalProps {
   horaExtra: AutorizacionHorasExtra | null;
@@ -20,12 +20,16 @@ export default function BoletaHorasExtraModal({
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!horaExtra) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prev || '';
     };
-  }, []);
+  }, [horaExtra]);
 
   if (!horaExtra || !mounted) return null;
 
@@ -60,6 +64,16 @@ export default function BoletaHorasExtraModal({
   const horasAutorizadas = parseFloat(String(horaExtra.horas_extra_autorizadas || 0));
   const esAprobado = horaExtra.estado === 'APROBADO';
   const esRechazado = horaExtra.estado === 'RECHAZADO';
+  const esPendiente = horaExtra.estado === 'PENDIENTE';
+
+  const tarifaOrdinariaHora = parseFloat(String(emp?.tarifa_hora || 0));
+  // Conforme al Art. 62 del Código del Trabajo de Nicaragua: Recargo del 100% (pago doble = Factor 2.0x)
+  const factorRecargo = 2.0;
+  const tarifaExtraordinariaHora = tarifaOrdinariaHora * factorRecargo;
+  const montoEstimadoPagar = esAprobado ? horasAutorizadas * tarifaExtraordinariaHora : 0;
+  const horasJornadaBase = 8.0;
+  const horasEfectivasComputadas = horasJornadaBase + (esAprobado ? horasAutorizadas : 0);
+  const diferenciaHoras = horasAutorizadas - horasSolicitadas;
 
   // Buscar marcaciones reales del reloj biométrico para este colaborador en esta fecha
   const empId = typeof horaExtra.empleado === 'number' ? horaExtra.empleado : (emp?.id || 0);
@@ -383,17 +397,100 @@ export default function BoletaHorasExtraModal({
             </div>
           </div>
 
-          {/* Cláusula de Garantía Salarial Intocable (Cero Amortizaciones a Déficit) */}
-          <div className="bg-emerald-50/60 border border-emerald-300/80 rounded-2xl p-3 text-[11px] text-emerald-950 leading-relaxed shadow-2xs flex items-start gap-2.5">
-            <Shield className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-            <div>
-              <strong className="font-bold text-emerald-900 block">
-                Garantía de Remuneración Íntegra (Horas Intocables):
-              </strong>
-              <p className="text-stone-700 text-[10px] mt-0.5">
-                Por resolución expresa de la Administración de <strong>Restaurante El Bodegón</strong>, las horas extraordinarias aprobadas en el presente comprobante constituyen un derecho adquirido por tiempo efectivamente laborado. <u>No están sujetas a deducciones, compensaciones ni amortizaciones por déficit de horas o inasistencias</u>, y serán liquidadas al 100% en la nómina del colaborador.
-              </p>
+          {/* Desglose Financiero y Liquidación en Nómina (Art. 62 Código del Trabajo de Nicaragua) */}
+          <div className="border border-stone-200 rounded-2xl p-3 bg-stone-50/70 shadow-xs space-y-2">
+            <div className="flex items-center justify-between gap-2 border-b border-stone-200/80 pb-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[#1c6856] flex items-center gap-1.5">
+                <Receipt className="w-3.5 h-3.5 text-[#1c6856]" />
+                Liquidación Económica & Cómputo en Nómina
+              </span>
+              <span className="text-[9px] font-bold text-stone-600 bg-white border border-stone-200 px-2 py-0.5 rounded-md">
+                Art. 62 Código del Trabajo (Nicaragua)
+              </span>
             </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/90 shadow-2xs">
+                <span className="text-stone-500 text-[9px] block uppercase font-bold">
+                  Tarifa Ordinaria / Hora:
+                </span>
+                <strong className="font-mono text-stone-900 text-xs block mt-0.5">
+                  {tarifaOrdinariaHora > 0
+                    ? `C$ ${tarifaOrdinariaHora.toFixed(2)}`
+                    : 'Tarifa Base'}
+                </strong>
+                <span className="text-[9px] text-stone-400 block">Jornada ordinaria</span>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/90 shadow-2xs">
+                <span className="text-stone-500 text-[9px] block uppercase font-bold">
+                  Recargo por Ley:
+                </span>
+                <strong className="font-mono text-emerald-700 text-xs block mt-0.5">
+                  +100% (Pago Doble)
+                </strong>
+                <span className="text-[9px] text-stone-400 block">Factor legal 2.0x</span>
+              </div>
+
+              <div className="bg-white p-2.5 rounded-xl border border-stone-200/90 shadow-2xs">
+                <span className="text-stone-500 text-[9px] block uppercase font-bold">
+                  Tarifa Extraordinaria:
+                </span>
+                <strong className="font-mono text-stone-900 text-xs block mt-0.5">
+                  {tarifaOrdinariaHora > 0
+                    ? `C$ ${tarifaExtraordinariaHora.toFixed(2)}`
+                    : '200% de la Base'}
+                </strong>
+                <span className="text-[9px] text-stone-400 block">Por hora autorizada</span>
+              </div>
+
+              <div className={`p-2.5 rounded-xl border shadow-2xs ${
+                esAprobado
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                  : esRechazado
+                  ? 'bg-rose-50 border-rose-200 text-rose-950'
+                  : 'bg-amber-50 border-amber-200 text-amber-950'
+              }`}>
+                <span className="text-[9px] block uppercase font-bold opacity-80">
+                  Total Bruto a Liquidar:
+                </span>
+                <strong className="font-mono text-xs block mt-0.5 font-black">
+                  {esAprobado
+                    ? (montoEstimadoPagar > 0
+                      ? `C$ ${montoEstimadoPagar.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : (horasAutorizadas > 0 ? 'Cómputo 2.0x en Nómina' : 'C$ 0.00'))
+                    : esRechazado
+                    ? 'C$ 0.00'
+                    : 'Pendiente'}
+                </strong>
+                <span className="text-[9px] opacity-80 block">
+                  {esAprobado ? `${horasAutorizadas.toFixed(1)} hrs × Tarifa Doble` : 'Sin remuneración extra'}
+                </span>
+              </div>
+            </div>
+
+            {/* Resumen Total de Horas de la Jornada */}
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] bg-white px-3 py-1.5 rounded-xl border border-stone-200">
+              <span className="text-stone-600 font-medium">
+                Cómputo Global del Turno:{' '}
+                <strong className="text-stone-900">8.0 hrs Ordinarias</strong> +{' '}
+                <strong className="text-emerald-700 font-bold">{esAprobado ? `+${horasAutorizadas.toFixed(1)} hrs Extra` : '0.0 hrs'}</strong> ={' '}
+                <strong className="text-stone-900 font-bold">{horasEfectivasComputadas.toFixed(1)} hrs Efectivas Totales</strong>
+              </span>
+              <span className="text-stone-500 font-mono text-[9px]">
+                {diferenciaHoras < 0 && esAprobado ? (
+                  <span className="text-amber-700 font-bold">
+                    (Ajuste: {diferenciaHoras.toFixed(1)} hrs vs registrado)
+                  </span>
+                ) : (
+                  'Acreditación Directa en Nómina'
+                )}
+              </span>
+            </div>
+
+            <p className="text-[9px] text-stone-500 leading-relaxed pt-0.5">
+              <strong>Marco Normativo:</strong> Certificación extendida de conformidad con el Art. 62 del Código del Trabajo de la República de Nicaragua. El tiempo extraordinario consignado corresponde a labores debidamente autorizadas y requeridas por el servicio de restaurante fuera de la jornada habitual, retribuido con el recargo legal del 100%.
+            </p>
           </div>
 
           {/* Cuadro Legal de Firmas Oficiales */}
