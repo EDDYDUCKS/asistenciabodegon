@@ -158,7 +158,13 @@ export default function BoletaHorasExtraModal({
             box-shadow: none !important;
             padding: 0 !important;
             margin: 0 auto !important;
+            width: 100% !important;
             max-width: 100% !important;
+            height: 254mm !important;
+            min-height: 254mm !important;
+            max-height: 256mm !important;
+            display: flex !important;
+            flex-direction: column !important;
             border-radius: 4px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
@@ -167,6 +173,17 @@ export default function BoletaHorasExtraModal({
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             background: white !important;
+            box-sizing: border-box !important;
+          }
+
+          .print-boleta-content {
+            flex: 1 1 auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            height: 100% !important;
+            padding: 6mm 8mm !important;
+            box-sizing: border-box !important;
           }
 
           /* Optimización Monocromática de Alto Contraste (Blanco y Negro Nítido) */
@@ -249,7 +266,7 @@ export default function BoletaHorasExtraModal({
         </div>
 
         {/* ── CONTENIDO IMPRIMIBLE DE LA BOLETA ── */}
-        <div className="p-6 sm:p-7 space-y-4 text-stone-900 font-sans">
+        <div className="p-6 sm:p-7 space-y-4 text-stone-900 font-sans print-boleta-content">
           {/* Encabezado Institucional: Restaurante El Bodegón & Administración */}
           <div className="border-b-2 border-[#1c6856] pb-3.5">
             <div className="flex items-start justify-between gap-4">

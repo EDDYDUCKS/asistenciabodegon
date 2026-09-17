@@ -179,16 +179,22 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
             height: auto !important;
           }
 
-          /* Hoja ajustada estrictamente para NO romper en página 2 */
+          /* Hoja ajustada estrictamente para llenar la página de forma proporcionada */
           .print-boleta-paper {
             background: white !important;
             border: 1.5pt solid #000000 !important;
-            border-radius: 3mm !important;
+            border-radius: 4px !important;
             box-shadow: none !important;
-            padding: 5mm 7mm !important;
+            padding: 6mm 8mm !important;
             margin: 0 auto !important;
             width: 100% !important;
-            max-width: 190mm !important;
+            max-width: 100% !important;
+            height: 254mm !important;
+            min-height: 254mm !important;
+            max-height: 256mm !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
