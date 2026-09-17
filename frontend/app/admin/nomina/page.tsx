@@ -60,6 +60,7 @@ import {
   Sparkles,
   Banknote,
   FileText,
+  ChevronDown,
 } from 'lucide-react';
 
 const MESES_NOMBRES: Record<number, string> = {
@@ -96,6 +97,8 @@ export default function NominaAdminPage() {
   
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingQuincenal, setDownloadingQuincenal] = useState(false);
+  const [showQuincenaMenu, setShowQuincenaMenu] = useState(false);
 
   // Form State para Modal PIN de Horas Extra (PIN 2322)
   const [showExtraPinModal, setShowExtraPinModal] = useState(false);
@@ -195,6 +198,55 @@ export default function NominaAdminPage() {
       alert(err instanceof Error ? err.message : 'Error descargando reporte Excel');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleDescargarQuincena = async (tipo: '1ra' | '2da' | 'anterior') => {
+    setShowQuincenaMenu(false);
+    setDownloadingQuincenal(true);
+    try {
+      const now = new Date();
+      let anio = now.getFullYear();
+      let mes = now.getMonth(); // 0-indexado
+      let qInicio = '';
+      let qFin = '';
+
+      if (tipo === 'anterior') {
+        if (now.getDate() <= 15) {
+          // Si estamos en la 1ra quincena, la quincena anterior fue la 2da quincena del mes pasado
+          mes = mes - 1;
+          if (mes < 0) {
+            mes = 11;
+            anio = anio - 1;
+          }
+          const ultDia = new Date(anio, mes + 1, 0).getDate();
+          const mesPad = String(mes + 1).padStart(2, '0');
+          qInicio = `${anio}-${mesPad}-16`;
+          qFin = `${anio}-${mesPad}-${ultDia}`;
+        } else {
+          // Si estamos en la 2da quincena, la quincena anterior fue la 1ra quincena de este mes
+          const mesPad = String(mes + 1).padStart(2, '0');
+          qInicio = `${anio}-${mesPad}-01`;
+          qFin = `${anio}-${mesPad}-15`;
+        }
+      } else if (tipo === '1ra') {
+        const mesPad = String(mes + 1).padStart(2, '0');
+        qInicio = `${anio}-${mesPad}-01`;
+        qFin = `${anio}-${mesPad}-15`;
+      } else {
+        const mesPad = String(mes + 1).padStart(2, '0');
+        const ultDia = new Date(anio, mes + 1, 0).getDate();
+        qInicio = `${anio}-${mesPad}-16`;
+        qFin = `${anio}-${mesPad}-${ultDia}`;
+      }
+
+      setFechaInicio(qInicio);
+      setFechaFin(qFin);
+      await downloadNominaExcel(qInicio, qFin);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error descargando planilla quincenal');
+    } finally {
+      setDownloadingQuincenal(false);
     }
   };
 
@@ -1269,18 +1321,91 @@ export default function NominaAdminPage() {
               </p>
             </div>
 
-            <button
-              onClick={handleDownloadExcel}
-              disabled={downloading}
-              className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm self-start sm:self-auto"
-            >
-              {downloading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              Descargar Excel (.xlsx)
-            </button>
+            <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto relative">
+              {/* Botón 1: Planilla Quincenal con Selector Rápido */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowQuincenaMenu(!showQuincenaMenu)}
+                  disabled={downloadingQuincenal}
+                  className="bg-stone-900 hover:bg-black active:scale-95 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer border border-stone-800"
+                  title="Descargar Planilla Quincenal Oficial (1ra o 2da Quincena)"
+                >
+                  {downloadingQuincenal ? (
+                    <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
+                  ) : (
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                  )}
+                  <span>📋 Planilla Quincenal</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-stone-400 transition-transform ${showQuincenaMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showQuincenaMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowQuincenaMenu(false)}
+                    />
+                    <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-64 bg-white border border-stone-200 rounded-2xl shadow-2xl p-2 z-50 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-3 py-1.5 border-b border-stone-100">
+                        <span className="text-[10px] font-black uppercase text-stone-400 tracking-wider">
+                          Seleccione la Quincena
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDescargarQuincena('1ra')}
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-[#1c6856]/10 hover:text-[#1c6856] transition-colors flex items-center justify-between cursor-pointer"
+                      >
+                        <div>
+                          <div className="font-bold">1ra Quincena</div>
+                          <div className="text-[10px] text-stone-400 font-normal">Días 01 al 15 de este mes</div>
+                        </div>
+                        <Download className="w-3.5 h-3.5 text-[#1c6856]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDescargarQuincena('2da')}
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-[#1c6856]/10 hover:text-[#1c6856] transition-colors flex items-center justify-between cursor-pointer"
+                      >
+                        <div>
+                          <div className="font-bold">2da Quincena</div>
+                          <div className="text-[10px] text-stone-400 font-normal">Días 16 al fin de este mes</div>
+                        </div>
+                        <Download className="w-3.5 h-3.5 text-[#1c6856]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDescargarQuincena('anterior')}
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-stone-100 transition-colors flex items-center justify-between border-t border-stone-100 pt-2 cursor-pointer"
+                      >
+                        <div>
+                          <div className="font-bold">Quincena Anterior</div>
+                          <div className="text-[10px] text-stone-400 font-normal">Última quincena cerrada</div>
+                        </div>
+                        <Download className="w-3.5 h-3.5 opacity-60" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Botón 2: Descargar Excel (.xlsx) del rango libre seleccionado */}
+              <button
+                type="button"
+                onClick={handleDownloadExcel}
+                disabled={downloading}
+                className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                title="Descargar reporte Excel del rango de fechas personalizado seleccionado en los filtros"
+              >
+                {downloading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>Descargar Excel (.xlsx)</span>
+              </button>
+            </div>
           </div>
 
           {/* Filtros Rango Fechas y Buscador */}
