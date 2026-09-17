@@ -1348,11 +1348,25 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                 # Entre 11:15 AM y 12:15 PM -> Turno de 12:00 PM (ej. Uriel a las 11:26 AM o Carlos a las 11:55 AM)
                 franja_base = 720  # 12:00 PM
             else:
-                FRANJAS = [540, 660, 690, 720, 900, 1020]
+                FRANJAS = [480, 540, 600, 630, 660, 690, 720, 780, 840, 900, 960, 1020, 1080]
                 franja_base = min(FRANJAS, key=lambda b: abs(mins_marcados - b))
 
             diff = mins_marcados - franja_base
-            HORA_LABELS = {540: '9:00 AM', 660: '11:00 AM', 690: '11:30 AM', 720: '12:00 PM', 900: '3:00 PM', 1020: '5:00 PM'}
+            HORA_LABELS = {
+                480: '8:00 AM',
+                540: '9:00 AM',
+                600: '10:00 AM',
+                630: '10:30 AM',
+                660: '11:00 AM',
+                690: '11:30 AM',
+                720: '12:00 PM',
+                780: '1:00 PM',
+                840: '2:00 PM',
+                900: '3:00 PM',
+                960: '4:00 PM',
+                1020: '5:00 PM',
+                1080: '6:00 PM',
+            }
             
             # Solo alertar si la tardanza es grave (20 minutos o más de retraso respecto a su turno)
             if diff >= 20:
@@ -1905,6 +1919,10 @@ def _calcular_horas_netas_dia(registros_dia):
         dt_local = reg.fecha_hora.astimezone(tz_ni)
 
         if reg.tipo_evento == 'ENTRADA':
+            # Si ya hay un inicio de jornada abierto sin salida, no sobreescribir el inicio
+            if entrada_temp is not None:
+                continue
+
             mins_e = dt_local.hour * 60 + dt_local.minute
             # Determinar franja base oficial
             if es_quebrado_11am:
@@ -1913,7 +1931,7 @@ def _calcular_horas_netas_dia(registros_dia):
                 # Entre 11:15 AM y 12:15 PM -> Turno oficial 12:00 PM (ej. Uriel 11:26 AM o Carlos 11:55 AM)
                 base_mins = 720  # 12:00 PM
             else:
-                FRANJAS = [540, 660, 720, 900, 1020]
+                FRANJAS = [480, 540, 600, 630, 660, 690, 720, 780, 840, 900, 960, 1020, 1080]
                 base_mins = min(FRANJAS, key=lambda b: abs(mins_e - b))
 
             h_b = base_mins // 60
@@ -1923,8 +1941,10 @@ def _calcular_horas_netas_dia(registros_dia):
                 tz_ni
             )
 
-            # Opción A: Si llegó antes de la hora oficial (hasta 60 min antes), arranca a la hora oficial
-            if dt_local < inicio_oficial and (inicio_oficial - dt_local).total_seconds() <= 3600:
+            # Opción A: Si llegó antes de la hora oficial (hasta 20 min antes, o hasta 45 min para franja 12 PM), arranca a la hora oficial.
+            # Si llegó con mayor anticipación o después de la hora oficial, arranca en su hora real de marcaje.
+            limite_adelanto_seg = 2700 if base_mins == 720 else 1200
+            if dt_local < inicio_oficial and (inicio_oficial - dt_local).total_seconds() <= limite_adelanto_seg:
                 entrada_temp = inicio_oficial
             else:
                 entrada_temp = reg.fecha_hora
@@ -1938,8 +1958,8 @@ def _calcular_horas_netas_dia(registros_dia):
                 tz_ni
             )
 
-            # Opción A: Si regresó antes de la hora oficial (hasta 45 min antes), arranca a la hora oficial
-            if dt_local < retorno_oficial and (retorno_oficial - dt_local).total_seconds() <= 2700:
+            # Opción A: Si regresó antes de la hora oficial (hasta 25 min antes), arranca a la hora oficial
+            if dt_local < retorno_oficial and (retorno_oficial - dt_local).total_seconds() <= 1500:
                 entrada_temp = retorno_oficial
             else:
                 entrada_temp = reg.fecha_hora
