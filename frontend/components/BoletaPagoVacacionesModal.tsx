@@ -114,22 +114,61 @@ export default function BoletaPagoVacacionesModal({
           }
 
           .print-pago-modal-container {
-            border: 1.5px solid #1c6856 !important;
+            border: 1.5pt solid #000000 !important;
             box-shadow: none !important;
             padding: 0 !important;
             margin: 0 auto !important;
             max-width: 100% !important;
-            border-radius: 6px !important;
+            border-radius: 4px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             page-break-after: avoid !important;
             break-after: avoid !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            background: white !important;
           }
 
-          .print-border {
-            border-color: #000 !important;
+          /* Optimización Monocromática de Alto Contraste (Blanco y Negro Nítido) */
+          .print-pago-modal-container * {
+            color: #000000 !important;
+            text-shadow: none !important;
+            box-shadow: none !important;
+          }
+
+          .print-pago-modal-container div,
+          .print-pago-modal-container p,
+          .print-pago-modal-container span,
+          .print-pago-modal-container table,
+          .print-pago-modal-container td,
+          .print-pago-modal-container th {
+            border-color: #333333 !important;
+          }
+
+          .print-pago-modal-container [class*="bg-"] {
+            background-color: #ffffff !important;
+          }
+
+          .print-pago-modal-container img {
+            filter: grayscale(100%) contrast(130%) !important;
+          }
+
+          .print-pago-modal-container [class*="rounded-full"] {
+            border: 1.5pt solid #000000 !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+          }
+
+          .print-pago-modal-container [class*="border-l-"] {
+            border-left: 3.5px solid #000000 !important;
+            background-color: #ffffff !important;
+          }
+
+          .print-pago-modal-container .border-t-2,
+          .print-pago-modal-container .border-b,
+          .print-pago-modal-container .border-b-2 {
+            border-color: #000000 !important;
           }
         }
         `,

@@ -182,7 +182,7 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
           /* Hoja ajustada estrictamente para NO romper en página 2 */
           .print-boleta-paper {
             background: white !important;
-            border: 1.5pt solid #1c6856 !important;
+            border: 1.5pt solid #000000 !important;
             border-radius: 3mm !important;
             box-shadow: none !important;
             padding: 5mm 7mm !important;
@@ -196,6 +196,48 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
             break-after: avoid !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+          }
+
+          /* Optimización Monocromática de Alto Contraste (Blanco y Negro Nítido) */
+          .print-boleta-paper * {
+            color: #000000 !important;
+            text-shadow: none !important;
+            box-shadow: none !important;
+          }
+
+          .print-boleta-paper div,
+          .print-boleta-paper p,
+          .print-boleta-paper span,
+          .print-boleta-paper table,
+          .print-boleta-paper td,
+          .print-boleta-paper th {
+            border-color: #333333 !important;
+          }
+
+          .print-boleta-paper [class*="bg-"] {
+            background-color: #ffffff !important;
+          }
+
+          .print-boleta-paper img {
+            filter: grayscale(100%) contrast(130%) !important;
+          }
+
+          .print-boleta-paper [class*="rounded-full"] {
+            border: 1.5pt solid #000000 !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+          }
+
+          .print-boleta-paper [class*="border-l-"] {
+            border-left: 3.5px solid #000000 !important;
+            background-color: #ffffff !important;
+          }
+
+          .print-boleta-paper .border-t-2,
+          .print-boleta-paper .border-b,
+          .print-boleta-paper .border-b-2 {
+            border-color: #000000 !important;
           }
         }
       `}} />

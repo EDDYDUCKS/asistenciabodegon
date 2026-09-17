@@ -154,18 +154,61 @@ export default function BoletaHorasExtraModal({
           }
 
           .print-he-modal-container {
-            border: 1.5px solid #1c6856 !important;
+            border: 1.5pt solid #000000 !important;
             box-shadow: none !important;
             padding: 0 !important;
             margin: 0 auto !important;
             max-width: 100% !important;
-            border-radius: 6px !important;
+            border-radius: 4px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             page-break-after: avoid !important;
             break-after: avoid !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            background: white !important;
+          }
+
+          /* Optimización Monocromática de Alto Contraste (Blanco y Negro Nítido) */
+          .print-he-modal-container * {
+            color: #000000 !important;
+            text-shadow: none !important;
+            box-shadow: none !important;
+          }
+
+          .print-he-modal-container div,
+          .print-he-modal-container p,
+          .print-he-modal-container span,
+          .print-he-modal-container table,
+          .print-he-modal-container td,
+          .print-he-modal-container th {
+            border-color: #333333 !important;
+          }
+
+          .print-he-modal-container [class*="bg-"] {
+            background-color: #ffffff !important;
+          }
+
+          .print-he-modal-container img {
+            filter: grayscale(100%) contrast(130%) !important;
+          }
+
+          .print-he-modal-container [class*="rounded-full"] {
+            border: 1.5pt solid #000000 !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+          }
+
+          .print-he-modal-container [class*="border-l-"] {
+            border-left: 3.5px solid #000000 !important;
+            background-color: #ffffff !important;
+          }
+
+          .print-he-modal-container .border-t-2,
+          .print-he-modal-container .border-b,
+          .print-he-modal-container .border-b-2 {
+            border-color: #000000 !important;
           }
         }
         `,

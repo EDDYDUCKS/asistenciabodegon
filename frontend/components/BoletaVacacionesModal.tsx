@@ -189,7 +189,7 @@ export default function BoletaVacacionesModal({
           /* Hoja ajustada estrictamente para NO romper en página 2 ni mezclarse con la tabla trasera */
           .print-vacaciones-paper {
             background: white !important;
-            border: 1.5pt solid #1c6856 !important;
+            border: 1.5pt solid #000000 !important;
             border-radius: 3mm !important;
             box-shadow: none !important;
             padding: 6mm 8mm !important;
@@ -203,6 +203,48 @@ export default function BoletaVacacionesModal({
             break-after: avoid !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+          }
+
+          /* Optimización Monocromática de Alto Contraste (Blanco y Negro Nítido) */
+          .print-vacaciones-paper * {
+            color: #000000 !important;
+            text-shadow: none !important;
+            box-shadow: none !important;
+          }
+
+          .print-vacaciones-paper div,
+          .print-vacaciones-paper p,
+          .print-vacaciones-paper span,
+          .print-vacaciones-paper table,
+          .print-vacaciones-paper td,
+          .print-vacaciones-paper th {
+            border-color: #333333 !important;
+          }
+
+          .print-vacaciones-paper [class*="bg-"] {
+            background-color: #ffffff !important;
+          }
+
+          .print-vacaciones-paper img {
+            filter: grayscale(100%) contrast(130%) !important;
+          }
+
+          .print-vacaciones-paper [class*="rounded-full"] {
+            border: 1.5pt solid #000000 !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+          }
+
+          .print-vacaciones-paper [class*="border-l-"] {
+            border-left: 3.5px solid #000000 !important;
+            background-color: #ffffff !important;
+          }
+
+          .print-vacaciones-paper .border-t-2,
+          .print-vacaciones-paper .border-b,
+          .print-vacaciones-paper .border-b-2 {
+            border-color: #000000 !important;
           }
 
           .print-table {
