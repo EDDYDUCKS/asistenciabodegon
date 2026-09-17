@@ -59,22 +59,30 @@ export default function RendimientoAyerPage() {
   const [fichaCopiada, setFichaCopiada] = useState(false);
   const [generandoFicha, setGenerandoFicha] = useState(false);
 
-  // Calcular la fecha de ayer por defecto en la zona horaria de Managua, Nicaragua
+  // Calcular la fecha de hoy, ayer y antier con máxima precisión en zona horaria de Managua, Nicaragua
   const hoyManagua = useMemo(() => {
-    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Managua' }).format(new Date());
   }, []);
 
   const ayerManagua = useMemo(() => {
-    const d = new Date();
+    const parts = hoyManagua.split('-');
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     d.setDate(d.getDate() - 1);
-    return d.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
-  }, []);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, [hoyManagua]);
 
   const antierManagua = useMemo(() => {
-    const d = new Date();
+    const parts = hoyManagua.split('-');
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     d.setDate(d.getDate() - 2);
-    return d.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
-  }, []);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, [hoyManagua]);
 
   const [fechaSeleccionada, setFechaSeleccionada] = useState<string>(ayerManagua);
 
@@ -121,18 +129,28 @@ export default function RendimientoAyerPage() {
     const activos = empleados.filter((e) => e.activo);
 
     const filas = activos.map((emp) => {
-      // 1. Filtrar registros de asistencia correspondientes a esta jornada
+      // 1. Filtrar registros de asistencia correspondientes a esta jornada (garantizando zona Managua)
       const regsDia = asistencias.filter((a) => {
         if (a.empleado !== emp.id) return false;
-        const fh = a.fecha_hora;
-        // Evento del mismo día de la jornada
-        if (fh.startsWith(fechaSeleccionada)) return true;
-        // O evento de salida en la madrugada del día siguiente (antes de las 04:00 AM)
-        if (diaSiguienteCal && fh.startsWith(diaSiguienteCal)) {
-          const hora = parseInt(fh.substring(11, 13), 10);
-          if (hora < 4 && a.tipo_evento === 'SALIDA_DEFINITIVA') {
-            return true;
+        try {
+          const d = new Date(a.fecha_hora);
+          const fechaEvt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Managua' }).format(d);
+          if (fechaEvt === fechaSeleccionada) return true;
+          if (diaSiguienteCal && fechaEvt === diaSiguienteCal) {
+            const horaNi = parseInt(
+              new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'America/Managua',
+                hour: '2-digit',
+                hour12: false,
+              }).format(d),
+              10
+            );
+            if (horaNi < 4 && a.tipo_evento === 'SALIDA_DEFINITIVA') {
+              return true;
+            }
           }
+        } catch {
+          if (a.fecha_hora.startsWith(fechaSeleccionada)) return true;
         }
         return false;
       });
@@ -382,7 +400,12 @@ export default function RendimientoAyerPage() {
     let semaforoMensaje =
       'Todo el personal que laboró registró su salida oportunamente y no se presentaron incidencias críticas en la jornada.';
 
-    if (sinSalida.length > 0 || ausentes.length > 2) {
+    if (presentes.length === 0) {
+      semaforo = 'VERDE';
+      semaforoTitulo = 'Jornada Sin Actividad / Descanso General';
+      semaforoMensaje =
+        'No se registraron marcajes de asistencia en esta fecha (posible día de descanso general, cierre programado o sin turnos asignados).';
+    } else if (sinSalida.length > 0 || (ausentes.length > 2 && presentes.length > 0)) {
       semaforo = 'ROJO';
       semaforoTitulo = 'Atención Requerida: Registros Incompletos o Ausencias';
       semaforoMensaje = `Se detectaron ${sinSalida.length} colaborador(es) sin marcaje de salida al cierre o ${ausentes.length} ausencias sin justificar.`;
