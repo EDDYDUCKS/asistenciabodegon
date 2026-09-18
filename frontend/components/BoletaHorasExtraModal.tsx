@@ -112,20 +112,39 @@ export default function BoletaHorasExtraModal({
 
   const areaOperativa = getAreaOperativa(cargoColaborador);
 
-  // Obtener desglose de fechas amortizadas de forma segura
-  const desgloseItems: any[] = React.useMemo(() => {
-    if (!compDia?.desglose) return [];
-    if (Array.isArray(compDia.desglose)) return compDia.desglose;
-    if (typeof compDia.desglose === 'string') {
+  // Obtener desglose de fechas amortizadas de forma segura (sin violar reglas de hooks)
+  let desgloseItems: any[] = [];
+  if (compDia?.desglose) {
+    if (Array.isArray(compDia.desglose)) {
+      desgloseItems = compDia.desglose;
+    } else if (typeof compDia.desglose === 'string') {
       try {
         const parsed = JSON.parse(compDia.desglose);
-        return Array.isArray(parsed) ? parsed : [];
+        if (Array.isArray(parsed)) {
+          desgloseItems = parsed;
+        }
       } catch {
-        return [];
+        desgloseItems = [];
       }
     }
-    return [];
-  }, [compDia]);
+  }
+
+  const formatDateSafe = (dateStr: string) => {
+    if (!dateStr) return 'Fecha';
+    try {
+      const cleanStr = dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`;
+      const d = new Date(cleanStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('es-NI', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto print-horas-extra-backdrop">
@@ -163,7 +182,9 @@ export default function BoletaHorasExtraModal({
           }
 
           .print-horas-extra-backdrop {
-            position: static !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
             width: 100% !important;
             background: white !important;
             display: block !important;
@@ -587,12 +608,7 @@ export default function BoletaHorasExtraModal({
                       </div>
                       <div className="divide-y divide-amber-100 text-[11px] print:divide-stone-200">
                         {desgloseItems.map((d: any, i: number) => {
-                          const fFormat = d.fecha ? new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-NI', {
-                            weekday: 'short',
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                          }) : (d.fecha_display || d.fecha || 'Fecha');
+                          const fFormat = formatDateSafe(d.fecha || d.fecha_display);
                           const hComp = d.horas_compensadas ?? d.horas_aplicadas ?? d.deficit_original ?? 0;
                           return (
                             <div key={`desglose-${i}`} className="flex items-center justify-between py-0.5 text-stone-800 print:text-black">
