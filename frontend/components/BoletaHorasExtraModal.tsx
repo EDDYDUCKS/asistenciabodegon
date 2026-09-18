@@ -112,16 +112,31 @@ export default function BoletaHorasExtraModal({
 
   const areaOperativa = getAreaOperativa(cargoColaborador);
 
+  // Obtener desglose de fechas amortizadas de forma segura
+  const desgloseItems: any[] = React.useMemo(() => {
+    if (!compDia?.desglose) return [];
+    if (Array.isArray(compDia.desglose)) return compDia.desglose;
+    if (typeof compDia.desglose === 'string') {
+      try {
+        const parsed = JSON.parse(compDia.desglose);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }, [compDia]);
+
   return createPortal(
     <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto print-horas-extra-backdrop">
-      {/* Estilos estrictos de impresión: AISLAMIENTO TOTAL EN 1 SOLA PÁGINA */}
+      {/* Estilos estrictos de impresión: AISLAMIENTO TOTAL EN 1 SOLA PÁGINA CARTA (SIN RECORTES) */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
         @media print {
           @page {
             size: letter portrait;
-            margin: 6mm 10mm 6mm 10mm;
+            margin: 5mm 8mm 5mm 8mm;
           }
 
           /* Ocultar absolutamente TODO lo que esté en el body excepto la boleta modal */
@@ -148,9 +163,7 @@ export default function BoletaHorasExtraModal({
           }
 
           .print-horas-extra-backdrop {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            position: static !important;
             width: 100% !important;
             background: white !important;
             display: block !important;
@@ -168,11 +181,11 @@ export default function BoletaHorasExtraModal({
             margin: 0 auto !important;
             width: 100% !important;
             max-width: 100% !important;
-            height: 254mm !important;
-            min-height: 254mm !important;
-            max-height: 256mm !important;
-            display: flex !important;
-            flex-direction: column !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            display: block !important;
             border-radius: 4px !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
@@ -185,13 +198,113 @@ export default function BoletaHorasExtraModal({
           }
 
           .print-boleta-content {
-            flex: 1 1 auto !important;
             display: flex !important;
             flex-direction: column !important;
-            justify-content: space-between !important;
-            height: 100% !important;
-            padding: 6mm 8mm !important;
+            justify-content: flex-start !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            padding: 4mm 6mm !important;
             box-sizing: border-box !important;
+            overflow: visible !important;
+            gap: 2mm !important;
+          }
+
+          .print-boleta-content > * {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            overflow: visible !important;
+          }
+
+          .print-header-block {
+            padding-bottom: 1.5mm !important;
+            margin-bottom: 0 !important;
+          }
+
+          .print-info-personal {
+            padding: 1.8mm 3mm !important;
+            border-radius: 6px !important;
+          }
+
+          .print-desglose-card {
+            border-radius: 6px !important;
+            overflow: visible !important;
+          }
+
+          .print-desglose-header {
+            padding: 1.5mm 3mm !important;
+          }
+
+          .print-desglose-body {
+            padding: 2mm 3mm !important;
+            gap: 1.8mm !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: visible !important;
+          }
+
+          .print-desglose-body > * {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+          }
+
+          .print-reloj-grid {
+            padding: 1.5mm 2.5mm !important;
+            border-radius: 6px !important;
+          }
+
+          .print-solic-auto-grid > div {
+            padding: 1.8mm 2.5mm !important;
+            border-radius: 6px !important;
+          }
+
+          .print-solic-auto-grid .text-xl {
+            font-size: 1.15rem !important;
+            line-height: 1.25 !important;
+          }
+
+          .print-amortizacion-box {
+            padding: 2mm 2.5mm !important;
+            border-radius: 6px !important;
+            border: 1pt solid #b45309 !important;
+            background-color: #fffbeb !important;
+            overflow: visible !important;
+          }
+
+          .print-amortizacion-box .grid {
+            padding: 1.2mm 2mm !important;
+          }
+
+          .print-amortizacion-desglose {
+            padding: 1.5mm 2.5mm !important;
+            overflow: visible !important;
+          }
+
+          .print-dictamen-box {
+            padding: 1.8mm 2.5mm !important;
+            border-radius: 6px !important;
+          }
+
+          .print-dictamen-box p {
+            font-size: 9.5px !important;
+            line-height: 1.35 !important;
+          }
+
+          .print-legal-text {
+            font-size: 8.5px !important;
+            line-height: 1.3 !important;
+            padding: 1.5mm 2.5mm !important;
+            margin: 0 !important;
+          }
+
+          .print-firmas-grid {
+            padding-top: 3.5mm !important;
+            padding-bottom: 0.5mm !important;
+            margin: 0 !important;
+          }
+
+          .print-firmas-grid .w-48 {
+            width: 38mm !important;
           }
 
           /* Optimización Monocromática de Alto Contraste (Blanco y Negro Nítido) */
@@ -219,14 +332,14 @@ export default function BoletaHorasExtraModal({
           }
 
           .print-he-modal-container [class*="rounded-full"] {
-            border: 1.5pt solid #000000 !important;
+            border: 1pt solid #000000 !important;
             background-color: #ffffff !important;
             color: #000000 !important;
             font-weight: 800 !important;
           }
 
           .print-he-modal-container [class*="border-l-"] {
-            border-left: 3.5px solid #000000 !important;
+            border-left: 2.5pt solid #000000 !important;
             background-color: #ffffff !important;
           }
 
@@ -276,7 +389,7 @@ export default function BoletaHorasExtraModal({
         {/* ── CONTENIDO IMPRIMIBLE DE LA BOLETA ── */}
         <div className="p-6 sm:p-7 space-y-4 text-stone-900 font-sans print-boleta-content">
           {/* Encabezado Institucional: Restaurante El Bodegón & Administración */}
-          <div className="border-b-2 border-[#1c6856] pb-3.5">
+          <div className="border-b-2 border-[#1c6856] pb-3.5 print-header-block">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2.5">
@@ -341,7 +454,7 @@ export default function BoletaHorasExtraModal({
           </div>
 
           {/* Datos Completos del Colaborador y Puesto */}
-          <div className="bg-stone-50/90 border border-stone-200 rounded-2xl p-3.5 shadow-xs">
+          <div className="bg-stone-50/90 border border-stone-200 rounded-2xl p-3.5 shadow-xs print-info-personal">
             <span className="text-[10px] font-black uppercase tracking-wider text-[#1c6856] block mb-2 flex items-center gap-1.5">
               <User className="w-3.5 h-3.5" />
               Información del Personal
@@ -367,8 +480,8 @@ export default function BoletaHorasExtraModal({
           </div>
 
           {/* Desglose Detallado de la Jornada y Marcajes Biométricos */}
-          <div className="border border-stone-200 rounded-2xl overflow-hidden shadow-xs">
-            <div className="bg-[#1c6856]/10 px-4 py-2 border-b border-stone-200 flex flex-wrap items-center justify-between gap-2">
+          <div className="border border-stone-200 rounded-2xl overflow-hidden shadow-xs print-desglose-card">
+            <div className="bg-[#1c6856]/10 px-4 py-2 border-b border-stone-200 flex flex-wrap items-center justify-between gap-2 print-desglose-header">
               <span className="text-xs font-black uppercase tracking-wider text-[#1c6856] flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5" />
                 Desglose Técnico de la Jornada Laboral
@@ -378,9 +491,9 @@ export default function BoletaHorasExtraModal({
               </span>
             </div>
 
-            <div className="p-4 space-y-3.5 bg-white">
+            <div className="p-4 space-y-3.5 bg-white print-desglose-body">
               {/* Marcajes biométricos reales registrados */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-stone-50/70 p-3 rounded-xl border border-stone-150 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-stone-50/70 p-3 rounded-xl border border-stone-150 text-xs print-reloj-grid">
                 <div>
                   <span className="text-[10px] font-bold text-stone-500 uppercase block">Hora Entrada (Reloj):</span>
                   <strong className="font-mono text-stone-900 text-xs">{primerMarcaje}</strong>
@@ -400,7 +513,7 @@ export default function BoletaHorasExtraModal({
               </div>
 
               {/* Tarjetas de Horas Solicitadas vs Horas Autorizadas */}
-              <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-2 gap-3 text-xs print-solic-auto-grid">
                 <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200">
                   <span className="text-stone-500 text-[10px] block uppercase font-bold">
                     Horas Extra Solicitadas (Biométrico):
@@ -440,7 +553,7 @@ export default function BoletaHorasExtraModal({
 
               {/* Desglose de Amortización de Déficit / Salidas Tempranas si aplica */}
               {compDia && Number(compDia.horas_deducidas) > 0 && (
-                <div className="bg-amber-50/80 border border-amber-300/80 rounded-xl p-3 text-xs space-y-2">
+                <div className="bg-amber-50/80 border border-amber-300/80 rounded-xl p-3 text-xs space-y-2 print-amortizacion-box">
                   <div className="flex flex-wrap items-center justify-between gap-1 text-amber-900 font-bold">
                     <span className="flex items-center gap-1.5 uppercase text-[11px] tracking-wide">
                       <Scale className="w-3.5 h-3.5 text-amber-700" />
@@ -466,27 +579,28 @@ export default function BoletaHorasExtraModal({
                   </div>
 
                   {/* Fechas específicas saldadas */}
-                  {compDia.desglose && Array.isArray(compDia.desglose) && compDia.desglose.length > 0 && (
-                    <div className="bg-white/95 rounded-lg border border-amber-200/90 p-2 space-y-1">
-                      <span className="text-[9px] font-bold uppercase text-amber-900 block tracking-wider">
-                        Fechas y horas específicas saldadas en esta resolución:
-                      </span>
-                      <div className="divide-y divide-amber-100 text-[11px]">
-                        {compDia.desglose.map((d, i) => {
+                  {desgloseItems.length > 0 && (
+                    <div className="bg-white/95 rounded-lg border border-amber-200/90 p-2 space-y-1 print-amortizacion-desglose">
+                      <div className="flex items-center justify-between text-[9px] font-bold uppercase text-amber-900 tracking-wider print:text-black">
+                        <span>Fechas y déficit saldados en esta resolución ({desgloseItems.length} registro{desgloseItems.length > 1 ? 's' : ''}):</span>
+                        <span className="font-mono">Total: -{Number(compDia.horas_deducidas).toFixed(1)} hrs</span>
+                      </div>
+                      <div className="divide-y divide-amber-100 text-[11px] print:divide-stone-200">
+                        {desgloseItems.map((d: any, i: number) => {
                           const fFormat = d.fecha ? new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-NI', {
                             weekday: 'short',
                             day: '2-digit',
                             month: 'short',
                             year: 'numeric',
-                          }) : d.fecha;
-                          const hComp = d.horas_compensadas || d.horas_aplicadas || d.deficit_original || 0;
+                          }) : (d.fecha_display || d.fecha || 'Fecha');
+                          const hComp = d.horas_compensadas ?? d.horas_aplicadas ?? d.deficit_original ?? 0;
                           return (
-                            <div key={`desglose-${i}`} className="flex items-center justify-between py-0.5 text-stone-800">
-                              <span className="font-semibold capitalize flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                                {fFormat} {d.tipo === 'HORAS_EXTRA_ORIGEN' ? '(Abono a extra)' : '(Salida anticipada)'}:
+                            <div key={`desglose-${i}`} className="flex items-center justify-between py-0.5 text-stone-800 print:text-black">
+                              <span className="font-semibold capitalize flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 print:bg-black"></span>
+                                <span>{fFormat} {d.tipo === 'HORAS_EXTRA_ORIGEN' ? '(Abono a extra)' : '(Salida anticipada)'}:</span>
                               </span>
-                              <span className="font-mono font-bold text-amber-800">
+                              <span className="font-mono font-bold text-amber-800 print:text-black">
                                 -{Number(hComp).toFixed(1)} hrs
                               </span>
                             </div>
@@ -503,7 +617,7 @@ export default function BoletaHorasExtraModal({
               )}
 
               {/* Justificación Operativa y Dictamen de Administración */}
-              <div className="bg-stone-50/90 border border-stone-200 rounded-xl p-3 text-xs space-y-1">
+              <div className="bg-stone-50/90 border border-stone-200 rounded-xl p-3 text-xs space-y-1 print-dictamen-box">
                 <span className="text-[10px] font-black text-[#1c6856] uppercase tracking-wider block">
                   Motivo Operativo & Dictamen de la Administración:
                 </span>
@@ -521,7 +635,7 @@ export default function BoletaHorasExtraModal({
           </div>
 
           {/* Constancia Legal y Notificación Conforme */}
-          <p className="text-[10px] text-stone-600 leading-relaxed text-justify border-l-2 border-[#1c6856] pl-3 py-1 bg-stone-50/50 rounded-r-lg">
+          <p className="text-[10px] text-stone-600 leading-relaxed text-justify border-l-2 border-[#1c6856] pl-3 py-1 bg-stone-50/50 rounded-r-lg print-legal-text">
             {esAprobado ? (
               <>
                 Por medio del presente comprobante oficial, las partes hacen constar que el/la colaborador(a) abajo firmante ha laborado el tiempo extraordinario aquí detallado por requerimientos operativos de <strong>Restaurante El Bodegón</strong>, el cual ha sido debidamente verificado y autorizado por la Administración conforme a lo preceptuado en el Artículo 62 del Código del Trabajo de la República de Nicaragua. Con la firma de este documento, el/la colaborador(a) manifiesta su entera conformidad con la cantidad de horas autorizadas y su correspondiente liquidación en la nómina del período con el recargo legal del cien por ciento (100%), sirviendo el presente como formal notificación y constancia para ambas partes.
@@ -538,7 +652,7 @@ export default function BoletaHorasExtraModal({
           </p>
 
           {/* Firmas Formales Oficiales */}
-          <div className="pt-5 pb-1 grid grid-cols-2 gap-8 text-center text-xs">
+          <div className="pt-5 pb-1 grid grid-cols-2 gap-8 text-center text-xs print-firmas-grid">
             <div className="space-y-1">
               <div className="border-t-2 border-stone-800 pt-2 w-48 mx-auto" />
               <p className="font-bold text-stone-900 uppercase tracking-wider text-xs">{nombreColaborador}</p>
