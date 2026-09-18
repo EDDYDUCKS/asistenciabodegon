@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado,
     AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia,
-    CompensacionHoras, CompensacionFeriado, PagoVacaciones
+    CompensacionHoras, CompensacionFeriado, PagoVacaciones, PagoHorasExtra
 )
 
 
@@ -145,6 +145,7 @@ class DiaFeriadoSerializer(serializers.ModelSerializer):
 
 class AutorizacionHorasExtraSerializer(serializers.ModelSerializer):
     empleado_detalle = EmpleadoSimpleSerializer(source='empleado', read_only=True)
+    estado_pago_display = serializers.CharField(source='get_estado_pago_display', read_only=True)
 
     class Meta:
         model = AutorizacionHorasExtra
@@ -157,6 +158,13 @@ class AutorizacionHorasExtraSerializer(serializers.ModelSerializer):
             'horas_extra_autorizadas',
             'estado',
             'comentario',
+            'estado_pago',
+            'estado_pago_display',
+            'fecha_pago',
+            'monto_pagado',
+            'metodo_pago',
+            'numero_recibo_pago',
+            'pago_horas_extra',
             'created_at',
             'updated_at',
         ]
@@ -264,4 +272,37 @@ class PagoVacacionesSerializer(serializers.ModelSerializer):
         if obj.registrado_por:
             return f"{obj.registrado_por.first_name} {obj.registrado_por.last_name}".strip() or obj.registrado_por.username
         return 'Administración'
+
+
+class PagoHorasExtraSerializer(serializers.ModelSerializer):
+    empleado_detalle = EmpleadoSimpleSerializer(source='empleado', read_only=True)
+    registrado_por_nombre = serializers.SerializerMethodField()
+    metodo_pago_display = serializers.CharField(source='get_metodo_pago_display', read_only=True)
+
+    class Meta:
+        model = PagoHorasExtra
+        fields = [
+            'id',
+            'empleado',
+            'empleado_detalle',
+            'fecha_pago',
+            'total_horas_pagadas',
+            'tarifa_hora_aplicada',
+            'monto_total',
+            'metodo_pago',
+            'metodo_pago_display',
+            'numero_recibo',
+            'observaciones',
+            'detalles_fechas',
+            'registrado_por',
+            'registrado_por_nombre',
+            'created_at',
+        ]
+        read_only_fields = ['numero_recibo', 'created_at']
+
+    def get_registrado_por_nombre(self, obj):
+        if obj.registrado_por:
+            return f"{obj.registrado_por.first_name} {obj.registrado_por.last_name}".strip() or obj.registrado_por.username
+        return 'Administración'
+
 

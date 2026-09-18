@@ -110,6 +110,7 @@ class BitacoraAccion(models.Model):
         ('SANCION_DISCIPLINARIA', 'Sanción Disciplinaria'),
         ('LIQUIDAR_FERIADO', 'Liquidación de Feriado'),
         ('PAGO_VACACIONES', 'Pago de Vacaciones en Dinero'),
+        ('PAGO_HORAS_EXTRA', 'Pago de Horas Extra'),
         ('ACREDITAR_FERIADO_VACACIONES', 'Acreditación de Feriado a Vacaciones'),
         ('ACREDITAR_SEPTIMO_DIA_VACACIONES', 'Acreditación de Día Libre a Vacaciones'),
     ]
@@ -145,6 +146,10 @@ class AutorizacionHorasExtra(models.Model):
         ('APROBADO', 'Aprobado'),
         ('RECHAZADO', 'Rechazado'),
     ]
+    ESTADOS_PAGO = [
+        ('PENDIENTE', 'Pendiente de Pago'),
+        ('PAGADO', 'Pagado'),
+    ]
 
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='autorizaciones_horas_extra')
     fecha = models.DateField()
@@ -152,6 +157,15 @@ class AutorizacionHorasExtra(models.Model):
     horas_extra_autorizadas = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     estado = models.CharField(max_length=20, choices=ESTADOS, default='PENDIENTE')
     comentario = models.TextField(blank=True, null=True)
+
+    # Control de Liquidación y Pago de Horas Extra Aprobadas
+    estado_pago = models.CharField(max_length=20, choices=ESTADOS_PAGO, default='PENDIENTE')
+    fecha_pago = models.DateField(null=True, blank=True)
+    monto_pagado = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    metodo_pago = models.CharField(max_length=50, blank=True, default='')
+    numero_recibo_pago = models.CharField(max_length=50, blank=True, default='')
+    pago_horas_extra = models.ForeignKey('PagoHorasExtra', on_delete=models.SET_NULL, null=True, blank=True, related_name='horas_extra_asociadas')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -282,4 +296,30 @@ class PagoVacaciones(models.Model):
 
     def __str__(self):
         return f"Pago Vacaciones {self.numero_recibo} - {self.empleado.nombre} {self.empleado.apellido} ({self.dias_pagados}d - C$ {self.monto_pagado})"
+
+
+class PagoHorasExtra(models.Model):
+    METODOS_PAGO = [
+        ('EFECTIVO', 'Efectivo'),
+        ('TRANSFERENCIA', 'Transferencia Bancaria'),
+        ('NOMINA_QUINCENAL', 'En Nómina Quincenal'),
+    ]
+
+    empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='pagos_horas_extra')
+    fecha_pago = models.DateField(default=timezone.localdate, help_text="Fecha de emisión del pago")
+    total_horas_pagadas = models.DecimalField(max_digits=6, decimal_places=2, help_text="Horas extra efectivas liquidadas")
+    tarifa_hora_aplicada = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Tarifa por hora extra (C$) aplicada")
+    monto_total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Monto total pagado en Córdobas (C$)")
+    metodo_pago = models.CharField(max_length=30, choices=METODOS_PAGO, default='EFECTIVO')
+    numero_recibo = models.CharField(max_length=50, unique=True, help_text="Número correlativo de boleta oficial (ej. RPHE-2026-0001)")
+    observaciones = models.TextField(blank=True, default='')
+    detalles_fechas = models.JSONField(default=list, blank=True, help_text="Detalle de fechas y horas pagadas en este recibo")
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_pago', '-created_at']
+
+    def __str__(self):
+        return f"Pago HE {self.numero_recibo} - {self.empleado.nombre} {self.empleado.apellido} ({self.total_horas_pagadas}h - C$ {self.monto_total})"
 

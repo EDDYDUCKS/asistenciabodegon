@@ -11,6 +11,7 @@ import {
   CompensacionHoras,
   CompensacionFeriado,
   PagoVacaciones,
+  PagoHorasExtra,
 } from './types';
 
 const API_BASE_URL =
@@ -532,6 +533,41 @@ export async function deletePagoVacaciones(id: number): Promise<void> {
     method: 'DELETE',
   });
 }
+
+// ── PAGOS DE HORAS EXTRA ──────────────────────────────────────────────────
+export async function fetchPagosHorasExtra(empleadoId?: number): Promise<PagoHorasExtra[]> {
+  const query = empleadoId ? `?empleado=${empleadoId}` : '';
+  const data = await apiRequest<PagoHorasExtra[] | { results: PagoHorasExtra[] }>(`/pagos-horas-extra/${query}`);
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray((data as { results: PagoHorasExtra[] }).results)) {
+    return (data as { results: PagoHorasExtra[] }).results;
+  }
+  return [];
+}
+
+export async function createPagoHorasExtra(payload: {
+  empleado: number;
+  horas_extra_ids: number[];
+  total_horas_pagadas: number;
+  tarifa_hora_aplicada: number;
+  monto_total: number;
+  metodo_pago: string;
+  observaciones?: string;
+  fecha_pago?: string;
+}): Promise<PagoHorasExtra> {
+  return apiRequest<PagoHorasExtra>('/pagos-horas-extra/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deletePagoHorasExtra(id: number): Promise<void> {
+  await apiRequest<void>(`/pagos-horas-extra/${id}/`, {
+    method: 'DELETE',
+  });
+}
+
 
 export async function sincronizarDescansosTrabajados(): Promise<{ status: string; mensaje: string; acreditados: number }> {
   return apiRequest<{ status: string; mensaje: string; acreditados: number }>('/compensaciones-feriados/sincronizar-descansos-trabajados/', {

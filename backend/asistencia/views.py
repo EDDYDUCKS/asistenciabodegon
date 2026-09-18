@@ -17,13 +17,13 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .models import (
     Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado,
     AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia,
-    CompensacionHoras, CompensacionFeriado, PagoVacaciones
+    CompensacionHoras, CompensacionFeriado, PagoVacaciones, PagoHorasExtra
 )
 from .serializers import (
     EmpleadoSerializer, RegistroAsistenciaSerializer, BitacoraAccionSerializer,
     DiaFeriadoSerializer, AutorizacionHorasExtraSerializer, AlertaAsistenciaSerializer,
     PermisoAusenciaSerializer, CompensacionHorasSerializer, CompensacionFeriadoSerializer,
-    PagoVacacionesSerializer
+    PagoVacacionesSerializer, PagoHorasExtraSerializer
 )
 
 
@@ -690,6 +690,135 @@ class PagoVacacionesViewSet(viewsets.ModelViewSet):
         )
         return super().destroy(request, *args, **kwargs)
 
+
+class PagoHorasExtraViewSet(viewsets.ModelViewSet):
+    """
+    CRUD y emisión de Recibos Oficiales de Pago de Horas Extra (Individual o en Lote).
+    """
+    queryset = PagoHorasExtra.objects.all().select_related('empleado', 'registrado_por')
+    serializer_class = PagoHorasExtraSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        emp_id = self.request.query_params.get('empleado')
+        if emp_id:
+            qs = qs.filter(empleado_id=emp_id)
+        fecha_inicio = self.request.query_params.get('fecha_inicio')
+        fecha_fin = self.request.query_params.get('fecha_fin')
+        if fecha_inicio:
+            qs = qs.filter(fecha_pago__gte=fecha_inicio)
+        if fecha_fin:
+            qs = qs.filter(fecha_pago__lte=fecha_fin)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        from decimal import Decimal
+        empleado_id = request.data.get('empleado')
+        horas_extra_ids = request.data.get('horas_extra_ids', [])
+        total_horas_pagadas = Decimal(str(request.data.get('total_horas_pagadas', '0')))
+        tarifa_hora_aplicada = Decimal(str(request.data.get('tarifa_hora_aplicada', '0.00')))
+        monto_total = Decimal(str(request.data.get('monto_total', '0.00')))
+        metodo_pago = request.data.get('metodo_pago', 'EFECTIVO')
+        observaciones = request.data.get('observaciones', '')
+        fecha_pago = request.data.get('fecha_pago') or timezone.localdate().isoformat()
+
+        if not empleado_id:
+            return Response({'detail': 'Debe especificar el colaborador.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            empleado = Empleado.objects.get(id=empleado_id)
+        except Empleado.DoesNotExist:
+            return Response({'detail': 'Colaborador no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if total_horas_pagadas <= Decimal('0.0'):
+            return Response({'detail': 'El total de horas a liquidar debe ser mayor a 0.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        year_str = timezone.localdate().strftime('%Y')
+        ultimo_pago = PagoHorasExtra.objects.filter(numero_recibo__startswith=f'RPHE-{year_str}-').order_by('-id').first()
+        if ultimo_pago and ultimo_pago.numero_recibo:
+            try:
+                seq = int(ultimo_pago.numero_recibo.split('-')[-1]) + 1
+            except Exception:
+                seq = PagoHorasExtra.objects.count() + 1
+        else:
+            seq = PagoHorasExtra.objects.count() + 1
+
+        numero_recibo = f"RPHE-{year_str}-{str(seq).zfill(4)}"
+
+        # Recopilar detalles de las fechas asociadas
+        detalles_fechas = []
+        registros_he = list(AutorizacionHorasExtra.objects.filter(id__in=horas_extra_ids, empleado=empleado))
+        for r in registros_he:
+            detalles_fechas.append({
+                'id': r.id,
+                'fecha': str(r.fecha),
+                'horas_solicitadas': float(r.horas_extra_solicitadas),
+                'horas_autorizadas': float(r.horas_extra_autorizadas),
+                'comentario': r.comentario or '',
+            })
+
+        pago = PagoHorasExtra.objects.create(
+            empleado=empleado,
+            fecha_pago=fecha_pago,
+            total_horas_pagadas=total_horas_pagadas,
+            tarifa_hora_aplicada=tarifa_hora_aplicada,
+            monto_total=monto_total,
+            metodo_pago=metodo_pago,
+            numero_recibo=numero_recibo,
+            observaciones=observaciones,
+            detalles_fechas=detalles_fechas,
+            registrado_por=request.user if (request.user and request.user.is_authenticated) else None,
+        )
+
+        # Actualizar las autorizaciones de horas extra a PAGADO
+        for r in registros_he:
+            r.estado_pago = 'PAGADO'
+            r.fecha_pago = fecha_pago
+            r.monto_pagado = round(Decimal(str(r.horas_extra_autorizadas)) * tarifa_hora_aplicada, 2)
+            r.metodo_pago = metodo_pago
+            r.numero_recibo_pago = numero_recibo
+            r.pago_horas_extra = pago
+            r.save(update_fields=['estado_pago', 'fecha_pago', 'monto_pagado', 'metodo_pago', 'numero_recibo_pago', 'pago_horas_extra'])
+
+        BitacoraAccion.objects.create(
+            usuario=request.user if (request.user and request.user.is_authenticated) else None,
+            accion='PAGO_HORAS_EXTRA',
+            descripcion=(
+                f"Emitido Recibo Oficial de Pago de Horas Extra {numero_recibo} a {empleado.nombre} {empleado.apellido}: "
+                f"{total_horas_pagadas:.1f} hrs (C$ {monto_total}) vía {metodo_pago}. {len(detalles_fechas)} fecha(s) liquidada(s)."
+            ),
+            ip_address=_get_clean_ip(request),
+        )
+
+        serializer = self.get_serializer(pago)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, *args, **kwargs):
+        pago = self.get_object()
+        empleado = pago.empleado
+
+        # Reintegrar las horas extra asociadas a PENDIENTE
+        horas_asociadas = AutorizacionHorasExtra.objects.filter(pago_horas_extra=pago)
+        for h in horas_asociadas:
+            h.estado_pago = 'PENDIENTE'
+            h.fecha_pago = None
+            h.monto_pagado = Decimal('0.00')
+            h.metodo_pago = ''
+            h.numero_recibo_pago = ''
+            h.pago_horas_extra = None
+            h.save(update_fields=['estado_pago', 'fecha_pago', 'monto_pagado', 'metodo_pago', 'numero_recibo_pago', 'pago_horas_extra'])
+
+        BitacoraAccion.objects.create(
+            usuario=request.user if (request.user and request.user.is_authenticated) else None,
+            accion='PAGO_HORAS_EXTRA',
+            descripcion=(
+                f"Anulado Recibo de Pago de Horas Extra {pago.numero_recibo} de {empleado.nombre} {empleado.apellido} "
+                f"({pago.total_horas_pagadas:.1f} hrs, C$ {pago.monto_total}). Las horas extra fueron reintegradas a pendientes de pago."
+            ),
+            ip_address=_get_clean_ip(request),
+        )
+        return super().destroy(request, *args, **kwargs)
 
 
 class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):

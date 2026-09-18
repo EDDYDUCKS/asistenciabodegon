@@ -22,14 +22,18 @@ import {
   fetchPagosVacaciones,
   deletePagoVacaciones,
   sincronizarDescansosTrabajados,
+  fetchPagosHorasExtra,
+  deletePagoHorasExtra,
 } from '@/lib/api-client';
-import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras, CompensacionFeriado, PagoVacaciones } from '@/lib/types';
+import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras, CompensacionFeriado, PagoVacaciones, PagoHorasExtra } from '@/lib/types';
 import BoletaCompensacionModal from '@/components/BoletaCompensacionModal';
 import BoletaVacacionesModal from '@/components/BoletaVacacionesModal';
 import ModalLiquidarFeriado from '@/components/ModalLiquidarFeriado';
 import BoletaPagoVacacionesModal from '@/components/BoletaPagoVacacionesModal';
 import ModalEmitirPagoVacaciones from '@/components/ModalEmitirPagoVacaciones';
 import BoletaHorasExtraModal from '@/components/BoletaHorasExtraModal';
+import ModalEmitirPagoHorasExtra from '@/components/ModalEmitirPagoHorasExtra';
+import BoletaPagoHorasExtraModal from '@/components/BoletaPagoHorasExtraModal';
 import {
   FileSpreadsheet,
   Download,
@@ -59,6 +63,7 @@ import {
   Coins,
   Sparkles,
   Banknote,
+  Receipt,
   FileText,
   ChevronDown,
 } from 'lucide-react';
@@ -88,7 +93,14 @@ export default function NominaAdminPage() {
   const [empleadoParaPagoVac, setEmpleadoParaPagoVac] = useState<Empleado | null>(null);
   const [searchPagoVac, setSearchPagoVac] = useState('');
   const [syncingDescansos, setSyncingDescansos] = useState(false);
-  const [subTabExtras, setSubTabExtras] = useState<'pendientes' | 'historial' | 'compensaciones'>('pendientes');
+  const [subTabExtras, setSubTabExtras] = useState<'pendientes' | 'por_pagar' | 'pagadas' | 'historial' | 'compensaciones'>('pendientes');
+  const [pagosHorasExtra, setPagosHorasExtra] = useState<PagoHorasExtra[]>([]);
+  const [selectedPagoHEParaBoleta, setSelectedPagoHEParaBoleta] = useState<PagoHorasExtra | null>(null);
+  const [showModalEmitirPagoHE, setShowModalEmitirPagoHE] = useState(false);
+  const [empleadoParaPagoHE, setEmpleadoParaPagoHE] = useState<Empleado | null>(null);
+  const [horasExtraParaPagoHE, setHorasExtraParaPagoHE] = useState<AutorizacionHorasExtra[]>([]);
+  const [searchPagoHE, setSearchPagoHE] = useState('');
+  const [searchPorPagarHE, setSearchPorPagarHE] = useState('');
   const [selectedExtraParaBoleta, setSelectedExtraParaBoleta] = useState<AutorizacionHorasExtra | null>(null);
   const [filtroEstadoHistorialExtra, setFiltroEstadoHistorialExtra] = useState<'TODOS' | 'APROBADO' | 'RECHAZADO'>('TODOS');
   const [searchCompensacion, setSearchCompensacion] = useState('');
@@ -159,7 +171,7 @@ export default function NominaAdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empList, asisList, feriadosList, extrasList, permisosList, compList, compFeriadosList, pagosVacList] = await Promise.all([
+      const [empList, asisList, feriadosList, extrasList, permisosList, compList, compFeriadosList, pagosVacList, pagosHEList] = await Promise.all([
         fetchEmpleados(),
         fetchAsistencias(),
         fetchFeriados(),
@@ -168,6 +180,7 @@ export default function NominaAdminPage() {
         fetchCompensaciones(),
         fetchCompensacionesFeriados(),
         fetchPagosVacaciones(),
+        fetchPagosHorasExtra(),
       ]);
       setEmpleados(empList);
       setAsistencias(asisList);
@@ -177,6 +190,7 @@ export default function NominaAdminPage() {
       setCompensaciones(compList);
       setCompensacionesFeriados(compFeriadosList);
       setPagosVacaciones(pagosVacList);
+      setPagosHorasExtra(pagosHEList);
       if (empList.length > 0 && nuevoPermisoEmp === 0) {
         setNuevoPermisoEmp(empList[0].id);
       }
@@ -184,6 +198,26 @@ export default function NominaAdminPage() {
       console.error('Error cargando datos administrativos:', e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAbrirPagoHE = (emp: Empleado, extras: AutorizacionHorasExtra[]) => {
+    setEmpleadoParaPagoHE(emp);
+    setHorasExtraParaPagoHE(extras);
+    setShowModalEmitirPagoHE(true);
+  };
+
+  const handleDeletePagoHE = async (pago: PagoHorasExtra) => {
+    const confirmacion = window.confirm(
+      `¿Está seguro de anular el recibo ${pago.numero_recibo} por C$ ${Number(pago.monto_total).toLocaleString('es-NI', { minimumFractionDigits: 2 })}?\n\nLas horas extra asociadas volverán a quedar pendientes de pago.`
+    );
+    if (!confirmacion) return;
+
+    try {
+      await deletePagoHorasExtra(pago.id);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Error al anular el recibo de pago.');
     }
   };
 
@@ -1782,12 +1816,50 @@ export default function NominaAdminPage() {
               }`}
             >
               <Clock className={`w-4 h-4 ${subTabExtras === 'pendientes' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
-              <span>Solicitudes de Horas Extra</span>
+              <span>Solicitudes Pendientes</span>
               {horasExtra.filter((h) => h.estado === 'PENDIENTE').length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
                   subTabExtras === 'pendientes' ? 'bg-amber-400 text-stone-950' : 'bg-amber-500 text-white'
                 }`}>
                   {horasExtra.filter((h) => h.estado === 'PENDIENTE').length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setSubTabExtras('por_pagar')}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
+                subTabExtras === 'por_pagar'
+                  ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+                  : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
+              }`}
+            >
+              <Banknote className={`w-4 h-4 ${subTabExtras === 'por_pagar' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+              <span>Por Pagar (Aprobadas)</span>
+              {horasExtra.filter((h) => h.estado === 'APROBADO' && h.estado_pago !== 'PAGADO' && Number(h.horas_extra_autorizadas) > 0).length > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
+                  subTabExtras === 'por_pagar' ? 'bg-emerald-400 text-stone-950' : 'bg-emerald-600 text-white'
+                }`}>
+                  {horasExtra.filter((h) => h.estado === 'APROBADO' && h.estado_pago !== 'PAGADO' && Number(h.horas_extra_autorizadas) > 0).length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setSubTabExtras('pagadas')}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
+                subTabExtras === 'pagadas'
+                  ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+                  : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
+              }`}
+            >
+              <Receipt className={`w-4 h-4 ${subTabExtras === 'pagadas' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+              <span>Historial de Pagos</span>
+              {pagosHorasExtra.length > 0 && (
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
+                  subTabExtras === 'pagadas' ? 'bg-white text-[#1c6856]' : 'bg-[#1c6856]/15 text-[#1c6856]'
+                }`}>
+                  {pagosHorasExtra.length}
                 </span>
               )}
             </button>
@@ -1801,7 +1873,7 @@ export default function NominaAdminPage() {
               }`}
             >
               <FileCheck className={`w-4 h-4 ${subTabExtras === 'historial' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
-              <span>Historial de Resoluciones (Boletas)</span>
+              <span>Todas las Resoluciones</span>
               {horasExtra.filter((h) => h.estado !== 'PENDIENTE').length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
                   subTabExtras === 'historial' ? 'bg-white text-[#1c6856]' : 'bg-[#1c6856]/15 text-[#1c6856]'
@@ -1820,7 +1892,7 @@ export default function NominaAdminPage() {
               }`}
             >
               <Scale className={`w-4 h-4 ${subTabExtras === 'compensaciones' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
-              <span>Reporte de Deducciones y Compensaciones</span>
+              <span>Bolsa de Horas</span>
               {compensaciones.length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
                   subTabExtras === 'compensaciones' ? 'bg-white text-[#1c6856]' : 'bg-[#1c6856]/15 text-[#1c6856]'
@@ -2029,6 +2101,525 @@ export default function NominaAdminPage() {
                   </table>
                 </div>
               </div>
+            </div>
+          )}
+
+          {subTabExtras === 'por_pagar' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Tarjetas KPI de Horas Extra Por Pagar */}
+              {(() => {
+                const extrasPorPagar = horasExtra.filter(
+                  (h) => h.estado === 'APROBADO' && h.estado_pago !== 'PAGADO' && Number(h.horas_extra_autorizadas) > 0
+                );
+
+                let totHoras = 0;
+                let totMontoEst = 0;
+                const empsConExtras = new Set<number>();
+
+                extrasPorPagar.forEach((it) => {
+                  const empId = typeof it.empleado === 'number' ? it.empleado : (it.empleado_detalle?.id || 0);
+                  if (empId) empsConExtras.add(empId);
+                  const emp = empleados.find((e) => e.id === empId);
+                  const tarifaBase = Number(emp?.tarifa_hora || 0);
+                  const tarifaHE = tarifaBase > 0 ? (tarifaBase * 2) : 50;
+                  const hrs = Number(it.horas_extra_autorizadas || 0);
+                  totHoras += hrs;
+                  totMontoEst += (hrs * tarifaHE);
+                });
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    <div className="bg-gradient-to-br from-emerald-50/90 to-emerald-100/40 border border-emerald-250 rounded-2xl p-4 shadow-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                          Horas Autorizadas Pendientes
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                          <Clock className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-black font-mono text-emerald-900">
+                          {totHoras.toFixed(1)} hrs
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/60 px-2 py-0.5 rounded-full">
+                          {extrasPorPagar.length} fecha{extrasPorPagar.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                        Aprobadas formalmente, listas para liquidar y emitir recibo RPHE
+                      </p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-amber-50/90 to-amber-100/40 border border-amber-250 rounded-2xl p-4 shadow-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                          Monto Total Estimado (C$)
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                          <Banknote className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-black font-mono text-amber-950">
+                          C$ {totMontoEst.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 font-medium mt-1">
+                        Cálculo legal Art. 62 CT (Tarifa ordinaria x 2 con recargo del 100%)
+                      </p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-blue-50/90 to-blue-100/40 border border-blue-250 rounded-2xl p-4 shadow-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider">
+                          Colaboradores Pendientes
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs">
+                          <Coins className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-black font-mono text-blue-950">
+                          {empsConExtras.size} persona{empsConExtras.size !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-blue-700 font-medium mt-1">
+                        Permite liquidación individual por fecha o consolidado en lote
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Barra de Filtro y Acciones */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+                <div className="relative flex-1 max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Buscar colaborador por nombre, cargo o fecha..."
+                    value={searchPorPagarHE}
+                    onChange={(e) => setSearchPorPagarHE(e.target.value)}
+                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm"
+                  />
+                  <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  {searchPorPagarHE && (
+                    <button
+                      onClick={() => setSearchPorPagarHE('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEmpleadoParaPagoHE(null);
+                      setHorasExtraParaPagoHE([]);
+                      setShowModalEmitirPagoHE(true);
+                    }}
+                    className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Emitir Pago de Horas Extra</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Listado Agrupado por Colaborador */}
+              {(() => {
+                const extrasPorPagar = horasExtra.filter(
+                  (h) => h.estado === 'APROBADO' && h.estado_pago !== 'PAGADO' && Number(h.horas_extra_autorizadas) > 0
+                );
+
+                const filtradas = extrasPorPagar.filter((it) => {
+                  if (!searchPorPagarHE) return true;
+                  const empId = typeof it.empleado === 'number' ? it.empleado : (it.empleado_detalle?.id || 0);
+                  const emp = empleados.find((e) => e.id === empId);
+                  const term = searchPorPagarHE.toLowerCase();
+                  const nombre = emp ? `${emp.nombre} ${emp.apellido}`.toLowerCase() : '';
+                  const cargo = emp?.cargo_display ? emp.cargo_display.toLowerCase() : '';
+                  return nombre.includes(term) || cargo.includes(term) || it.fecha.includes(term);
+                });
+
+                if (filtradas.length === 0) {
+                  return (
+                    <div className="bg-white border border-stone-200 rounded-2xl p-12 text-center text-stone-400 text-xs shadow-xs">
+                      <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                      <p className="font-bold text-stone-700 text-sm">¡Al día! No hay horas extra pendientes de pago.</p>
+                      <p className="text-stone-400 text-xs mt-1">Todas las horas autorizadas ya han sido liquidadas formalmente o no hay solicitudes aprobadas pendientes.</p>
+                    </div>
+                  );
+                }
+
+                // Agrupar por empleado
+                const mapGrupos: Record<number, AutorizacionHorasExtra[]> = {};
+                filtradas.forEach((it) => {
+                  const empId = typeof it.empleado === 'number' ? it.empleado : (it.empleado_detalle?.id || 0);
+                  if (!mapGrupos[empId]) mapGrupos[empId] = [];
+                  mapGrupos[empId].push(it);
+                });
+
+                return (
+                  <div className="space-y-4">
+                    {Object.entries(mapGrupos).map(([empIdStr, items]) => {
+                      const empId = Number(empIdStr);
+                      const emp = empleados.find((e) => e.id === empId);
+                      const nombre = emp ? `${emp.nombre} ${emp.apellido}` : (items[0]?.empleado_detalle?.nombre ? `${items[0].empleado_detalle.nombre} ${items[0].empleado_detalle.apellido}` : `Colaborador #${empId}`);
+                      const cargo = emp?.cargo_display || '';
+                      const tarifaBase = Number(emp?.tarifa_hora || 0);
+                      const tarifaHE = tarifaBase > 0 ? (tarifaBase * 2) : 50;
+
+                      let totalHorasColab = 0;
+                      let totalMontoColab = 0;
+                      items.forEach((it) => {
+                        const hrs = Number(it.horas_extra_autorizadas || 0);
+                        totalHorasColab += hrs;
+                        totalMontoColab += (hrs * tarifaHE);
+                      });
+
+                      return (
+                        <div key={`grupo-pagar-${empId}`} className="bg-white border border-stone-200/90 rounded-2xl shadow-xs overflow-hidden transition-all hover:border-emerald-300">
+                          {/* Cabecera del Colaborador */}
+                          <div className="p-4 sm:p-5 bg-gradient-to-r from-stone-50 via-white to-stone-50/50 border-b border-stone-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3.5">
+                              <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center font-bold text-base shadow-2xs">
+                                {emp?.nombre ? emp.nombre[0] : '#'}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-bold text-sm text-stone-900">{nombre}</h3>
+                                  {cargo && (
+                                    <span className="text-[11px] font-semibold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md border border-stone-200">
+                                      {cargo}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3 text-xs text-stone-500 mt-1">
+                                  <span>Tarifa Ordinaria: <strong className="font-mono text-stone-700">C$ {tarifaBase.toFixed(2)}/hr</strong></span>
+                                  <span>•</span>
+                                  <span>Tarifa HE (2x): <strong className="font-mono text-emerald-700 font-bold">C$ {tarifaHE.toFixed(2)}/hr</strong></span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-3 sm:pt-0 border-stone-100">
+                              <div className="text-right">
+                                <span className="text-[10px] uppercase tracking-wider text-stone-400 font-bold block">Total a Liquidar</span>
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-bold text-sm text-stone-800">{totalHorasColab.toFixed(1)} hrs</span>
+                                  <span className="text-stone-300">•</span>
+                                  <span className="font-black text-emerald-700 text-base">C$ {totalMontoColab.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => emp && handleAbrirPagoHE(emp, items)}
+                                className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+                              >
+                                <Banknote className="w-4 h-4" />
+                                <span>Pagar Todas ({items.length})</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Tabla de Fechas del Colaborador */}
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                              <thead>
+                                <tr className="bg-stone-50/70 border-b border-stone-200 text-stone-500 uppercase text-[10px] font-bold">
+                                  <th className="py-2.5 px-4">Fecha</th>
+                                  <th className="py-2.5 px-4 text-center">Horas Solicitadas</th>
+                                  <th className="py-2.5 px-4 text-center">Horas Autorizadas</th>
+                                  <th className="py-2.5 px-4 text-right">Tarifa HE (2x)</th>
+                                  <th className="py-2.5 px-4 text-right">Subtotal C$</th>
+                                  <th className="py-2.5 px-4">Comentario / Justificación</th>
+                                  <th className="py-2.5 px-4 text-right">Acción</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-stone-100 text-stone-700">
+                                {items.map((it) => {
+                                  const [y, m, d] = it.fecha.split('-').map(Number);
+                                  const dt = new Date(y, m - 1, d);
+                                  const fechaDisplay = dt.toLocaleDateString('es-NI', {
+                                    weekday: 'short',
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  });
+                                  const hrsAut = Number(it.horas_extra_autorizadas || 0);
+                                  const subtotal = hrsAut * tarifaHE;
+
+                                  return (
+                                    <tr key={`item-pagar-${it.id}`} className="hover:bg-stone-50/60 transition-colors">
+                                      <td className="py-3 px-4 font-bold text-stone-900 capitalize font-mono">
+                                        {fechaDisplay}
+                                      </td>
+                                      <td className="py-3 px-4 text-center font-mono text-stone-500">
+                                        {Number(it.horas_extra_solicitadas || 0).toFixed(1)} hrs
+                                      </td>
+                                      <td className="py-3 px-4 text-center font-mono font-bold text-emerald-700">
+                                        <span className="bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                          +{hrsAut.toFixed(1)} hrs
+                                        </span>
+                                      </td>
+                                      <td className="py-3 px-4 text-right font-mono text-stone-600">
+                                        C$ {tarifaHE.toFixed(2)}
+                                      </td>
+                                      <td className="py-3 px-4 text-right font-mono font-black text-stone-900">
+                                        C$ {subtotal.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="py-3 px-4 text-stone-500 italic max-w-xs truncate">
+                                        {it.comentario || <span className="text-stone-300 not-italic">-</span>}
+                                      </td>
+                                      <td className="py-3 px-4 text-right">
+                                        <button
+                                          onClick={() => emp && handleAbrirPagoHE(emp, [it])}
+                                          className="bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-400 px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                                        >
+                                          <Coins className="w-3 h-3 text-emerald-600" />
+                                          <span>Pagar Fecha</span>
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {subTabExtras === 'pagadas' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Tarjetas KPI de Pagos Emitidos */}
+              {(() => {
+                const totPagos = pagosHorasExtra.length;
+                const totHoras = pagosHorasExtra.reduce((acc, p) => acc + Number(p.total_horas_pagadas || 0), 0);
+                const totMonto = pagosHorasExtra.reduce((acc, p) => acc + Number(p.monto_total || 0), 0);
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    <div className="bg-gradient-to-br from-emerald-50/90 to-emerald-100/40 border border-emerald-250 rounded-2xl p-4 shadow-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                          Recibos Oficiales Emitidos
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                          <Receipt className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-black font-mono text-emerald-900">
+                          {totPagos} recibo{totPagos !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                        Comprobantes emitidos formalmente con correlativo RPHE
+                      </p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-blue-50/90 to-blue-100/40 border border-blue-250 rounded-2xl p-4 shadow-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider">
+                          Total Horas Liquidadas
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs">
+                          <Clock className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-black font-mono text-blue-950">
+                          {totHoras.toFixed(1)} hrs
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-blue-700 font-medium mt-1">
+                        Horas extra autorizadas que ya han sido canceladas
+                      </p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-amber-50/90 to-amber-100/40 border border-amber-250 rounded-2xl p-4 shadow-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                          Total Desembolsado (C$)
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                          <Banknote className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-2xl font-black font-mono text-amber-950">
+                          C$ {totMonto.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-800 font-medium mt-1">
+                        Suma cancelada mediante Efectivo, Transferencia o Nómina
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Barra de Filtro de Pagos */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+                <div className="relative flex-1 max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Buscar por colaborador, recibo (RPHE-...) o método..."
+                    value={searchPagoHE}
+                    onChange={(e) => setSearchPagoHE(e.target.value)}
+                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm"
+                  />
+                  <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  {searchPagoHE && (
+                    <button
+                      onClick={() => setSearchPagoHE('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-xs text-stone-500 font-medium">
+                  {(() => {
+                    const filtrados = pagosHorasExtra.filter((p) => {
+                      if (!searchPagoHE) return true;
+                      const term = searchPagoHE.toLowerCase();
+                      const emp = p.empleado_detalle || empleados.find((e) => e.id === p.empleado);
+                      const nombre = emp ? `${emp.nombre} ${emp.apellido}`.toLowerCase() : '';
+                      const recibo = p.numero_recibo.toLowerCase();
+                      const metodo = p.metodo_pago_display?.toLowerCase() || '';
+                      return nombre.includes(term) || recibo.includes(term) || metodo.includes(term);
+                    });
+                    return `Mostrando ${filtrados.length} recibo${filtrados.length !== 1 ? 's' : ''}`;
+                  })()}
+                </div>
+              </div>
+
+              {/* Tabla de Recibos Emitidos */}
+              {(() => {
+                const filtrados = pagosHorasExtra.filter((p) => {
+                  if (!searchPagoHE) return true;
+                  const term = searchPagoHE.toLowerCase();
+                  const emp = p.empleado_detalle || empleados.find((e) => e.id === p.empleado);
+                  const nombre = emp ? `${emp.nombre} ${emp.apellido}`.toLowerCase() : '';
+                  const recibo = p.numero_recibo.toLowerCase();
+                  const metodo = p.metodo_pago_display?.toLowerCase() || '';
+                  return nombre.includes(term) || recibo.includes(term) || metodo.includes(term);
+                });
+
+                if (filtrados.length === 0) {
+                  return (
+                    <div className="bg-white border border-stone-200 rounded-2xl p-12 text-center text-stone-400 text-xs shadow-xs">
+                      <Receipt className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+                      <p className="font-bold text-stone-700 text-sm">No se han encontrado recibos de pago emitidos.</p>
+                      <p className="text-stone-400 text-xs mt-1">Los pagos emitidos en la pestaña "Por Pagar" aparecerán aquí con su respectivo recibo oficial.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="bg-white border border-stone-200/90 rounded-2xl shadow-xs overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-stone-50/80 border-b border-stone-200 text-stone-500 uppercase text-[10px] font-bold">
+                            <th className="py-3 px-4">No. Recibo</th>
+                            <th className="py-3 px-4">Fecha Pago</th>
+                            <th className="py-3 px-4">Colaborador</th>
+                            <th className="py-3 px-4 text-center">Fechas Incluidas</th>
+                            <th className="py-3 px-4 text-center">Horas Pagadas</th>
+                            <th className="py-3 px-4 text-right">Monto Total</th>
+                            <th className="py-3 px-4">Método</th>
+                            <th className="py-3 px-4">Emitido Por</th>
+                            <th className="py-3 px-4 text-right">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-100 text-stone-700">
+                          {filtrados.map((pago) => {
+                            const emp = pago.empleado_detalle || empleados.find((e) => e.id === pago.empleado);
+                            const nombre = emp ? `${emp.nombre} ${emp.apellido}` : (pago.empleado_detalle?.nombre ? `${pago.empleado_detalle.nombre} ${pago.empleado_detalle.apellido}` : `Colaborador #${pago.empleado}`);
+                            const cargo = emp?.cargo_display || '';
+                            const cantFechas = Array.isArray(pago.detalles_fechas) ? pago.detalles_fechas.length : 0;
+
+                            return (
+                              <tr key={`pago-row-${pago.id}`} className="hover:bg-stone-50/60 transition-colors">
+                                <td className="py-3 px-4">
+                                  <span className="font-mono font-bold text-[#1c6856] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1.5">
+                                    <Receipt className="w-3.5 h-3.5" />
+                                    {pago.numero_recibo}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 font-mono text-stone-600">
+                                  {pago.fecha_pago}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="font-bold text-stone-900 block">{nombre}</span>
+                                  {cargo && <span className="text-[11px] text-stone-400 block">{cargo}</span>}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className="bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-full font-mono text-stone-700 font-bold text-[11px]">
+                                    {cantFechas} fecha{cantFechas !== 1 ? 's' : ''}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center font-mono font-bold text-emerald-800">
+                                  {Number(pago.total_horas_pagadas).toFixed(1)} hrs
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono font-black text-emerald-700 text-sm">
+                                  C$ {Number(pago.monto_total).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                    pago.metodo_pago === 'EFECTIVO'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : pago.metodo_pago === 'TRANSFERENCIA'
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                                  }`}>
+                                    {pago.metodo_pago_display || pago.metodo_pago}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-stone-500 text-[11px]">
+                                  {pago.registrado_por_nombre || 'Gerencia'}
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      onClick={() => setSelectedPagoHEParaBoleta(pago)}
+                                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95"
+                                      title="Imprimir o Ver Recibo Oficial"
+                                    >
+                                      <Printer className="w-3.5 h-3.5 text-emerald-700" />
+                                      <span>Ver Recibo</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => handleDeletePagoHE(pago)}
+                                      className="bg-stone-50 hover:bg-rose-50 text-stone-400 hover:text-rose-600 border border-stone-200 hover:border-rose-300 p-1 rounded-lg text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
+                                      title="Anular Recibo de Pago"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -4174,6 +4765,33 @@ export default function NominaAdminPage() {
         <BoletaPagoVacacionesModal
           pago={selectedPagoVacaciones}
           onClose={() => setSelectedPagoVacaciones(null)}
+        />
+      )}
+
+      {/* ── MODAL 7: EMITIR PAGO DE HORAS EXTRA ── */}
+      <ModalEmitirPagoHorasExtra
+        isOpen={showModalEmitirPagoHE}
+        onClose={() => {
+          setShowModalEmitirPagoHE(false);
+          setEmpleadoParaPagoHE(null);
+          setHorasExtraParaPagoHE([]);
+        }}
+        empleados={empleados}
+        horasExtraAprobadas={horasExtra}
+        compensaciones={compensaciones}
+        empleadoPreseleccionado={empleadoParaPagoHE}
+        horasExtraPreseleccionadas={horasExtraParaPagoHE}
+        onPagoCompletado={(nuevoPago) => {
+          setSelectedPagoHEParaBoleta(nuevoPago);
+          loadData();
+        }}
+      />
+
+      {/* ── MODAL 8: BOLETA OFICIAL DE PAGO DE HORAS EXTRA (RPHE) ── */}
+      {selectedPagoHEParaBoleta && (
+        <BoletaPagoHorasExtraModal
+          pago={selectedPagoHEParaBoleta}
+          onClose={() => setSelectedPagoHEParaBoleta(null)}
         />
       )}
     </div>

@@ -88,6 +88,13 @@ export interface AutorizacionHorasExtra {
   horas_extra_autorizadas: number | string;
   estado: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
   comentario?: string | null;
+  estado_pago?: 'PENDIENTE' | 'PAGADO';
+  estado_pago_display?: string;
+  fecha_pago?: string | null;
+  monto_pagado?: number | string;
+  metodo_pago?: string;
+  numero_recibo_pago?: string;
+  pago_horas_extra?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -181,6 +188,32 @@ export interface PagoVacaciones {
   motivo: string;
   observaciones?: string;
   numero_recibo: string;
+  registrado_por?: number | null;
+  registrado_por_nombre?: string;
+  created_at: string;
+}
+
+export interface DetalleFechaPagoHE {
+  id: number;
+  fecha: string;
+  horas_solicitadas: number;
+  horas_autorizadas: number;
+  comentario?: string;
+}
+
+export interface PagoHorasExtra {
+  id: number;
+  empleado: number;
+  empleado_detalle?: Empleado;
+  fecha_pago: string;
+  total_horas_pagadas: number;
+  tarifa_hora_aplicada: number;
+  monto_total: number;
+  metodo_pago: 'EFECTIVO' | 'TRANSFERENCIA' | 'NOMINA_QUINCENAL';
+  metodo_pago_display: string;
+  numero_recibo: string;
+  observaciones?: string;
+  detalles_fechas: DetalleFechaPagoHE[];
   registrado_por?: number | null;
   registrado_por_nombre?: string;
   created_at: string;
