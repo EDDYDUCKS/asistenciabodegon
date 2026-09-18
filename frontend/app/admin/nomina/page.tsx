@@ -1107,6 +1107,14 @@ export default function NominaAdminPage() {
       return cEmpId === empId && c.fecha_compensacion === item.fecha;
     });
 
+    const fechasSaldadasStr = compDia?.desglose && compDia.desglose.length > 0
+      ? compDia.desglose.map((d) => {
+          const h = Number(d.horas_compensadas || d.horas_aplicadas || 0).toFixed(1);
+          const f = d.fecha ? `${d.fecha.slice(8, 10)}/${d.fecha.slice(5, 7)}` : '';
+          return `${f}: -${h}h`;
+        }).join(', ')
+      : '';
+
     return (
       <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
         <td className="px-6 py-4 font-mono font-bold text-stone-600">
@@ -1135,11 +1143,16 @@ export default function NominaAdminPage() {
             )}
             {compDia && Number(compDia.horas_deducidas) > 0 && (
               <span
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100/80 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs"
-                title={`Este colaborador generó ${Number(compDia.horas_extra_generadas).toFixed(1)}h extra brutas hoy. Se amortizaron automáticamente ${Number(compDia.horas_deducidas).toFixed(1)}h para cubrir salidas tempranas de su Bolsa de Horas.`}
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs"
+                title={`Este colaborador generó ${Number(compDia.horas_extra_generadas).toFixed(1)}h extra brutas hoy. Se amortizaron automáticamente ${Number(compDia.horas_deducidas).toFixed(1)}h para cubrir salidas tempranas de: ${fechasSaldadasStr || 'días anteriores'}.`}
               >
                 <Scale className="w-3 h-3 text-amber-700 shrink-0" />
-                Déficit cubierto: -{Number(compDia.horas_deducidas).toFixed(1)}h (Bruto: +{Number(compDia.horas_extra_generadas).toFixed(1)}h)
+                Déficit cubierto: -{Number(compDia.horas_deducidas).toFixed(1)}h
+                {fechasSaldadasStr && (
+                  <span className="font-mono font-medium text-amber-800 bg-amber-200/60 px-1 rounded text-[9px]">
+                    ({fechasSaldadasStr})
+                  </span>
+                )}
               </span>
             )}
             {deuda > 0 && (
@@ -1166,10 +1179,13 @@ export default function NominaAdminPage() {
               </span>
               <span
                 className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-1.5 py-0.5 rounded mt-0.5"
-                title={`Generó +${Number(compDia.horas_extra_generadas).toFixed(1)}h brutas. Se dedujeron -${Number(compDia.horas_deducidas).toFixed(1)}h para saldar deuda de salidas tempranas.`}
+                title={`Generó +${Number(compDia.horas_extra_generadas).toFixed(1)}h brutas. Se dedujeron -${Number(compDia.horas_deducidas).toFixed(1)}h de deudas (${fechasSaldadasStr}).`}
               >
                 <Scale className="w-2.5 h-2.5 text-amber-700 shrink-0" />
                 -{Number(compDia.horas_deducidas).toFixed(1)}h deuda
+                {fechasSaldadasStr && (
+                  <span className="text-[9px] font-mono opacity-80">({fechasSaldadasStr})</span>
+                )}
               </span>
               <span className="text-[9px] text-stone-400 font-mono">
                 (Bruto: +{Number(compDia.horas_extra_generadas).toFixed(1)}h)
@@ -3844,6 +3860,32 @@ export default function NominaAdminPage() {
                     <strong className="text-emerald-800">+{Number(pendingExtraAction.compDia.remanente_extra).toFixed(1)}h</strong>
                   </div>
                 </div>
+
+                {/* Fechas específicas saldadas */}
+                {pendingExtraAction.compDia.desglose && Array.isArray(pendingExtraAction.compDia.desglose) && pendingExtraAction.compDia.desglose.length > 0 && (
+                  <div className="bg-white/95 rounded-lg border border-amber-200 p-2 space-y-1 text-[11px]">
+                    <span className="text-[9px] font-bold uppercase text-amber-900 block tracking-wide">
+                      Fechas y turnos saldados con estas horas:
+                    </span>
+                    <div className="space-y-0.5">
+                      {pendingExtraAction.compDia.desglose.map((d, i) => {
+                        const fFormat = d.fecha ? new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-NI', {
+                          weekday: 'short',
+                          day: '2-digit',
+                          month: 'short',
+                        }) : d.fecha;
+                        const hComp = d.horas_compensadas || d.horas_aplicadas || d.deficit_original || 0;
+                        return (
+                          <div key={i} className="flex justify-between items-center text-stone-800 py-0.5 border-b border-amber-50 last:border-0">
+                            <span className="capitalize font-semibold text-stone-700">• {fFormat}:</span>
+                            <span className="font-mono font-bold text-amber-800">-{Number(hComp).toFixed(1)} hrs</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <p className="text-[10px] text-amber-900 leading-tight">
                   Generó {Number(pendingExtraAction.compDia.horas_extra_generadas).toFixed(1)} hrs hoy. Se amortizaron {Number(pendingExtraAction.compDia.horas_deducidas).toFixed(1)} hrs para saldar salidas tempranas pasadas. Estás autorizando el remanente limpio ({Number(pendingExtraAction.compDia.remanente_extra).toFixed(1)} hrs) para pago de nómina.
                 </p>

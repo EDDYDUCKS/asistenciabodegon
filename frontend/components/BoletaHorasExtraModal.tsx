@@ -464,6 +464,38 @@ export default function BoletaHorasExtraModal({
                       <strong className="text-emerald-800 font-mono text-sm">+{Number(compDia.remanente_extra).toFixed(1)} hrs</strong>
                     </div>
                   </div>
+
+                  {/* Fechas específicas saldadas */}
+                  {compDia.desglose && Array.isArray(compDia.desglose) && compDia.desglose.length > 0 && (
+                    <div className="bg-white/95 rounded-lg border border-amber-200/90 p-2 space-y-1">
+                      <span className="text-[9px] font-bold uppercase text-amber-900 block tracking-wider">
+                        Fechas y horas específicas saldadas en esta resolución:
+                      </span>
+                      <div className="divide-y divide-amber-100 text-[11px]">
+                        {compDia.desglose.map((d, i) => {
+                          const fFormat = d.fecha ? new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-NI', {
+                            weekday: 'short',
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          }) : d.fecha;
+                          const hComp = d.horas_compensadas || d.horas_aplicadas || d.deficit_original || 0;
+                          return (
+                            <div key={`desglose-${i}`} className="flex items-center justify-between py-0.5 text-stone-800">
+                              <span className="font-semibold capitalize flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                {fFormat} {d.tipo === 'HORAS_EXTRA_ORIGEN' ? '(Abono a extra)' : '(Salida anticipada)'}:
+                              </span>
+                              <span className="font-mono font-bold text-amber-800">
+                                -{Number(hComp).toFixed(1)} hrs
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <p className="text-[10px] text-amber-900/90 leading-tight">
                     * El colaborador generó {Number(compDia.horas_extra_generadas).toFixed(1)} hrs extraordinarias. Se aplicaron automáticamente {Number(compDia.horas_deducidas).toFixed(1)} hrs para saldar salidas tempranas acumuladas en su Bolsa de Horas (deuda previa de {Number(compDia.deuda_previa).toFixed(1)} hrs saldada), dejando {Number(compDia.remanente_extra).toFixed(1)} hrs netas para pago en nómina.
                   </p>
