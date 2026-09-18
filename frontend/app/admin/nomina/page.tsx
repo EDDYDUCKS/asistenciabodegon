@@ -898,8 +898,9 @@ export default function NominaAdminPage() {
       );
 
       // Sincronizar con el saldo real auditado de la Bolsa de Horas del colaborador
+      // La deuda auditable oficial es el saldo activo en Bolsa de Horas (emp.horas_pendientes)
       const deudaOficialBolsa = parseFloat(String(emp.horas_pendientes || 0));
-      let horasDebidasFinal = Math.max(horasDebidas, deudaOficialBolsa);
+      let horasDebidasFinal = deudaOficialBolsa;
 
       // Si el colaborador debe horas y tiene horas extra solicitadas pendientes en el período,
       // las horas extra PRIMERO amortizan la deuda al 100%. Solo el remanente neto queda pendiente de aprobación.

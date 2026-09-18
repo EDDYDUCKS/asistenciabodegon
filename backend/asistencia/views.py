@@ -2786,16 +2786,22 @@ def exportar_reporte_nomina_excel(request):
                 curr_day += datetime.timedelta(days=1)
 
             # Sincronización oficial con Bolsa de Horas
-            horas_debidas = max(horas_debidas, float(emp.horas_pendientes or 0.0))
+            horas_debidas = float(emp.horas_pendientes or 0.0)
 
             # Horas Extra
-            horas_extra_aprobadas = AutorizacionHorasExtra.objects.filter(
+            horas_extra_aprobadas = float(AutorizacionHorasExtra.objects.filter(
                 empleado=emp, fecha__gte=fecha_inicio, fecha__lte=fecha_fin, estado='APROBADO'
-            ).aggregate(total=Sum('horas_extra_autorizadas'))['total'] or 0.0
+            ).aggregate(total=Sum('horas_extra_autorizadas'))['total'] or 0.0)
 
-            horas_extra_pendientes = AutorizacionHorasExtra.objects.filter(
+            horas_extra_pendientes = float(AutorizacionHorasExtra.objects.filter(
                 empleado=emp, fecha__gte=fecha_inicio, fecha__lte=fecha_fin, estado='PENDIENTE'
-            ).aggregate(total=Sum('horas_extra_solicitadas'))['total'] or 0.0
+            ).aggregate(total=Sum('horas_extra_solicitadas'))['total'] or 0.0)
+
+            # Si debe horas y tiene horas extra pendientes, amortizar preventivamente
+            if horas_debidas > 0 and horas_extra_pendientes > 0:
+                amortizar = min(horas_debidas, horas_extra_pendientes)
+                horas_debidas = max(0.0, round(horas_debidas - amortizar, 1))
+                horas_extra_pendientes = max(0.0, round(horas_extra_pendientes - amortizar, 1))
 
             # Vacaciones
             permisos_vac_emp = PermisoAusencia.objects.filter(empleado=emp, tipo__in=['VACACIONES', 'VACACIONES_PAGADAS'])
