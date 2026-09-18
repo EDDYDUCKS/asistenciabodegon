@@ -2,18 +2,20 @@
 
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AutorizacionHorasExtra, RegistroAsistencia } from '@/lib/types';
-import { Printer, X, CheckCircle, XCircle, Clock, User, Calendar, FileText, UtensilsCrossed, Shield, Award } from 'lucide-react';
+import { AutorizacionHorasExtra, RegistroAsistencia, CompensacionHoras } from '@/lib/types';
+import { Printer, X, CheckCircle, XCircle, Clock, User, Calendar, FileText, UtensilsCrossed, Shield, Award, Scale } from 'lucide-react';
 
 interface BoletaHorasExtraModalProps {
   horaExtra: AutorizacionHorasExtra | null;
   asistencias?: RegistroAsistencia[];
+  compensaciones?: CompensacionHoras[];
   onClose: () => void;
 }
 
 export default function BoletaHorasExtraModal({
   horaExtra,
   asistencias = [],
+  compensaciones = [],
   onClose,
 }: BoletaHorasExtraModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -74,6 +76,12 @@ export default function BoletaHorasExtraModal({
       return aEmpId === empId && a.fecha_hora && a.fecha_hora.startsWith(horaExtra.fecha);
     })
     .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));
+
+  // Buscar si existió compensación de horas o deducción por déficit en este día
+  const compDia = compensaciones.find((c) => {
+    const cEmpId = typeof c.empleado === 'number' ? c.empleado : (c.empleado_detalle?.id || 0);
+    return cEmpId === empId && c.fecha_compensacion === horaExtra.fecha;
+  });
 
   const formatHora = (isoStr: string) => {
     try {
@@ -429,6 +437,38 @@ export default function BoletaHorasExtraModal({
                   </p>
                 </div>
               </div>
+
+              {/* Desglose de Amortización de Déficit / Salidas Tempranas si aplica */}
+              {compDia && Number(compDia.horas_deducidas) > 0 && (
+                <div className="bg-amber-50/80 border border-amber-300/80 rounded-xl p-3 text-xs space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-amber-900 font-bold">
+                    <span className="flex items-center gap-1.5 uppercase text-[11px] tracking-wide">
+                      <Scale className="w-3.5 h-3.5 text-amber-700" />
+                      Amortización Automática de Salidas Tempranas (Bolsa de Horas)
+                    </span>
+                    <span className="font-mono text-[11px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md">
+                      Déficit cubierto: -{Number(compDia.horas_deducidas).toFixed(1)} hrs
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 bg-white/90 p-2.5 rounded-lg border border-amber-200 text-center">
+                    <div>
+                      <span className="text-[10px] text-stone-500 uppercase block font-bold">Extra Bruto Total:</span>
+                      <strong className="text-stone-900 font-mono text-sm">+{Number(compDia.horas_extra_generadas).toFixed(1)} hrs</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-amber-700 uppercase block font-bold">Deducido para Saldo:</span>
+                      <strong className="text-amber-700 font-mono text-sm">-{Number(compDia.horas_deducidas).toFixed(1)} hrs</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-emerald-700 uppercase block font-bold">Remanente Neto a Pagar:</span>
+                      <strong className="text-emerald-800 font-mono text-sm">+{Number(compDia.remanente_extra).toFixed(1)} hrs</strong>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-amber-900/90 leading-tight">
+                    * El colaborador generó {Number(compDia.horas_extra_generadas).toFixed(1)} hrs extraordinarias. Se aplicaron automáticamente {Number(compDia.horas_deducidas).toFixed(1)} hrs para saldar salidas tempranas acumuladas en su Bolsa de Horas (deuda previa de {Number(compDia.deuda_previa).toFixed(1)} hrs saldada), dejando {Number(compDia.remanente_extra).toFixed(1)} hrs netas para pago en nómina.
+                  </p>
+                </div>
+              )}
 
               {/* Justificación Operativa y Dictamen de Administración */}
               <div className="bg-stone-50/90 border border-stone-200 rounded-xl p-3 text-xs space-y-1">

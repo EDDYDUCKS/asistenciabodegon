@@ -4027,6 +4027,7 @@ export default function NominaAdminPage() {
         <BoletaHorasExtraModal
           horaExtra={selectedExtraParaBoleta}
           asistencias={asistencias}
+          compensaciones={compensaciones}
           onClose={() => setSelectedExtraParaBoleta(null)}
         />
       )}
