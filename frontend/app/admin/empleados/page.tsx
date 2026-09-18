@@ -223,7 +223,13 @@ export default function EmpleadosAdminPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('¿Seguro que deseas eliminar permanentemente a este empleado? Su historial de asistencia no se borrará, pero el empleado no aparecerá en nóminas activas.')) return;
+    if (
+      !confirm(
+        'ADVERTENCIA: ¿Seguro que deseas ELIMINAR PERMANENTEMENTE a este colaborador?\n\nEsta acción borrará al empleado y TODO su historial de asistencias y compensaciones.\n\n(Si solo deseas darlo de baja, cancela y edita el colaborador desmarcando la casilla "Activo").'
+      )
+    ) {
+      return;
+    }
     try {
       await deleteEmpleado(id);
       loadData();

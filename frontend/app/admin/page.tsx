@@ -50,11 +50,11 @@ export default function AdminDashboardPage() {
     loadData();
   }, []);
 
-  // Filtrar asistencias de hoy (Managua Nicaragua)
+  // Filtrar asistencias de hoy (Managua Nicaragua) y ordenar del más reciente al más antiguo
   const hoyStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
-  const asistenciasHoy = asistencias.filter(
-    (a) => a.fecha_hora.startsWith(hoyStr)
-  );
+  const asistenciasHoy = asistencias
+    .filter((a) => a.fecha_hora.startsWith(hoyStr))
+    .sort((a, b) => new Date(b.fecha_hora).getTime() - new Date(a.fecha_hora).getTime());
 
   // Determinar estado actual de cada empleado hoy (el primer registro en orden descendente es el más reciente)
   const estadoMap: Record<number, string> = {};
@@ -339,7 +339,7 @@ export default function AdminDashboardPage() {
                 } else if (est === 'SALIDA_QUEBRADA') {
                   statusBadge = (
                     <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                      Pauser
+                      Pausa
                     </span>
                   );
                 } else if (est === 'SALIDA_DEFINITIVA') {

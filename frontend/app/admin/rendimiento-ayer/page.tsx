@@ -145,7 +145,7 @@ export default function RendimientoAyerPage() {
               }).format(d),
               10
             );
-            if (horaNi < 4 && a.tipo_evento === 'SALIDA_DEFINITIVA') {
+            if (horaNi < 5 && a.tipo_evento === 'SALIDA_DEFINITIVA') {
               return true;
             }
           }
@@ -208,11 +208,19 @@ export default function RendimientoAyerPage() {
       if (entrada) {
         const dEnt = new Date(entrada.fecha_hora);
         horaEntradaMarcadaStr = dEnt.toLocaleTimeString('es-NI', {
+          timeZone: 'America/Managua',
           hour: '2-digit',
           minute: '2-digit',
           hour12: true,
         });
-        const minsMarcados = dEnt.getHours() * 60 + dEnt.getMinutes();
+        const nicaraguaTimeStr = dEnt.toLocaleTimeString('en-US', {
+          timeZone: 'America/Managua',
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const [hStr, mStr] = nicaraguaTimeStr.split(':');
+        const minsMarcados = parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
 
         // Determinar franja base de entrada según El Bodegón (views.py):
         // 9:00 AM (540), 11:00 AM (660), 11:30 AM (690), 12:00 PM (720), 3:00 PM (900), 5:00 PM (1020)
@@ -274,11 +282,19 @@ export default function RendimientoAyerPage() {
         if (salidaQuebrada && retornoQuebrada) {
           const dRet = new Date(retornoQuebrada.fecha_hora);
           horaRetornoMarcadaStr = dRet.toLocaleTimeString('es-NI', {
+            timeZone: 'America/Managua',
             hour: '2-digit',
             minute: '2-digit',
             hour12: true,
           });
-          const minsRet = dRet.getHours() * 60 + dRet.getMinutes();
+          const niRetStr = dRet.toLocaleTimeString('en-US', {
+            timeZone: 'America/Managua',
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          const [hRetStr, mRetStr] = niRetStr.split(':');
+          const minsRet = parseInt(hRetStr, 10) * 60 + parseInt(mRetStr, 10);
 
           const msB1 =
             new Date(salidaQuebrada.fecha_hora).getTime() - new Date(entrada.fecha_hora).getTime();
