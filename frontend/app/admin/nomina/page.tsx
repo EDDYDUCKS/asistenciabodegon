@@ -111,6 +111,7 @@ export default function NominaAdminPage() {
     empNombre?: string;
     deudaActual?: number;
     totalPendienteColaborador?: number;
+    compDia?: CompensacionHoras;
   } | null>(null);
   const [extraPin, setExtraPin] = useState('');
   const [extraPinError, setExtraPinError] = useState(false);
@@ -531,6 +532,11 @@ export default function NominaAdminPage() {
       .filter((h) => h.empleado === item.empleado && h.estado === 'PENDIENTE')
       .reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_solicitadas)) || 0), 0);
 
+    const compDia = compensaciones.find((c) => {
+      const cEmpId = typeof c.empleado === 'number' ? c.empleado : (c.empleado_detalle?.id || 0);
+      return cEmpId === item.empleado && c.fecha_compensacion === item.fecha;
+    });
+
     setPendingExtraAction({
       id: item.id!,
       empId: item.empleado,
@@ -540,6 +546,7 @@ export default function NominaAdminPage() {
       empNombre: empName,
       deudaActual: deudaVal,
       totalPendienteColaborador: totalPendienteEmp,
+      compDia: compDia,
     });
     setExtraPin('');
     setExtraPinError(false);
@@ -1094,6 +1101,12 @@ export default function NominaAdminPage() {
     ).reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_autorizadas)) || 0), 0);
     const excedeLimiteSemanal = extrasSemana > 9.0;
 
+    // Buscar si hubo deducción por deuda/salida temprana en esta fecha
+    const compDia = compensaciones.find((c) => {
+      const cEmpId = typeof c.empleado === 'number' ? c.empleado : (c.empleado_detalle?.id || 0);
+      return cEmpId === empId && c.fecha_compensacion === item.fecha;
+    });
+
     return (
       <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
         <td className="px-6 py-4 font-mono font-bold text-stone-600">
@@ -1120,6 +1133,15 @@ export default function NominaAdminPage() {
                 Suma por aprobar: +{totalPendienteEmp.toFixed(1)} hrs
               </span>
             )}
+            {compDia && Number(compDia.horas_deducidas) > 0 && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100/80 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs"
+                title={`Este colaborador generó ${Number(compDia.horas_extra_generadas).toFixed(1)}h extra brutas hoy. Se amortizaron automáticamente ${Number(compDia.horas_deducidas).toFixed(1)}h para cubrir salidas tempranas de su Bolsa de Horas.`}
+              >
+                <Scale className="w-3 h-3 text-amber-700 shrink-0" />
+                Déficit cubierto: -{Number(compDia.horas_deducidas).toFixed(1)}h (Bruto: +{Number(compDia.horas_extra_generadas).toFixed(1)}h)
+              </span>
+            )}
             {deuda > 0 && (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
                 <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
@@ -1137,12 +1159,32 @@ export default function NominaAdminPage() {
           </div>
         </td>
         <td className="px-6 py-4 text-right">
-          <span className="font-mono font-bold text-emerald-700 text-sm block">
-            +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
-          </span>
-          <span className="text-[10px] text-stone-400 font-medium block">
-            (este día)
-          </span>
+          {compDia && Number(compDia.horas_deducidas) > 0 ? (
+            <div className="flex flex-col items-end">
+              <span className="font-mono font-black text-emerald-700 text-sm block">
+                +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+              </span>
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-1.5 py-0.5 rounded mt-0.5"
+                title={`Generó +${Number(compDia.horas_extra_generadas).toFixed(1)}h brutas. Se dedujeron -${Number(compDia.horas_deducidas).toFixed(1)}h para saldar deuda de salidas tempranas.`}
+              >
+                <Scale className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                -{Number(compDia.horas_deducidas).toFixed(1)}h deuda
+              </span>
+              <span className="text-[9px] text-stone-400 font-mono">
+                (Bruto: +{Number(compDia.horas_extra_generadas).toFixed(1)}h)
+              </span>
+            </div>
+          ) : (
+            <div>
+              <span className="font-mono font-bold text-emerald-700 text-sm block">
+                +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+              </span>
+              <span className="text-[10px] text-stone-400 font-medium block">
+                (este día)
+              </span>
+            </div>
+          )}
         </td>
         <td className="px-6 py-4 text-right font-mono font-bold">
           {isEditing ? (
@@ -2159,6 +2201,12 @@ export default function NominaAdminPage() {
                             const folioNum = `BHE-${yearF}-${String(item.id || 1).padStart(4, '0')}`;
                             const esAprob = item.estado === 'APROBADO';
 
+                            const empIdHist = typeof item.empleado === 'number' ? item.empleado : (empDet?.id || 0);
+                            const compHist = compensaciones.find((c) => {
+                              const cEmpId = typeof c.empleado === 'number' ? c.empleado : (c.empleado_detalle?.id || 0);
+                              return cEmpId === empIdHist && c.fecha_compensacion === item.fecha;
+                            });
+
                             return (
                               <tr key={item.id} className="hover:bg-stone-50/70 transition-colors">
                                 <td className="px-4 py-3.5 font-mono font-bold text-[#1c6856] whitespace-nowrap">
@@ -2184,7 +2232,22 @@ export default function NominaAdminPage() {
                                   )}
                                 </td>
                                 <td className="px-4 py-3.5 text-right font-mono font-bold text-stone-700 whitespace-nowrap">
-                                  +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+                                  {compHist && Number(compHist.horas_deducidas) > 0 ? (
+                                    <div className="flex flex-col items-end">
+                                      <span className="text-stone-900 font-black">
+                                        +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+                                      </span>
+                                      <span
+                                        className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-800 bg-amber-100/80 border border-amber-300 px-1 py-0.5 rounded mt-0.5"
+                                        title={`Generó +${Number(compHist.horas_extra_generadas).toFixed(1)}h brutas. Se dedujeron -${Number(compHist.horas_deducidas).toFixed(1)}h para saldar salidas tempranas.`}
+                                      >
+                                        <Scale className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                                        -{Number(compHist.horas_deducidas).toFixed(1)}h deuda (Bruto: +{Number(compHist.horas_extra_generadas).toFixed(1)}h)
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span>+{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs</span>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3.5 text-right font-mono font-black whitespace-nowrap">
                                   <span className={esAprob ? 'text-emerald-800' : 'text-stone-400'}>
@@ -3754,6 +3817,38 @@ export default function NominaAdminPage() {
                 )}
               </div>
             </div>
+
+            {/* Aviso de Compensación Automática previa aplicada al marcar salida */}
+            {pendingExtraAction.compDia && Number(pendingExtraAction.compDia.horas_deducidas) > 0 && (
+              <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 text-left space-y-1.5 text-xs animate-in fade-in duration-200">
+                <div className="flex items-center justify-between font-bold text-amber-900">
+                  <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
+                    <Scale className="w-4 h-4 text-amber-700 shrink-0" />
+                    Amortización de Deuda Aplicada
+                  </span>
+                  <span className="bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded text-[10px] font-mono">
+                    Bolsa de Horas
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 bg-white/90 p-2 rounded-lg border border-amber-200 text-center font-mono text-[11px]">
+                  <div>
+                    <span className="text-[9px] text-stone-500 uppercase block font-sans font-bold">Extra Bruto</span>
+                    <strong className="text-stone-900">+{Number(pendingExtraAction.compDia.horas_extra_generadas).toFixed(1)}h</strong>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-amber-700 uppercase block font-sans font-bold">Deducido</span>
+                    <strong className="text-amber-700">-{Number(pendingExtraAction.compDia.horas_deducidas).toFixed(1)}h</strong>
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-emerald-700 uppercase block font-sans font-bold">Por Pagar</span>
+                    <strong className="text-emerald-800">+{Number(pendingExtraAction.compDia.remanente_extra).toFixed(1)}h</strong>
+                  </div>
+                </div>
+                <p className="text-[10px] text-amber-900 leading-tight">
+                  Generó {Number(pendingExtraAction.compDia.horas_extra_generadas).toFixed(1)} hrs hoy. Se amortizaron {Number(pendingExtraAction.compDia.horas_deducidas).toFixed(1)} hrs para saldar salidas tempranas pasadas. Estás autorizando el remanente limpio ({Number(pendingExtraAction.compDia.remanente_extra).toFixed(1)} hrs) para pago de nómina.
+                </p>
+              </div>
+            )}
 
             {/* Advertencia de Amortización Automática si tiene Deuda Acumulada */}
             {pendingExtraAction.decision === 'APROBADO' &&
