@@ -44,6 +44,7 @@ export interface CompraGasto {
   categoria: CategoriaGastoType;
   proveedor?: string | null;
   monto: number;
+  tipo?: 'EGRESO' | 'INGRESO_FONDEO';
   metodo_pago: MetodoPagoType;
   estado_pago: EstadoPagoType;
   foto_comprobante?: string | null;
