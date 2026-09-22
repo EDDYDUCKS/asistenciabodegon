@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabaseClient';
 import {
   CompraGasto,
@@ -36,9 +37,10 @@ import {
   AlertCircle,
   TrendingDown,
   Wallet,
+  ArrowLeft,
 } from 'lucide-react';
 
-export default function AdminComprasPage() {
+export default function BodegonControlPage() {
   const [gastos, setGastos] = useState<CompraGasto[]>([]);
   const [jornadas, setJornadas] = useState<JornadaDiaria[]>([]);
   const [jornadaActiva, setJornadaActiva] = useState<JornadaDiaria | null>(null);
@@ -66,7 +68,7 @@ export default function AdminComprasPage() {
   const [metodoPago, setMetodoPago] = useState<MetodoPagoType>('EFECTIVO');
   const [estadoPago, setEstadoPago] = useState<EstadoPagoType>('PAGADO');
   const [referenciaBanco, setReferenciaBanco] = useState('');
-  const [registradoPor, setRegistradoPor] = useState('Administración PC');
+  const [registradoPor, setRegistradoPor] = useState('Bodegón Control');
   const [fotoBase64, setFotoBase64] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export default function AdminComprasPage() {
     cargarDatos();
 
     const channel = supabase
-      .channel('admin_compras_realtime')
+      .channel('bodegon_control_realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'compras_gastos' },
@@ -151,7 +153,7 @@ export default function AdminComprasPage() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
+      const img = document.createElement('img');
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const maxDim = 1200;
@@ -201,7 +203,7 @@ export default function AdminComprasPage() {
           estado_pago: metodoPago === 'TRANSFERENCIA' ? estadoPago : 'PAGADO',
           referencia_banco: referenciaBanco.trim() || null,
           foto_comprobante: fotoBase64,
-          registrado_por: registradoPor.trim() || 'Administración',
+          registrado_por: registradoPor.trim() || 'Bodegón Control',
         },
       ]);
 
@@ -225,7 +227,6 @@ export default function AdminComprasPage() {
     e.preventDefault();
     setCreandoJornada(true);
     try {
-      // Cerrar cualquier jornada abierta previa
       if (jornadaActiva) {
         await supabase
           .from('jornadas_diarias')
@@ -355,397 +356,412 @@ export default function AdminComprasPage() {
   }, [gastosFiltrados, jornadaActiva]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* ── HEADER PRINCIPAL ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200/80 pb-4">
-        <div>
+    <div className="min-h-screen bg-[#fcf9f5] text-stone-900 font-sans flex flex-col">
+      {/* ── TOPBAR DEDICADA 100% A BODEGÓN CONTROL ── */}
+      <header className="bg-white border-b border-stone-200/90 sticky top-0 z-30 shadow-2xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm border border-stone-200 bg-[#1c6856] flex items-center justify-center text-white shrink-0">
+              <Image src="/logo.png" alt="El Bodegón" width={40} height={40} className="w-full h-full object-cover" priority />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-black text-base sm:text-lg text-stone-900 tracking-tight">Bodegón Control</h1>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                  Panel Económico
+                </span>
+                <span
+                  className={`hidden sm:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border items-center gap-1 ${
+                    realtimeStatus === 'conectado'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      realtimeStatus === 'conectado' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                    }`}
+                  />
+                  {realtimeStatus === 'conectado' ? 'En Vivo' : 'Conectando'}
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-500 font-medium hidden sm:block">
+                Compras de Insumos, Carnes, Verduras & Control de Caja Chica
+              </p>
+            </div>
+          </div>
+
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight flex items-center gap-2">
-              <span className="text-2xl">🥩</span>
-              Compras y Gastos Diarios
-            </h1>
-            <span
-              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                realtimeStatus === 'conectado'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-amber-50 text-amber-700 border-amber-200'
-              }`}
+            <Link
+              href="/"
+              className="text-xs font-bold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5"
             >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  realtimeStatus === 'conectado' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-                }`}
-              />
-              {realtimeStatus === 'conectado' ? 'En Vivo (Supabase)' : 'Conectando'}
-            </span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Volver al</span>
+              <span>Portal</span>
+            </Link>
+
+            <Link
+              href="/compras"
+              target="_blank"
+              className="text-xs font-bold text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-2xs"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-amber-700" />
+              <span className="hidden sm:inline">Vista Móvil</span>
+              <span className="sm:hidden">Móvil</span>
+              <ExternalLink className="w-3 h-3 opacity-60" />
+            </Link>
+
+            <button
+              onClick={() => {
+                setErrorMsg(null);
+                setShowModalGasto(true);
+              }}
+              className="bg-[#1c6856] hover:bg-[#154f42] text-white px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Registrar Gasto</span>
+            </button>
           </div>
-          <p className="text-xs text-stone-500 font-medium mt-1">
-            Gestión de caja chica, compras de insumos, carnes y sincronización instantánea con el móvil del jefe.
-          </p>
         </div>
+      </header>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link
-            href="/"
-            className="bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-          >
-            <span>← Portal</span>
-          </Link>
-
-          <Link
-            href="/compras"
-            target="_blank"
-            className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-          >
-            <Smartphone className="w-3.5 h-3.5 text-amber-600" />
-            <span>Ver Modo Móvil</span>
-            <ExternalLink className="w-3 h-3 opacity-60" />
-          </Link>
-
-          <button
-            onClick={() => {
-              setErrorMsg(null);
-              setShowModalGasto(true);
-            }}
-            className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Registrar Gasto</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── SECCIÓN: CONTROL DE JORNADA / CAJA CHICA ── */}
-      <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-stone-100 rounded-2xl p-4.5 shadow-sm border border-stone-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-xl shrink-0">
-            <Wallet className="w-6 h-6" />
+      {/* ── CUERPO PRINCIPAL DEL PANEL ECONÓMICO ── */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1 w-full">
+        {/* ── SECCIÓN: CONTROL DE JORNADA / CAJA CHICA ── */}
+        <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-stone-100 rounded-3xl p-5 shadow-sm border border-stone-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-xl shrink-0">
+              <Wallet className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-base text-white">
+                  {jornadaActiva ? `Jornada Activa: Turno ${jornadaActiva.turno}` : 'No hay jornada abierta hoy'}
+                </h3>
+                {jornadaActiva ? (
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    ABIERTA
+                  </span>
+                ) : (
+                  <span className="bg-stone-700 text-stone-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    CERRADA
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-stone-400 mt-0.5">
+                {jornadaActiva
+                  ? `Responsable: ${jornadaActiva.responsable} • Fecha: ${jornadaActiva.fecha}`
+                  : 'Inicia una nueva jornada para registrar egresos contra el fondo de caja.'}
+              </p>
+            </div>
           </div>
-          <div>
+
+          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-stone-800">
+            {jornadaActiva && (
+              <div className="text-right">
+                <span className="text-[10px] text-stone-400 font-bold uppercase block">Fondo Inicial Caja</span>
+                <span className="font-mono font-black text-amber-400 text-lg">
+                  C$ {Number(jornadaActiva.fondo_inicial).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
-              <h3 className="font-black text-base text-white">
-                {jornadaActiva ? `Jornada Activa: Turno ${jornadaActiva.turno}` : 'No hay jornada abierta hoy'}
-              </h3>
               {jornadaActiva ? (
-                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  ABIERTA
-                </span>
+                <button
+                  onClick={handleCerrarJornada}
+                  className="bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800/80 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95"
+                >
+                  Cerrar Jornada
+                </button>
               ) : (
-                <span className="bg-stone-700 text-stone-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  CERRADA
-                </span>
+                <button
+                  onClick={() => setShowModalJornada(true)}
+                  className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95"
+                >
+                  Abrir Jornada de Hoy
+                </button>
               )}
             </div>
-            <p className="text-xs text-stone-400 mt-0.5">
-              {jornadaActiva
-                ? `Responsable: ${jornadaActiva.responsable} • Fecha: ${jornadaActiva.fecha}`
-                : 'Inicia una nueva jornada para registrar egresos contra el fondo de caja.'}
+          </div>
+        </div>
+
+        {/* ── TARJETAS KPI DE GASTOS ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <div className="bg-white border border-stone-200/90 rounded-2xl p-4 shadow-2xs">
+            <div className="flex items-center justify-between gap-2 text-stone-500 text-xs font-bold uppercase tracking-wider">
+              <span>Total Compras</span>
+              <div className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-stone-700">
+                <TrendingDown className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-black font-mono text-stone-900">
+                C$ {metricas.total.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-400 mt-1">Efectivo + Transferencias</p>
+          </div>
+
+          <div className="bg-white border border-emerald-200/90 rounded-2xl p-4 shadow-2xs">
+            <div className="flex items-center justify-between gap-2 text-emerald-800 text-xs font-bold uppercase tracking-wider">
+              <span>Efectivo (Caja)</span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                <Banknote className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-black font-mono text-emerald-700">
+                C$ {metricas.efectivo.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <p className="text-[11px] text-emerald-600 mt-1">
+              Saldo caja: C$ {metricas.saldoEfectivoRestante.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+
+          <div className="bg-white border border-sky-200/90 rounded-2xl p-4 shadow-2xs">
+            <div className="flex items-center justify-between gap-2 text-sky-800 text-xs font-bold uppercase tracking-wider">
+              <span>Transferencias</span>
+              <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
+                <Send className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-black font-mono text-sky-700">
+                C$ {metricas.transferencia.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <p className="text-[11px] text-sky-600 mt-1">Pagos bancarios emitidos</p>
+          </div>
+
+          <div className="bg-white border border-amber-200/90 rounded-2xl p-4 shadow-2xs">
+            <div className="flex items-center justify-between gap-2 text-amber-800 text-xs font-bold uppercase tracking-wider">
+              <span>Pendientes Transferir</span>
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                <Clock className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline gap-1.5">
+              <span className="text-2xl font-black font-mono text-amber-700">
+                C$ {metricas.pendientesMonto.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-600 mt-1">
+              {metricas.pendientesCount} gasto{metricas.pendientesCount !== 1 ? 's' : ''} por confirmar
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 pt-3 md:pt-0 border-stone-800">
-          {jornadaActiva && (
-            <div className="text-right">
-              <span className="text-[10px] text-stone-400 font-bold uppercase block">Fondo Inicial Caja</span>
-              <span className="font-mono font-black text-amber-400 text-lg">
-                C$ {Number(jornadaActiva.fondo_inicial).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-          )}
+        {/* ── BARRA DE FILTROS ── */}
+        <div className="bg-white border border-stone-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div>
+                <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Fecha</label>
+                <input
+                  type="date"
+                  value={filtroFecha}
+                  onChange={(e) => setFiltroFecha(e.target.value)}
+                  className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900 font-mono"
+                />
+              </div>
 
-          <div className="flex items-center gap-2">
-            {jornadaActiva ? (
-              <button
-                onClick={handleCerrarJornada}
-                className="bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800/80 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95"
-              >
-                Cerrar Jornada
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowModalJornada(true)}
-                className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm active:scale-95"
-              >
-                Abrir Jornada de Hoy
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+              <div>
+                <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Categoría</label>
+                <select
+                  value={filtroCategoria}
+                  onChange={(e) => setFiltroCategoria(e.target.value)}
+                  className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900"
+                >
+                  <option value="TODAS">Todas</option>
+                  {CATEGORIAS_GASTO.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.emoji} {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-      {/* ── TARJETAS KPI DE GASTOS DEL DÍA ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bg-white border border-stone-200/90 rounded-2xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between gap-2 text-stone-500 text-xs font-bold uppercase tracking-wider">
-            <span>Total Gastos</span>
-            <div className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-stone-700">
-              <TrendingDown className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black font-mono text-stone-900">
-              C$ {metricas.total.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-          <p className="text-[11px] text-stone-400 mt-1">Efectivo + Transferencias</p>
-        </div>
+              <div>
+                <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Método</label>
+                <select
+                  value={filtroMetodo}
+                  onChange={(e) => setFiltroMetodo(e.target.value as any)}
+                  className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900"
+                >
+                  <option value="TODOS">Todos</option>
+                  <option value="EFECTIVO">Efectivo</option>
+                  <option value="TRANSFERENCIA">Transferencia</option>
+                </select>
+              </div>
 
-        <div className="bg-white border border-emerald-200/90 rounded-2xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between gap-2 text-emerald-800 text-xs font-bold uppercase tracking-wider">
-            <span>Efectivo (Caja)</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
-              <Banknote className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black font-mono text-emerald-700">
-              C$ {metricas.efectivo.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-          <p className="text-[11px] text-emerald-600 mt-1">
-            Saldo caja: C$ {metricas.saldoEfectivoRestante.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-          </p>
-        </div>
-
-        <div className="bg-white border border-sky-200/90 rounded-2xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between gap-2 text-sky-800 text-xs font-bold uppercase tracking-wider">
-            <span>Transferencias</span>
-            <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
-              <Send className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black font-mono text-sky-700">
-              C$ {metricas.transferencia.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-          <p className="text-[11px] text-sky-600 mt-1">Pagos bancarios emitidos</p>
-        </div>
-
-        <div className="bg-white border border-amber-200/90 rounded-2xl p-4 shadow-2xs">
-          <div className="flex items-center justify-between gap-2 text-amber-800 text-xs font-bold uppercase tracking-wider">
-            <span>Pendientes Transferir</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-1.5">
-            <span className="text-2xl font-black font-mono text-amber-700">
-              C$ {metricas.pendientesMonto.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-          <p className="text-[11px] text-amber-600 mt-1">
-            {metricas.pendientesCount} gasto{metricas.pendientesCount !== 1 ? 's' : ''} por confirmar
-          </p>
-        </div>
-      </div>
-
-      {/* ── BARRA DE FILTROS ── */}
-      <div className="bg-white border border-stone-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div>
-              <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Fecha</label>
-              <input
-                type="date"
-                value={filtroFecha}
-                onChange={(e) => setFiltroFecha(e.target.value)}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900 font-mono"
-              />
+              <div>
+                <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Estado</label>
+                <select
+                  value={filtroEstado}
+                  onChange={(e) => setFiltroEstado(e.target.value as any)}
+                  className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900"
+                >
+                  <option value="TODOS">Todos</option>
+                  <option value="PAGADO">Pagado</option>
+                  <option value="PENDIENTE_TRANSFERENCIA">Pendiente de Transferir</option>
+                </select>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Categoría</label>
-              <select
-                value={filtroCategoria}
-                onChange={(e) => setFiltroCategoria(e.target.value)}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900"
-              >
-                <option value="TODAS">Todas</option>
-                {CATEGORIAS_GASTO.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.emoji} {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Método</label>
-              <select
-                value={filtroMetodo}
-                onChange={(e) => setFiltroMetodo(e.target.value as any)}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900"
-              >
-                <option value="TODOS">Todos</option>
-                <option value="EFECTIVO">Efectivo</option>
-                <option value="TRANSFERENCIA">Transferencia</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Estado</label>
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value as any)}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900"
-              >
-                <option value="TODOS">Todos</option>
-                <option value="PAGADO">Pagado</option>
-                <option value="PENDIENTE_TRANSFERENCIA">Pendiente de Transferir</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="relative flex-1 sm:max-w-xs">
-            <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Buscar</label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Concepto o proveedor..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-stone-900"
-              />
-              <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <div className="relative flex-1 sm:max-w-xs">
+              <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Buscar</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Concepto o proveedor..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-stone-900"
+                />
+                <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ── TABLA DE COMPRAS & GASTOS ── */}
-      <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-stone-50/80 border-b border-stone-200 text-stone-500 uppercase text-[10px] font-bold">
-                <th className="py-3 px-4">Hora</th>
-                <th className="py-3 px-4">Categoría</th>
-                <th className="py-3 px-4">Concepto / Detalle</th>
-                <th className="py-3 px-4">Proveedor</th>
-                <th className="py-3 px-4 text-right">Monto (C$)</th>
-                <th className="py-3 px-4">Método</th>
-                <th className="py-3 px-4">Estado</th>
-                <th className="py-3 px-4">Registrado Por</th>
-                <th className="py-3 px-4 text-center">Ticket</th>
-                <th className="py-3 px-4 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100 text-stone-700">
-              {gastosFiltrados.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="py-10 text-center text-stone-400">
-                    No se encontraron gastos para los filtros seleccionados.
-                  </td>
+        {/* ── TABLA DE COMPRAS & GASTOS ── */}
+        <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-stone-50/80 border-b border-stone-200 text-stone-500 uppercase text-[10px] font-bold">
+                  <th className="py-3 px-4">Hora</th>
+                  <th className="py-3 px-4">Categoría</th>
+                  <th className="py-3 px-4">Concepto / Detalle</th>
+                  <th className="py-3 px-4">Proveedor</th>
+                  <th className="py-3 px-4 text-right">Monto (C$)</th>
+                  <th className="py-3 px-4">Método</th>
+                  <th className="py-3 px-4">Estado</th>
+                  <th className="py-3 px-4">Registrado Por</th>
+                  <th className="py-3 px-4 text-center">Ticket</th>
+                  <th className="py-3 px-4 text-right">Acciones</th>
                 </tr>
-              ) : (
-                gastosFiltrados.map((g) => {
-                  const catConfig = CATEGORIAS_GASTO.find((c) => c.id === g.categoria) || {
-                    emoji: '📝',
-                    label: g.categoria,
-                    badgeClass: 'bg-stone-100 text-stone-700 border-stone-200',
-                  };
+              </thead>
+              <tbody className="divide-y divide-stone-100 text-stone-700">
+                {gastosFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center text-stone-400">
+                      <span className="text-3xl block mb-2">🛒</span>
+                      <p className="font-bold text-stone-700">No se encontraron gastos para los filtros seleccionados.</p>
+                      <p className="text-[11px] text-stone-400 mt-1">Usa el botón "+ Registrar Gasto" para agregar el primer gasto.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  gastosFiltrados.map((g) => {
+                    const catConfig = CATEGORIAS_GASTO.find((c) => c.id === g.categoria) || {
+                      emoji: '📝',
+                      label: g.categoria,
+                      badgeClass: 'bg-stone-100 text-stone-700 border-stone-200',
+                    };
 
-                  const horaStr = new Date(g.fecha_hora).toLocaleTimeString('es-NI', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true,
-                  });
+                    const horaStr = new Date(g.fecha_hora).toLocaleTimeString('es-NI', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    });
 
-                  const esPendiente = g.estado_pago === 'PENDIENTE_TRANSFERENCIA';
+                    const esPendiente = g.estado_pago === 'PENDIENTE_TRANSFERENCIA';
 
-                  return (
-                    <tr
-                      key={g.id}
-                      className={`hover:bg-stone-50/70 transition-colors ${
-                        esPendiente ? 'bg-amber-50/30' : ''
-                      }`}
-                    >
-                      <td className="py-3 px-4 font-mono text-stone-500">{horaStr}</td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md border ${catConfig.badgeClass}`}
-                        >
-                          <span>{catConfig.emoji}</span>
-                          <span>{catConfig.label}</span>
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-bold text-stone-900 max-w-xs truncate">
-                        {g.concepto}
-                        {g.referencia_banco && (
-                          <span className="block text-[10px] text-stone-400 font-mono font-normal">
-                            Ref: {g.referencia_banco}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-stone-600">
-                        {g.proveedor || <span className="text-stone-300">-</span>}
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-black text-stone-900 text-sm">
-                        C$ {Number(g.monto).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${
-                            g.metodo_pago === 'EFECTIVO'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-sky-50 text-sky-700 border-sky-200'
-                          }`}
-                        >
-                          {g.metodo_pago === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <button
-                          onClick={() => handleToggleEstadoTransferencia(g)}
-                          title="Clic para cambiar estado"
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
-                            esPendiente
-                              ? 'bg-amber-50 text-amber-700 border-amber-300 animate-pulse'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          }`}
-                        >
-                          {esPendiente ? '⚠️ Falta Transferir' : '✓ Pagado'}
-                        </button>
-                      </td>
-                      <td className="py-3 px-4 text-stone-500">{g.registrado_por}</td>
-                      <td className="py-3 px-4 text-center">
-                        {g.foto_comprobante ? (
-                          <button
-                            onClick={() => setFotoModalUrl(g.foto_comprobante!)}
-                            className="bg-stone-100 hover:bg-stone-200 text-stone-700 p-1 rounded-lg border border-stone-300 cursor-pointer"
-                            title="Ver ticket de compra"
+                    return (
+                      <tr
+                        key={g.id}
+                        className={`hover:bg-stone-50/70 transition-colors ${
+                          esPendiente ? 'bg-amber-50/30' : ''
+                        }`}
+                      >
+                        <td className="py-3 px-4 font-mono text-stone-500">{horaStr}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md border ${catConfig.badgeClass}`}
                           >
-                            <Camera className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{catConfig.emoji}</span>
+                            <span>{catConfig.label}</span>
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-bold text-stone-900 max-w-xs truncate">
+                          {g.concepto}
+                          {g.referencia_banco && (
+                            <span className="block text-[10px] text-stone-400 font-mono font-normal">
+                              Ref: {g.referencia_banco}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-stone-600">
+                          {g.proveedor || <span className="text-stone-300">-</span>}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-black text-stone-900 text-sm">
+                          C$ {Number(g.monto).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              g.metodo_pago === 'EFECTIVO'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-sky-50 text-sky-700 border-sky-200'
+                            }`}
+                          >
+                            {g.metodo_pago === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <button
+                            onClick={() => handleToggleEstadoTransferencia(g)}
+                            title="Clic para cambiar estado"
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
+                              esPendiente
+                                ? 'bg-amber-50 text-amber-700 border-amber-300 animate-pulse'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
+                          >
+                            {esPendiente ? '⚠️ Falta Transferir' : '✓ Pagado'}
                           </button>
-                        ) : (
-                          <span className="text-stone-300">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => handleEliminarGasto(g)}
-                          className="text-stone-400 hover:text-rose-600 p-1 transition-colors cursor-pointer"
-                          title="Eliminar gasto"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                        </td>
+                        <td className="py-3 px-4 text-stone-500">{g.registrado_por}</td>
+                        <td className="py-3 px-4 text-center">
+                          {g.foto_comprobante ? (
+                            <button
+                              onClick={() => setFotoModalUrl(g.foto_comprobante!)}
+                              className="bg-stone-100 hover:bg-stone-200 text-stone-700 p-1 rounded-lg border border-stone-300 cursor-pointer"
+                              title="Ver ticket de compra"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-amber-600" />
+                            </button>
+                          ) : (
+                            <span className="text-stone-300">-</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => handleEliminarGasto(g)}
+                            className="text-stone-400 hover:text-rose-600 p-1 transition-colors cursor-pointer"
+                            title="Eliminar gasto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </main>
 
       {/* ── MODAL: REGISTRAR GASTO EN PC ── */}
       {showModalGasto && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95">
-            <div className="bg-[#1c6856] text-white p-4 flex items-center justify-between">
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95">
+            <div className="bg-[#1c6856] text-white p-4.5 flex items-center justify-between">
               <h3 className="font-bold text-sm flex items-center gap-2">
                 <Plus className="w-4 h-4" />
                 <span>Registrar Gasto de Compra</span>
@@ -891,8 +907,8 @@ export default function AdminComprasPage() {
       {/* ── MODAL: ABRIR JORNADA ── */}
       {showModalJornada && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-stone-200 animate-in fade-in">
-            <div className="bg-amber-600 text-white p-4 flex items-center justify-between">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl border border-stone-200 animate-in fade-in">
+            <div className="bg-amber-600 text-white p-4.5 flex items-center justify-between">
               <h3 className="font-bold text-sm flex items-center gap-2">
                 <Wallet className="w-4 h-4" />
                 <span>Apertura de Jornada de Caja</span>

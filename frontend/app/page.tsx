@@ -74,7 +74,7 @@ export default function LandingPortalPage() {
 
           {/* Opción 3: Bodegón Control (Compras, Gastos & Caja) */}
           <Link
-            href="/admin/compras"
+            href="/control"
             className="group bg-white hover:bg-amber-50/30 border border-stone-200 hover:border-amber-500 rounded-3xl p-7 text-left transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between space-y-5"
           >
             <div className="w-13 h-13 rounded-2xl bg-amber-500/15 border border-amber-500/20 flex items-center justify-center text-amber-600 group-hover:scale-105 transition-transform">
