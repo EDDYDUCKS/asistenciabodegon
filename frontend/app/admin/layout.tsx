@@ -66,7 +66,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Asistencia', href: '/admin/asistencia', icon: <CalendarCheck className="w-4 h-4" /> },
     { label: 'Rendimiento', href: '/admin/rendimiento-ayer', icon: <TrendingUp className="w-4 h-4" /> },
     { label: 'Nómina', href: '/admin/nomina', icon: <FileSpreadsheet className="w-4 h-4" /> },
-    { label: 'Compras', href: '/admin/compras', icon: <ShoppingBag className="w-4 h-4" /> },
     { label: 'Alertas', href: '/admin/notificaciones', icon: <Bell className="w-4 h-4" /> },
   ];
 

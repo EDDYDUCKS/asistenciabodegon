@@ -372,11 +372,11 @@ export default function ComprasMovilPage() {
 
           <div className="flex items-center gap-2">
             <Link
-              href="/admin"
+              href="/"
               className="text-[11px] font-bold text-stone-300 bg-stone-800 hover:bg-stone-700 px-2.5 py-1.5 rounded-lg border border-stone-700 flex items-center gap-1 transition-all"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Admin</span>
+              <span>Portal</span>
             </Link>
             <button
               onClick={cargarDatos}

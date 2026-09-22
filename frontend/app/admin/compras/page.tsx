@@ -386,9 +386,16 @@ export default function AdminComprasPage() {
 
         <div className="flex items-center gap-2 flex-wrap">
           <Link
+            href="/"
+            className="bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+          >
+            <span>← Portal</span>
+          </Link>
+
+          <Link
             href="/compras"
             target="_blank"
-            className="bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+            className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
           >
             <Smartphone className="w-3.5 h-3.5 text-amber-600" />
             <span>Ver Modo Móvil</span>
