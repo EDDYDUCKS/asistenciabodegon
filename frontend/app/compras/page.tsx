@@ -32,7 +32,9 @@ import {
   Smartphone,
   ShieldCheck,
   Check,
+  Lock,
 } from 'lucide-react';
+import PinSecurityGate from '@/components/PinSecurityGate';
 
 export default function ComprasMovilPage() {
   const [gastos, setGastos] = useState<CompraGasto[]>([]);
@@ -342,52 +344,71 @@ export default function ComprasMovilPage() {
   }, [gastosFiltrados]);
 
   return (
-    <div className="min-h-screen bg-stone-900 text-stone-100 flex flex-col font-sans pb-24">
-      {/* ── HEADER MÓVIL PRINCIPAL ── */}
-      <header className="sticky top-0 z-30 bg-stone-950/95 backdrop-blur-md border-b border-stone-800 px-4 py-3 shadow-md">
-        <div className="flex items-center justify-between gap-2 max-w-2xl mx-auto">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-500 flex items-center justify-center text-white font-black shadow-sm text-sm">
-              🥩
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="font-black text-sm text-white tracking-tight">El Bodegón</h1>
-                <span className="text-[10px] font-bold text-amber-400 bg-amber-950/70 border border-amber-800/80 px-1.5 py-0.2 rounded">
-                  Compras & Gastos
-                </span>
+    <PinSecurityGate
+      title="Bodegón Móvil"
+      subtitle="Compras, Gastos & Pagos"
+      pinRequired="4512"
+      sessionKey="bodegon_control_pin_verified"
+    >
+      <div className="min-h-screen bg-stone-900 text-stone-100 flex flex-col font-sans pb-24">
+        {/* ── HEADER MÓVIL PRINCIPAL ── */}
+        <header className="sticky top-0 z-30 bg-stone-950/95 backdrop-blur-md border-b border-stone-800 px-4 py-3 shadow-md">
+          <div className="flex items-center justify-between gap-2 max-w-2xl mx-auto">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-500 flex items-center justify-center text-white font-black shadow-sm text-sm">
+                🥩
               </div>
-              <p className="text-[10px] text-stone-400 flex items-center gap-1">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full inline-block ${
-                    realtimeStatus === 'conectado'
-                      ? 'bg-emerald-400 animate-pulse'
-                      : 'bg-amber-400'
-                  }`}
-                />
-                {realtimeStatus === 'conectado' ? 'Sincronizado en Vivo' : 'Conectando...'}
-              </p>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="font-black text-sm text-white tracking-tight">El Bodegón</h1>
+                  <span className="text-[10px] font-bold text-amber-400 bg-amber-950/70 border border-amber-800/80 px-1.5 py-0.2 rounded">
+                    Compras & Gastos
+                  </span>
+                </div>
+                <p className="text-[10px] text-stone-400 flex items-center gap-1">
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full inline-block ${
+                      realtimeStatus === 'conectado'
+                        ? 'bg-emerald-400 animate-pulse'
+                        : 'bg-amber-400'
+                    }`}
+                  />
+                  {realtimeStatus === 'conectado' ? 'Sincronizado en Vivo' : 'Conectando...'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.removeItem('bodegon_control_pin_verified');
+                    window.location.reload();
+                  }
+                }}
+                className="p-1.5 text-stone-400 hover:text-white bg-stone-800/80 rounded-lg border border-stone-700/80 active:scale-95 transition-all cursor-pointer"
+                title="Bloquear con PIN"
+              >
+                <Lock className="w-3.5 h-3.5 text-amber-500" />
+              </button>
+              <Link
+                href="/"
+                className="text-[11px] font-bold text-stone-300 bg-stone-800 hover:bg-stone-700 px-2.5 py-1.5 rounded-lg border border-stone-700 flex items-center gap-1 transition-all"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Portal</span>
+              </Link>
+              <button
+                onClick={cargarDatos}
+                className="p-1.5 text-stone-400 hover:text-white bg-stone-800/80 rounded-lg border border-stone-700/80 active:scale-95 transition-all"
+                title="Actualizar"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              className="text-[11px] font-bold text-stone-300 bg-stone-800 hover:bg-stone-700 px-2.5 py-1.5 rounded-lg border border-stone-700 flex items-center gap-1 transition-all"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Portal</span>
-            </Link>
-            <button
-              onClick={cargarDatos}
-              className="p-1.5 text-stone-400 hover:text-white bg-stone-800/80 rounded-lg border border-stone-700/80 active:scale-95 transition-all"
-              title="Actualizar"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-      </header>
+        </header>
 
       <main className="flex-1 px-4 py-3 max-w-2xl mx-auto w-full space-y-3.5">
         {/* ── ALERTA DE TRANSFERENCIAS PENDIENTES DE PAGO ── */}
@@ -972,6 +993,7 @@ export default function ComprasMovilPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </PinSecurityGate>
   );
 }

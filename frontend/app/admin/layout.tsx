@@ -626,6 +626,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
 
           <Link
+            href="/control"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 text-xs font-bold text-amber-900 transition-colors shadow-2xs"
+            title="Ir a Bodegón Control (Compras, Gastos & Caja)"
+          >
+            <ShoppingBag className="w-4 h-4 text-amber-600" />
+            <span className="hidden md:inline">Bodegón Control</span>
+          </Link>
+
+          <Link
             href="/kiosco"
             onClick={handleLogout}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1c6856]/5 border border-[#1c6856]/20 hover:bg-[#1c6856]/10 text-xs font-bold text-[#1c6856] transition-colors"
