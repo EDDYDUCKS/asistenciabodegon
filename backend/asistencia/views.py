@@ -2393,8 +2393,15 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
 
     es_septimo_dia = _es_septimo_dia_semana(empleado, fecha_hoy)
 
+    # Regla: Las horas extra se cuentan a partir de media hora (0.5 hrs) desde el 23/09/2026 (o 1.0 hr antes).
+    FECHA_INICIO_REGLA_MEDIA_HORA = datetime.date(2026, 9, 23)
+    min_step = 0.5 if fecha_hoy >= FECHA_INICIO_REGLA_MEDIA_HORA else 1.0
+
     if es_septimo_dia:
-        excedente = float(math.floor(horas_trabajadas_dia))
+        if min_step == 0.5:
+            excedente = float(math.floor(horas_trabajadas_dia * 2.0) / 2.0)
+        else:
+            excedente = float(math.floor(horas_trabajadas_dia))
         deuda_actual = round(float(empleado.horas_pendientes or 0.0), 1)
         horas_amortizadas = 0.0
         remanente = excedente
@@ -2411,14 +2418,18 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             remanente = res_comp['remanente']
             deuda_actual = res_comp['deuda_restante']
 
-        # El remanente pasa a solicitud de horas extra de 7mo día (a partir de 1 hora completa, sin minutos extra)
-        remanente_entero = float(math.floor(remanente))
-        if remanente_entero >= 1.0:
+        # El remanente pasa a solicitud de horas extra de 7mo día (a partir de 0.5 hrs desde el 23/09/2026, o 1.0 hr antes)
+        if min_step == 0.5:
+            remanente_limpio = float(math.floor(remanente * 2.0) / 2.0)
+        else:
+            remanente_limpio = float(math.floor(remanente))
+
+        if remanente_limpio >= min_step:
             AutorizacionHorasExtra.objects.update_or_create(
                 empleado=empleado,
                 fecha=fecha_hoy,
                 defaults={
-                    'horas_extra_solicitadas': remanente_entero,
+                    'horas_extra_solicitadas': remanente_limpio,
                     'estado': 'PENDIENTE',
                     'comentario': '[7mo Día Trabajado (Día Libre)]'
                 }
@@ -2435,7 +2446,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'excedente': excedente,
             'horas_amortizadas': round(horas_amortizadas, 1),
             'deuda_restante': round(deuda_actual, 1),
-            'horas_extra_solicitadas': remanente_entero if remanente_entero >= 1.0 else 0.0,
+            'horas_extra_solicitadas': remanente_limpio if remanente_limpio >= min_step else 0.0,
             'es_septimo_dia': True,
         }
 
@@ -2554,15 +2565,18 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'deficit_dia': round(deficit_dia, 1),
         }
 
-    # Regla: Las horas extra se cuentan a partir de 1 hora completa adicional (>= 60 min).
-    # Si laboró menos de 9.0h (menos de 1 hora extra sobre las 8h normales),
+    # Regla: Las horas extra se cuentan a partir de media hora (0.5 hrs) desde el 23/09/2026 (o 1.0 hr antes).
+    # Si laboró menos del mínimo requerido sobre las 8h normales,
     # no hay horas extra y el turno se cierra estrictamente en sus 8 horas (cero minutos extra).
     excedente_bruto = round(horas_trabajadas_dia - 8.0, 2)
-    if excedente_bruto < 1.0:
+    if excedente_bruto < min_step:
         excedente = 0.0
     else:
-        # Se computan en horas enteras a partir de la hora cumplida
-        excedente = float(math.floor(excedente_bruto))
+        # Se computan en intervalos limpios de 0.5 hrs (0.5, 1.0, 1.5...) o 1.0 hr antes
+        if min_step == 0.5:
+            excedente = float(math.floor(excedente_bruto * 2.0) / 2.0)
+        else:
+            excedente = float(math.floor(excedente_bruto))
 
     deuda_actual = round(float(empleado.horas_pendientes or 0.0), 1)
 
@@ -2581,14 +2595,18 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         remanente = res_comp['remanente']
         deuda_actual = res_comp['deuda_restante']
 
-    # Solo el remanente limpio por pagar (de 1 hora o más, sin minutos extra) va a AutorizacionHorasExtra
-    remanente_entero = float(math.floor(remanente))
-    if remanente_entero >= 1.0:
+    # Solo el remanente limpio por pagar (de 0.5 horas o más desde el 23/09/2026) va a AutorizacionHorasExtra
+    if min_step == 0.5:
+        remanente_limpio = float(math.floor(remanente * 2.0) / 2.0)
+    else:
+        remanente_limpio = float(math.floor(remanente))
+
+    if remanente_limpio >= min_step:
         AutorizacionHorasExtra.objects.update_or_create(
             empleado=empleado,
             fecha=fecha_hoy,
             defaults={
-                'horas_extra_solicitadas': remanente_entero,
+                'horas_extra_solicitadas': remanente_limpio,
                 'estado': 'PENDIENTE'
             }
         )
@@ -2604,7 +2622,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         'excedente': excedente,
         'horas_amortizadas': round(horas_amortizadas, 1),
         'deuda_restante': round(deuda_actual, 1),
-        'horas_extra_solicitadas': remanente_entero if remanente_entero >= 1.0 else 0.0,
+        'horas_extra_solicitadas': remanente_limpio if remanente_limpio >= min_step else 0.0,
     }
 
 

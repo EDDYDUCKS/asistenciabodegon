@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useDeferredValue, useRef } from 'react';
+import { playSuccessBeep, playErrorBeep } from '@/lib/sound-feedback';
 import {
   fetchEmpleados,
   fetchAsistencias,
@@ -135,6 +136,11 @@ export default function NominaAdminPage() {
   const [fechaInicio, setFechaInicio] = useState(primerDiaMes);
   const [fechaFin, setFechaFin] = useState(hoyStr);
   const [searchColaborador, setSearchColaborador] = useState('');
+  const deferredSearchColaborador = useDeferredValue(searchColaborador);
+  const deferredSearchExtra = useDeferredValue(searchExtra);
+  const deferredSearchCompensacion = useDeferredValue(searchCompensacion);
+  const deferredSearchPagoHE = useDeferredValue(searchPagoHE);
+  const deferredSearchPorPagarHE = useDeferredValue(searchPorPagarHE);
 
   // Form State para Feriados
   const [nuevoFeriadoFecha, setNuevoFeriadoFecha] = useState('');
@@ -146,7 +152,7 @@ export default function NominaAdminPage() {
   const [nuevoPermisoTipo, setNuevoPermisoTipo] = useState<TipoPermisoType>('VACACIONES');
   const [nuevoPermisoInicio, setNuevoPermisoInicio] = useState(hoyStr);
   const [nuevoPermisoFin, setNuevoPermisoFin] = useState(hoyStr);
-  const [nuevoPermisoMotivo, setNuevoPermisoMotivo] = useState('');
+  const nuevoPermisoMotivoRef = useRef('');
   const [addingPermiso, setAddingPermiso] = useState(false);
 
   // State para Reporte Mensual de Vacaciones en Excel
@@ -159,14 +165,14 @@ export default function NominaAdminPage() {
   const [selectedVacacionesEmp, setSelectedVacacionesEmp] = useState<Empleado | null>(null);
   const [ajustandoEmp, setAjustandoEmp] = useState<Empleado | null>(null);
   const [tempAjusteDias, setTempAjusteDias] = useState<string>('0.0');
-  const [tempAjusteMotivo, setTempAjusteMotivo] = useState<string>('');
+  const tempAjusteMotivoRef = useRef('');
   const [savingAjusteVac, setSavingAjusteVac] = useState<boolean>(false);
   const [searchVacacionesColab, setSearchVacacionesColab] = useState<string>('');
 
   // Form State para Horas Extra (temporal para edición en lista)
   const [editingExtraId, setEditingExtraId] = useState<number | null>(null);
   const [tempAutorizadas, setTempAutorizadas] = useState('0.00');
-  const [tempComentario, setTempComentario] = useState('');
+  const tempComentarioRef = useRef('');
   const [savingExtra, setSavingExtra] = useState(false);
 
   const loadData = async () => {
@@ -417,9 +423,9 @@ export default function NominaAdminPage() {
         tipo: nuevoPermisoTipo,
         fecha_inicio: nuevoPermisoInicio,
         fecha_fin: nuevoPermisoFin,
-        motivo: nuevoPermisoMotivo.trim(),
+        motivo: nuevoPermisoMotivoRef.current.trim(),
       });
-      setNuevoPermisoMotivo('');
+      nuevoPermisoMotivoRef.current = '';
       const updated = await fetchPermisos();
       setPermisos(updated);
       alert('¡Período registrado con éxito!');
@@ -455,7 +461,7 @@ export default function NominaAdminPage() {
   const handleOpenAjuste = (emp: Empleado) => {
     setAjustandoEmp(emp);
     setTempAjusteDias(String(emp.dias_vacaciones_acumuladas ?? '0.0'));
-    setTempAjusteMotivo('');
+    tempAjusteMotivoRef.current = '';
   };
 
   const handleSaveAjusteVacaciones = async (e: React.FormEvent) => {
@@ -468,7 +474,7 @@ export default function NominaAdminPage() {
     }
     setSavingAjusteVac(true);
     try {
-      const updated = await ajustarVacacionesEmpleado(ajustandoEmp.id, diasVal, tempAjusteMotivo.trim() || 'Ajuste inicial de saldo por administración');
+      const updated = await ajustarVacacionesEmpleado(ajustandoEmp.id, diasVal, tempAjusteMotivoRef.current.trim() || 'Ajuste inicial de saldo por administración');
       setEmpleados((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
       if (selectedVacacionesEmp?.id === updated.id) {
         setSelectedVacacionesEmp(updated);
@@ -494,33 +500,12 @@ export default function NominaAdminPage() {
   };
 
   // ── HORAS EXTRA ACCIONES CON PIN 2322 ─────────────────────────────────────
-  const playExtraPinSound = (success: boolean) => {
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      if (success) {
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.25);
-      } else {
-        osc.frequency.setValueAtTime(150, ctx.currentTime);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.3);
-      }
-    } catch {}
-  };
-
   const startDecision = (item: AutorizacionHorasExtra) => {
     setEditingExtraId(item.id || null);
-    const horasClean = Math.floor(parseFloat(String(item.horas_extra_solicitadas)) || 1);
-    setTempAutorizadas(String(Math.max(1, horasClean)));
-    setTempComentario(item.comentario || '');
+    const raw = parseFloat(String(item.horas_extra_solicitadas)) || 0.5;
+    const clean = Math.floor(raw * 2) / 2;
+    setTempAutorizadas(String(Math.max(0.5, clean)));
+    tempComentarioRef.current = item.comentario || '';
   };
 
   const executeOvertimeDecision = async (
@@ -543,7 +528,7 @@ export default function NominaAdminPage() {
         });
       }
       setEditingExtraId(null);
-      setTempComentario('');
+      tempComentarioRef.current = '';
       // Recargar horas extra, compensaciones y empleados para actualizar balances de deuda
       const [updatedExtras, updatedComp, updatedEmp] = await Promise.all([
         fetchHorasExtra(),
@@ -569,7 +554,9 @@ export default function NominaAdminPage() {
   const initiateDecision = (item: AutorizacionHorasExtra, decision: 'APROBADO' | 'RECHAZADO') => {
     const emp = empleados.find((e) => e.id === item.empleado);
     const empName = emp ? `${emp.nombre} ${emp.apellido}` : (item.empleado_detalle ? `${item.empleado_detalle.nombre} ${item.empleado_detalle.apellido}` : `Empleado #${item.empleado}`);
-    const horasVal = decision === 'APROBADO' ? Math.floor(parseFloat(tempAutorizadas) || 0) : 0;
+    const rawH = parseFloat(tempAutorizadas) || 0;
+    const cleanH = Math.floor(rawH * 2) / 2;
+    const horasVal = decision === 'APROBADO' ? cleanH : 0;
     const defaultComment = decision === 'APROBADO' ? 'Horas autorizadas' : 'Horas rechazadas';
     const deudaVal = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
     const totalPendienteEmp = horasExtra
@@ -586,7 +573,7 @@ export default function NominaAdminPage() {
       empId: item.empleado,
       decision: decision,
       horas: horasVal,
-      comentario: tempComentario.trim() || defaultComment,
+      comentario: tempComentarioRef.current.trim() || defaultComment,
       empNombre: empName,
       deudaActual: deudaVal,
       totalPendienteColaborador: totalPendienteEmp,
@@ -603,7 +590,7 @@ export default function NominaAdminPage() {
       if (prev.length >= 4) return prev;
       const newPin = prev + num;
       if (newPin === '2322') {
-        playExtraPinSound(true);
+        playSuccessBeep();
         setTimeout(() => {
           setPendingExtraAction((currentAction) => {
             if (currentAction) {
@@ -618,14 +605,14 @@ export default function NominaAdminPage() {
           });
           setShowExtraPinModal(false);
           setExtraPin('');
-        }, 180);
+        }, 150);
         return newPin;
       } else if (newPin.length === 4) {
         setTimeout(() => {
           setExtraPinError(true);
           setExtraPin('');
-          playExtraPinSound(false);
-        }, 200);
+          playErrorBeep();
+        }, 150);
       }
       return newPin;
     });
@@ -1070,8 +1057,8 @@ export default function NominaAdminPage() {
 
   const horasExtraFiltradas = useMemo(() => {
     let list = [...horasExtra];
-    if (searchExtra.trim()) {
-      const term = searchExtra.toLowerCase().trim();
+    if (deferredSearchExtra.trim()) {
+      const term = deferredSearchExtra.toLowerCase().trim();
       list = list.filter((item) => {
         const emp = item.empleado_detalle || empleados.find((e) => e.id === item.empleado);
         const nombre = emp ? `${emp.nombre} ${emp.apellido}`.toLowerCase() : '';
@@ -1080,7 +1067,7 @@ export default function NominaAdminPage() {
       });
     }
     return list;
-  }, [horasExtra, searchExtra, empleados]);
+  }, [horasExtra, deferredSearchExtra, empleados]);
 
   const gruposPorDiaExtras = useMemo(() => {
     const hoyNi = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
@@ -1251,7 +1238,8 @@ export default function NominaAdminPage() {
           {isEditing ? (
             <input
               type="number"
-              step="0.1"
+              step="0.5"
+              min="0.5"
               max={String(item.horas_extra_solicitadas)}
               value={tempAutorizadas}
               onChange={(e) => setTempAutorizadas(e.target.value)}
@@ -1284,8 +1272,10 @@ export default function NominaAdminPage() {
               <input
                 type="text"
                 placeholder="Nota/comentario..."
-                value={tempComentario}
-                onChange={(e) => setTempComentario(e.target.value)}
+                defaultValue={tempComentarioRef.current}
+                onChange={(e) => {
+                  tempComentarioRef.current = e.target.value;
+                }}
                 className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
               />
               <div className="flex gap-1 justify-end">
@@ -2733,7 +2723,7 @@ export default function NominaAdminPage() {
 
               {/* Tabla de Historial de Resoluciones Aprobadas */}
               {(() => {
-                const term = searchExtra.toLowerCase().trim();
+                const term = deferredSearchExtra.toLowerCase().trim();
                 const itemsHistorial = horasExtra.filter((h) => {
                   if (h.estado !== 'APROBADO') return false;
                   if (!term) return true;
@@ -3505,8 +3495,10 @@ export default function NominaAdminPage() {
                 <input
                   type="text"
                   placeholder="Ej: Vacaciones correspondientes a 2026, cita médica..."
-                  value={nuevoPermisoMotivo}
-                  onChange={(e) => setNuevoPermisoMotivo(e.target.value)}
+                  defaultValue=""
+                  onChange={(e) => {
+                    nuevoPermisoMotivoRef.current = e.target.value;
+                  }}
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
                 />
               </div>
@@ -4509,7 +4501,7 @@ export default function NominaAdminPage() {
                   key={num}
                   type="button"
                   onClick={() => handleExtraPinKeyPress(num)}
-                  className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center"
+                  className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
                 >
                   {num}
                 </button>
@@ -4518,7 +4510,7 @@ export default function NominaAdminPage() {
               <button
                 type="button"
                 onClick={handleExtraPinBackspace}
-                className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 active:bg-stone-200 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase"
+                className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 active:bg-stone-200 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase cursor-pointer active:scale-95 touch-manipulation select-none"
               >
                 Borrar
               </button>
@@ -4526,7 +4518,7 @@ export default function NominaAdminPage() {
               <button
                 type="button"
                 onClick={() => handleExtraPinKeyPress('0')}
-                className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center"
+                className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
               >
                 0
               </button>
@@ -4539,7 +4531,7 @@ export default function NominaAdminPage() {
                   setExtraPin('');
                   setExtraPinError(false);
                 }}
-                className="w-14 h-14 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase"
+                className="w-14 h-14 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase cursor-pointer active:scale-95 touch-manipulation select-none"
               >
                 Cancelar
               </button>
@@ -4644,8 +4636,10 @@ export default function NominaAdminPage() {
                   </label>
                   <input
                     type="text"
-                    value={tempAjusteMotivo}
-                    onChange={(e) => setTempAjusteMotivo(e.target.value)}
+                    defaultValue=""
+                    onChange={(e) => {
+                      tempAjusteMotivoRef.current = e.target.value;
+                    }}
                     placeholder="Ej: Carga de saldo inicial proporcionado por Administración"
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
                   />

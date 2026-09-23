@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { RefreshCw, Lock } from 'lucide-react';
+import { playErrorBeep } from '@/lib/sound-feedback';
 
 interface PinSecurityGateProps {
   title?: string;
@@ -69,24 +70,6 @@ export default function PinSecurityGate({
     };
   }, [authorized, handleLogout]);
 
-  const playFailSound = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(150, ctx.currentTime);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.3);
-    } catch {
-      // Ignorar si el navegador bloquea audio sin interacción
-    }
-  };
-
   const handleKeyPress = useCallback(
     (num: string) => {
       setPinError(false);
@@ -103,8 +86,8 @@ export default function PinSecurityGate({
           setTimeout(() => {
             setPinError(true);
             setPin('');
-            playFailSound();
-          }, 200);
+            playErrorBeep();
+          }, 150);
         }
         return newPin;
       });
@@ -199,7 +182,7 @@ export default function PinSecurityGate({
                 key={num}
                 onClick={() => handleKeyPress(num)}
                 type="button"
-                className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
+                className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
               >
                 {num}
               </button>
@@ -209,7 +192,7 @@ export default function PinSecurityGate({
             <button
               onClick={handleBackspace}
               type="button"
-              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer active:scale-95"
+              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer active:scale-95 touch-manipulation select-none"
             >
               Borrar
             </button>
@@ -217,7 +200,7 @@ export default function PinSecurityGate({
             <button
               onClick={() => handleKeyPress('0')}
               type="button"
-              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
+              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
             >
               0
             </button>
@@ -226,7 +209,7 @@ export default function PinSecurityGate({
             <Link
               href="/"
               onClick={handleLogout}
-              className="w-16 h-16 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer active:scale-95"
+              className="w-16 h-16 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer active:scale-95 touch-manipulation select-none"
             >
               Salir
             </Link>

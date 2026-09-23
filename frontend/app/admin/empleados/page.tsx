@@ -103,11 +103,6 @@ export default function EmpleadosAdminPage() {
   const [showQrBadge, setShowQrBadge] = useState<Empleado | null>(null);
   const [selectedEmpIds, setSelectedEmpIds] = useState<Set<number>>(new Set());
 
-  // Form State (Simplificado: Nombre, Apellido y Cargo)
-  const [nombre, setNombre] = useState('');
-  const [apellido, setApellido] = useState('');
-  const [cargo, setCargo] = useState<CargoType>('ATENCION_CLIENTE');
-  const [activo, setActivo] = useState(true);
   const [regeneratingToken, setRegeneratingToken] = useState(false);
 
   const loadData = async () => {
@@ -128,19 +123,11 @@ export default function EmpleadosAdminPage() {
 
   const openCreateModal = () => {
     setEditingEmp(null);
-    setNombre('');
-    setApellido('');
-    setCargo('ATENCION_CLIENTE');
-    setActivo(true);
     setShowModal(true);
   };
 
   const openEditModal = (emp: Empleado) => {
     setEditingEmp(emp);
-    setNombre(emp.nombre);
-    setApellido(emp.apellido);
-    setCargo(emp.cargo);
-    setActivo(emp.activo);
     setShowModal(true);
   };
 
@@ -165,28 +152,18 @@ export default function EmpleadosAdminPage() {
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const nombreClean = nombre.trim();
-    const apellidoClean = apellido.trim();
-    if (!nombreClean || !apellidoClean) {
-      alert('Por favor ingrese un nombre y apellido válidos.');
-      return;
-    }
+  const handleSaveModal = async (payload: { nombre: string; apellido: string; cargo: CargoType; activo: boolean }) => {
     try {
-      const payload = {
-        nombre: nombreClean,
-        apellido: apellidoClean,
-        cargo,
+      const fullPayload = {
+        ...payload,
         cedula_carnet: '',
         telefono: '',
-        activo,
       };
 
       if (editingEmp) {
-        await updateEmpleado(editingEmp.id, payload);
+        await updateEmpleado(editingEmp.id, fullPayload);
       } else {
-        await createEmpleado(payload);
+        await createEmpleado(fullPayload);
       }
 
       setShowModal(false);
@@ -670,129 +647,15 @@ export default function EmpleadosAdminPage() {
         </div>
       )}
 
-      {/* MODAL CREAR / EDITAR */}
+      {/* MODAL CREAR / EDITAR AISLADO PARA VELOCIDAD INSTANTÁNEA (0 LAG) */}
       {showModal && (
-        <div
-          onClick={() => setShowModal(false)}
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print-hide cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white border border-stone-200 w-full max-w-lg rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto cursor-default animate-in zoom-in-95 duration-150"
-          >
-            <div className="flex items-center justify-between border-b border-stone-200 pb-3">
-              <h2 className="text-base sm:text-lg font-black text-[#1c6856] flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
-                  <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
-                </div>
-                {editingEmp ? 'Editar Datos de Empleado' : 'Registrar Nuevo Empleado'}
-              </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSave} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-stone-600 mb-1">Nombre</label>
-                  <input
-                    type="text"
-                    required
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-stone-600 mb-1">Apellido</label>
-                  <input
-                    type="text"
-                    required
-                    value={apellido}
-                    onChange={(e) => setApellido(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-600 mb-1">Cargo / Puesto</label>
-                <select
-                  value={cargo}
-                  onChange={(e) => setCargo(e.target.value as CargoType)}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                >
-                  {CARGOS_OPCIONES.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-
-
-              <div>
-                <label className="block text-xs font-bold text-stone-600 mb-1">Estado</label>
-                <select
-                  value={activo ? 'true' : 'false'}
-                  onChange={(e) => setActivo(e.target.value === 'true')}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                >
-                  <option value="true">Activo (Marcaje habilitado)</option>
-                  <option value="false">Inactivo (Marcaje suspendido)</option>
-                </select>
-              </div>
-
-              {/* Botón para regenerar código QR si se está editando */}
-              {editingEmp && (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col gap-2">
-                  <div className="flex gap-2">
-                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-                    <div>
-                      <h4 className="text-xs font-bold text-amber-950">Acción de Seguridad</h4>
-                      <p className="text-[10px] text-amber-800 mt-0.5 leading-relaxed font-medium">
-                        Si el empleado perdió su carnet impreso, puede regenerar el token QR. El código anterior dejará de funcionar.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleRegenerateQr}
-                    disabled={regeneratingToken}
-                    className="mt-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white py-2 px-4 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                  >
-                    {regeneratingToken ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      'Regenerar Nuevo Código QR'
-                    )}
-                  </button>
-                </div>
-              )}
-
-              <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-xl bg-stone-100 text-stone-700 text-xs font-bold hover:bg-stone-200 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#1c6856] text-white text-xs font-bold hover:bg-[#154f42] transition-colors"
-                >
-                  Guardar Cambios
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <EmpleadoFormModal
+          editingEmp={editingEmp}
+          onClose={() => setShowModal(false)}
+          onSave={handleSaveModal}
+          onRegenerateQr={handleRegenerateQr}
+          regeneratingToken={regeneratingToken}
+        />
       )}
 
       {/* MODAL IMPRESIÓN CARNET QR INDIVIDUAL */}
@@ -845,6 +708,172 @@ export default function EmpleadosAdminPage() {
         </div>
       )}
 
+    </div>
+  );
+}
+
+interface EmpleadoFormModalProps {
+  editingEmp: Empleado | null;
+  onClose: () => void;
+  onSave: (payload: { nombre: string; apellido: string; cargo: CargoType; activo: boolean }) => Promise<void>;
+  onRegenerateQr: () => Promise<void>;
+  regeneratingToken: boolean;
+}
+
+function EmpleadoFormModal({
+  editingEmp,
+  onClose,
+  onSave,
+  onRegenerateQr,
+  regeneratingToken,
+}: EmpleadoFormModalProps) {
+  const [nombre, setNombre] = useState(editingEmp ? editingEmp.nombre : '');
+  const [apellido, setApellido] = useState(editingEmp ? editingEmp.apellido : '');
+  const [cargo, setCargo] = useState<CargoType>(editingEmp ? editingEmp.cargo : 'ATENCION_CLIENTE');
+  const [activo, setActivo] = useState(editingEmp ? editingEmp.activo : true);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const nombreClean = nombre.trim();
+    const apellidoClean = apellido.trim();
+    if (!nombreClean || !apellidoClean) {
+      alert('Por favor ingrese un nombre y apellido válidos.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        nombre: nombreClean,
+        apellido: apellidoClean,
+        cargo,
+        activo,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print-hide cursor-pointer"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white border border-stone-200 w-full max-w-lg rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto cursor-default animate-in zoom-in-95 duration-150"
+      >
+        <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+          <h2 className="text-base sm:text-lg font-black text-[#1c6856] flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
+            </div>
+            {editingEmp ? 'Editar Datos de Empleado' : 'Registrar Nuevo Empleado'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-stone-600 mb-1">Nombre</label>
+              <input
+                type="text"
+                required
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-600 mb-1">Apellido</label>
+              <input
+                type="text"
+                required
+                value={apellido}
+                onChange={(e) => setApellido(e.target.value)}
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-stone-600 mb-1">Cargo / Puesto</label>
+            <select
+              value={cargo}
+              onChange={(e) => setCargo(e.target.value as CargoType)}
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+            >
+              {CARGOS_OPCIONES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-stone-600 mb-1">Estado</label>
+            <select
+              value={activo ? 'true' : 'false'}
+              onChange={(e) => setActivo(e.target.value === 'true')}
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+            >
+              <option value="true">Activo (Marcaje habilitado)</option>
+              <option value="false">Inactivo (Marcaje suspendido)</option>
+            </select>
+          </div>
+
+          {editingEmp && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col gap-2">
+              <div className="flex gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <h4 className="text-xs font-bold text-amber-950">Acción de Seguridad</h4>
+                  <p className="text-[10px] text-amber-800 mt-0.5 leading-relaxed font-medium">
+                    Si el empleado perdió su carnet impreso, puede regenerar el token QR. El código anterior dejará de funcionar.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onRegenerateQr}
+                disabled={regeneratingToken}
+                className="mt-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white py-2 px-4 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                {regeneratingToken ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  'Regenerar Nuevo Código QR'
+                )}
+              </button>
+            </div>
+          )}
+
+          <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="px-4 py-2 rounded-xl bg-stone-100 text-stone-700 text-xs font-bold hover:bg-stone-200 transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-5 py-2 rounded-xl bg-[#1c6856] text-white text-xs font-bold hover:bg-[#154f42] transition-colors cursor-pointer"
+            >
+              {saving ? 'Guardando...' : 'Guardar Cambios'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

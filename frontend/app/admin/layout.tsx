@@ -27,6 +27,7 @@ import {
   Clock,
   ShoppingBag,
 } from 'lucide-react';
+import { playErrorBeep } from '@/lib/sound-feedback';
 import BoletaIncidenciaModal from '@/components/BoletaIncidenciaModal';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -176,20 +177,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   };
 
-  const playFailSound = () => {
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(150, ctx.currentTime);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.3);
-    } catch {}
-  };
-
   const handleKeyPress = useCallback((num: string) => {
     setPinError(false);
     setPin((prevPin) => {
@@ -206,8 +193,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setTimeout(() => {
           setPinError(true);
           setPin('');
-          playFailSound();
-        }, 200);
+          playErrorBeep();
+        }, 150);
       }
       return newPin;
     });
@@ -297,7 +284,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <button
                 key={num}
                 onClick={() => handleKeyPress(num)}
-                className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center"
+                type="button"
+                className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
               >
                 {num}
               </button>
@@ -306,14 +294,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* Backspace */}
             <button
               onClick={handleBackspace}
-              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase tracking-wide"
+              type="button"
+              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer active:scale-95 touch-manipulation select-none"
             >
               Borrar
             </button>
             
             <button
               onClick={() => handleKeyPress('0')}
-              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center"
+              type="button"
+              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
             >
               0
             </button>
@@ -322,7 +312,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link
               href="/"
               onClick={handleLogout}
-              className="w-16 h-16 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase tracking-wide"
+              className="w-16 h-16 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer active:scale-95 touch-manipulation select-none"
             >
               Salir
             </Link>

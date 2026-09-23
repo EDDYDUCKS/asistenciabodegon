@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useDeferredValue } from 'react';
 import { RegistroAsistencia } from '@/lib/types';
 import { fetchAsistencias, deleteAsistencia } from '@/lib/api-client';
 import {
@@ -230,6 +230,7 @@ export default function AsistenciaLogPage() {
   const [empleados, setEmpleados] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterText, setFilterText] = useState('');
+  const deferredFilterText = useDeferredValue(filterText);
   const [filterFecha, setFilterFecha] = useState('');
   const [separarPorDia, setSepararPorDia] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
@@ -237,12 +238,6 @@ export default function AsistenciaLogPage() {
 
   // Estado para Modal de Marcaje Manual
   const [showManualModal, setShowManualModal] = useState(false);
-  const [manualEmpId, setManualEmpId] = useState<number | ''>('');
-  const [manualTipo, setManualTipo] = useState<string>('ENTRADA');
-  const [manualFecha, setManualFecha] = useState('');
-  const [manualHora, setManualHora] = useState('');
-  const [manualObs, setManualObs] = useState('');
-  const [savingManual, setSavingManual] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -262,41 +257,32 @@ export default function AsistenciaLogPage() {
 
   useEffect(() => {
     loadData();
-    const hoyStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
-    const nowTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Managua', hour: '2-digit', minute: '2-digit' });
-    setManualFecha(hoyStr);
-    setManualHora(nowTimeStr);
   }, []);
 
-  const handleCreateManual = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualEmpId || !manualFecha || !manualHora) {
-      alert('Por favor complete todos los campos requeridos.');
-      return;
-    }
-    setSavingManual(true);
+  const handleCreateManualSubmit = async (data: {
+    empleadoId: number;
+    tipo: string;
+    fecha: string;
+    hora: string;
+    observacion: string;
+  }) => {
     try {
-      const fechaHoraISO = `${manualFecha}T${manualHora}:00-06:00`;
-      const { createAsistenciaManual } = await import('@/lib/api-client');
-      // Crear registro manual
+      const fechaHoraISO = `${data.fecha}T${data.hora}:00-06:00`;
       await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api'}/asistencia/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          empleado: Number(manualEmpId),
-          tipo_evento: manualTipo,
+          empleado: data.empleadoId,
+          tipo_evento: data.tipo,
           fecha_hora: fechaHoraISO,
-          observacion: manualObs.trim() || 'Marcaje manual registrado por administrador',
+          observacion: data.observacion.trim() || 'Marcaje manual registrado por administrador',
         }),
       });
 
       setShowManualModal(false);
-      setManualObs('');
       loadData();
     } catch (err: any) {
       alert('Error guardando marcaje: ' + (err.message || 'Error desconocido'));
-    } finally {
-      setSavingManual(false);
     }
   };
 
@@ -391,7 +377,7 @@ export default function AsistenciaLogPage() {
   });
 
   const filtered = asistencias.filter((a) => {
-    const search = filterText.toLowerCase();
+    const search = deferredFilterText.toLowerCase();
     const nombre = `${a.empleado_detalle.nombre} ${a.empleado_detalle.apellido}`.toLowerCase();
     const cargo = a.empleado_detalle.cargo_display.toLowerCase();
     const evento = a.tipo_evento_display.toLowerCase();
@@ -1016,128 +1002,13 @@ export default function AsistenciaLogPage() {
         </div>
       )}
 
-      {/* Modal Registrar Marcaje Manual */}
+      {/* Modal Registrar Marcaje Manual Aislado (0 Lag) */}
       {showManualModal && (
-        <div
-          onClick={() => setShowManualModal(false)}
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white border border-stone-200 max-w-lg w-full rounded-3xl p-6 sm:p-8 relative space-y-5 shadow-2xl cursor-default animate-in zoom-in-95 duration-150"
-          >
-            <button
-              onClick={() => setShowManualModal(false)}
-              className="absolute top-5 right-5 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div>
-              <h3 className="font-black text-stone-900 text-lg flex items-center gap-2">
-                <Plus className="w-5 h-5 text-[#1c6856]" />
-                Registrar Marcaje Manual
-              </h3>
-              <p className="text-xs text-stone-500 font-medium mt-1">
-                Utilice esta opción cuando un empleado olvidó marcar salida/entrada o no portaba su carnet.
-              </p>
-            </div>
-
-            <form onSubmit={handleCreateManual} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
-                  Empleado *
-                </label>
-                <select
-                  required
-                  value={manualEmpId}
-                  onChange={(e) => setManualEmpId(Number(e.target.value))}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                >
-                  <option value="">Seleccione un empleado...</option>
-                  {empleados.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.nombre} {emp.apellido} — {emp.cargo_display}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
-                  Tipo de Evento *
-                </label>
-                <select
-                  value={manualTipo}
-                  onChange={(e) => setManualTipo(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                >
-                  <option value="ENTRADA">🟢 ENTRADA — Inicio de Jornada (Corrido o Quebrado)</option>
-                  <option value="SALIDA_QUEBRADA">🟡 SALIDA_QUEBRADA — Salida a Pausa (Descanso Intermedio)</option>
-                  <option value="ENTRADA_QUEBRADA">🔵 ENTRADA_QUEBRADA — Retorno de Pausa (6:00 PM o 7:00 PM)</option>
-                  <option value="SALIDA_DEFINITIVA">🔴 SALIDA_DEFINITIVA — Salida Definitiva (Cierre de Turno)</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
-                    Fecha *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={manualFecha}
-                    onChange={(e) => setManualFecha(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
-                    Hora (24h) *
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={manualHora}
-                    onChange={(e) => setManualHora(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
-                  Motivo / Observación (Opcional)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Ej: Olvido de salida, confirmado presencialmente..."
-                  value={manualObs}
-                  onChange={(e) => setManualObs(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowManualModal(false)}
-                  className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs py-2.5 rounded-xl transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingManual}
-                  className="flex-1 bg-[#1c6856] hover:bg-[#154f42] text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
-                >
-                  {savingManual ? 'Guardando...' : 'Guardar Marcaje'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ModalMarcajeManual
+          empleados={empleados}
+          onClose={() => setShowManualModal(false)}
+          onSave={handleCreateManualSubmit}
+        />
       )}
 
       {/* ── MODAL: CORREGIR TIPO DE EVENTO ── */}
@@ -1352,6 +1223,174 @@ export default function AsistenciaLogPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+interface ModalMarcajeManualProps {
+  empleados: any[];
+  onClose: () => void;
+  onSave: (data: {
+    empleadoId: number;
+    tipo: string;
+    fecha: string;
+    hora: string;
+    observacion: string;
+  }) => Promise<void>;
+}
+
+function ModalMarcajeManual({ empleados, onClose, onSave }: ModalMarcajeManualProps) {
+  const hoyStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+  const nowTimeStr = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Managua', hour: '2-digit', minute: '2-digit' });
+
+  const [empId, setEmpId] = useState<number | ''>('');
+  const [tipo, setTipo] = useState<string>('ENTRADA');
+  const [fecha, setFecha] = useState(hoyStr);
+  const [hora, setHora] = useState(nowTimeStr);
+  const [observacion, setObservacion] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!empId || !fecha || !hora) {
+      alert('Por favor complete todos los campos requeridos.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        empleadoId: Number(empId),
+        tipo,
+        fecha,
+        hora,
+        observacion,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white border border-stone-200 max-w-lg w-full rounded-3xl p-6 sm:p-8 relative space-y-5 shadow-2xl cursor-default animate-in zoom-in-95 duration-150"
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 text-stone-400 hover:text-stone-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div>
+          <h3 className="font-black text-stone-900 text-lg flex items-center gap-2">
+            <Plus className="w-5 h-5 text-[#1c6856]" />
+            Registrar Marcaje Manual
+          </h3>
+          <p className="text-xs text-stone-500 font-medium mt-1">
+            Utilice esta opción cuando un empleado olvidó marcar salida/entrada o no portaba su carnet.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
+              Empleado *
+            </label>
+            <select
+              required
+              value={empId}
+              onChange={(e) => setEmpId(Number(e.target.value))}
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+            >
+              <option value="">Seleccione un empleado...</option>
+              {empleados.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.nombre} {emp.apellido} — {emp.cargo_display}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
+              Tipo de Evento *
+            </label>
+            <select
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value)}
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+            >
+              <option value="ENTRADA">🟢 ENTRADA — Inicio de Jornada (Corrido o Quebrado)</option>
+              <option value="SALIDA_QUEBRADA">🟡 SALIDA_QUEBRADA — Salida a Pausa (Descanso Intermedio)</option>
+              <option value="ENTRADA_QUEBRADA">🔵 ENTRADA_QUEBRADA — Retorno de Pausa (6:00 PM o 7:00 PM)</option>
+              <option value="SALIDA_DEFINITIVA">🔴 SALIDA_DEFINITIVA — Salida Definitiva (Cierre de Turno)</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
+                Fecha *
+              </label>
+              <input
+                type="date"
+                required
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
+                Hora (24h) *
+              </label>
+              <input
+                type="time"
+                required
+                value={hora}
+                onChange={(e) => setHora(e.target.value)}
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wide mb-1.5">
+              Motivo / Observación (Opcional)
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Ej: Olvido de salida, confirmado presencialmente..."
+              value={observacion}
+              onChange={(e) => setObservacion(e.target.value)}
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+            />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs py-2.5 rounded-xl transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 bg-[#1c6856] hover:bg-[#154f42] text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              {saving ? 'Guardando...' : 'Guardar Marcaje'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
