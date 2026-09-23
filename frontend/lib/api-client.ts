@@ -317,6 +317,12 @@ export async function updateHoraExtra(id: number, payload: Partial<AutorizacionH
   });
 }
 
+export async function deleteHoraExtra(id: number): Promise<void> {
+  await apiRequest<void>(`/horas-extra/${id}/`, {
+    method: 'DELETE',
+  });
+}
+
 // ── ALERTAS DE ASISTENCIA ──────────────────────────────────────────────────
 export async function fetchAlertas(): Promise<AlertaAsistencia[]> {
   const data = await apiRequest<AlertaAsistencia[] | { results: AlertaAsistencia[] }>('/alertas/');

@@ -11,6 +11,7 @@ import {
   deleteFeriado,
   fetchHorasExtra,
   updateHoraExtra,
+  deleteHoraExtra,
   fetchPermisos,
   createPermiso,
   deletePermiso,
@@ -517,7 +518,8 @@ export default function NominaAdminPage() {
 
   const startDecision = (item: AutorizacionHorasExtra) => {
     setEditingExtraId(item.id || null);
-    setTempAutorizadas(String(item.horas_extra_solicitadas));
+    const horasClean = Math.floor(parseFloat(String(item.horas_extra_solicitadas)) || 1);
+    setTempAutorizadas(String(Math.max(1, horasClean)));
     setTempComentario(item.comentario || '');
   };
 
@@ -529,11 +531,17 @@ export default function NominaAdminPage() {
   ) => {
     setSavingExtra(true);
     try {
-      await updateHoraExtra(id, {
-        horas_extra_autorizadas: horasVal,
-        estado: decision,
-        comentario: comentarioStr,
-      });
+      if (decision === 'RECHAZADO') {
+        // Al rechazar la hora extra, se elimina automáticamente del historial y de la base de datos
+        await deleteHoraExtra(id);
+        setSelectedExtraParaBoleta(null);
+      } else {
+        await updateHoraExtra(id, {
+          horas_extra_autorizadas: horasVal,
+          estado: decision,
+          comentario: comentarioStr,
+        });
+      }
       setEditingExtraId(null);
       setTempComentario('');
       // Recargar horas extra, compensaciones y empleados para actualizar balances de deuda
@@ -545,9 +553,11 @@ export default function NominaAdminPage() {
       setHorasExtra(updatedExtras);
       setCompensaciones(updatedComp);
       setEmpleados(updatedEmp);
-      const updatedRec = updatedExtras.find((h) => h.id === id);
-      if (updatedRec) {
-        setSelectedExtraParaBoleta(updatedRec);
+      if (decision === 'APROBADO') {
+        const updatedRec = updatedExtras.find((h) => h.id === id);
+        if (updatedRec) {
+          setSelectedExtraParaBoleta(updatedRec);
+        }
       }
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al guardar decisión');
@@ -559,7 +569,7 @@ export default function NominaAdminPage() {
   const initiateDecision = (item: AutorizacionHorasExtra, decision: 'APROBADO' | 'RECHAZADO') => {
     const emp = empleados.find((e) => e.id === item.empleado);
     const empName = emp ? `${emp.nombre} ${emp.apellido}` : (item.empleado_detalle ? `${item.empleado_detalle.nombre} ${item.empleado_detalle.apellido}` : `Empleado #${item.empleado}`);
-    const horasVal = decision === 'APROBADO' ? parseFloat(tempAutorizadas) || 0 : 0;
+    const horasVal = decision === 'APROBADO' ? Math.floor(parseFloat(tempAutorizadas) || 0) : 0;
     const defaultComment = decision === 'APROBADO' ? 'Horas autorizadas' : 'Horas rechazadas';
     const deudaVal = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
     const totalPendienteEmp = horasExtra
@@ -2650,47 +2660,44 @@ export default function NominaAdminPage() {
                   </p>
                 </div>
 
-                <div className="bg-gradient-to-br from-rose-50/90 to-rose-100/40 border border-rose-250 rounded-2xl p-4 shadow-xs">
+                <div className="bg-gradient-to-br from-teal-50/90 to-teal-100/40 border border-teal-250 rounded-2xl p-4 shadow-xs">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-rose-900 uppercase tracking-wider">
-                      Horas Extra Rechazadas
+                    <span className="text-[11px] font-bold text-teal-900 uppercase tracking-wider">
+                      Boletas para Impresión
                     </span>
-                    <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold shadow-xs">
-                      <XCircle className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-xl bg-teal-700 text-white flex items-center justify-center font-bold shadow-xs">
+                      <FileText className="w-4 h-4" />
                     </div>
                   </div>
                   <div className="mt-2 flex items-baseline gap-2">
-                    <span className="text-2xl font-black font-mono text-rose-900">
-                      {horasExtra.filter((h) => h.estado === 'RECHAZADO').reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_solicitadas)) || 0), 0).toFixed(1)} hrs
+                    <span className="text-2xl font-black font-mono text-teal-900">
+                      {horasExtra.filter((h) => h.estado === 'APROBADO').length}
                     </span>
-                    <span className="text-[10px] font-bold text-rose-800 bg-rose-200/60 px-2 py-0.5 rounded-full">
-                      {horasExtra.filter((h) => h.estado === 'RECHAZADO').length} denegadas
+                    <span className="text-[10px] font-bold text-teal-800 bg-teal-200/60 px-2 py-0.5 rounded-full">
+                      100% Limpias
                     </span>
                   </div>
-                  <p className="text-[11px] text-rose-700 font-medium mt-1">
-                    Solicitudes no procedentes descartadas
+                  <p className="text-[11px] text-teal-700 font-medium mt-1">
+                    Listas para emitir e imprimir boleta individual
                   </p>
                 </div>
 
                 <div className="bg-gradient-to-br from-stone-50 to-stone-100/60 border border-stone-200/80 rounded-2xl p-4 shadow-xs">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-bold text-stone-700 uppercase tracking-wider">
-                      Total Boletas Disponibles
+                      Regla de Horas Extra
                     </span>
                     <div className="w-8 h-8 rounded-xl bg-stone-800 text-white flex items-center justify-center font-bold shadow-xs">
-                      <FileText className="w-4 h-4" />
+                      <Clock className="w-4 h-4" />
                     </div>
                   </div>
                   <div className="mt-2 flex items-baseline gap-2">
-                    <span className="text-2xl font-black font-mono text-stone-900">
-                      {horasExtra.filter((h) => h.estado !== 'PENDIENTE').length}
-                    </span>
-                    <span className="text-[10px] font-bold text-stone-600 bg-stone-200/70 px-2 py-0.5 rounded-full">
-                      comprobantes listos
+                    <span className="text-sm font-black text-stone-900">
+                      A partir de 1 hora
                     </span>
                   </div>
-                  <p className="text-[11px] text-stone-500 font-medium mt-1">
-                    Listas para imprimir y recabar firmas
+                  <p className="text-[11px] text-stone-600 font-medium mt-1">
+                    Cero minutos extra • Rechazadas se descartan automáticamente
                   </p>
                 </div>
               </div>
@@ -2716,51 +2723,19 @@ export default function NominaAdminPage() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto">
-                  <button
-                    type="button"
-                    onClick={() => setFiltroEstadoHistorialExtra('TODOS')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                      filtroEstadoHistorialExtra === 'TODOS'
-                        ? 'bg-stone-900 text-white'
-                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                    }`}
-                  >
-                    Todos ({horasExtra.filter((h) => h.estado !== 'PENDIENTE').length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFiltroEstadoHistorialExtra('APROBADO')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors ${
-                      filtroEstadoHistorialExtra === 'APROBADO'
-                        ? 'bg-emerald-700 text-white'
-                        : 'bg-emerald-50 text-emerald-800 border border-emerald-250 hover:bg-emerald-100'
-                    }`}
-                  >
+                <div className="flex items-center gap-1.5">
+                  <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#1c6856] text-white flex items-center gap-1.5 shadow-xs">
                     <CheckCircle className="w-3.5 h-3.5" />
-                    Aprobadas ({horasExtra.filter((h) => h.estado === 'APROBADO').length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFiltroEstadoHistorialExtra('RECHAZADO')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors ${
-                      filtroEstadoHistorialExtra === 'RECHAZADO'
-                        ? 'bg-rose-700 text-white'
-                        : 'bg-rose-50 text-rose-800 border border-rose-250 hover:bg-rose-100'
-                    }`}
-                  >
-                    <XCircle className="w-3.5 h-3.5" />
-                    Rechazadas ({horasExtra.filter((h) => h.estado === 'RECHAZADO').length})
-                  </button>
+                    Horas Extra Aprobadas ({horasExtra.filter((h) => h.estado === 'APROBADO').length})
+                  </span>
                 </div>
               </div>
 
-              {/* Tabla de Historial de Resoluciones */}
+              {/* Tabla de Historial de Resoluciones Aprobadas */}
               {(() => {
                 const term = searchExtra.toLowerCase().trim();
                 const itemsHistorial = horasExtra.filter((h) => {
-                  if (h.estado === 'PENDIENTE') return false;
-                  if (filtroEstadoHistorialExtra !== 'TODOS' && h.estado !== filtroEstadoHistorialExtra) return false;
+                  if (h.estado !== 'APROBADO') return false;
                   if (!term) return true;
                   const empNombre = h.empleado_detalle ? `${h.empleado_detalle.nombre} ${h.empleado_detalle.apellido || ''}`.toLowerCase() : '';
                   const empCargo = h.empleado_detalle?.cargo_display?.toLowerCase() || '';

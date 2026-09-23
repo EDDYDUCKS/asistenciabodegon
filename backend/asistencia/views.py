@@ -1,4 +1,5 @@
 import datetime
+import math
 from decimal import Decimal
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -831,8 +832,10 @@ class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
         serializer.save()
 
     def perform_update(self, serializer):
-        # Las horas extra aprobadas son intocables y no se amortizan contra déficit de horas
-        serializer.save()
+        instance = serializer.save()
+        # Si la solicitud no es aprobada (es rechazada), se elimina automáticamente de la base de datos
+        if instance.estado == 'RECHAZADO':
+            instance.delete()
 
 
 class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
@@ -2391,7 +2394,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
     es_septimo_dia = _es_septimo_dia_semana(empleado, fecha_hoy)
 
     if es_septimo_dia:
-        excedente = round(horas_trabajadas_dia, 1)
+        excedente = float(math.floor(horas_trabajadas_dia))
         deuda_actual = round(float(empleado.horas_pendientes or 0.0), 1)
         horas_amortizadas = 0.0
         remanente = excedente
@@ -2408,13 +2411,14 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             remanente = res_comp['remanente']
             deuda_actual = res_comp['deuda_restante']
 
-        # El remanente pasa a solicitud de horas extra de 7mo día
-        if remanente > 0.05:
+        # El remanente pasa a solicitud de horas extra de 7mo día (a partir de 1 hora completa, sin minutos extra)
+        remanente_entero = float(math.floor(remanente))
+        if remanente_entero >= 1.0:
             AutorizacionHorasExtra.objects.update_or_create(
                 empleado=empleado,
                 fecha=fecha_hoy,
                 defaults={
-                    'horas_extra_solicitadas': round(remanente, 1),
+                    'horas_extra_solicitadas': remanente_entero,
                     'estado': 'PENDIENTE',
                     'comentario': '[7mo Día Trabajado (Día Libre)]'
                 }
@@ -2431,7 +2435,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'excedente': excedente,
             'horas_amortizadas': round(horas_amortizadas, 1),
             'deuda_restante': round(deuda_actual, 1),
-            'horas_extra_solicitadas': round(remanente, 1),
+            'horas_extra_solicitadas': remanente_entero if remanente_entero >= 1.0 else 0.0,
             'es_septimo_dia': True,
         }
 
@@ -2550,7 +2554,16 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'deficit_dia': round(deficit_dia, 1),
         }
 
-    excedente = round(horas_trabajadas_dia - 8.0, 1)
+    # Regla: Las horas extra se cuentan a partir de 1 hora completa adicional (>= 60 min).
+    # Si laboró menos de 9.0h (menos de 1 hora extra sobre las 8h normales),
+    # no hay horas extra y el turno se cierra estrictamente en sus 8 horas (cero minutos extra).
+    excedente_bruto = round(horas_trabajadas_dia - 8.0, 2)
+    if excedente_bruto < 1.0:
+        excedente = 0.0
+    else:
+        # Se computan en horas enteras a partir de la hora cumplida
+        excedente = float(math.floor(excedente_bruto))
+
     deuda_actual = round(float(empleado.horas_pendientes or 0.0), 1)
 
     horas_amortizadas = 0.0
@@ -2568,13 +2581,14 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         remanente = res_comp['remanente']
         deuda_actual = res_comp['deuda_restante']
 
-    # Solo el remanente limpio por pagar va a AutorizacionHorasExtra para revisión gerencial
-    if remanente > 0.05:
+    # Solo el remanente limpio por pagar (de 1 hora o más, sin minutos extra) va a AutorizacionHorasExtra
+    remanente_entero = float(math.floor(remanente))
+    if remanente_entero >= 1.0:
         AutorizacionHorasExtra.objects.update_or_create(
             empleado=empleado,
             fecha=fecha_hoy,
             defaults={
-                'horas_extra_solicitadas': round(remanente, 1),
+                'horas_extra_solicitadas': remanente_entero,
                 'estado': 'PENDIENTE'
             }
         )
@@ -2590,7 +2604,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         'excedente': excedente,
         'horas_amortizadas': round(horas_amortizadas, 1),
         'deuda_restante': round(deuda_actual, 1),
-        'horas_extra_solicitadas': round(remanente, 1),
+        'horas_extra_solicitadas': remanente_entero if remanente_entero >= 1.0 else 0.0,
     }
 
 
