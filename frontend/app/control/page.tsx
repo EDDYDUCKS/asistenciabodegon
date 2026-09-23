@@ -442,13 +442,12 @@ export default function BodegonControlPage() {
     return arr.slice(0, 30);
   }, [dailyHistoryMap]);
 
-  // 8. Gastos filtrados para la pestaña de Gastos / Caja Chica
+  // 8. Gastos filtrados para la pestaña de Gastos / Caja Chica (estrictamente por la fecha seleccionada)
   const gastosFiltrados = useMemo(() => {
     return gastos.filter((g) => {
       const fechaGastoStr = g.fecha_hora.slice(0, 10);
-      // Si estamos en tab de gastos, respetar filtro de fecha si se desea
-      if (selectedDate && fechaGastoStr !== selectedDate && activeTab === 'VENTAS') {
-        // en tab ventas filtramos solo los del día seleccionado
+      // Filtrar SIEMPRE por la fecha seleccionada (por defecto hoy)
+      if (selectedDate && fechaGastoStr !== selectedDate) {
         return false;
       }
       if (filtroCategoria !== 'TODAS' && g.categoria !== filtroCategoria) return false;
@@ -464,7 +463,7 @@ export default function BodegonControlPage() {
       }
       return true;
     });
-  }, [gastos, selectedDate, activeTab, filtroCategoria, filtroMetodo, filtroEstado, searchTerm]);
+  }, [gastos, selectedDate, filtroCategoria, filtroMetodo, filtroEstado, searchTerm]);
 
   // Métricas del día seleccionado para gastos
   const metricasGastosDia = useMemo(() => {
@@ -667,17 +666,6 @@ export default function BodegonControlPage() {
                 <span>Portal</span>
               </Link>
 
-              <Link
-                href="/compras"
-                target="_blank"
-                className="text-xs font-bold text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-2xs"
-              >
-                <Smartphone className="w-3.5 h-3.5 text-amber-700" />
-                <span className="hidden sm:inline">Vista Móvil</span>
-                <span className="sm:hidden">Móvil</span>
-                <ExternalLink className="w-3 h-3 opacity-60" />
-              </Link>
-
               {/* Botón único de acción permitida */}
               <button
                 onClick={() => {
@@ -748,7 +736,7 @@ export default function BodegonControlPage() {
           </div>
 
           {/* ── NAVEGACIÓN POR PESTAÑAS ── */}
-          <div className="flex items-center justify-between gap-3 border-b border-stone-200/90 pb-2 flex-wrap">
+          <div className="flex items-center justify-between gap-3 border-b border-stone-200/90 pb-2">
             <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-2xl border border-stone-200/80">
               <button
                 onClick={() => setActiveTab('VENTAS')}
@@ -786,44 +774,82 @@ export default function BodegonControlPage() {
                 <span>Tabla del Tiempo Histórica</span>
               </button>
             </div>
+          </div>
 
-            {/* Selector de fecha rápido */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => cambiarDia(-1)}
-                title="Día anterior"
-                className="w-8 h-8 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 flex items-center justify-center text-stone-700 cursor-pointer shadow-2xs transition"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
+          {/* ── BARRA MAESTRA DE CONTROL DE FECHA (GRANDE, VISIBLE Y FÁCIL DE CAPACITAR) ── */}
+          <div className="bg-white border-2 border-stone-200/90 rounded-3xl p-3.5 sm:p-4.5 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5">
+            {/* Botón Día Anterior */}
+            <button
+              onClick={() => cambiarDia(-1)}
+              className="flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer active:scale-95 border border-stone-300 shadow-2xs shrink-0"
+              title="Ir al día anterior"
+            >
+              <ChevronLeft className="w-5 h-5 text-stone-700" />
+              <span>◀ DÍA ANTERIOR</span>
+            </button>
 
-              <div className="flex items-center gap-1.5 bg-white border border-stone-200 rounded-xl px-2.5 py-1 shadow-2xs">
-                <Calendar className="w-3.5 h-3.5 text-stone-400" />
+            {/* Display Central Grande con Fecha Completa */}
+            <div className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-3.5 py-1.5 px-4 bg-amber-50/70 rounded-2xl border border-amber-200">
+              <div className="text-center sm:text-left">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
+                  <span className="text-[11px] font-black uppercase text-amber-900 tracking-wider">
+                    Viendo fecha:
+                  </span>
+                  {selectedDate === hoyStr ? (
+                    <span className="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                      HOY (EN VIVO)
+                    </span>
+                  ) : (
+                    <span className="bg-stone-300 text-stone-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      DÍA ANTERIOR
+                    </span>
+                  )}
+                </div>
+                <div className="text-base sm:text-xl font-black text-stone-900 capitalize tracking-tight mt-0.5">
+                  {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-NI', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </div>
+              </div>
+
+              {/* Selector de calendario grande */}
+              <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-stone-300 shadow-2xs hover:border-amber-500 transition">
+                <Calendar className="w-5 h-5 text-amber-700 shrink-0" />
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  className="text-xs font-mono font-bold text-stone-800 bg-transparent border-none outline-none cursor-pointer"
+                  className="text-xs sm:text-sm font-mono font-black text-stone-900 bg-transparent outline-none cursor-pointer"
+                  title="Toca para cambiar a cualquier fecha"
                 />
               </div>
+            </div>
 
+            {/* Controles Derecha: Día Siguiente y Botón de Volver a Hoy */}
+            <div className="flex items-center gap-2 justify-stretch shrink-0">
               <button
                 onClick={() => cambiarDia(1)}
-                title="Día siguiente"
-                className="w-8 h-8 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 flex items-center justify-center text-stone-700 cursor-pointer shadow-2xs transition"
+                className="flex-1 md:flex-initial flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer active:scale-95 border border-stone-300 shadow-2xs"
+                title="Ir al día siguiente"
               >
-                <ChevronRight className="w-4 h-4" />
+                <span>DÍA SIGUIENTE ▶</span>
+                <ChevronRight className="w-5 h-5 text-stone-700" />
               </button>
 
               <button
                 onClick={() => setSelectedDate(hoyStr)}
-                className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border transition shadow-2xs cursor-pointer ${
+                className={`px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center gap-1.5 ${
                   selectedDate === hoyStr
-                    ? 'bg-amber-500 text-stone-950 border-amber-500 font-black'
-                    : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                    ? 'bg-amber-500 text-stone-950 border border-amber-600 shadow-md ring-2 ring-amber-300'
+                    : 'bg-[#1c6856] hover:bg-[#154f42] text-white'
                 }`}
+                title="Regresar a la fecha de hoy"
               >
-                Hoy
+                <span>⚡ VER HOY</span>
               </button>
             </div>
           </div>
@@ -1331,12 +1357,14 @@ export default function BodegonControlPage() {
                       {gastosFiltrados.length === 0 ? (
                         <tr>
                           <td colSpan={10} className="py-12 text-center text-stone-400">
-                            <span className="text-3xl block mb-2">🛒</span>
-                            <p className="font-bold text-stone-700">
-                              No hay gastos registrados para los filtros o fecha seleccionada.
+                            <span className="text-4xl block mb-2">🛒</span>
+                            <p className="font-black text-stone-800 text-sm">
+                              No hay compras ni gastos registrados para el {selectedDate === hoyStr ? 'día de hoy' : `día ${selectedDate}`}.
                             </p>
-                            <p className="text-[11px] text-stone-400 mt-1">
-                              Usa el botón "+ Registrar Gasto" para reportar una compra de inmediato.
+                            <p className="text-xs text-stone-500 mt-1">
+                              {selectedDate === hoyStr
+                                ? 'Usa el botón "+ Registrar Gasto" arriba para ingresar una nueva compra de hoy.'
+                                : 'Puedes usar las flechas del selector para navegar a otra fecha o presionar "⚡ VER HOY".'}
                             </p>
                           </td>
                         </tr>
