@@ -114,6 +114,7 @@ export default function BodegonControlPage() {
 
   // Modales de funciones
   const [showModalGasto, setShowModalGasto] = useState(false);
+  const [showModalPrint, setShowModalPrint] = useState(false);
   const [fotoModalUrl, setFotoModalUrl] = useState<string | null>(null);
 
   // Formulario único permitido: Registro de Compra / Gasto
@@ -599,6 +600,529 @@ export default function BodegonControlPage() {
     }
   };
 
+  // 9. Impresión Oficial en Blanco y Negro (Formato 1 o 2 Hojas para Archivo y Firmas)
+  const handleImprimirActaOficial = (modo: 'TODO' | 'GENERAL' | 'CHICA') => {
+    try {
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      const fechaObj = new Date(y, m - 1, d);
+      const diaSemana = fechaObj.toLocaleDateString('es-NI', { weekday: 'long' });
+      const fechaLarga = fechaObj.toLocaleDateString('es-NI', { day: 'numeric', month: 'long', year: 'numeric' });
+      const diaSemanaCap = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+
+      const horaEmision = new Date().toLocaleTimeString('es-NI', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      });
+
+      const dayGastos = gastos
+        .filter((g) => g.fecha_hora.slice(0, 10) === selectedDate)
+        .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));
+
+      const sales = selectedDayData.sales;
+      const totalGross = sales.totalGrossSales;
+      const salesCash = sales.salesCash;
+      const cardsBAC = sales.cardsBAC;
+      const cardsFicohsa = sales.cardsFicohsa;
+      const cardsBanpro = sales.cardsBanpro;
+      const cardsLafise = sales.cardsLafise;
+      const totalCards = sales.totalCards;
+      const salesPedidosYa = sales.salesPedidosYa;
+      const expensesTotal = selectedDayData.expensesTotal;
+      const expensesCash = selectedDayData.expensesCash;
+      const expensesTransf = selectedDayData.expensesTransf;
+      const netProfit = selectedDayData.netProfit;
+      const marginPercent = selectedDayData.marginPercent;
+
+      const cashPct = totalGross > 0 ? ((salesCash / totalGross) * 100).toFixed(1) : '0.0';
+      const bacPct = totalGross > 0 ? ((cardsBAC / totalGross) * 100).toFixed(1) : '0.0';
+      const ficoPct = totalGross > 0 ? ((cardsFicohsa / totalGross) * 100).toFixed(1) : '0.0';
+      const banproPct = totalGross > 0 ? ((cardsBanpro / totalGross) * 100).toFixed(1) : '0.0';
+      const lafisePct = totalGross > 0 ? ((cardsLafise / totalGross) * 100).toFixed(1) : '0.0';
+      const cardsPct = totalGross > 0 ? ((totalCards / totalGross) * 100).toFixed(1) : '0.0';
+      const pedidosYaPct = totalGross > 0 ? ((salesPedidosYa / totalGross) * 100).toFixed(1) : '0.0';
+
+      const jornada = selectedDayData.jornada;
+      const fondoInicial = Number(jornada?.fondo_inicial || 0);
+      const saldoRemanente = fondoInicial - expensesCash;
+      const responsableCaja = jornada?.responsable || 'Caja Principal';
+      const turnoJornada = jornada?.turno || 'COMPLETO';
+      const estadoCaja = jornada?.estado || (selectedDate === hoyStr ? 'ABIERTA' : 'CERRADA');
+      const observacionesClean = (jornada?.observaciones || '')
+        .replace(/\[VENTAS_DATA:\{.*?\}\]\s*/g, '')
+        .trim();
+
+      // Generar filas de gastos para la Hoja 2
+      let rowsGastosHtml = '';
+      if (dayGastos.length === 0) {
+        rowsGastosHtml = `
+          <tr>
+            <td colspan="8" style="text-align: center; padding: 14px; color: #444; font-style: italic;">
+              No se registraron compras ni egresos de caja chica en la fecha indicada.
+            </td>
+          </tr>
+        `;
+      } else {
+        rowsGastosHtml = dayGastos
+          .map((g, idx) => {
+            const horaGasto = new Date(g.fecha_hora).toLocaleTimeString('es-NI', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            });
+            const catLabel = CATEGORIAS_GASTO.find((c) => c.id === g.categoria)?.label || g.categoria;
+            const metodoTxt = g.metodo_pago === 'EFECTIVO' ? 'Efectivo' : 'Transf.';
+            const estadoRef =
+              g.metodo_pago === 'TRANSFERENCIA'
+                ? (g.estado_pago === 'PAGADO' ? 'Pagado' : 'Pendiente') +
+                  (g.referencia_banco ? ` (Ref: ${g.referencia_banco})` : '')
+                : 'Pagado';
+
+            return `
+              <tr>
+                <td style="text-align: center;">${idx + 1}</td>
+                <td style="text-align: center; font-family: monospace;">${horaGasto}</td>
+                <td>${catLabel}</td>
+                <td><strong>${g.concepto}</strong></td>
+                <td>${g.proveedor || '-'}</td>
+                <td style="text-align: center;">${metodoTxt}</td>
+                <td style="text-align: center; font-size: 9px;">${estadoRef}</td>
+                <td class="text-right font-mono font-bold">C$ ${Number(g.monto).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+              </tr>
+            `;
+          })
+          .join('');
+      }
+
+      // Estilos CSS expresamente para impresión en Blanco y Negro (B/N)
+      const printStyles = `
+        <style>
+          @page {
+            size: letter portrait;
+            margin: 8mm 12mm 8mm 12mm;
+          }
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #000;
+            background: #fff;
+            font-size: 10px;
+            line-height: 1.25;
+          }
+          .sheet {
+            page-break-after: always;
+            break-after: page;
+            padding: 0;
+            min-height: 97vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+          }
+          .sheet:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+          .header-box {
+            border-bottom: 2px solid #000;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+          }
+          .brand {
+            font-size: 13px;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+          }
+          .doc-title {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-top: 1px;
+          }
+          .doc-subtitle {
+            font-size: 8.5px;
+            color: #333;
+            letter-spacing: 0.3px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6px;
+          }
+          th, td {
+            border: 1px solid #000;
+            padding: 3.5px 5px;
+            text-align: left;
+            font-size: 9.5px;
+          }
+          th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 9px;
+          }
+          .meta-table td {
+            border: 1px solid #555;
+            font-size: 9px;
+            padding: 3px 5px;
+          }
+          .section-title {
+            font-size: 9.5px;
+            font-weight: bold;
+            text-transform: uppercase;
+            background-color: #e5e5e5;
+            border: 1px solid #000;
+            padding: 2.5px 5px;
+            margin-top: 4px;
+            margin-bottom: 2px;
+            letter-spacing: 0.3px;
+          }
+          .text-right {
+            text-align: right;
+          }
+          .text-center {
+            text-align: center;
+          }
+          .font-mono {
+            font-family: "Courier New", Courier, monospace;
+          }
+          .font-bold {
+            font-weight: bold;
+          }
+          .highlight-row td {
+            font-weight: bold;
+            background-color: #f7f7f7;
+            border-top: 2px solid #000;
+            border-bottom: 2px solid #000;
+          }
+          .signatures {
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            gap: 40px;
+          }
+          .sig-box {
+            flex: 1;
+            text-align: center;
+            border-top: 1px solid #000;
+            padding-top: 3px;
+            font-size: 9px;
+          }
+        </style>
+      `;
+
+      // HOJA 1: CAJA GENERAL & VENTAS
+      const sheet1Html = `
+        <div class="sheet">
+          <div>
+            <div class="header-box">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <div class="brand">EL BODEGÓN RESTAURANTE & BAR</div>
+                  <div class="doc-title">ACTA OFICIAL DE CONTROL, VENTAS Y CAJA GENERAL</div>
+                  <div class="doc-subtitle">SISTEMA INTEGRAL DE AUDITORÍA Y CONTROL CONTABLE</div>
+                </div>
+                <div style="text-align: right; font-size: 9px; font-family: monospace;">
+                  <div>DOC. OFICIAL N° <strong>CG-${selectedDate.replace(/-/g, '')}</strong></div>
+                  <div>EMISIÓN: ${horaEmision}</div>
+                </div>
+              </div>
+            </div>
+
+            <table class="meta-table">
+              <tr>
+                <td style="width: 25%;"><strong>FECHA CONTABLE:</strong><br>${diaSemanaCap}, ${fechaLarga}</td>
+                <td style="width: 25%;"><strong>TURNO OPERATIVO:</strong><br>${turnoJornada}</td>
+                <td style="width: 25%;"><strong>RESPONSABLE DE CAJA:</strong><br>${responsableCaja}</td>
+                <td style="width: 25%;"><strong>ESTADO DE CAJA:</strong><br>${estadoCaja}</td>
+              </tr>
+              <tr>
+                <td><strong>FONDO INICIAL CAJA:</strong><br>C$ ${fondoInicial.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                <td><strong>TOTAL INGRESOS BRUTOS:</strong><br>C$ ${totalGross.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                <td><strong>TOTAL EGRESOS DEL DÍA:</strong><br>C$ ${expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                <td><strong>GANANCIA NETA REAL:</strong><br><strong>C$ ${netProfit.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong></td>
+              </tr>
+            </table>
+
+            <div class="section-title">1. CONCILIACIÓN DE VENTAS POR CANAL DE COBRO (INGRESOS BRUTOS)</div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 28%;">CANAL / MÉTODO</th>
+                  <th style="width: 42%;">DETALLE OPERATIVO / INSTITUCIÓN</th>
+                  <th style="width: 18%;" class="text-right">TOTAL EN C$</th>
+                  <th style="width: 12%;" class="text-right">% DEL TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>💵 Ventas en Efectivo</strong></td>
+                  <td>Ingreso físico en gaveta de caja general</td>
+                  <td class="text-right font-mono">C$ ${salesCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-mono">${cashPct}%</td>
+                </tr>
+                <tr>
+                  <td rowspan="4"><strong>💳 Tarjetas POS (Datafast)</strong></td>
+                  <td>POS BAC Credomatic</td>
+                  <td class="text-right font-mono">C$ ${cardsBAC.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-mono">${bacPct}%</td>
+                </tr>
+                <tr>
+                  <td>POS Banco Ficohsa</td>
+                  <td class="text-right font-mono">C$ ${cardsFicohsa.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-mono">${ficoPct}%</td>
+                </tr>
+                <tr>
+                  <td>POS Banpro Grupo Promerica</td>
+                  <td class="text-right font-mono">C$ ${cardsBanpro.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-mono">${banproPct}%</td>
+                </tr>
+                <tr>
+                  <td>POS Banco LAFISE Bancentro</td>
+                  <td class="text-right font-mono">C$ ${cardsLafise.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-mono">${lafisePct}%</td>
+                </tr>
+                <tr style="background-color: #fafafa;">
+                  <td colspan="2" style="text-align: right; padding-right: 8px;"><strong>SUBTOTAL TODAS LAS TARJETAS POS:</strong></td>
+                  <td class="text-right font-mono font-bold">C$ ${totalCards.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-mono font-bold">${cardsPct}%</td>
+                </tr>
+                <tr>
+                  <td><strong>🛵 Delivery PedidosYa</strong></td>
+                  <td>Despachos de pedidos por aplicación digital externa</td>
+                  <td class="text-right font-mono">C$ ${salesPedidosYa.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-mono">${pedidosYaPct}%</td>
+                </tr>
+                <tr class="highlight-row">
+                  <td colspan="2"><strong>TOTAL VENTAS BRUTAS DEL DÍA (INGRESOS TOTALES)</strong></td>
+                  <td class="text-right font-mono" style="font-size: 10.5px;"><strong>C$ ${totalGross.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong></td>
+                  <td class="text-right font-mono"><strong>100.0%</strong></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="section-title">2. LIQUIDACIÓN OPERATIVA Y RENDIMIENTO NETO DEL DÍA</div>
+            <table>
+              <tbody>
+                <tr>
+                  <td style="width: 70%;"><strong>(+) Total Ventas Brutas Facturadas</strong> (Efectivo + Tarjetas + Delivery)</td>
+                  <td style="width: 30%;" class="text-right font-mono">C$ ${totalGross.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                </tr>
+                <tr>
+                  <td><strong>(-) Menos Egresos de Caja Chica del Día</strong> (Compras de insumos en efectivo y transferencias)</td>
+                  <td class="text-right font-mono">- C$ ${expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                </tr>
+                <tr class="highlight-row" style="font-size: 10.5px;">
+                  <td><strong>(=) GANANCIA NETA DEL DÍA (UTILIDAD LÍQUIDA DISPONIBLE)</strong></td>
+                  <td class="text-right font-mono"><strong>C$ ${netProfit.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Porcentaje de Margen Operativo Real</strong></td>
+                  <td class="text-right font-mono font-bold">${marginPercent.toFixed(1)}%</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="section-title">3. OBSERVACIONES / AUDITORÍA DEL TURNO</div>
+            <div style="border: 1px solid #000; padding: 4px 6px; font-size: 9px; min-height: 28px; background-color: #fff;">
+              ${observacionesClean || 'Jornada liquidada y conciliada conforme a los registros oficiales del sistema Bodegón Control.'}
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size: 8px; color: #444; margin-bottom: 5px; text-align: center;">
+              El presente documento constituye fe pública del cierre financiero del turno. Cualquier discrepancia debe reportarse a Gerencia de inmediato.
+            </div>
+            <div class="signatures">
+              <div class="sig-box">
+                <div style="height: 25px;"></div>
+                <div>
+                  <strong>CAJERO(A) / RESPONSABLE DEL TURNO</strong><br>
+                  <span style="font-size: 8px;">Nombre: ${responsableCaja}</span><br>
+                  <span style="font-size: 8px;">Firma y Cédula: ________________________</span>
+                </div>
+              </div>
+              <div class="sig-box">
+                <div style="height: 25px;"></div>
+                <div>
+                  <strong>ADMINISTRACIÓN / GERENCIA GENERAL</strong><br>
+                  <span style="font-size: 8px;">Revisado y Aprobado</span><br>
+                  <span style="font-size: 8px;">Firma y Sello: ________________________</span>
+                </div>
+              </div>
+            </div>
+            <div style="font-size: 7.5px; color: #666; text-align: center; margin-top: 5px;">
+              El Bodegón Restaurante & Bar • Documento Oficial B/N • ${modo === 'TODO' ? 'Página 1 de 2' : 'Página 1 de 1'}
+            </div>
+          </div>
+        </div>
+      `;
+
+      // HOJA 2: CAJA CHICA & GASTOS DETALLADOS
+      const sheet2Html = `
+        <div class="sheet">
+          <div>
+            <div class="header-box">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <div class="brand">EL BODEGÓN RESTAURANTE & BAR</div>
+                  <div class="doc-title">REPORTE DETALLADO DE COMPRAS, GASTOS & CAJA CHICA</div>
+                  <div class="doc-subtitle">CONTROL DIARIO DE INSUMOS, PROVEEDORES Y COMPROBANTES</div>
+                </div>
+                <div style="text-align: right; font-size: 9px; font-family: monospace;">
+                  <div>DOC. OFICIAL N° <strong>CC-${selectedDate.replace(/-/g, '')}</strong></div>
+                  <div>EMISIÓN: ${horaEmision}</div>
+                </div>
+              </div>
+            </div>
+
+            <table class="meta-table">
+              <tr>
+                <td style="width: 25%;"><strong>FECHA CONTABLE:</strong><br>${diaSemanaCap}, ${fechaLarga}</td>
+                <td style="width: 25%;"><strong>TOTAL MOVIMIENTOS:</strong><br>${dayGastos.length} compras / egresos</td>
+                <td style="width: 25%;"><strong>RESPONSABLE:</strong><br>${responsableCaja}</td>
+                <td style="width: 25%;"><strong>PAGOS EN EFECTIVO:</strong><br>C$ ${expensesCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+              </tr>
+              <tr>
+                <td><strong>FONDO INICIAL ASIGNADO:</strong><br>C$ ${fondoInicial.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                <td><strong>TRANSFERENCIAS BANCARIAS:</strong><br>C$ ${expensesTransf.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                <td><strong>PENDIENTES DE TRANSFERIR:</strong><br>C$ ${metricasGastosDia.pendientesMonto.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                <td><strong>SALDO RESTANTE EN GAVETA:</strong><br><strong>C$ ${saldoRemanente.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong></td>
+              </tr>
+            </table>
+
+            <div class="section-title">1. BALANCE Y LIQUIDACIÓN DEL FONDO DE CAJA CHICA</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>CONCEPTO DE FONDO Y MOVIMIENTOS</th>
+                  <th style="width: 25%;" class="text-right">IMPORTE (C$)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>(+) Fondo Inicial de Caja Chica Asignado para el Turno</td>
+                  <td class="text-right font-mono">C$ ${fondoInicial.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                </tr>
+                <tr>
+                  <td>(-) Total Compras y Gastos Pagados en Efectivo (Salidas de Gaveta)</td>
+                  <td class="text-right font-mono">- C$ ${expensesCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                </tr>
+                <tr style="background-color: #fafafa; font-weight: bold;">
+                  <td>(=) SALDO EFECTIVO RESTANTE EN GAVETA FÍSICA</td>
+                  <td class="text-right font-mono">C$ ${saldoRemanente.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                </tr>
+                <tr>
+                  <td>(+) Facturas y Compras Pagadas mediante Transferencia Bancaria</td>
+                  <td class="text-right font-mono">C$ ${expensesTransf.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                </tr>
+                <tr class="highlight-row">
+                  <td><strong>TOTAL GENERAL DE EGRESOS DEL DÍA (EFECTIVO + TRANSFERENCIAS)</strong></td>
+                  <td class="text-right font-mono" style="font-size: 10.5px;"><strong>C$ ${expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="section-title">2. RELACIÓN DETALLADA DE COMPRAS Y GASTOS REALIZADOS EN EL DÍA</div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 4%; text-align: center;">#</th>
+                  <th style="width: 9%; text-align: center;">HORA</th>
+                  <th style="width: 14%;">CATEGORÍA</th>
+                  <th style="width: 29%;">CONCEPTO / DETALLE EXACTO</th>
+                  <th style="width: 15%;">PROVEEDOR</th>
+                  <th style="width: 10%; text-align: center;">MÉTODO</th>
+                  <th style="width: 9%; text-align: center;">ESTADO</th>
+                  <th style="width: 10%;" class="text-right">MONTO (C$)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsGastosHtml}
+                <tr class="highlight-row">
+                  <td colspan="7" style="text-align: right; font-weight: bold;">TOTAL ACUMULADO DE COMPRAS / EGRESOS:</td>
+                  <td class="text-right font-mono font-bold" style="font-size: 10.5px;">C$ ${expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <div style="font-size: 8px; color: #444; margin-bottom: 5px; text-align: center;">
+              Certifico que cada una de las compras detalladas cuenta con factura, ticket o voucher bancario físico resguardado en archivo.
+            </div>
+            <div class="signatures">
+              <div class="sig-box">
+                <div style="height: 25px;"></div>
+                <div>
+                  <strong>RESPONSABLE DE COMPRAS / CAJA CHICA</strong><br>
+                  <span style="font-size: 8px;">Elaborado por: ${responsableCaja}</span><br>
+                  <span style="font-size: 8px;">Firma de Conformidad: ___________________</span>
+                </div>
+              </div>
+              <div class="sig-box">
+                <div style="height: 25px;"></div>
+                <div>
+                  <strong>GERENCIA / AUDITORÍA CONTABLE</strong><br>
+                  <span style="font-size: 8px;">Revisado y Aprobado</span><br>
+                  <span style="font-size: 8px;">Firma y Sello: ________________________</span>
+                </div>
+              </div>
+            </div>
+            <div style="font-size: 7.5px; color: #666; text-align: center; margin-top: 5px;">
+              El Bodegón Restaurante & Bar • Documento Oficial B/N • ${modo === 'TODO' ? 'Página 2 de 2' : 'Página 1 de 1'}
+            </div>
+          </div>
+        </div>
+      `;
+
+      let docBody = '';
+      if (modo === 'TODO') {
+        docBody = `${sheet1Html}${sheet2Html}`;
+      } else if (modo === 'GENERAL') {
+        docBody = sheet1Html;
+      } else if (modo === 'CHICA') {
+        docBody = sheet2Html;
+      }
+
+      const fullHtml = `
+        <!DOCTYPE html>
+        <html lang="es">
+        <head>
+          <meta charset="UTF-8">
+          <title>Acta Oficial El Bodegón - ${selectedDate}</title>
+          ${printStyles}
+        </head>
+        <body>
+          ${docBody}
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank', 'width=950,height=800');
+      if (printWindow) {
+        printWindow.document.write(fullHtml);
+        printWindow.document.close();
+      } else {
+        window.print();
+      }
+      setShowModalPrint(false);
+    } catch (err: any) {
+      alert('Error generando impresión: ' + err.message);
+    }
+  };
+
   return (
     <PinSecurityGate
       title="Bodegón Control"
@@ -665,6 +1189,18 @@ export default function BodegonControlPage() {
                 <span className="hidden md:inline">Volver al</span>
                 <span>Portal</span>
               </Link>
+
+              {/* Botón de Impresión Oficial B/N */}
+              <button
+                type="button"
+                onClick={() => setShowModalPrint(true)}
+                className="bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+                title="Imprimir Acta Oficial en Blanco y Negro (1 o 2 Hojas)"
+              >
+                <Printer className="w-4 h-4 text-stone-700" />
+                <span className="hidden sm:inline">🖨️ Imprimir Acta (B/N)</span>
+                <span className="sm:hidden">Imprimir</span>
+              </button>
 
               {/* Botón único de acción permitida */}
               <button
@@ -829,8 +1365,8 @@ export default function BodegonControlPage() {
               </div>
             </div>
 
-            {/* Controles Derecha: Día Siguiente y Botón de Volver a Hoy */}
-            <div className="flex items-center gap-2 justify-stretch shrink-0">
+            {/* Controles Derecha: Día Siguiente, Botón de Volver a Hoy e Imprimir */}
+            <div className="flex items-center gap-2 justify-stretch shrink-0 flex-wrap sm:flex-nowrap">
               <button
                 onClick={() => cambiarDia(1)}
                 className="flex-1 md:flex-initial flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer active:scale-95 border border-stone-300 shadow-2xs"
@@ -850,6 +1386,15 @@ export default function BodegonControlPage() {
                 title="Regresar a la fecha de hoy"
               >
                 <span>⚡ VER HOY</span>
+              </button>
+
+              <button
+                onClick={() => setShowModalPrint(true)}
+                className="px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center gap-2 bg-stone-900 hover:bg-black text-white border border-stone-800"
+                title="Imprimir Acta Oficial en Blanco y Negro de este día"
+              >
+                <Printer className="w-4.5 h-4.5 text-amber-400" />
+                <span>🖨️ IMPRIMIR DÍA</span>
               </button>
             </div>
           </div>
@@ -884,11 +1429,12 @@ export default function BodegonControlPage() {
                 </div>
 
                 <button
-                  onClick={() => window.print()}
-                  className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-stone-600 hover:text-stone-900 bg-white border border-stone-200 hover:bg-stone-50 px-3 py-1.5 rounded-xl shadow-2xs transition cursor-pointer"
+                  onClick={() => setShowModalPrint(true)}
+                  className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-stone-700 hover:text-stone-950 bg-white border border-stone-300 hover:bg-stone-50 px-3.5 py-2 rounded-xl shadow-2xs transition cursor-pointer"
+                  title="Imprimir Acta Oficial en Blanco y Negro"
                 >
-                  <Printer className="w-3.5 h-3.5 text-stone-500" />
-                  <span>Imprimir Resumen</span>
+                  <Printer className="w-4 h-4 text-stone-700" />
+                  <span>🖨️ Imprimir Acta (B/N)</span>
                 </button>
               </div>
 
@@ -1320,18 +1866,31 @@ export default function BodegonControlPage() {
                   </div>
                 </div>
 
-                <div className="relative flex-1 sm:max-w-xs">
-                  <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Buscar Gasto</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Concepto o proveedor..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-stone-900"
-                    />
-                    <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <div className="flex items-end gap-2 flex-1 sm:max-w-md">
+                  <div className="relative flex-1">
+                    <label className="block text-[10px] text-stone-500 font-bold uppercase mb-1">Buscar Gasto</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Concepto o proveedor..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-stone-900"
+                      />
+                      <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleImprimirActaOficial('CHICA')}
+                    className="flex items-center gap-1.5 text-xs font-bold text-stone-700 hover:text-stone-950 bg-stone-100 hover:bg-stone-200 border border-stone-300 px-3 py-1.5 rounded-xl transition cursor-pointer shadow-2xs whitespace-nowrap mb-0.5"
+                    title="Imprimir Acta Oficial de Caja Chica y Detalle de Compras en 1 Hoja B/N"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-stone-700" />
+                    <span className="hidden lg:inline">Imprimir Caja Chica (1 Hoja)</span>
+                    <span className="lg:hidden">Imprimir</span>
+                  </button>
                 </div>
               </div>
 
@@ -1944,6 +2503,130 @@ export default function BodegonControlPage() {
                     Cerrar Detalle
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── MODAL: SELECCIÓN DE IMPRESIÓN OFICIAL B/N (1 O 2 HOJAS) ───── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {showModalPrint && (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => setShowModalPrint(false)}
+          >
+            <div
+              className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-stone-900 text-white flex items-center justify-center text-xl shadow-md shrink-0">
+                    <Printer className="w-6 h-6 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg text-stone-900 leading-tight">
+                      Impresión Oficial en B/N
+                    </h3>
+                    <p className="text-xs text-stone-500">
+                      El Bodegón • Documentos para Archivo Físico & Firmas
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowModalPrint(false)}
+                  className="text-stone-400 hover:text-stone-700 p-1 rounded-xl hover:bg-stone-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Indicador de Fecha */}
+              <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3.5 mb-5 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider block">
+                    Fecha del Acta a Imprimir:
+                  </span>
+                  <span className="text-sm font-black text-stone-900 capitalize">
+                    {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-NI', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+                <span className="text-xs font-mono font-bold bg-white px-2.5 py-1 rounded-xl border border-amber-300 text-amber-950">
+                  {selectedDate}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {/* Opción 1: Acta Completa (2 Hojas) */}
+                <button
+                  onClick={() => handleImprimirActaOficial('TODO')}
+                  className="w-full text-left p-4 rounded-2xl border-2 border-stone-900 bg-stone-900 hover:bg-stone-800 text-white transition cursor-pointer flex items-center justify-between group shadow-sm"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-sm text-white">
+                        📑 IMPRIMIR ACTA COMPLETA (2 HOJAS B/N)
+                      </span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-400 text-stone-950">
+                        Recomendado
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-300 mt-1 leading-snug">
+                      Hoja 1: Caja General & Ventas (Arqueo, Tarjetas POS, Margen)
+                      <br />
+                      Hoja 2: Caja Chica & Detalle Exhaustivo de Compras del Día
+                    </p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition shrink-0" />
+                </button>
+
+                {/* Opción 2: Solo Hoja 1 */}
+                <button
+                  onClick={() => handleImprimirActaOficial('GENERAL')}
+                  className="w-full text-left p-4 rounded-2xl border border-stone-200 hover:border-stone-400 bg-stone-50 hover:bg-white text-stone-900 transition cursor-pointer flex items-center justify-between group"
+                >
+                  <div>
+                    <span className="font-black text-sm text-stone-900">
+                      💵 SOLO HOJA 1: CAJA GENERAL & VENTAS (1 HOJA)
+                    </span>
+                    <p className="text-[11px] text-stone-500 mt-0.5">
+                      Ingresos brutos, desglose BAC/Ficohsa/Banpro/Lafise, PedidosYa y utilidad líquida con firmas.
+                    </p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-stone-400 group-hover:translate-x-1 transition shrink-0" />
+                </button>
+
+                {/* Opción 3: Solo Hoja 2 */}
+                <button
+                  onClick={() => handleImprimirActaOficial('CHICA')}
+                  className="w-full text-left p-4 rounded-2xl border border-stone-200 hover:border-stone-400 bg-stone-50 hover:bg-white text-stone-900 transition cursor-pointer flex items-center justify-between group"
+                >
+                  <div>
+                    <span className="font-black text-sm text-stone-900">
+                      🛒 SOLO HOJA 2: CAJA CHICA & GASTOS DETALLADOS (1 HOJA)
+                    </span>
+                    <p className="text-[11px] text-stone-500 mt-0.5">
+                      Balance del fondo en gaveta y la relación detallada de cada compra/gasto individual con firmas.
+                    </p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-stone-400 group-hover:translate-x-1 transition shrink-0" />
+                </button>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
+                <span>Diseño B/N estricto para impresoras láser / térmicas</span>
+                <button
+                  onClick={() => setShowModalPrint(false)}
+                  className="px-4 py-2 font-bold text-stone-600 hover:text-stone-900 cursor-pointer"
+                >
+                  Cancelar
+                </button>
               </div>
             </div>
           </div>
