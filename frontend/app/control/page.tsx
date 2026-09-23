@@ -111,6 +111,7 @@ export default function BodegonControlPage() {
   const [filtroMetodo, setFiltroMetodo] = useState<'TODOS' | 'EFECTIVO' | 'TRANSFERENCIA'>('TODOS');
   const [filtroEstado, setFiltroEstado] = useState<'TODOS' | 'PAGADO' | 'PENDIENTE_TRANSFERENCIA'>('TODOS');
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortChronological, setSortChronological] = useState<boolean>(true); // true = Cronológico (Mañana ➔ Noche, como en Excel)
 
   // Modales de funciones
   const [showModalGasto, setShowModalGasto] = useState(false);
@@ -466,26 +467,59 @@ export default function BodegonControlPage() {
     });
   }, [gastos, selectedDate, filtroCategoria, filtroMetodo, filtroEstado, searchTerm]);
 
-  // Métricas del día seleccionado para gastos
+  // Helper para parsear la composición de fondos iniciales
+  const parseFondosComposition = useCallback((obs?: string | null, fallbackFondoInicial: number = 0) => {
+    if (obs) {
+      const match = obs.match(/\[FONDOS_COMPOSITION:(\{.*?\})\]/);
+      if (match && match[1]) {
+        try {
+          const parsed = JSON.parse(match[1]);
+          return {
+            previousDayRemaining: Number(parsed.previousDayRemaining) || 0,
+            generalCashTransfer: Number(parsed.generalCashTransfer) || 0,
+            bossContribution: Number(parsed.bossContribution) || 0,
+          };
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return {
+      previousDayRemaining: 0,
+      generalCashTransfer: 0,
+      bossContribution: fallbackFondoInicial,
+    };
+  }, []);
+
+  // Métricas del día seleccionado para gastos (desglose claro de efectivo vs banco)
   const metricasGastosDia = useMemo(() => {
     let totEfectivo = 0;
     let totTransf = 0;
+    let totFondeosExtras = 0;
     let pendientesCount = 0;
     let pendientesMonto = 0;
 
     const gastosDelDia = gastos.filter((g) => g.fecha_hora.slice(0, 10) === selectedDate);
     gastosDelDia.forEach((g) => {
       const m = Number(g.monto) || 0;
-      if (g.metodo_pago === 'EFECTIVO') totEfectivo += m;
-      if (g.metodo_pago === 'TRANSFERENCIA') totTransf += m;
-      if (g.estado_pago === 'PENDIENTE_TRANSFERENCIA') {
-        pendientesCount++;
-        pendientesMonto += m;
+      if (g.tipo === 'INGRESO_FONDEO') {
+        totFondeosExtras += m;
+      } else if (g.metodo_pago === 'TRANSFERENCIA') {
+        totTransf += m;
+        if (g.estado_pago === 'PENDIENTE_TRANSFERENCIA') {
+          pendientesCount++;
+          pendientesMonto += m;
+        }
+      } else {
+        totEfectivo += m;
       }
     });
 
-    const fondoCaja = Number(selectedDayData.jornada?.fondo_inicial || 0);
-    const saldoEfectivoRestante = fondoCaja - totEfectivo;
+    const jornada = selectedDayData.jornada;
+    const fondoInicial = Number(jornada?.fondo_inicial || 0);
+    const fondosComp = parseFondosComposition(jornada?.observaciones, fondoInicial);
+    const totalEntradas = fondoInicial + totFondeosExtras;
+    const saldoEfectivoRestante = totalEntradas - totEfectivo;
 
     return {
       total: totEfectivo + totTransf,
@@ -493,10 +527,178 @@ export default function BodegonControlPage() {
       transferencia: totTransf,
       pendientesCount,
       pendientesMonto,
-      fondoCaja,
+      fondoCaja: fondoInicial,
+      fondosComp,
+      totFondeosExtras,
+      totalEntradas,
       saldoEfectivoRestante,
     };
-  }, [gastos, selectedDate, selectedDayData]);
+  }, [gastos, selectedDate, selectedDayData, parseFondosComposition]);
+
+  // Libro Diario Contable estilo Excel (orden cronológico con running balance de gaveta)
+  const ledgerItems = useMemo(() => {
+    const jornada = selectedDayData.jornada;
+    const fondoInicial = Number(jornada?.fondo_inicial || 0);
+    const fondosComp = parseFondosComposition(jornada?.observaciones, fondoInicial);
+
+    const rows: {
+      id: string;
+      isOpening?: boolean;
+      hora: string;
+      concepto: string;
+      categoriaEmoji?: string;
+      categoriaLabel?: string;
+      proveedor?: string;
+      tipoPago: 'EFECTIVO' | 'TRANSFERENCIA' | '-';
+      montoTotalBanco: number | null;
+      reembolsoCajaChica: number | null;
+      gastosCajaChica: number | null;
+      saldoGaveta: number;
+      registradoPor?: string;
+      referenciaBanco?: string;
+      fotoComprobante?: string | null;
+      rawGasto?: CompraGasto;
+    }[] = [];
+
+    let runningSaldo = 0;
+
+    // 1. Filas de apertura de caja
+    if (jornada) {
+      if (fondosComp.previousDayRemaining > 0) {
+        runningSaldo = fondosComp.previousDayRemaining;
+        rows.push({
+          id: 'apertura-anterior',
+          isOpening: true,
+          hora: '08:00 AM',
+          concepto: 'Fondo de caja anterior (Sobrante de ayer)',
+          tipoPago: '-',
+          montoTotalBanco: null,
+          reembolsoCajaChica: null,
+          gastosCajaChica: null,
+          saldoGaveta: runningSaldo,
+          registradoPor: jornada.responsable || 'Apertura',
+        });
+
+        const depositoApertura = fondosComp.bossContribution + fondosComp.generalCashTransfer;
+        if (depositoApertura > 0) {
+          runningSaldo += depositoApertura;
+          rows.push({
+            id: 'apertura-deposito',
+            isOpening: true,
+            hora: '08:15 AM',
+            concepto: 'Depósito a caja chica (Aporte inicial)',
+            tipoPago: 'EFECTIVO',
+            montoTotalBanco: null,
+            reembolsoCajaChica: depositoApertura,
+            gastosCajaChica: null,
+            saldoGaveta: runningSaldo,
+            registradoPor: jornada.responsable || 'Apertura',
+          });
+        }
+      } else if (fondoInicial > 0) {
+        runningSaldo = fondoInicial;
+        rows.push({
+          id: 'apertura-inicial',
+          isOpening: true,
+          hora: 'Apertura',
+          concepto: 'Depósito / Fondo asignado de apertura',
+          tipoPago: 'EFECTIVO',
+          montoTotalBanco: null,
+          reembolsoCajaChica: fondoInicial,
+          gastosCajaChica: null,
+          saldoGaveta: runningSaldo,
+          registradoPor: jornada.responsable || 'Apertura',
+        });
+      }
+    }
+
+    // 2. Transacciones del día ordenadas cronológicamente para calcular el saldo histórico
+    const dayGastos = gastos
+      .filter((g) => g.fecha_hora.slice(0, 10) === selectedDate)
+      .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));
+
+    for (const g of dayGastos) {
+      const monto = Number(g.monto) || 0;
+      const isTransfer = g.metodo_pago === 'TRANSFERENCIA';
+      const isFondeo = g.tipo === 'INGRESO_FONDEO';
+
+      let montoTotalBanco: number | null = null;
+      let reembolsoCajaChica: number | null = null;
+      let gastosCajaChica: number | null = null;
+
+      if (isFondeo) {
+        reembolsoCajaChica = monto;
+        runningSaldo += monto;
+      } else if (isTransfer) {
+        montoTotalBanco = monto;
+        // La transferencia no altera el efectivo físico en gaveta
+      } else {
+        gastosCajaChica = monto;
+        runningSaldo -= monto;
+      }
+
+      const catDef = CATEGORIAS_GASTO.find((c) => c.id === g.categoria) || {
+        emoji: '📝',
+        label: g.categoria,
+        badgeClass: '',
+      };
+
+      const horaStr = new Date(g.fecha_hora).toLocaleTimeString('es-NI', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+
+      // Filtros
+      let matches = true;
+      if (filtroCategoria !== 'TODAS' && g.categoria !== filtroCategoria) matches = false;
+      if (filtroMetodo !== 'TODOS' && g.metodo_pago !== filtroMetodo) matches = false;
+      if (filtroEstado !== 'TODOS' && g.estado_pago !== filtroEstado) matches = false;
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const m1 = g.concepto.toLowerCase().includes(term);
+        const m2 = g.proveedor?.toLowerCase().includes(term);
+        const m3 = g.registrado_por.toLowerCase().includes(term);
+        if (!m1 && !m2 && !m3) matches = false;
+      }
+
+      if (matches) {
+        rows.push({
+          id: `gasto-${g.id}`,
+          hora: horaStr,
+          concepto: g.concepto,
+          categoriaEmoji: catDef.emoji,
+          categoriaLabel: catDef.label,
+          proveedor: g.proveedor || undefined,
+          tipoPago: isTransfer ? 'TRANSFERENCIA' : 'EFECTIVO',
+          montoTotalBanco,
+          reembolsoCajaChica,
+          gastosCajaChica,
+          saldoGaveta: runningSaldo,
+          registradoPor: g.registrado_por,
+          referenciaBanco: g.referencia_banco || undefined,
+          fotoComprobante: g.foto_comprobante || null,
+          rawGasto: g,
+        });
+      }
+    }
+
+    if (!sortChronological) {
+      return [...rows].reverse();
+    }
+
+    return rows;
+  }, [
+    selectedDayData,
+    selectedDate,
+    gastos,
+    sortChronological,
+    filtroCategoria,
+    filtroMetodo,
+    filtroEstado,
+    searchTerm,
+    parseFondosComposition,
+  ]);
 
   // Manejo de foto del comprobante
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1756,71 +1958,99 @@ export default function BodegonControlPage() {
           )}
 
           {/* ══════════════════════════════════════════════════════════════════ */}
-          {/* ── TAB 2: GASTOS & CAJA CHICA (CON CONTROL DE COMPROBANTES) ──── */}
+          {/* ── TAB 2: LIBRO DIARIO DE CAJA CHICA & CONTROL DE GASTOS (EXCEL) ─ */}
           {/* ══════════════════════════════════════════════════════════════════ */}
           {activeTab === 'GASTOS' && (
             <div className="space-y-4 animate-in fade-in duration-150">
-              {/* Tarjetas KPI de Gastos */}
+              {/* 1. Tarjetas KPI Desglosadas con Regla Estricta de Gaveta */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {/* Tarjeta 1: Fondo Asignado */}
                 <div className="bg-white border border-stone-200/90 rounded-2xl p-4 shadow-2xs">
                   <div className="flex items-center justify-between gap-2 text-stone-500 text-xs font-bold uppercase tracking-wider">
-                    <span>Total Gastos del Día</span>
-                    <TrendingDown className="w-4 h-4 text-stone-700" />
+                    <span>1. Fondo Asignado (Apertura)</span>
+                    <Wallet className="w-4 h-4 text-stone-600" />
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
                     <span className="text-2xl font-black font-mono text-stone-900">
-                      C$ {metricasGastosDia.total.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                      C$ {metricasGastosDia.fondoCaja.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
-                  <p className="text-[11px] text-stone-400 mt-1">Efectivo + Transferencias</p>
-                </div>
-
-                <div className="bg-white border border-emerald-200/90 rounded-2xl p-4 shadow-2xs">
-                  <div className="flex items-center justify-between gap-2 text-emerald-800 text-xs font-bold uppercase tracking-wider">
-                    <span>Efectivo (Caja Chica)</span>
-                    <Banknote className="w-4 h-4 text-emerald-700" />
-                  </div>
-                  <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black font-mono text-emerald-700">
-                      C$ {metricasGastosDia.efectivo.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-emerald-600 mt-1">
-                    Fondo inicial: C$ {metricasGastosDia.fondoCaja.toLocaleString('es-NI')} • Restante: C${' '}
-                    {metricasGastosDia.saldoEfectivoRestante.toLocaleString('es-NI')}
+                  <p className="text-[11px] text-stone-500 mt-1">
+                    {metricasGastosDia.fondosComp.previousDayRemaining > 0
+                      ? `Ayer: C$ ${metricasGastosDia.fondosComp.previousDayRemaining.toLocaleString('es-NI')} + Depósito: C$ ${(metricasGastosDia.fondosComp.bossContribution + metricasGastosDia.fondosComp.generalCashTransfer).toLocaleString('es-NI')}`
+                      : 'Fondo total de apertura de jornada'}
                   </p>
                 </div>
 
-                <div className="bg-white border border-sky-200/90 rounded-2xl p-4 shadow-2xs">
-                  <div className="flex items-center justify-between gap-2 text-sky-800 text-xs font-bold uppercase tracking-wider">
-                    <span>Transferencias</span>
-                    <Send className="w-4 h-4 text-sky-700" />
+                {/* Tarjeta 2: Egresos en Efectivo */}
+                <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-2xs bg-rose-50/20">
+                  <div className="flex items-center justify-between gap-2 text-rose-800 text-xs font-black uppercase tracking-wider">
+                    <span>2. Egresos en Efectivo (🔴 Gaveta)</span>
+                    <Banknote className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black font-mono text-rose-700">
+                      -C$ {metricasGastosDia.efectivo.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-rose-600 mt-1 font-bold">
+                    Salidas físicas reales de la gaveta de compras
+                  </p>
+                </div>
+
+                {/* Tarjeta 3: Pagos por Transferencia */}
+                <div className="bg-white border border-sky-200 rounded-2xl p-4 shadow-2xs bg-sky-50/20">
+                  <div className="flex items-center justify-between gap-2 text-sky-800 text-xs font-black uppercase tracking-wider">
+                    <span>3. Pagos por Transferencia (🏦 Banco)</span>
+                    <Send className="w-4 h-4 text-sky-600" />
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
                     <span className="text-2xl font-black font-mono text-sky-700">
                       C$ {metricasGastosDia.transferencia.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
-                  <p className="text-[11px] text-sky-600 mt-1">Pagos bancarios directos</p>
+                  <p className="text-[11px] text-sky-700 mt-1 font-bold">
+                    Cuenta bancaria • <span className="underline">NO resta dinero de la gaveta</span>
+                  </p>
                 </div>
 
-                <div className="bg-white border border-amber-200/90 rounded-2xl p-4 shadow-2xs">
-                  <div className="flex items-center justify-between gap-2 text-amber-800 text-xs font-bold uppercase tracking-wider">
-                    <span>Pendientes Transferir</span>
-                    <Clock className="w-4 h-4 text-amber-700" />
+                {/* Tarjeta 4: Efectivo Físico en Gaveta */}
+                <div className="bg-white border-2 border-emerald-400 rounded-2xl p-4 shadow-sm bg-emerald-50/40">
+                  <div className="flex items-center justify-between gap-2 text-emerald-900 text-xs font-black uppercase tracking-wider">
+                    <span>4. Efectivo Físico en Gaveta (✅ En Mano)</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black font-mono text-amber-700">
-                      C$ {metricasGastosDia.pendientesMonto.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                    <span className="text-2xl font-black font-mono text-emerald-800">
+                      C$ {metricasGastosDia.saldoEfectivoRestante.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
-                  <p className="text-[11px] text-amber-600 mt-1">
-                    {metricasGastosDia.pendientesCount} pago{metricasGastosDia.pendientesCount !== 1 ? 's' : ''} por emitir
+                  <p className="text-[11px] text-emerald-700 mt-1 font-bold">
+                    Dinero real en billetes y monedas en mano
                   </p>
                 </div>
               </div>
 
-              {/* Filtros de Gastos */}
+              {/* Barra Informativa de Compras Consolidadas */}
+              <div className="bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 text-stone-700 font-bold">
+                  <span>🛒</span>
+                  <span>Compras Totales de la Empresa:</span>
+                  <span className="font-mono font-black text-stone-900 text-sm">
+                    C$ {metricasGastosDia.total.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-[11px] text-stone-500 font-normal">
+                    (C$ {metricasGastosDia.efectivo.toLocaleString('es-NI')} en efectivo + C$ {metricasGastosDia.transferencia.toLocaleString('es-NI')} por banco)
+                  </span>
+                </div>
+                {metricasGastosDia.pendientesCount > 0 && (
+                  <div className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300">
+                    ⚠️ {metricasGastosDia.pendientesCount} transferencia(s) pendiente(s) por emitir (C$ {metricasGastosDia.pendientesMonto.toLocaleString('es-NI')})
+                  </div>
+                )}
+              </div>
+
+              {/* Filtros y Opciones */}
               <div className="bg-white border border-stone-200/90 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <div>
@@ -1847,8 +2077,8 @@ export default function BodegonControlPage() {
                       className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900"
                     >
                       <option value="TODOS">Todos</option>
-                      <option value="EFECTIVO">Efectivo</option>
-                      <option value="TRANSFERENCIA">Transferencia</option>
+                      <option value="EFECTIVO">💵 Solo Efectivo (Gaveta)</option>
+                      <option value="TRANSFERENCIA">🏦 Solo Transferencias (Banco)</option>
                     </select>
                   </div>
 
@@ -1860,8 +2090,8 @@ export default function BodegonControlPage() {
                       className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900"
                     >
                       <option value="TODOS">Todos</option>
-                      <option value="PAGADO">Pagado</option>
-                      <option value="PENDIENTE_TRANSFERENCIA">Pendiente</option>
+                      <option value="PAGADO">✓ Pagado</option>
+                      <option value="PENDIENTE_TRANSFERENCIA">⚠️ Falta Transferir</option>
                     </select>
                   </div>
                 </div>
@@ -1875,7 +2105,7 @@ export default function BodegonControlPage() {
                         placeholder="Concepto o proveedor..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-stone-900"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-stone-900 font-medium"
                       />
                       <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                     </div>
@@ -1894,137 +2124,215 @@ export default function BodegonControlPage() {
                 </div>
               </div>
 
-              {/* Tabla de Compras & Gastos */}
-              <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xs overflow-hidden">
+              {/* ══════════════════════════════════════════════════════════════════ */}
+              {/* ── LIBRO DIARIO CONTABLE ESTILO EXCEL (IDÉNTICO A HOJA DE CÁLCULO) */}
+              {/* ══════════════════════════════════════════════════════════════════ */}
+              <div className="bg-white border-2 border-stone-300 rounded-2xl shadow-sm overflow-hidden font-sans">
+                {/* Cabecera superior del Libro Diario estilo Hoja de Cálculo */}
+                <div className="bg-stone-800 text-white px-5 py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b-2 border-stone-700">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">📊</span>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm md:text-base font-black uppercase tracking-wider text-amber-400">
+                          {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-NI', { weekday: 'long', day: '2-digit', month: '2-digit', year: '2-digit' }).toUpperCase()}
+                        </h3>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-stone-700 text-stone-200 border border-stone-600">
+                          LIBRO DIARIO DE CAJA CHICA
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-300 mt-0.5">
+                        Arqueo y control continuo de gastos físicos en gaveta vs pagos bancarios
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Switch de orden cronológico y botón de registrar */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setSortChronological(!sortChronological)}
+                      className="px-3 py-1.5 rounded-xl bg-stone-700 hover:bg-stone-600 text-stone-200 text-xs font-bold flex items-center gap-1.5 transition border border-stone-600 cursor-pointer"
+                      title="Cambiar orden de las filas"
+                    >
+                      <span>{sortChronological ? '⏱️ Mañana ➔ Noche (Excel)' : '🔻 Más reciente primero'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowModalGasto(true)}
+                      className="bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>+ Registrar Compra</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tabla de Excel con bordes nítidos de celdas */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="bg-stone-50/80 border-b border-stone-200 text-stone-500 uppercase text-[10px] font-bold">
-                        <th className="py-3 px-4">Hora</th>
-                        <th className="py-3 px-4">Categoría</th>
-                        <th className="py-3 px-4">Concepto / Detalle</th>
-                        <th className="py-3 px-4">Proveedor</th>
-                        <th className="py-3 px-4 text-right">Monto (C$)</th>
-                        <th className="py-3 px-4">Método</th>
-                        <th className="py-3 px-4">Estado</th>
-                        <th className="py-3 px-4">Registrado Por</th>
-                        <th className="py-3 px-4 text-center">Ticket</th>
-                        <th className="py-3 px-4 text-right">Acciones</th>
+                      <tr className="bg-stone-100 border-b-2 border-stone-300 text-stone-800 font-black uppercase tracking-wider text-[11px]">
+                        <th className="py-2.5 px-3 border-r border-stone-300 text-center w-14"># / Hora</th>
+                        <th className="py-2.5 px-4 border-r border-stone-300 min-w-[240px]">Concepto</th>
+                        <th className="py-2.5 px-3 border-r border-stone-300 text-center min-w-[130px]">TIPO DE PAGO</th>
+                        <th className="py-2.5 px-3 border-r border-stone-300 text-right min-w-[125px] bg-sky-50/60">MONTO TOTAL</th>
+                        <th className="py-2.5 px-3 border-r border-stone-300 text-right min-w-[130px] bg-emerald-50/60">Reemb. A Caja Chica</th>
+                        <th className="py-2.5 px-3 border-r border-stone-300 text-right min-w-[125px] bg-rose-50/60">Gastos Caja Ch.</th>
+                        <th className="py-2.5 px-4 border-r border-stone-300 text-right min-w-[135px] bg-amber-50/70 font-black text-stone-900">Saldo</th>
+                        <th className="py-2.5 px-3 text-center w-20">Acciones</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-stone-100 text-stone-700">
-                      {gastosFiltrados.length === 0 ? (
+                    <tbody className="divide-y divide-stone-200 text-stone-800 font-sans">
+                      {ledgerItems.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="py-12 text-center text-stone-400">
-                            <span className="text-4xl block mb-2">🛒</span>
-                            <p className="font-black text-stone-800 text-sm">
-                              No hay compras ni gastos registrados para el {selectedDate === hoyStr ? 'día de hoy' : `día ${selectedDate}`}.
-                            </p>
-                            <p className="text-xs text-stone-500 mt-1">
-                              {selectedDate === hoyStr
-                                ? 'Usa el botón "+ Registrar Gasto" arriba para ingresar una nueva compra de hoy.'
-                                : 'Puedes usar las flechas del selector para navegar a otra fecha o presionar "⚡ VER HOY".'}
+                          <td colSpan={8} className="py-12 text-center text-stone-400">
+                            <span className="text-4xl block mb-2">📋</span>
+                            <p className="font-black text-stone-700 text-sm">
+                              No hay movimientos registrados para el {selectedDate}.
                             </p>
                           </td>
                         </tr>
                       ) : (
-                        gastosFiltrados.map((g) => {
-                          const catConfig = CATEGORIAS_GASTO.find((c) => c.id === g.categoria) || {
-                            emoji: '📝',
-                            label: g.categoria,
-                            badgeClass: 'bg-stone-100 text-stone-700 border-stone-200',
-                          };
-
-                          const horaStr = new Date(g.fecha_hora).toLocaleTimeString('es-NI', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true,
-                          });
-
-                          const esPendiente = g.estado_pago === 'PENDIENTE_TRANSFERENCIA';
+                        ledgerItems.map((item, idx) => {
+                          const isOpening = item.isOpening;
+                          const isTransfer = item.tipoPago === 'TRANSFERENCIA';
 
                           return (
                             <tr
-                              key={g.id}
-                              className={`hover:bg-stone-50/70 transition-colors ${
-                                esPendiente ? 'bg-amber-50/40' : ''
+                              key={item.id}
+                              className={`transition-colors border-b border-stone-200 ${
+                                isOpening
+                                  ? 'bg-amber-50/40 font-semibold'
+                                  : isTransfer
+                                  ? 'bg-sky-50/20 hover:bg-sky-50/40'
+                                  : 'hover:bg-stone-50'
                               }`}
                             >
-                              <td className="py-3 px-4 font-mono text-stone-500">{horaStr}</td>
-                              <td className="py-3 px-4">
-                                <span
-                                  className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md border ${catConfig.badgeClass}`}
-                                >
-                                  <span>{catConfig.emoji}</span>
-                                  <span>{catConfig.label}</span>
-                                </span>
+                              {/* # / Hora */}
+                              <td className="py-2.5 px-3 border-r border-stone-200 font-mono text-center text-[11px] text-stone-500">
+                                {isOpening ? '🏁' : item.hora}
                               </td>
-                              <td className="py-3 px-4 font-bold text-stone-900 max-w-xs truncate">
-                                {g.concepto}
-                                {g.referencia_banco && (
-                                  <span className="block text-[10px] text-stone-400 font-mono font-normal">
-                                    Ref: {g.referencia_banco}
-                                  </span>
+
+                              {/* Concepto */}
+                              <td className="py-2.5 px-4 border-r border-stone-200 font-bold text-stone-900">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {item.categoriaEmoji && <span>{item.categoriaEmoji}</span>}
+                                  <span>{item.concepto}</span>
+                                </div>
+                                {item.proveedor && (
+                                  <div className="text-[10px] text-stone-500 font-normal mt-0.5">
+                                    Proveedor: <span className="font-semibold text-stone-700">{item.proveedor}</span>
+                                    {item.referenciaBanco && (
+                                      <span className="ml-2 font-mono text-stone-400">Ref: {item.referenciaBanco}</span>
+                                    )}
+                                  </div>
                                 )}
                               </td>
-                              <td className="py-3 px-4 text-stone-600">
-                                {g.proveedor || <span className="text-stone-300">-</span>}
-                              </td>
-                              <td className="py-3 px-4 text-right font-mono font-black text-stone-900 text-sm">
-                                C$ {Number(g.monto).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                              </td>
-                              <td className="py-3 px-4">
-                                <span
-                                  className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${
-                                    g.metodo_pago === 'EFECTIVO'
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                      : 'bg-sky-50 text-sky-700 border-sky-200'
-                                  }`}
-                                >
-                                  {g.metodo_pago === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <button
-                                  onClick={() => handleToggleEstadoTransferencia(g)}
-                                  title="Clic para cambiar estado"
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border cursor-pointer ${
-                                    esPendiente
-                                      ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse'
-                                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                  }`}
-                                >
-                                  {esPendiente ? '⚠️ Falta Transferir' : '✓ Pagado'}
-                                </button>
-                              </td>
-                              <td className="py-3 px-4 text-stone-500">{g.registrado_por}</td>
-                              <td className="py-3 px-4 text-center">
-                                {g.foto_comprobante ? (
-                                  <button
-                                    onClick={() => setFotoModalUrl(g.foto_comprobante!)}
-                                    className="bg-stone-100 hover:bg-stone-200 text-stone-700 p-1.5 rounded-lg border border-stone-300 cursor-pointer transition"
-                                    title="Ver comprobante"
-                                  >
-                                    <Camera className="w-3.5 h-3.5 text-amber-600" />
-                                  </button>
+
+                              {/* TIPO DE PAGO */}
+                              <td className="py-2.5 px-3 border-r border-stone-200 text-center font-bold text-[11px]">
+                                {isTransfer ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100 text-sky-900 border border-sky-300">
+                                    <span>🏦</span>
+                                    <span>Transferencia</span>
+                                  </span>
+                                ) : item.tipoPago === 'EFECTIVO' ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 border border-stone-200 font-mono">
+                                    <span>💵</span>
+                                    <span>Efectivo</span>
+                                  </span>
                                 ) : (
                                   <span className="text-stone-300">-</span>
                                 )}
                               </td>
-                              <td className="py-3 px-4 text-right">
-                                <button
-                                  onClick={() => handleEliminarGasto(g)}
-                                  className="text-stone-400 hover:text-rose-600 p-1 transition-colors cursor-pointer"
-                                  title="Eliminar gasto"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+
+                              {/* MONTO TOTAL (Banco) */}
+                              <td className="py-2.5 px-3 border-r border-stone-200 text-right font-mono font-bold text-[12px] bg-sky-50/20 text-sky-900">
+                                {item.montoTotalBanco !== null ? (
+                                  `C$ ${item.montoTotalBanco.toLocaleString('es-NI', { minimumFractionDigits: 2 })}`
+                                ) : (
+                                  <span className="text-stone-300 font-normal">-</span>
+                                )}
+                              </td>
+
+                              {/* Reemb. A Caja Chica (Entradas / Depósitos) */}
+                              <td className="py-2.5 px-3 border-r border-stone-200 text-right font-mono font-bold text-[12px] bg-emerald-50/20 text-emerald-800">
+                                {item.reembolsoCajaChica !== null ? (
+                                  `C$ ${item.reembolsoCajaChica.toLocaleString('es-NI', { minimumFractionDigits: 2 })}`
+                                ) : (
+                                  <span className="text-stone-300 font-normal">-</span>
+                                )}
+                              </td>
+
+                              {/* Gastos Caja Ch. (Salidas de Gaveta) */}
+                              <td className="py-2.5 px-3 border-r border-stone-200 text-right font-mono font-bold text-[12px] bg-rose-50/20 text-rose-800">
+                                {item.gastosCajaChica !== null ? (
+                                  `C$ ${item.gastosCajaChica.toLocaleString('es-NI', { minimumFractionDigits: 2 })}`
+                                ) : (
+                                  <span className="text-stone-300 font-normal">-</span>
+                                )}
+                              </td>
+
+                              {/* Saldo (Running Balance de Gaveta) */}
+                              <td className="py-2.5 px-4 border-r border-stone-200 text-right font-mono font-black text-sm bg-amber-50/30 text-stone-900">
+                                C$ {item.saldoGaveta.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                              </td>
+
+                              {/* Acciones */}
+                              <td className="py-2.5 px-3 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  {item.fotoComprobante && (
+                                    <button
+                                      onClick={() => setFotoModalUrl(item.fotoComprobante!)}
+                                      className="p-1 rounded hover:bg-stone-200 text-amber-700 cursor-pointer"
+                                      title="Ver Comprobante / Recibo"
+                                    >
+                                      <Camera className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  {item.rawGasto && (
+                                    <button
+                                      onClick={() => handleEliminarGasto(item.rawGasto!)}
+                                      className="p-1 rounded hover:bg-rose-100 text-stone-400 hover:text-rose-600 cursor-pointer"
+                                      title="Eliminar este gasto"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  {isOpening && <span className="text-[10px] text-stone-400 font-mono">Fijo</span>}
+                                </div>
                               </td>
                             </tr>
                           );
                         })
                       )}
                     </tbody>
+
+                    {/* Fila de Totales estilo Balance de Excel */}
+                    <tfoot>
+                      <tr className="bg-stone-100 border-t-2 border-stone-400 text-stone-900 font-black text-xs">
+                        <td colSpan={3} className="py-3 px-4 border-r border-stone-300 text-right uppercase tracking-wider">
+                          TOTALES DEL DÍA:
+                        </td>
+                        <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-sky-100/70 text-sky-950 font-black">
+                          C$ {metricasGastosDia.transferencia.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-emerald-100/70 text-emerald-950 font-black">
+                          C$ {metricasGastosDia.totalEntradas.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-rose-100/70 text-rose-950 font-black">
+                          C$ {metricasGastosDia.efectivo.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4 border-r border-stone-300 text-right font-mono text-base bg-emerald-200/90 text-emerald-950 font-black ring-2 ring-emerald-500/50">
+                          C$ {metricasGastosDia.saldoEfectivoRestante.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-3 text-center bg-stone-100 text-[10px] text-stone-500 font-bold">
+                          Arqueo
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>
