@@ -1056,7 +1056,7 @@ export default function NominaAdminPage() {
   }, [horasExtra]);
 
   const horasExtraFiltradas = useMemo(() => {
-    let list = [...horasExtra];
+    let list = horasExtra.filter((item) => item.estado === 'PENDIENTE');
     if (deferredSearchExtra.trim()) {
       const term = deferredSearchExtra.toLowerCase().trim();
       list = list.filter((item) => {
@@ -2009,7 +2009,7 @@ export default function NominaAdminPage() {
                     <span>{separarPorDiaExtras ? 'Separadores por Día: ACTIVADOS' : 'Lista Continua'}</span>
                   </button>
                   <span className="text-xs text-stone-500 font-medium whitespace-nowrap">
-                    Mostrando <strong className="text-stone-800">{horasExtraFiltradas.length}</strong> solicitud{horasExtraFiltradas.length !== 1 ? 'es' : ''}
+                    Mostrando <strong className="text-stone-800">{horasExtraFiltradas.length}</strong> solicitud{horasExtraFiltradas.length !== 1 ? 'es' : ''} pendiente{horasExtraFiltradas.length !== 1 ? 's' : ''}
                   </span>
                 </div>
               </div>
@@ -2037,8 +2037,12 @@ export default function NominaAdminPage() {
                         </tr>
                       ) : horasExtraFiltradas.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-8 text-center text-stone-400 font-normal">
-                            No hay solicitudes de horas extra registradas en el sistema.
+                          <td colSpan={6} className="px-6 py-12 text-center text-stone-400 font-normal">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <CheckCircle className="w-10 h-10 text-emerald-500" />
+                              <span className="font-bold text-stone-700 text-sm">¡Al día! No hay solicitudes de horas extra pendientes.</span>
+                              <span className="text-xs text-stone-500">Todas las solicitudes han sido resueltas. Puedes ver las aprobadas en la pestaña &quot;Por Pagar (Aprobadas)&quot;.</span>
+                            </div>
                           </td>
                         </tr>
                       ) : separarPorDiaExtras ? (
@@ -2067,7 +2071,7 @@ export default function NominaAdminPage() {
                                     )}
                                   </div>
                                   <span className="text-[11px] font-bold text-[#1c6856] bg-white px-2.5 py-1 rounded-lg border border-stone-200 shadow-2xs">
-                                    {grupo.registros.length} solicitud{grupo.registros.length !== 1 ? 'es' : ''}
+                                    {grupo.registros.length} pendiente{grupo.registros.length !== 1 ? 's' : ''}
                                   </span>
                                 </div>
                               </td>
@@ -2084,16 +2088,16 @@ export default function NominaAdminPage() {
                       <tfoot className="bg-[#1c6856]/5 border-t-2 border-[#1c6856]/30 font-bold text-stone-800">
                         <tr>
                           <td colSpan={2} className="px-6 py-3.5 text-right font-bold uppercase text-xs tracking-wider text-stone-600">
-                            Total Solicitudes en Lista:
+                            Total Pendiente por Evaluar:
                           </td>
                           <td className="px-6 py-3.5 text-right font-mono font-black text-emerald-700 text-sm">
                             +{horasExtraFiltradas.reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_solicitadas)) || 0), 0).toFixed(1)} hrs
                           </td>
-                          <td className="px-6 py-3.5 text-right font-mono font-black text-stone-900 text-sm">
-                            +{horasExtraFiltradas.filter((h) => h.estado === 'APROBADO').reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_autorizadas)) || 0), 0).toFixed(1)} hrs
+                          <td className="px-6 py-3.5 text-right font-mono text-stone-400 text-xs">
+                            -
                           </td>
                           <td colSpan={2} className="px-6 py-3.5 text-xs text-stone-500 font-medium">
-                            ({horasExtraFiltradas.filter((h) => h.estado === 'PENDIENTE').length} pendientes de aprobar)
+                            ({horasExtraFiltradas.length} solicitud{horasExtraFiltradas.length !== 1 ? 'es' : ''} en cola de aprobación)
                           </td>
                         </tr>
                       </tfoot>
@@ -2375,13 +2379,24 @@ export default function NominaAdminPage() {
                                         {it.comentario || <span className="text-stone-300 not-italic">-</span>}
                                       </td>
                                       <td className="py-3 px-4 text-right">
-                                        <button
-                                          onClick={() => emp && handleAbrirPagoHE(emp, [it])}
-                                          className="bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-400 px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                                        >
-                                          <Coins className="w-3 h-3 text-emerald-600" />
-                                          <span>Pagar Fecha</span>
-                                        </button>
+                                        <div className="flex items-center justify-end gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedExtraParaBoleta(it)}
+                                            className="bg-white hover:bg-[#1c6856]/10 text-[#1c6856] border border-[#1c6856]/30 px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95"
+                                            title="Ver e imprimir boleta oficial con firmas"
+                                          >
+                                            <FileText className="w-3 h-3 text-[#1c6856]" />
+                                            <span>Boleta</span>
+                                          </button>
+                                          <button
+                                            onClick={() => emp && handleAbrirPagoHE(emp, [it])}
+                                            className="bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-400 px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                                          >
+                                            <Coins className="w-3 h-3 text-emerald-600" />
+                                            <span>Pagar Fecha</span>
+                                          </button>
+                                        </div>
                                       </td>
                                     </tr>
                                   );
