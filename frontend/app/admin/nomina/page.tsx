@@ -539,6 +539,24 @@ export default function NominaAdminPage() {
       setHorasExtra(updatedExtras);
       setCompensaciones(updatedComp);
       setEmpleados(updatedEmp);
+
+      // Si fue aprobado, abrir la boleta oficial para revisión o impresión inmediata
+      if (decision === 'APROBADO') {
+        const updatedRec = updatedExtras.find((h) => h.id === id);
+        if (updatedRec) {
+          setSelectedExtraParaBoleta(updatedRec);
+        } else {
+          const localRec = horasExtra.find((h) => h.id === id);
+          if (localRec) {
+            setSelectedExtraParaBoleta({
+              ...localRec,
+              estado: 'APROBADO',
+              horas_extra_autorizadas: horasVal,
+              comentario: comentarioStr,
+            });
+          }
+        }
+      }
     } catch (err: unknown) {
       const refreshedExtras = await fetchHorasExtra().catch(() => []);
       if (refreshedExtras.length > 0) setHorasExtra(refreshedExtras);
@@ -4330,9 +4348,9 @@ export default function NominaAdminPage() {
           setPendingExtraAction(null);
         }}
         onConfirm={async (action) => {
-          await executeOvertimeDecision(action.id, action.decision, action.horas, action.comentario);
           setShowExtraPinModal(false);
           setPendingExtraAction(null);
+          await executeOvertimeDecision(action.id, action.decision, action.horas, action.comentario);
         }}
       />
 
