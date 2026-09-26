@@ -29,6 +29,12 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [showModalPropinas, setShowModalPropinas] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<{
+    url: string;
+    nombre: string;
+    evento: string;
+    hora: string;
+  } | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -274,11 +280,29 @@ export default function AdminDashboardPage() {
                 >
                   <div className="flex items-center gap-3">
                     {asis.foto_verificacion_url ? (
-                      <img
-                        src={asis.foto_verificacion_url}
-                        alt="Foto"
-                        className="w-10 h-10 rounded-lg object-cover border border-stone-200"
-                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedPhoto({
+                            url: asis.foto_verificacion_url!,
+                            nombre: `${asis.empleado_detalle.nombre} ${asis.empleado_detalle.apellido}`,
+                            evento: asis.tipo_evento_display,
+                            hora: new Date(asis.fecha_hora).toLocaleTimeString('es-NI', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            }),
+                          })
+                        }
+                        className="group relative cursor-pointer active:scale-95 transition-transform shrink-0"
+                        title="Toca para ampliar foto de hoy"
+                      >
+                        <img
+                          src={asis.foto_verificacion_url}
+                          alt="Foto"
+                          className="w-10 h-10 rounded-lg object-cover border border-stone-200 group-hover:ring-2 group-hover:ring-[#1c6856] transition-all"
+                        />
+                      </button>
                     ) : (
                       <div className="w-10 h-10 rounded-lg bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center font-bold text-sm">
                         {asis.empleado_detalle.nombre[0]}
@@ -443,11 +467,31 @@ export default function AdminDashboardPage() {
                           #{index + 1}
                         </span>
                         {foto ? (
-                          <img
-                            src={foto}
-                            alt="Foto"
-                            className="w-10 h-10 rounded-xl object-cover border border-stone-200 shadow-xs"
-                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedPhoto({
+                                url: foto,
+                                nombre: `${emp.nombre} ${emp.apellido}`,
+                                evento: primer ? primer.tipo_evento_display : 'Marcaje Hoy',
+                                hora: primer
+                                  ? new Date(primer.fecha_hora).toLocaleTimeString('es-NI', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true,
+                                    })
+                                  : '',
+                              })
+                            }
+                            className="group relative cursor-pointer active:scale-95 transition-transform shrink-0"
+                            title="Toca para ampliar foto de hoy"
+                          >
+                            <img
+                              src={foto}
+                              alt="Foto"
+                              className="w-10 h-10 rounded-xl object-cover border border-stone-200 shadow-xs group-hover:ring-2 group-hover:ring-amber-500 transition-all"
+                            />
+                          </button>
                         ) : (
                           <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 font-black text-sm flex items-center justify-center border border-amber-200 shadow-xs">
                             {emp.nombre[0]}
@@ -514,6 +558,57 @@ export default function AdminDashboardPage() {
                 type="button"
                 onClick={() => setShowModalPropinas(false)}
                 className="bg-stone-900 hover:bg-stone-800 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ampliar Foto de Verificación de Hoy */}
+      {selectedPhoto && (
+        <div
+          className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <div
+            className="bg-white rounded-3xl p-4 sm:p-5 max-w-sm sm:max-w-md w-full shadow-2xl space-y-3 cursor-default animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+              <div>
+                <h3 className="font-bold text-stone-900 text-sm">{selectedPhoto.nombre}</h3>
+                <p className="text-[11px] text-stone-500 font-medium">
+                  {selectedPhoto.evento} • {selectedPhoto.hora}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPhoto(null)}
+                className="p-1.5 rounded-xl hover:bg-stone-100 text-stone-500 hover:text-stone-800 transition-colors cursor-pointer"
+                aria-label="Cerrar foto"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="w-full aspect-square rounded-2xl overflow-hidden bg-stone-100 border border-stone-200 shadow-inner flex items-center justify-center">
+              <img
+                src={selectedPhoto.url}
+                alt="Foto de verificación"
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1 text-xs text-stone-500">
+              <span className="font-medium text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                ✓ Marcaje de Hoy Verificado
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedPhoto(null)}
+                className="px-4 py-1.5 bg-stone-900 text-white rounded-xl font-bold text-xs hover:bg-stone-800 transition-colors cursor-pointer active:scale-95"
               >
                 Cerrar
               </button>

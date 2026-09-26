@@ -233,6 +233,7 @@ export default function AsistenciaLogPage() {
   const deferredFilterText = useDeferredValue(filterText);
   const [filterFecha, setFilterFecha] = useState('');
   const [separarPorDia, setSepararPorDia] = useState(true);
+  const [cargarFotosDirectas, setCargarFotosDirectas] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [failedPhotoIds, setFailedPhotoIds] = useState<Record<number, boolean>>({});
 
@@ -450,17 +451,32 @@ export default function AsistenciaLogPage() {
       <tr key={asis.id} className="hover:bg-stone-50/50 transition-colors">
         <td className="px-6 py-4">
           {asis.foto_verificacion_url && !failedPhotoIds[asis.id] ? (
-            <button
-              onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
-              className="relative group block"
-            >
-              <img
-                src={asis.foto_verificacion_url}
-                alt="Foto Marcaje"
-                onError={() => setFailedPhotoIds((prev) => ({ ...prev, [asis.id]: true }))}
-                className="w-12 h-12 rounded-xl object-cover border border-stone-200 group-hover:opacity-85 transition-opacity"
-              />
-            </button>
+            cargarFotosDirectas ? (
+              <button
+                type="button"
+                onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
+                className="relative group block cursor-pointer active:scale-95"
+                title="Tocar para ampliar foto"
+              >
+                <img
+                  src={asis.foto_verificacion_url}
+                  alt="Foto Marcaje"
+                  loading="lazy"
+                  onError={() => setFailedPhotoIds((prev) => ({ ...prev, [asis.id]: true }))}
+                  className="w-12 h-12 rounded-xl object-cover border border-stone-200 group-hover:opacity-85 transition-opacity"
+                />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-100 hover:bg-[#1c6856]/10 text-stone-700 hover:text-[#1c6856] border border-stone-200 hover:border-[#1c6856]/30 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
+                title="Ver foto de verificación biométrica tomada en el kiosco"
+              >
+                <Camera className="w-3.5 h-3.5 text-[#1c6856]" />
+                <span>Ver foto</span>
+              </button>
+            )
           ) : (
             <div className="w-12 h-12 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-400" title="Foto no disponible">
               <ImageIcon className="w-5 h-5" />
@@ -595,24 +611,37 @@ export default function AsistenciaLogPage() {
       >
         <div className="flex items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
-            {/* Foto Thumbnail interactiva */}
+            {/* Foto interactiva con modo de ahorro de memoria */}
             {asis.foto_verificacion_url && !failedPhotoIds[asis.id] ? (
-              <button
-                type="button"
-                onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
-                className="relative group shrink-0 active:scale-95 cursor-pointer"
-                title="Tocar para ampliar foto"
-              >
-                <img
-                  src={asis.foto_verificacion_url}
-                  alt="Foto Marcaje"
-                  onError={() => setFailedPhotoIds((prev) => ({ ...prev, [asis.id]: true }))}
-                  className="w-11 h-11 rounded-xl object-cover border border-stone-200 ring-2 ring-emerald-600/10"
-                />
-                <div className="absolute -bottom-1 -right-1 bg-[#1c6856] text-white p-0.5 rounded-md shadow-xs">
-                  <Camera className="w-2.5 h-2.5" />
-                </div>
-              </button>
+              cargarFotosDirectas ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
+                  className="relative group shrink-0 active:scale-95 cursor-pointer"
+                  title="Tocar para ampliar foto"
+                >
+                  <img
+                    src={asis.foto_verificacion_url}
+                    alt="Foto Marcaje"
+                    loading="lazy"
+                    onError={() => setFailedPhotoIds((prev) => ({ ...prev, [asis.id]: true }))}
+                    className="w-11 h-11 rounded-xl object-cover border border-stone-200 ring-2 ring-emerald-600/10"
+                  />
+                  <div className="absolute -bottom-1 -right-1 bg-[#1c6856] text-white p-0.5 rounded-md shadow-xs">
+                    <Camera className="w-2.5 h-2.5" />
+                  </div>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-[#1c6856]/10 text-stone-700 hover:text-[#1c6856] border border-stone-200 text-xs font-bold shrink-0 cursor-pointer active:scale-95 shadow-2xs whitespace-nowrap"
+                  title="Tocar para ver foto de verificación"
+                >
+                  <Camera className="w-3.5 h-3.5 text-[#1c6856]" />
+                  <span>Ver foto</span>
+                </button>
+              )
             ) : (
               <div
                 className="w-11 h-11 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-400 shrink-0"
@@ -808,10 +837,25 @@ export default function AsistenciaLogPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-start md:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           <button
+            type="button"
+            onClick={() => setCargarFotosDirectas(!cargarFotosDirectas)}
+            className={`px-3 py-2 sm:py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border shadow-sm cursor-pointer ${
+              cargarFotosDirectas
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-700'
+                : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+            }`}
+            title="Alternar entre modo ahorro de memoria (fotos bajo demanda) o cargar todas las fotos en miniatura"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span>{cargarFotosDirectas ? 'Fotos: En Miniatura' : 'Fotos: Bajo Demanda (Ahorro)'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setSepararPorDia(!separarPorDia)}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border shadow-sm ${
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border shadow-sm cursor-pointer ${
               separarPorDia
                 ? 'bg-[#1c6856]/10 border-[#1c6856]/30 text-[#1c6856]'
                 : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
