@@ -76,6 +76,10 @@ import {
   Wine,
   Eye,
   User,
+  Camera,
+  LogIn,
+  LogOut,
+  X,
 } from 'lucide-react';
 
 type AreaOperativa = 'TODAS' | 'COCINA' | 'SALON' | 'BARRA_CAJA' | 'OPERACIONES' | 'ADMIN';
@@ -181,6 +185,8 @@ export default function NominaAdminPage() {
 
   // Form State para Horas Extra (temporal para edición en lista)
   const [editingExtraId, setEditingExtraId] = useState<number | null>(null);
+  const [previewExtraId, setPreviewExtraId] = useState<number | null>(null);
+  const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
   const [tempAutorizadas, setTempAutorizadas] = useState('0.00');
   const tempComentarioRef = useRef('');
   const [savingExtra, setSavingExtra] = useState(false);
@@ -509,8 +515,109 @@ export default function NominaAdminPage() {
     }
   };
 
+  // ── MAPEO Y ANÁLISIS DE ASISTENCIA DIARIA PARA HORAS EXTRA ───────────────
+  const asistenciasPorEmpFechaMap = useMemo(() => {
+    const map = new Map<string, RegistroAsistencia[]>();
+    asistencias.forEach((a) => {
+      const dt = new Date(a.fecha_hora);
+      const horaLocal = parseInt(
+        dt.toLocaleTimeString('en-US', { timeZone: 'America/Managua', hour12: false, hour: 'numeric' }),
+        10
+      );
+      let diaLocal = dt.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+      if (a.tipo_evento === 'SALIDA_DEFINITIVA' && horaLocal < 5) {
+        const prevDate = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
+        diaLocal = prevDate.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+      }
+      const key = `${a.empleado}_${diaLocal}`;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(a);
+    });
+
+    map.forEach((list) => {
+      list.sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
+    });
+
+    return map;
+  }, [asistencias]);
+
+  const getDetalleAsistenciaDia = useCallback(
+    (empId: number, fechaStr: string) => {
+      const key = `${empId}_${fechaStr}`;
+      const regs = asistenciasPorEmpFechaMap.get(key) || [];
+      if (regs.length === 0) return null;
+
+      let entradaTemp: number | null = null;
+      let minutosTrabajados = 0;
+      let minutosAlmuerzo = 0;
+      let ultimaSalidaAlmuerzo: number | null = null;
+      let primeraEntradaStr = '--:--';
+      let ultimaSalidaStr = '--:--';
+
+      const eventos = regs.map((r) => {
+        const dt = new Date(r.fecha_hora);
+        const horaStr = dt.toLocaleTimeString('es-NI', {
+          timeZone: 'America/Managua',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+        const t = dt.getTime();
+
+        if (r.tipo_evento === 'ENTRADA' || r.tipo_evento === 'ENTRADA_QUEBRADA') {
+          if (primeraEntradaStr === '--:--') primeraEntradaStr = horaStr;
+          if (ultimaSalidaAlmuerzo !== null) {
+            const diffM = Math.round((t - ultimaSalidaAlmuerzo) / (1000 * 60));
+            if (diffM > 0) minutosAlmuerzo += diffM;
+            ultimaSalidaAlmuerzo = null;
+          }
+          entradaTemp = t;
+        } else if (r.tipo_evento === 'SALIDA_QUEBRADA' || r.tipo_evento === 'SALIDA_DEFINITIVA') {
+          ultimaSalidaStr = horaStr;
+          if (entradaTemp !== null) {
+            const diffM = Math.round((t - entradaTemp) / (1000 * 60));
+            if (diffM > 0) minutosTrabajados += diffM;
+            entradaTemp = null;
+          }
+          if (r.tipo_evento === 'SALIDA_QUEBRADA') {
+            ultimaSalidaAlmuerzo = t;
+          }
+        }
+
+        return {
+          id: r.id,
+          tipo: r.tipo_evento,
+          tipoDisplay: r.tipo_evento_display || r.tipo_evento,
+          horaStr,
+          fotoUrl: r.foto_verificacion_url,
+          observacion: r.observacion,
+        };
+      });
+
+      const horasNetas = minutosTrabajados / 60;
+      const horasOrdinarias = Math.min(horasNetas, 8.0);
+      const horasExcedente = Math.max(0, horasNetas - 8.0);
+
+      return {
+        regs,
+        entradaStr: primeraEntradaStr,
+        salidaStr: ultimaSalidaStr,
+        minutosTrabajados,
+        horasNetas,
+        tiempoAlmuerzoMinutos: minutosAlmuerzo,
+        horasOrdinarias,
+        horasExcedente,
+        eventos,
+      };
+    },
+    [asistenciasPorEmpFechaMap]
+  );
+
   // ── HORAS EXTRA ACCIONES CON PIN 2322 ─────────────────────────────────────
   const startDecision = (item: AutorizacionHorasExtra) => {
+    setPreviewExtraId(item.id || null);
     setEditingExtraId(item.id || null);
     const raw = parseFloat(String(item.horas_extra_solicitadas)) || 0.5;
     const clean = Math.floor(raw * 2) / 2;
@@ -549,6 +656,7 @@ export default function NominaAdminPage() {
         });
       }
       setEditingExtraId(null);
+      setPreviewExtraId(null);
       tempComentarioRef.current = '';
 
       // Sincronización en segundo plano con la base de datos
@@ -605,6 +713,8 @@ export default function NominaAdminPage() {
       return cEmpId === item.empleado && c.fecha_compensacion === item.fecha;
     });
 
+    const detalleDia = getDetalleAsistenciaDia(item.empleado, item.fecha);
+
     setPendingExtraAction({
       id: item.id!,
       empId: item.empleado,
@@ -615,13 +725,20 @@ export default function NominaAdminPage() {
       deudaActual: deudaVal,
       totalPendienteColaborador: totalPendienteEmp,
       compDia: compDia,
+      resumenAsistencia: detalleDia ? {
+        entrada: detalleDia.entradaStr,
+        salida: detalleDia.salidaStr,
+        horasTrabajadas: detalleDia.horasNetas.toFixed(1),
+        horasExcedente: detalleDia.horasExcedente.toFixed(1),
+        minutosDescanso: detalleDia.tiempoAlmuerzoMinutos,
+      } : undefined,
     });
     setShowExtraPinModal(true);
   };
 
   // Bloquear el scroll de fondo cuando un modal esté activo
   useEffect(() => {
-    if (showExtraPinModal || selectedCompensacion) {
+    if (showExtraPinModal || selectedCompensacion || selectedPhotoUrl) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -629,7 +746,7 @@ export default function NominaAdminPage() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [showExtraPinModal, selectedCompensacion]);
+  }, [showExtraPinModal, selectedCompensacion, selectedPhotoUrl]);
 
   // ── CÁLCULO DE NÓMINA EN PANTALLA (MEMOIZADO PARA ALTO RENDIMIENTO) ───────
   const feriadosSet = useMemo(() => new Set(feriados.map((f) => f.fecha)), [feriados]);
@@ -1155,10 +1272,13 @@ export default function NominaAdminPage() {
 
   const renderFilaExtra = (item: AutorizacionHorasExtra) => {
     const isEditing = editingExtraId === item.id;
+    const isExpanded = previewExtraId === item.id || isEditing;
     const empId = typeof item.empleado === 'number' ? item.empleado : (item.empleado_detalle?.id || 0);
     const totalPendienteEmp = horasPendientesPorColaborador[empId] || 0;
     const emp = empleados.find((e) => e.id === empId);
     const deuda = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
+    const tarifaBase = Number(emp?.tarifa_hora || 0);
+    const tarifaHE = tarifaBase > 0 ? tarifaBase * 2 : 50;
 
     // Calcular total semanal con búsqueda O(1) en el mapa indexado
     const parts = item.fecha.split('-');
@@ -1183,188 +1303,570 @@ export default function NominaAdminPage() {
         }).join(', ')
       : '';
 
+    // Análisis de asistencia del día
+    const detalleDia = getDetalleAsistenciaDia(empId, item.fecha);
+    const hSolicitadasNum = parseFloat(String(item.horas_extra_solicitadas)) || 0;
+    const montoEstimadoHE = hSolicitadasNum * tarifaHE;
+
+    const fechaFormateada = new Date(item.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
     return (
-      <tr key={item.id} className="hover:bg-stone-50/50 transition-colors">
-        <td className="px-6 py-4 font-mono font-bold text-stone-600">
-          {new Date(item.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-          })}
-        </td>
-        <td className="px-6 py-4">
-          <div className="font-bold text-stone-900">
-            {item.empleado_detalle?.nombre} {item.empleado_detalle?.apellido}
-          </div>
-          <span className="text-[10px] text-stone-400 block font-medium">
-            {item.empleado_detalle?.cargo_display}
-          </span>
-          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-            {totalPendienteEmp > 0 && (
-              <span
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1c6856] bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs"
-                title="Suma total acumulada de horas extra que este colaborador tiene pendientes de aprobación"
-              >
-                <Clock className="w-3 h-3 text-[#1c6856] shrink-0" />
-                Suma por aprobar: +{totalPendienteEmp.toFixed(1)} hrs
-              </span>
-            )}
-            {compDia && Number(compDia.horas_deducidas) > 0 && (
-              <span
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs"
-                title={`Este colaborador generó ${Number(compDia.horas_extra_generadas).toFixed(1)}h extra brutas hoy. Se amortizaron automáticamente ${Number(compDia.horas_deducidas).toFixed(1)}h para cubrir salidas tempranas de: ${fechasSaldadasStr || 'días anteriores'}.`}
-              >
-                <Scale className="w-3 h-3 text-amber-700 shrink-0" />
-                Déficit cubierto: -{Number(compDia.horas_deducidas).toFixed(1)}h
-                {fechasSaldadasStr && (
-                  <span className="font-mono font-medium text-amber-800 bg-amber-200/60 px-1 rounded text-[9px]">
-                    ({fechasSaldadasStr})
-                  </span>
-                )}
-              </span>
-            )}
-            {deuda > 0 && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
-                Debe {deuda.toFixed(1)} hrs
-              </span>
-            )}
-            {excedeLimiteSemanal && (
-              <span
-                className="inline-flex items-center gap-1 text-[10px] font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs"
-                title={`Límite Semanal Superado: Acumula ${extrasSemana.toFixed(1)} hrs autorizadas en esta semana (Art. 58 Código del Trabajo: máx 9h semanales)`}
-              >
-                ⚠️ &gt;9h sem (Art. 58 CT)
-              </span>
-            )}
-          </div>
-        </td>
-        <td className="px-6 py-4 text-right">
-          {compDia && Number(compDia.horas_deducidas) > 0 ? (
-            <div className="flex flex-col items-end">
-              <span className="font-mono font-black text-emerald-700 text-sm block">
-                +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
-              </span>
-              <span
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-1.5 py-0.5 rounded mt-0.5"
-                title={`Generó +${Number(compDia.horas_extra_generadas).toFixed(1)}h brutas. Se dedujeron -${Number(compDia.horas_deducidas).toFixed(1)}h de deudas (${fechasSaldadasStr}).`}
-              >
-                <Scale className="w-2.5 h-2.5 text-amber-700 shrink-0" />
-                -{Number(compDia.horas_deducidas).toFixed(1)}h deuda
-                {fechasSaldadasStr && (
-                  <span className="text-[9px] font-mono opacity-80">({fechasSaldadasStr})</span>
-                )}
-              </span>
-              <span className="text-[9px] text-stone-400 font-mono">
-                (Bruto: +{Number(compDia.horas_extra_generadas).toFixed(1)}h)
-              </span>
+      <React.Fragment key={item.id}>
+        <tr className={`transition-colors ${isExpanded ? 'bg-emerald-50/25' : 'hover:bg-stone-50/50'}`}>
+          <td className="px-6 py-4 font-mono font-bold text-stone-600">
+            {new Date(item.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            })}
+          </td>
+          <td className="px-6 py-4">
+            <div className="font-bold text-stone-900">
+              {item.empleado_detalle?.nombre} {item.empleado_detalle?.apellido}
             </div>
-          ) : (
-            <div>
-              <span className="font-mono font-bold text-emerald-700 text-sm block">
-                +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
-              </span>
-              <span className="text-[10px] text-stone-400 font-medium block">
-                (este día)
-              </span>
-            </div>
-          )}
-        </td>
-        <td className="px-6 py-4 text-right font-mono font-bold">
-          {isEditing ? (
-            <input
-              type="number"
-              step="0.5"
-              min="0.5"
-              max={String(item.horas_extra_solicitadas)}
-              value={tempAutorizadas}
-              onChange={(e) => setTempAutorizadas(e.target.value)}
-              className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-            />
-          ) : (
-            <span>
-              {item.estado === 'APROBADO'
-                ? `${parseFloat(String(item.horas_extra_autorizadas)).toFixed(1)} hrs`
-                : '0.0 hrs'}
+            <span className="text-[10px] text-stone-400 block font-medium">
+              {item.empleado_detalle?.cargo_display}
             </span>
-          )}
-        </td>
-        <td className="px-6 py-4">
-          <span
-            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-              item.estado === 'APROBADO'
-                ? 'bg-emerald-50 border-emerald-250 text-emerald-700'
-                : item.estado === 'RECHAZADO'
-                ? 'bg-rose-50 border-rose-250 text-rose-700'
-                : 'bg-amber-50 border-amber-250 text-amber-700 animate-pulse'
-            }`}
-          >
-            {item.estado}
-          </span>
-        </td>
-        <td className="px-6 py-4 text-right">
-          {isEditing ? (
-            <div className="flex flex-col gap-2 max-w-xs ml-auto">
+            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+              {totalPendienteEmp > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1c6856] bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs"
+                  title="Suma total acumulada de horas extra que este colaborador tiene pendientes de aprobación"
+                >
+                  <Clock className="w-3 h-3 text-[#1c6856] shrink-0" />
+                  Suma por aprobar: +{totalPendienteEmp.toFixed(1)} hrs
+                </span>
+              )}
+              {compDia && Number(compDia.horas_deducidas) > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs"
+                  title={`Este colaborador generó ${Number(compDia.horas_extra_generadas).toFixed(1)}h extra brutas hoy. Se amortizaron automáticamente ${Number(compDia.horas_deducidas).toFixed(1)}h para cubrir salidas tempranas de: ${fechasSaldadasStr || 'días anteriores'}.`}
+                >
+                  <Scale className="w-3 h-3 text-amber-700 shrink-0" />
+                  Déficit cubierto: -{Number(compDia.horas_deducidas).toFixed(1)}h
+                  {fechasSaldadasStr && (
+                    <span className="font-mono font-medium text-amber-800 bg-amber-200/60 px-1 rounded text-[9px]">
+                      ({fechasSaldadasStr})
+                    </span>
+                  )}
+                </span>
+              )}
+              {deuda > 0 && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                  Debe {deuda.toFixed(1)} hrs
+                </span>
+              )}
+              {excedeLimiteSemanal && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs"
+                  title={`Límite Semanal Superado: Acumula ${extrasSemana.toFixed(1)} hrs autorizadas en esta semana (Art. 58 Código del Trabajo: máx 9h semanales)`}
+                >
+                  ⚠️ &gt;9h sem (Art. 58 CT)
+                </span>
+              )}
+            </div>
+          </td>
+          <td className="px-6 py-4 text-right">
+            {compDia && Number(compDia.horas_deducidas) > 0 ? (
+              <div className="flex flex-col items-end">
+                <span className="font-mono font-black text-emerald-700 text-sm block">
+                  +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+                </span>
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-1.5 py-0.5 rounded mt-0.5"
+                  title={`Generó +${Number(compDia.horas_extra_generadas).toFixed(1)}h brutas. Se dedujeron -${Number(compDia.horas_deducidas).toFixed(1)}h de deudas (${fechasSaldadasStr}).`}
+                >
+                  <Scale className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                  -{Number(compDia.horas_deducidas).toFixed(1)}h deuda
+                  {fechasSaldadasStr && (
+                    <span className="text-[9px] font-mono opacity-80">({fechasSaldadasStr})</span>
+                  )}
+                </span>
+                <span className="text-[9px] text-stone-400 font-mono">
+                  (Bruto: +{Number(compDia.horas_extra_generadas).toFixed(1)}h)
+                </span>
+              </div>
+            ) : (
+              <div>
+                <span className="font-mono font-bold text-emerald-700 text-sm block">
+                  +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+                </span>
+                <span className="text-[10px] text-stone-400 font-medium block">
+                  (este día)
+                </span>
+              </div>
+            )}
+          </td>
+          <td className="px-6 py-4 text-right font-mono font-bold">
+            {isEditing ? (
               <input
-                type="text"
-                placeholder="Nota/comentario..."
-                defaultValue={tempComentarioRef.current}
-                onChange={(e) => {
-                  tempComentarioRef.current = e.target.value;
-                }}
-                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                type="number"
+                step="0.5"
+                min="0.5"
+                max={String(item.horas_extra_solicitadas)}
+                value={tempAutorizadas}
+                onChange={(e) => setTempAutorizadas(e.target.value)}
+                className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
               />
-              <div className="flex gap-1 justify-end">
+            ) : (
+              <span>
+                {item.estado === 'APROBADO'
+                  ? `${parseFloat(String(item.horas_extra_autorizadas)).toFixed(1)} hrs`
+                  : '0.0 hrs'}
+              </span>
+            )}
+          </td>
+          <td className="px-6 py-4">
+            <span
+              className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                item.estado === 'APROBADO'
+                  ? 'bg-emerald-50 border-emerald-250 text-emerald-700'
+                  : item.estado === 'RECHAZADO'
+                  ? 'bg-rose-50 border-rose-250 text-rose-700'
+                  : 'bg-amber-50 border-amber-250 text-amber-700 animate-pulse'
+              }`}
+            >
+              {item.estado}
+            </span>
+          </td>
+          <td className="px-6 py-4 text-right">
+            {isEditing ? (
+              <div className="flex items-center justify-end gap-2">
+                <span className="text-[11px] font-bold text-[#1c6856] bg-emerald-50 border border-emerald-250 px-2.5 py-1 rounded-xl">
+                  Evaluando abajo ↓
+                </span>
                 <button
-                  onClick={() => initiateDecision(item, 'RECHAZADO')}
-                  disabled={savingExtra}
-                  className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
-                >
-                  <ThumbsDown className="w-3.5 h-3.5" /> Rechazar
-                </button>
-                <button
-                  onClick={() => initiateDecision(item, 'APROBADO')}
-                  disabled={savingExtra}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
-                >
-                  <ThumbsUp className="w-3.5 h-3.5" /> Aprobar
-                </button>
-                <button
-                  onClick={() => setEditingExtraId(null)}
-                  className="border border-stone-200 hover:bg-stone-50 px-2 py-1.5 rounded-lg text-xs"
+                  type="button"
+                  onClick={() => {
+                    setEditingExtraId(null);
+                    setPreviewExtraId(null);
+                  }}
+                  className="border border-stone-200 hover:bg-stone-100 text-stone-600 px-2.5 py-1 rounded-xl text-xs font-bold"
+                  title="Cerrar formulario de evaluación"
                 >
                   X
                 </button>
               </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-end gap-2">
-              {item.estado !== 'PENDIENTE' && (
-                <>
-                  <span className="text-xs text-stone-500 font-normal italic max-w-[140px] truncate block" title={item.comentario || ''}>
-                    {item.comentario}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedExtraParaBoleta(item)}
-                    className="inline-flex items-center gap-1 bg-[#1c6856]/10 hover:bg-[#1c6856]/20 text-[#1c6856] border border-[#1c6856]/30 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
-                    title="Ver e imprimir boleta oficial con firmas"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Boleta</span>
-                  </button>
-                </>
-              )}
-              <button
-                onClick={() => startDecision(item)}
-                className="bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors"
-              >
-                {item.estado === 'PENDIENTE' ? 'Evaluar' : 'Modificar'}
-              </button>
-            </div>
-          )}
-        </td>
-      </tr>
+            ) : (
+              <div className="flex items-center justify-end gap-2">
+                {item.estado !== 'PENDIENTE' && (
+                  <>
+                    <span className="text-xs text-stone-500 font-normal italic max-w-[140px] truncate block" title={item.comentario || ''}>
+                      {item.comentario}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedExtraParaBoleta(item)}
+                      className="inline-flex items-center gap-1 bg-[#1c6856]/10 hover:bg-[#1c6856]/20 text-[#1c6856] border border-[#1c6856]/30 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      title="Ver e imprimir boleta oficial con firmas"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Boleta</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (previewExtraId === item.id) {
+                      setPreviewExtraId(null);
+                    } else {
+                      setPreviewExtraId(item.id || null);
+                    }
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs active:scale-95 cursor-pointer ${
+                    previewExtraId === item.id
+                      ? 'bg-[#1c6856] text-white border-[#1c6856]'
+                      : 'bg-emerald-50/90 hover:bg-emerald-100 text-[#1c6856] border-emerald-300'
+                  }`}
+                  title="Previsualizar marcajes biométricos y análisis de horas del día antes de evaluar"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>{previewExtraId === item.id ? 'Ocultar' : 'Previsualizar'}</span>
+                </button>
+                <button
+                  onClick={() => startDecision(item)}
+                  className="bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  {item.estado === 'PENDIENTE' ? 'Evaluar' : 'Modificar'}
+                </button>
+              </div>
+            )}
+          </td>
+        </tr>
+
+        {/* ── FILA EXPANDIBLE: PREVISUALIZACIÓN DETALLADA DE ASISTENCIA Y EVALUACIÓN ── */}
+        {isExpanded && (
+          <tr className="bg-stone-100/80 border-b-2 border-[#1c6856]/30 animate-in fade-in duration-200">
+            <td colSpan={6} className="p-3.5 sm:p-5">
+              <div className="bg-white rounded-2xl border border-stone-200 shadow-md p-4 sm:p-6 space-y-4">
+                {/* Cabecera de la Previsualización */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-3.5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#1c6856] border border-emerald-250 flex items-center justify-center font-bold shadow-2xs">
+                      <Eye className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm sm:text-base text-stone-900 capitalize">
+                          Previsualización de Asistencia — {fechaFormateada}
+                        </h4>
+                      </div>
+                      <p className="text-xs text-stone-500 font-medium">
+                        Colaborador: <strong className="text-stone-800">{item.empleado_detalle?.nombre} {item.empleado_detalle?.apellido}</strong> ({item.empleado_detalle?.cargo_display})
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-xs text-[#1c6856] bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-xl">
+                      Solicitud: +{hSolicitadasNum.toFixed(1)} hrs extra
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreviewExtraId(null);
+                        if (isEditing) setEditingExtraId(null);
+                      }}
+                      className="text-stone-400 hover:text-stone-700 p-1.5 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+                      title="Cerrar previsualización"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid de 3 Secciones: Marcajes Biométricos, Cálculo de Horas, y Bolsa/Nómina */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Panel 1: Marcajes Biométricos Registrados */}
+                  <div className="bg-stone-50/80 rounded-2xl border border-stone-200 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#1c6856]" />
+                        Marcajes en Kiosco ({detalleDia?.eventos.length || 0})
+                      </span>
+                      <span className="text-[10px] font-mono font-semibold text-stone-400">
+                        Biométrico
+                      </span>
+                    </div>
+
+                    {detalleDia && detalleDia.eventos.length > 0 ? (
+                      <div className="space-y-2">
+                        {detalleDia.eventos.map((ev) => (
+                          <div
+                            key={ev.id}
+                            className="bg-white rounded-xl border border-stone-200 p-2.5 flex items-center justify-between gap-2 shadow-2xs"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold shrink-0 ${
+                                  ev.tipo.includes('ENTRADA')
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {ev.tipo.includes('ENTRADA') ? (
+                                  <LogIn className="w-4 h-4" />
+                                ) : (
+                                  <LogOut className="w-4 h-4" />
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-xs font-bold text-stone-800 block">
+                                  {ev.tipoDisplay}
+                                </span>
+                                <span className="text-[11px] font-mono font-semibold text-stone-500">
+                                  {ev.horaStr}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {ev.fotoUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedPhotoUrl(ev.fotoUrl!)}
+                                  className="relative group p-0.5 rounded-lg border border-stone-300 hover:border-[#1c6856] bg-stone-100 cursor-pointer overflow-hidden shadow-2xs"
+                                  title="Clic para ver fotografía tomada en el kiosco"
+                                >
+                                  <img
+                                    src={ev.fotoUrl}
+                                    alt="Foto"
+                                    className="w-9 h-9 rounded object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded">
+                                    <Camera className="w-3.5 h-3.5 text-white" />
+                                  </div>
+                                </button>
+                              )}
+                              {ev.observacion && (
+                                <span
+                                  className="text-[10px] font-medium text-stone-600 bg-stone-100 px-1.5 py-0.5 rounded max-w-[90px] truncate"
+                                  title={ev.observacion}
+                                >
+                                  {ev.observacion}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 space-y-1">
+                        <span className="font-bold block">Sin marcajes biométricos vinculados</span>
+                        <p className="text-[11px] text-amber-800">
+                          No se hallaron registros en kiosco para la fecha {item.fecha}. Es posible que la solicitud se haya generado de forma manual o administrativa.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Panel 2: Análisis del Turno y Cómputo de Horas */}
+                  <div className="bg-stone-50/80 rounded-2xl border border-stone-200 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
+                        <Scale className="w-3.5 h-3.5 text-[#1c6856]" />
+                        Análisis del Turno (Base 8h)
+                      </span>
+                      <span className="text-[10px] font-mono font-semibold text-stone-400">
+                        Art. 58 CT
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div className="bg-white p-3 rounded-xl border border-stone-200 space-y-2 shadow-2xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-stone-500 font-medium">Horario Registrado:</span>
+                          <span className="font-mono font-bold text-stone-900">
+                            {detalleDia ? `${detalleDia.entradaStr} ➔ ${detalleDia.salidaStr}` : '--:-- ➔ --:--'}
+                          </span>
+                        </div>
+                        {detalleDia && detalleDia.tiempoAlmuerzoMinutos > 0 && (
+                          <div className="flex justify-between items-center text-[11px]">
+                            <span className="text-stone-500 font-medium">Almuerzo / Quiebre:</span>
+                            <span className="font-mono font-bold text-amber-800">
+                              {detalleDia.tiempoAlmuerzoMinutos} min tomados
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center pt-1.5 border-t border-stone-100">
+                          <span className="text-stone-800 font-bold">Total Horas Netas:</span>
+                          <span className="font-mono font-black text-stone-950 text-sm">
+                            {detalleDia ? `${detalleDia.horasNetas.toFixed(2)} hrs` : `${item.horas_extra_solicitadas} hrs`}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-center">
+                        <div className="bg-blue-50 border border-blue-200 p-2.5 rounded-xl">
+                          <span className="text-[10px] uppercase font-bold text-blue-700 block">Jornada Ordinaria</span>
+                          <strong className="font-mono font-black text-blue-900 text-sm">
+                            {detalleDia ? `${detalleDia.horasOrdinarias.toFixed(2)} hrs` : '8.00 hrs'}
+                          </strong>
+                          <span className="text-[9px] text-blue-600 block mt-0.5">Meta diaria de 8h</span>
+                        </div>
+                        <div className="bg-emerald-50 border border-emerald-250 p-2.5 rounded-xl">
+                          <span className="text-[10px] uppercase font-bold text-emerald-700 block">Excedente Bruto</span>
+                          <strong className="font-mono font-black text-emerald-900 text-sm">
+                            {detalleDia ? `+${detalleDia.horasExcedente.toFixed(2)} hrs` : `+${item.horas_extra_solicitadas} hrs`}
+                          </strong>
+                          <span className="text-[9px] text-emerald-600 block mt-0.5">Tiempo adicional</span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center text-[11px] bg-white p-2.5 rounded-xl border border-stone-200">
+                        <span className="text-stone-600 font-medium">Acumulado Semanal:</span>
+                        <span className={`font-mono font-bold ${excedeLimiteSemanal ? 'text-amber-800 font-black' : 'text-stone-800'}`}>
+                          {extrasSemana.toFixed(1)} / 9.0 hrs {excedeLimiteSemanal ? '⚠️ (Excede Art. 58)' : '✅'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Panel 3: Liquidación Económica y Bolsa de Horas */}
+                  <div className="bg-stone-50/80 rounded-2xl border border-stone-200 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
+                        <Banknote className="w-3.5 h-3.5 text-[#1c6856]" />
+                        Liquidación y Bolsa de Horas
+                      </span>
+                      <span className="text-[10px] font-mono font-semibold text-stone-400">
+                        Art. 62 CT
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      {compDia && Number(compDia.horas_deducidas) > 0 ? (
+                        <div className="bg-amber-50 border border-amber-300 rounded-xl p-2.5 space-y-1.5 shadow-2xs">
+                          <div className="flex items-center justify-between text-amber-900 font-bold text-[11px]">
+                            <span className="flex items-center gap-1">
+                              <Scale className="w-3.5 h-3.5 text-amber-700" /> Amortización de Deuda
+                            </span>
+                            <span className="font-mono bg-amber-200/80 px-1.5 py-0.5 rounded text-[10px]">Bolsa de Horas</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1 bg-white p-2 rounded-lg border border-amber-200 text-center font-mono text-[10px]">
+                            <div>
+                              <span className="text-stone-400 block text-[8px] uppercase">Bruto</span>
+                              <strong className="text-stone-800">+{Number(compDia.horas_extra_generadas).toFixed(1)}h</strong>
+                            </div>
+                            <div>
+                              <span className="text-amber-700 block text-[8px] uppercase">Deducido</span>
+                              <strong className="text-amber-700">-{Number(compDia.horas_deducidas).toFixed(1)}h</strong>
+                            </div>
+                            <div>
+                              <span className="text-emerald-700 block text-[8px] uppercase">A Pago</span>
+                              <strong className="text-emerald-800">+{Number(compDia.remanente_extra).toFixed(1)}h</strong>
+                            </div>
+                          </div>
+                          {fechasSaldadasStr && (
+                            <span className="text-[10px] text-amber-800 block">
+                              Saldó salidas tempranas de: <strong>{fechasSaldadasStr}</strong>
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-emerald-50/70 border border-emerald-250 rounded-xl p-2.5 text-[11px] text-emerald-900 space-y-1 shadow-2xs">
+                          <span className="font-bold flex items-center gap-1">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Sin deducciones previas
+                          </span>
+                          <p className="text-[10px] text-emerald-700">
+                            El colaborador no registra salidas tempranas anteriores pendientes en su Bolsa de Horas.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Estimación Económica Oficial */}
+                      <div className="bg-white border border-stone-200 rounded-xl p-3 space-y-1.5 text-[11px] shadow-2xs">
+                        <div className="flex justify-between items-center text-stone-600">
+                          <span>Tarifa Base Ordinaria:</span>
+                          <span className="font-mono font-bold text-stone-800">C$ {tarifaBase.toFixed(2)}/hr</span>
+                        </div>
+                        <div className="flex justify-between items-center text-stone-600">
+                          <span>Tarifa Extra Legal (2x):</span>
+                          <span className="font-mono font-bold text-emerald-800">C$ {tarifaHE.toFixed(2)}/hr</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1.5 border-t border-stone-100 font-bold text-stone-900">
+                          <span>Monto Estimado a Pagar:</span>
+                          <span className="font-mono font-black text-emerald-700 text-sm">
+                            C$ {montoEstimadoHE.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer de Decisión y Formulario de Aprobación */}
+                {isEditing ? (
+                  <div className="bg-gradient-to-r from-emerald-50/80 via-white to-emerald-50/80 border-2 border-[#1c6856]/40 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
+                        <KeyRound className="w-4 h-4 text-[#1c6856]" />
+                        <span>Evaluación Oficial de Horas Extra (Confirmación con PIN 2322)</span>
+                      </div>
+                      <span className="text-[11px] text-stone-500 font-medium">
+                        Ajuste las horas aprobadas si difieren de las solicitadas
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-700 uppercase mb-1">
+                          Horas a Autorizar (hrs) *
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0.5"
+                          max={String(item.horas_extra_solicitadas)}
+                          value={tempAutorizadas}
+                          onChange={(e) => setTempAutorizadas(e.target.value)}
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-right focus:outline-none focus:ring-2 focus:ring-[#1c6856] shadow-2xs"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-bold text-stone-700 uppercase mb-1">
+                          Nota o Justificación Administrativa (Opcional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ej: Turno extendido por evento especial, autorizado por gerencia..."
+                          defaultValue={tempComentarioRef.current}
+                          onChange={(e) => {
+                            tempComentarioRef.current = e.target.value;
+                          }}
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856] shadow-2xs font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2 border-t border-stone-200">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingExtraId(null);
+                          setPreviewExtraId(null);
+                        }}
+                        className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => initiateDecision(item, 'RECHAZADO')}
+                        disabled={savingExtra}
+                        className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95"
+                      >
+                        <ThumbsDown className="w-3.5 h-3.5" /> Rechazar Solicitud
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => initiateDecision(item, 'APROBADO')}
+                        disabled={savingExtra}
+                        className="bg-[#1c6856] hover:bg-[#154f42] text-white px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-[#1c6856]/20 cursor-pointer active:scale-95"
+                      >
+                        <ThumbsUp className="w-3.5 h-3.5" /> Aprobar con PIN 2322
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-stone-200">
+                    <div className="text-xs text-stone-600">
+                      <span className="font-medium">
+                        Revise el detalle biométrico y proceda a evaluar la solicitud para autorizarla o rechazarla.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewExtraId(null)}
+                        className="px-3.5 py-1.5 rounded-xl border border-stone-200 text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
+                      >
+                        Cerrar Previsualización
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startDecision(item)}
+                        className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      >
+                        <ThumbsUp className="w-3.5 h-3.5" />
+                        <span>Evaluar Solicitud</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
     );
   };
 
@@ -4918,6 +5420,59 @@ export default function NominaAdminPage() {
           pago={selectedPagoHEParaBoleta}
           onClose={() => setSelectedPagoHEParaBoleta(null)}
         />
+      )}
+
+      {/* ── MODAL 9: VISUALIZADOR DE FOTO BIOMÉTRICA DE ASISTENCIA ── */}
+      {selectedPhotoUrl && (
+        <div
+          onClick={() => setSelectedPhotoUrl(null)}
+          className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-stone-200 max-w-sm sm:max-w-md w-full rounded-3xl p-5 sm:p-6 relative space-y-3.5 shadow-2xl cursor-default animate-in zoom-in-95 duration-150"
+          >
+            <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                  <Camera className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-stone-900 text-sm sm:text-base leading-tight">
+                    Fotografía de Verificación
+                  </h3>
+                  <span className="text-[10px] text-stone-400 font-medium">
+                    Evidencia biométrica tomada en el kiosco
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedPhotoUrl(null)}
+                className="text-stone-400 hover:text-stone-700 p-1.5 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="relative rounded-2xl overflow-hidden border border-stone-200 shadow-inner bg-stone-900">
+              <img
+                src={selectedPhotoUrl}
+                alt="Foto biométrica de asistencia"
+                className="w-full aspect-square object-cover"
+              />
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setSelectedPhotoUrl(null)}
+                className="bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs px-4 py-2 rounded-xl transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

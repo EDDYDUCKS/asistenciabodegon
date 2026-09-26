@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { KeyRound, AlertTriangle, Scale, Loader2, CheckCircle2 } from 'lucide-react';
+import { KeyRound, AlertTriangle, Scale, Loader2, CheckCircle2, Clock } from 'lucide-react';
 import { CompensacionHoras } from '@/lib/types';
 import { playSuccessBeep, playErrorBeep } from '@/lib/sound-feedback';
 
@@ -15,6 +15,13 @@ export interface PendingExtraAction {
   deudaActual?: number;
   totalPendienteColaborador?: number;
   compDia?: CompensacionHoras;
+  resumenAsistencia?: {
+    entrada: string;
+    salida: string;
+    horasTrabajadas: string;
+    horasExcedente?: string;
+    minutosDescanso?: number;
+  };
 }
 
 interface ModalPinAutorizacionHorasExtraProps {
@@ -174,6 +181,25 @@ export default function ModalPinAutorizacionHorasExtra({
             <span className="text-stone-500 font-bold">Colaborador:</span>
             <span className="font-black text-stone-900">{action.empNombre}</span>
           </div>
+          {action.resumenAsistencia && (
+            <div className="bg-white/90 rounded-xl border border-stone-200 p-2 space-y-1 my-1">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-stone-600 font-bold flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-[#1c6856]" /> Marcajes Biométricos:
+                </span>
+                <span className="font-mono font-bold text-stone-900">
+                  {action.resumenAsistencia.entrada} ➔ {action.resumenAsistencia.salida}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-[10px] text-stone-500">
+                <span>Horas netas trabajadas:</span>
+                <span className="font-mono font-bold text-[#1c6856]">
+                  {action.resumenAsistencia.horasTrabajadas} hrs
+                  {action.resumenAsistencia.minutosDescanso ? ` (${action.resumenAsistencia.minutosDescanso}m descanso)` : ''}
+                </span>
+              </div>
+            </div>
+          )}
           {action.totalPendienteColaborador !== undefined && action.totalPendienteColaborador > 0 && (
             <div className="flex justify-between items-center">
               <span className="text-stone-500 font-bold">Suma Total por Aprobar:</span>
