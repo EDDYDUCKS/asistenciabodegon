@@ -26,6 +26,7 @@ import {
   Database,
   Clock,
   ShoppingBag,
+  FileText,
 } from 'lucide-react';
 import { playErrorBeep } from '@/lib/sound-feedback';
 import BoletaIncidenciaModal from '@/components/BoletaIncidenciaModal';
@@ -614,6 +615,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
             <span className="hidden lg:inline">Respaldo BD</span>
           </button>
+
+          <a
+            href="/manual_el_bodegon_pass.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-xs font-bold text-[#1c6856] transition-colors shadow-2xs cursor-pointer"
+            title="Abrir o descargar el Manual Oficial de Usuario en PDF"
+          >
+            <FileText className="w-3.5 h-3.5 text-[#1c6856]" />
+            <span className="hidden md:inline">Manual PDF</span>
+          </a>
 
           <Link
             href="/control"
