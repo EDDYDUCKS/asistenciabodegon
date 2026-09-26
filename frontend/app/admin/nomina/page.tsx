@@ -36,6 +36,7 @@ import ModalEmitirPagoVacaciones from '@/components/ModalEmitirPagoVacaciones';
 import BoletaHorasExtraModal from '@/components/BoletaHorasExtraModal';
 import ModalEmitirPagoHorasExtra from '@/components/ModalEmitirPagoHorasExtra';
 import BoletaPagoHorasExtraModal from '@/components/BoletaPagoHorasExtraModal';
+import ModalPinAutorizacionHorasExtra, { PendingExtraAction } from '@/components/ModalPinAutorizacionHorasExtra';
 import {
   FileSpreadsheet,
   Download,
@@ -114,21 +115,9 @@ export default function NominaAdminPage() {
   const [downloadingQuincenal, setDownloadingQuincenal] = useState(false);
   const [showQuincenaMenu, setShowQuincenaMenu] = useState(false);
 
-  // Form State para Modal PIN de Horas Extra (PIN 2322)
+  // Form State para Modal PIN de Horas Extra (PIN 2322 - Componente Aislado)
   const [showExtraPinModal, setShowExtraPinModal] = useState(false);
-  const [pendingExtraAction, setPendingExtraAction] = useState<{
-    id: number;
-    empId: number;
-    decision: 'APROBADO' | 'RECHAZADO';
-    horas: number;
-    comentario: string;
-    empNombre?: string;
-    deudaActual?: number;
-    totalPendienteColaborador?: number;
-    compDia?: CompensacionHoras;
-  } | null>(null);
-  const [extraPin, setExtraPin] = useState('');
-  const [extraPinError, setExtraPinError] = useState(false);
+  const [pendingExtraAction, setPendingExtraAction] = useState<PendingExtraAction | null>(null);
 
   // Rango de fechas por defecto: primer día del mes a hoy
   const hoyStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
@@ -515,11 +504,22 @@ export default function NominaAdminPage() {
     comentarioStr: string
   ) => {
     setSavingExtra(true);
+    // Actualización optimista inmediata en memoria para respuesta instantánea (0ms)
+    if (decision === 'RECHAZADO') {
+      setHorasExtra((prev) => prev.filter((h) => h.id !== id));
+    } else {
+      setHorasExtra((prev) =>
+        prev.map((h) =>
+          h.id === id
+            ? { ...h, estado: decision, horas_extra_autorizadas: horasVal, comentario: comentarioStr }
+            : h
+        )
+      );
+    }
+
     try {
       if (decision === 'RECHAZADO') {
-        // Al rechazar la hora extra, se elimina automáticamente del historial y de la base de datos
         await deleteHoraExtra(id);
-        setSelectedExtraParaBoleta(null);
       } else {
         await updateHoraExtra(id, {
           horas_extra_autorizadas: horasVal,
@@ -529,7 +529,8 @@ export default function NominaAdminPage() {
       }
       setEditingExtraId(null);
       tempComentarioRef.current = '';
-      // Recargar horas extra, compensaciones y empleados para actualizar balances de deuda
+
+      // Sincronización en segundo plano con la base de datos
       const [updatedExtras, updatedComp, updatedEmp] = await Promise.all([
         fetchHorasExtra(),
         fetchCompensaciones(),
@@ -538,14 +539,11 @@ export default function NominaAdminPage() {
       setHorasExtra(updatedExtras);
       setCompensaciones(updatedComp);
       setEmpleados(updatedEmp);
-      if (decision === 'APROBADO') {
-        const updatedRec = updatedExtras.find((h) => h.id === id);
-        if (updatedRec) {
-          setSelectedExtraParaBoleta(updatedRec);
-        }
-      }
     } catch (err: unknown) {
+      const refreshedExtras = await fetchHorasExtra().catch(() => []);
+      if (refreshedExtras.length > 0) setHorasExtra(refreshedExtras);
       alert(err instanceof Error ? err.message : 'Error al guardar decisión');
+      throw err;
     } finally {
       setSavingExtra(false);
     }
@@ -579,73 +577,8 @@ export default function NominaAdminPage() {
       totalPendienteColaborador: totalPendienteEmp,
       compDia: compDia,
     });
-    setExtraPin('');
-    setExtraPinError(false);
     setShowExtraPinModal(true);
   };
-
-  const handleExtraPinKeyPress = useCallback((num: string) => {
-    setExtraPinError(false);
-    setExtraPin((prev) => {
-      if (prev.length >= 4) return prev;
-      const newPin = prev + num;
-      if (newPin === '2322') {
-        playSuccessBeep();
-        setTimeout(() => {
-          setPendingExtraAction((currentAction) => {
-            if (currentAction) {
-              executeOvertimeDecision(
-                currentAction.id,
-                currentAction.decision,
-                currentAction.horas,
-                currentAction.comentario
-              );
-            }
-            return null;
-          });
-          setShowExtraPinModal(false);
-          setExtraPin('');
-        }, 150);
-        return newPin;
-      } else if (newPin.length === 4) {
-        setTimeout(() => {
-          setExtraPinError(true);
-          setExtraPin('');
-          playErrorBeep();
-        }, 150);
-      }
-      return newPin;
-    });
-  }, []);
-
-  const handleExtraPinBackspace = useCallback(() => {
-    setExtraPin((prev) => prev.slice(0, -1));
-    setExtraPinError(false);
-  }, []);
-
-  // Soporte de Teclado Físico para el Modal PIN 2322
-  useEffect(() => {
-    if (!showExtraPinModal) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key >= '0' && e.key <= '9') {
-        e.preventDefault();
-        handleExtraPinKeyPress(e.key);
-      } else if (e.key === 'Backspace') {
-        e.preventDefault();
-        handleExtraPinBackspace();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        setShowExtraPinModal(false);
-        setPendingExtraAction(null);
-        setExtraPin('');
-        setExtraPinError(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showExtraPinModal, handleExtraPinKeyPress, handleExtraPinBackspace]);
 
   // Bloquear el scroll de fondo cuando un modal esté activo
   useEffect(() => {
@@ -659,44 +592,50 @@ export default function NominaAdminPage() {
     };
   }, [showExtraPinModal, selectedCompensacion]);
 
-  // ── CÁLCULO DE NÓMINA EN PANTALLA (SIN IMPORTES MONETARIOS) ───────────────
-  const feriadosSet = new Set(feriados.map((f) => f.fecha));
+  // ── CÁLCULO DE NÓMINA EN PANTALLA (MEMOIZADO PARA ALTO RENDIMIENTO) ───────
+  const feriadosSet = useMemo(() => new Set(feriados.map((f) => f.fecha)), [feriados]);
 
   // Mapear permisos por empleado
-  const permisosMapPorEmpleado: Record<number, Set<string>> = {};
-  const permisosInfoPorEmpleado: Record<number, string[]> = {};
-  permisos.forEach((p) => {
-    if (!permisosMapPorEmpleado[p.empleado]) {
-      permisosMapPorEmpleado[p.empleado] = new Set();
-      permisosInfoPorEmpleado[p.empleado] = [];
-    }
-    permisosInfoPorEmpleado[p.empleado].push(`${p.tipo_display} (${p.fecha_inicio.slice(5)} al ${p.fecha_fin.slice(5)})`);
-    const dStart = new Date(p.fecha_inicio + 'T00:00:00');
-    const dEnd = new Date(p.fecha_fin + 'T00:00:00');
-    const dCurr = new Date(dStart);
-    while (dCurr <= dEnd) {
-      permisosMapPorEmpleado[p.empleado].add(dCurr.toISOString().slice(0, 10));
-      dCurr.setDate(dCurr.getDate() + 1);
-    }
-  });
+  const { permisosMapPorEmpleado, permisosInfoPorEmpleado } = useMemo(() => {
+    const map: Record<number, Set<string>> = {};
+    const info: Record<number, string[]> = {};
+    permisos.forEach((p) => {
+      if (!map[p.empleado]) {
+        map[p.empleado] = new Set();
+        info[p.empleado] = [];
+      }
+      info[p.empleado].push(`${p.tipo_display} (${p.fecha_inicio.slice(5)} al ${p.fecha_fin.slice(5)})`);
+      const dStart = new Date(p.fecha_inicio + 'T00:00:00');
+      const dEnd = new Date(p.fecha_fin + 'T00:00:00');
+      const dCurr = new Date(dStart);
+      while (dCurr <= dEnd) {
+        map[p.empleado].add(dCurr.toISOString().slice(0, 10));
+        dCurr.setDate(dCurr.getDate() + 1);
+      }
+    });
+    return { permisosMapPorEmpleado: map, permisosInfoPorEmpleado: info };
+  }, [permisos]);
 
-  const asistenciasFiltradas = asistencias.filter((a) => {
-    const dt = new Date(a.fecha_hora);
-    const horaLocal = parseInt(
-      dt.toLocaleTimeString('en-US', { timeZone: 'America/Managua', hour12: false, hour: 'numeric' }),
-      10
-    );
-    let fecha = dt.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
-    if (a.tipo_evento === 'SALIDA_DEFINITIVA' && horaLocal < 5) {
-      const prevDate = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
-      fecha = prevDate.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
-    }
-    return fecha >= fechaInicio && fecha <= fechaFin;
-  });
+  const asistenciasFiltradas = useMemo(() => {
+    return asistencias.filter((a) => {
+      const dt = new Date(a.fecha_hora);
+      const horaLocal = parseInt(
+        dt.toLocaleTimeString('en-US', { timeZone: 'America/Managua', hour12: false, hour: 'numeric' }),
+        10
+      );
+      let fecha = dt.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+      if (a.tipo_evento === 'SALIDA_DEFINITIVA' && horaLocal < 5) {
+        const prevDate = new Date(dt.getTime() - 24 * 60 * 60 * 1000);
+        fecha = prevDate.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+      }
+      return fecha >= fechaInicio && fecha <= fechaFin;
+    });
+  }, [asistencias, fechaInicio, fechaFin]);
 
-  const resumenEmpleados = empleados
-    .filter((emp) => emp.activo)
-    .map((emp) => {
+  const resumenEmpleados = useMemo(() => {
+    return empleados
+      .filter((emp) => emp.activo)
+      .map((emp) => {
       const regEmp = asistenciasFiltradas.filter((a) => a.empleado === emp.id);
       const diasPermisoEmp = permisosMapPorEmpleado[emp.id] || new Set<string>();
       
@@ -983,6 +922,19 @@ export default function NominaAdminPage() {
         permisosVacEmp,
       };
     });
+  }, [
+    empleados,
+    asistenciasFiltradas,
+    permisosMapPorEmpleado,
+    permisosInfoPorEmpleado,
+    feriadosSet,
+    feriados,
+    fechaInicio,
+    fechaFin,
+    horasExtra,
+    permisos,
+    pagosVacaciones,
+  ]);
 
   const resumenFiltrado = useMemo(() => {
     if (!searchColaborador.trim()) return resumenEmpleados;
@@ -994,13 +946,13 @@ export default function NominaAdminPage() {
     });
   }, [resumenEmpleados, searchColaborador]);
 
-  const totalOrdinariasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasOrdinarias, 0);
-  const totalFeriadasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.feriadosTrabajadosDias, 0);
-  const totalVacacionesPagadasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.vacacionesPagadasDias, 0);
-  const totalExtrasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasExtraAprobadas, 0);
-  const totalExtrasPendientesPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasExtraPendientes, 0);
-  const totalDebidasPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.horasDebidas, 0);
-  const totalVacacionesPeriodo = resumenFiltrado.reduce((acc, item) => acc + item.vacRestantes, 0);
+  const totalOrdinariasPeriodo = useMemo(() => resumenFiltrado.reduce((acc, item) => acc + item.horasOrdinarias, 0), [resumenFiltrado]);
+  const totalFeriadasPeriodo = useMemo(() => resumenFiltrado.reduce((acc, item) => acc + item.feriadosTrabajadosDias, 0), [resumenFiltrado]);
+  const totalVacacionesPagadasPeriodo = useMemo(() => resumenFiltrado.reduce((acc, item) => acc + item.vacacionesPagadasDias, 0), [resumenFiltrado]);
+  const totalExtrasPeriodo = useMemo(() => resumenFiltrado.reduce((acc, item) => acc + item.horasExtraAprobadas, 0), [resumenFiltrado]);
+  const totalExtrasPendientesPeriodo = useMemo(() => resumenFiltrado.reduce((acc, item) => acc + item.horasExtraPendientes, 0), [resumenFiltrado]);
+  const totalDebidasPeriodo = useMemo(() => resumenFiltrado.reduce((acc, item) => acc + item.horasDebidas, 0), [resumenFiltrado]);
+  const totalVacacionesPeriodo = useMemo(() => resumenFiltrado.reduce((acc, item) => acc + item.vacRestantes, 0), [resumenFiltrado]);
 
   const permisosMesSeleccionado = useMemo(() => {
     const padM = String(reporteMes).padStart(2, '0');
@@ -1111,6 +1063,37 @@ export default function NominaAdminPage() {
     });
   }, [horasExtraFiltradas]);
 
+  // Mapa indexado O(1) de compensaciones por empleado y fecha para acelerar la renderización
+  const compPorEmpFechaMap = useMemo(() => {
+    const map = new Map<string, CompensacionHoras>();
+    compensaciones.forEach((c) => {
+      const cEmpId = typeof c.empleado === 'number' ? c.empleado : (c.empleado_detalle?.id || 0);
+      map.set(`${cEmpId}_${c.fecha_compensacion}`, c);
+    });
+    return map;
+  }, [compensaciones]);
+
+  // Mapa indexado O(1) de horas extra semanales para verificación de límites
+  const extrasSemanaMap = useMemo(() => {
+    const map = new Map<string, number>();
+    horasExtra.forEach((h) => {
+      if (h.estado === 'APROBADO') {
+        const empId = typeof h.empleado === 'number' ? h.empleado : (h.empleado_detalle?.id || 0);
+        const parts = h.fecha.split('-');
+        if (parts.length === 3) {
+          const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+          const day = d.getDay();
+          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+          const monStr = new Date(d.setDate(diff)).toISOString().slice(0, 10);
+          const key = `${empId}_${monStr}`;
+          const hrs = parseFloat(String(h.horas_extra_autorizadas)) || 0;
+          map.set(key, (map.get(key) || 0) + hrs);
+        }
+      }
+    });
+    return map;
+  }, [horasExtra]);
+
   const renderFilaExtra = (item: AutorizacionHorasExtra) => {
     const isEditing = editingExtraId === item.id;
     const empId = typeof item.empleado === 'number' ? item.empleado : (item.empleado_detalle?.id || 0);
@@ -1118,26 +1101,20 @@ export default function NominaAdminPage() {
     const emp = empleados.find((e) => e.id === empId);
     const deuda = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
 
-    // Calcular total semanal de horas extra autorizadas para este colaborador en la semana de esta fecha
-    const fechaObj = new Date(item.fecha + 'T12:00:00');
-    const dayOfWeek = fechaObj.getDay();
-    const diffToMon = fechaObj.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    const mondayObj = new Date(fechaObj.setDate(diffToMon));
-    const sundayObj = new Date(mondayObj);
-    sundayObj.setDate(sundayObj.getDate() + 6);
-    const monStr = mondayObj.toISOString().slice(0, 10);
-    const sunStr = sundayObj.toISOString().slice(0, 10);
-    const extrasSemana = horasExtra.filter(
-      (h) => (h.empleado === empId || h.empleado_detalle?.id === empId) &&
-        h.fecha >= monStr && h.fecha <= sunStr && h.estado === 'APROBADO'
-    ).reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_autorizadas)) || 0), 0);
+    // Calcular total semanal con búsqueda O(1) en el mapa indexado
+    const parts = item.fecha.split('-');
+    let monStr = item.fecha;
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      monStr = new Date(d.setDate(diff)).toISOString().slice(0, 10);
+    }
+    const extrasSemana = extrasSemanaMap.get(`${empId}_${monStr}`) || 0;
     const excedeLimiteSemanal = extrasSemana > 9.0;
 
-    // Buscar si hubo deducción por deuda/salida temprana en esta fecha
-    const compDia = compensaciones.find((c) => {
-      const cEmpId = typeof c.empleado === 'number' ? c.empleado : (c.empleado_detalle?.id || 0);
-      return cEmpId === empId && c.fecha_compensacion === item.fecha;
-    });
+    // Buscar deducción por deuda/salida temprana en O(1)
+    const compDia = compPorEmpFechaMap.get(`${empId}_${item.fecha}`);
 
     const fechasSaldadasStr = compDia?.desglose && compDia.desglose.length > 0
       ? compDia.desglose.map((d) => {
@@ -4344,220 +4321,20 @@ export default function NominaAdminPage() {
         </div>
       )}
 
-            {/* ── MODAL DE AUTORIZACIÓN CON PIN 2322 PARA HORAS EXTRA ── */}
-      {showExtraPinModal && pendingExtraAction && (
-        <div
-          onClick={() => {
-            setShowExtraPinModal(false);
-            setPendingExtraAction(null);
-            setExtraPin('');
-            setExtraPinError(false);
-          }}
-          className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center space-y-5 animate-in zoom-in-95 duration-200 select-none cursor-default"
-          >
-            <div
-              className={`w-14 h-14 rounded-2xl border flex items-center justify-center mx-auto shadow-md transition-colors ${
-                pendingExtraAction.decision === 'APROBADO'
-                  ? 'bg-emerald-100 border-emerald-300 text-[#1c6856]'
-                  : 'bg-rose-100 border-rose-300 text-rose-700'
-              }`}
-            >
-              <KeyRound className="w-7 h-7" />
-            </div>
-
-            <div>
-              <h3 className="font-display font-black text-xl text-stone-900 tracking-tight">
-                {pendingExtraAction.decision === 'APROBADO' ? 'Autorizar Horas Extra' : 'Rechazar Horas Extra'}
-              </h3>
-              <p className="text-xs text-stone-500 font-medium mt-1">
-                {pendingExtraAction.decision === 'APROBADO'
-                  ? 'Ingrese el PIN de Gerencia para autorizar el pago de horas extra en nómina.'
-                  : 'Ingrese el PIN de Gerencia para confirmar el rechazo de esta solicitud.'}
-              </p>
-            </div>
-
-            {/* Ficha Resumen de la Solicitud */}
-            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-3 text-left space-y-1.5 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-stone-500 font-bold">Colaborador:</span>
-                <span className="font-black text-stone-900">{pendingExtraAction.empNombre}</span>
-              </div>
-              {pendingExtraAction.totalPendienteColaborador !== undefined && pendingExtraAction.totalPendienteColaborador > 0 && (
-                <div className="flex justify-between items-center">
-                  <span className="text-stone-500 font-bold">Suma Total por Aprobar:</span>
-                  <span className="font-mono font-black text-[#1c6856] bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                    +{pendingExtraAction.totalPendienteColaborador.toFixed(1)} hrs
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between items-center">
-                <span className="text-stone-500 font-bold">Decisión para este Día:</span>
-                {pendingExtraAction.decision === 'APROBADO' ? (
-                  <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                    Aprobar +{pendingExtraAction.horas.toFixed(1)} hrs
-                  </span>
-                ) : (
-                  <span className="font-mono font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200">
-                    Rechazar Solicitud (0.0 hrs)
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Aviso de Compensación Automática previa aplicada al marcar salida */}
-            {pendingExtraAction.compDia && Number(pendingExtraAction.compDia.horas_deducidas) > 0 && (
-              <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 text-left space-y-1.5 text-xs animate-in fade-in duration-200">
-                <div className="flex items-center justify-between font-bold text-amber-900">
-                  <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide">
-                    <Scale className="w-4 h-4 text-amber-700 shrink-0" />
-                    Amortización de Deuda Aplicada
-                  </span>
-                  <span className="bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded text-[10px] font-mono">
-                    Bolsa de Horas
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5 bg-white/90 p-2 rounded-lg border border-amber-200 text-center font-mono text-[11px]">
-                  <div>
-                    <span className="text-[9px] text-stone-500 uppercase block font-sans font-bold">Extra Bruto</span>
-                    <strong className="text-stone-900">+{Number(pendingExtraAction.compDia.horas_extra_generadas).toFixed(1)}h</strong>
-                  </div>
-                  <div>
-                    <span className="text-[9px] text-amber-700 uppercase block font-sans font-bold">Deducido</span>
-                    <strong className="text-amber-700">-{Number(pendingExtraAction.compDia.horas_deducidas).toFixed(1)}h</strong>
-                  </div>
-                  <div>
-                    <span className="text-[9px] text-emerald-700 uppercase block font-sans font-bold">Por Pagar</span>
-                    <strong className="text-emerald-800">+{Number(pendingExtraAction.compDia.remanente_extra).toFixed(1)}h</strong>
-                  </div>
-                </div>
-
-                {/* Fechas específicas saldadas */}
-                {pendingExtraAction.compDia.desglose && Array.isArray(pendingExtraAction.compDia.desglose) && pendingExtraAction.compDia.desglose.length > 0 && (
-                  <div className="bg-white/95 rounded-lg border border-amber-200 p-2 space-y-1 text-[11px]">
-                    <span className="text-[9px] font-bold uppercase text-amber-900 block tracking-wide">
-                      Fechas y turnos saldados con estas horas:
-                    </span>
-                    <div className="space-y-0.5">
-                      {pendingExtraAction.compDia.desglose.map((d, i) => {
-                        const fFormat = d.fecha ? new Date(d.fecha + 'T12:00:00').toLocaleDateString('es-NI', {
-                          weekday: 'short',
-                          day: '2-digit',
-                          month: 'short',
-                        }) : d.fecha;
-                        const hComp = d.horas_compensadas || d.horas_aplicadas || d.deficit_original || 0;
-                        return (
-                          <div key={i} className="flex justify-between items-center text-stone-800 py-0.5 border-b border-amber-50 last:border-0">
-                            <span className="capitalize font-semibold text-stone-700">• {fFormat}:</span>
-                            <span className="font-mono font-bold text-amber-800">-{Number(hComp).toFixed(1)} hrs</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <p className="text-[10px] text-amber-900 leading-tight">
-                  Generó {Number(pendingExtraAction.compDia.horas_extra_generadas).toFixed(1)} hrs hoy. Se amortizaron {Number(pendingExtraAction.compDia.horas_deducidas).toFixed(1)} hrs para saldar salidas tempranas pasadas. Estás autorizando el remanente limpio ({Number(pendingExtraAction.compDia.remanente_extra).toFixed(1)} hrs) para pago de nómina.
-                </p>
-              </div>
-            )}
-
-            {/* Advertencia de Amortización Automática si tiene Deuda Acumulada */}
-            {pendingExtraAction.decision === 'APROBADO' &&
-              pendingExtraAction.deudaActual !== undefined &&
-              pendingExtraAction.deudaActual > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-left space-y-1.5 text-xs animate-in fade-in duration-200">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-900">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                    Amortización Automática de Deuda
-                  </div>
-                  <p className="text-[11px] leading-relaxed text-amber-800 font-medium">
-                    El colaborador adeuda actualmente <strong>{pendingExtraAction.deudaActual.toFixed(1)} hrs</strong>. Al ingresar su PIN, se deducirán automáticamente{' '}
-                    <strong>{Math.min(pendingExtraAction.horas, pendingExtraAction.deudaActual).toFixed(1)} hrs</strong> para abonar a su saldo deudor (Bolsa de Horas).
-                    {pendingExtraAction.horas > pendingExtraAction.deudaActual ? (
-                      <> El remanente de <strong>{(pendingExtraAction.horas - pendingExtraAction.deudaActual).toFixed(1)} hrs</strong> pasará limpio a pago de nómina.</>
-                    ) : (
-                      <> La deuda restante quedará en <strong>{(pendingExtraAction.deudaActual - pendingExtraAction.horas).toFixed(1)} hrs</strong>.</>
-                    )}
-                  </p>
-                </div>
-              )}
-
-            {/* Indicador de 4 Puntos PIN */}
-            <div className="flex justify-center gap-4 py-2">
-              {[0, 1, 2, 3].map((idx) => (
-                <div
-                  key={idx}
-                  className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
-                    extraPinError
-                      ? 'bg-rose-500 border-rose-500 animate-bounce'
-                      : idx < extraPin.length
-                      ? 'bg-[#1c6856] border-[#1c6856] scale-110'
-                      : 'border-stone-300 bg-stone-50'
-                  }`}
-                />
-              ))}
-            </div>
-
-            {extraPinError && (
-              <p className="text-xs text-rose-600 font-bold animate-pulse">
-                PIN de Aprobación incorrecto. Intente de nuevo.
-              </p>
-            )}
-
-            {/* Teclado Numérico */}
-            <div className="grid grid-cols-3 gap-2.5 max-w-[220px] mx-auto pt-1">
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => handleExtraPinKeyPress(num)}
-                  className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
-                >
-                  {num}
-                </button>
-              ))}
-
-              <button
-                type="button"
-                onClick={handleExtraPinBackspace}
-                className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 active:bg-stone-200 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase cursor-pointer active:scale-95 touch-manipulation select-none"
-              >
-                Borrar
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleExtraPinKeyPress('0')}
-                className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
-              >
-                0
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowExtraPinModal(false);
-                  setPendingExtraAction(null);
-                  setExtraPin('');
-                  setExtraPinError(false);
-                }}
-                className="w-14 h-14 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase cursor-pointer active:scale-95 touch-manipulation select-none"
-              >
-                Cancelar
-              </button>
-            </div>
-
-            <p className="text-[11px] text-stone-400 font-medium hidden sm:block pt-1">
-              💡 Puedes ingresar el PIN con el teclado numérico de tu PC (0-9)
-            </p>
-          </div>
-        </div>
-      )}
+      {/* ── MODAL DE AUTORIZACIÓN CON PIN 2322 PARA HORAS EXTRA (AISLADO PARA MÁXIMA VELOCIDAD) ── */}
+      <ModalPinAutorizacionHorasExtra
+        isOpen={showExtraPinModal}
+        action={pendingExtraAction}
+        onClose={() => {
+          setShowExtraPinModal(false);
+          setPendingExtraAction(null);
+        }}
+        onConfirm={async (action) => {
+          await executeOvertimeDecision(action.id, action.decision, action.horas, action.comentario);
+          setShowExtraPinModal(false);
+          setPendingExtraAction(null);
+        }}
+      />
 
       {/* Modal Boleta / Acta Oficial de Compensación y Deducción de Horas */}
       <BoletaCompensacionModal
