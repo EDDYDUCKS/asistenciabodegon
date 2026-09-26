@@ -2488,18 +2488,6 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         }
 
     if horas_trabajadas_dia < 8.0:
-        # Tolerancia operativa de 10 minutos (7.83 hrs = 7h 50m) para cambio de turno/relevo
-        if horas_trabajadas_dia >= 7.83:
-            return {
-                'horas_netas': round(horas_trabajadas_dia, 1),
-                'excedente': 0.0,
-                'horas_amortizadas': 0.0,
-                'deuda_restante': round(float(empleado.horas_pendientes or 0.0), 1),
-                'horas_extra_solicitadas': 0.0,
-                'horas_compensadas_de_extra': 0.0,
-                'deficit_dia': 0.0,
-            }
-
         deficit_dia = round(8.0 - horas_trabajadas_dia, 1)
 
         # OPCIÓN B (Control Gerencial):
