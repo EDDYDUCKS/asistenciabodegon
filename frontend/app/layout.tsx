@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { outfit, inter } from "./font";
+import BackendKeepAlive from "@/components/BackendKeepAlive";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,7 +26,10 @@ export default function RootLayout({
         <link rel="icon" href="/icon.png" type="image/png" />
         <link rel="apple-touch-icon" href="/icon.png" />
       </head>
-      <body className="min-h-full flex flex-col font-sans bg-[#fcf9f5] text-[#1c1917]">{children}</body>
+      <body className="min-h-full flex flex-col font-sans bg-[#fcf9f5] text-[#1c1917]">
+        <BackendKeepAlive />
+        {children}
+      </body>
     </html>
   );
 }

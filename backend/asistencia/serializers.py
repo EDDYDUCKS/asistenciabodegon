@@ -104,14 +104,13 @@ class RegistroAsistenciaSerializer(serializers.ModelSerializer):
         ]
 
     def get_foto_verificacion_url(self, obj):
-        if obj.foto_base64:
-            return obj.foto_base64
-        if obj.foto_verificacion:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.foto_verificacion.url)
-            return obj.foto_verificacion.url
-        return None
+        if not obj.foto_base64 and not obj.foto_verificacion:
+            return None
+        request = self.context.get('request')
+        endpoint = f"/api/asistencia/{obj.id}/foto/"
+        if request:
+            return request.build_absolute_uri(endpoint)
+        return endpoint
 
 
 class BitacoraAccionSerializer(serializers.ModelSerializer):

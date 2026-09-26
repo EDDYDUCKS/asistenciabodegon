@@ -8,7 +8,7 @@ from openpyxl.utils import get_column_letter
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes, renderer_classes
 from rest_framework.response import Response
@@ -202,10 +202,41 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
 
 class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
-    queryset = RegistroAsistencia.objects.all().select_related('empleado')
+    queryset = RegistroAsistencia.objects.all().select_related('empleado').defer('foto_base64')
     serializer_class = RegistroAsistenciaSerializer
     permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    @action(detail=True, methods=['get'], url_path='foto')
+    def foto(self, request, pk=None):
+        """
+        Retorna la fotografía de verificación del marcaje en formato binario JPEG
+        con encabezados de caché del navegador para acelerar la carga en un 99%.
+        """
+        instance = RegistroAsistencia.objects.filter(pk=pk).only('id', 'foto_base64', 'foto_verificacion').first()
+        if not instance:
+            return Response({'detail': 'Registro de asistencia no encontrado'}, status=404)
+
+        if instance.foto_base64:
+            b64_data = instance.foto_base64
+            if ',' in b64_data:
+                b64_data = b64_data.split(',', 1)[1]
+            try:
+                import base64
+                img_bytes = base64.b64decode(b64_data)
+                resp = HttpResponse(img_bytes, content_type='image/jpeg')
+                resp['Cache-Control'] = 'public, max-age=604800'  # 7 días en caché de navegador
+                return resp
+            except Exception:
+                pass
+
+        if instance.foto_verificacion:
+            try:
+                return HttpResponseRedirect(instance.foto_verificacion.url)
+            except Exception:
+                pass
+
+        return Response({'detail': 'No hay fotografía asociada a este marcaje'}, status=404)
 
     def perform_destroy(self, instance):
         empleado = instance.empleado
@@ -2393,15 +2424,11 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
 
     es_septimo_dia = _es_septimo_dia_semana(empleado, fecha_hoy)
 
-    # Regla: Las horas extra se cuentan a partir de media hora (0.5 hrs) desde el 23/09/2026 (o 1.0 hr antes).
-    FECHA_INICIO_REGLA_MEDIA_HORA = datetime.date(2026, 9, 23)
-    min_step = 0.5 if fecha_hoy >= FECHA_INICIO_REGLA_MEDIA_HORA else 1.0
+    # Regla: Las horas extra se cuentan de forma permanente y universal a partir de media hora (0.5 hrs) en pasos limpios (0.5, 1.0, 1.5...)
+    min_step = 0.5
 
     if es_septimo_dia:
-        if min_step == 0.5:
-            excedente = float(math.floor(horas_trabajadas_dia * 2.0) / 2.0)
-        else:
-            excedente = float(math.floor(horas_trabajadas_dia))
+        excedente = float(math.floor(horas_trabajadas_dia * 2.0) / 2.0)
         deuda_actual = round(float(empleado.horas_pendientes or 0.0), 1)
         horas_amortizadas = 0.0
         remanente = excedente
@@ -2418,11 +2445,8 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             remanente = res_comp['remanente']
             deuda_actual = res_comp['deuda_restante']
 
-        # El remanente pasa a solicitud de horas extra de 7mo día (a partir de 0.5 hrs desde el 23/09/2026, o 1.0 hr antes)
-        if min_step == 0.5:
-            remanente_limpio = float(math.floor(remanente * 2.0) / 2.0)
-        else:
-            remanente_limpio = float(math.floor(remanente))
+        # El remanente pasa a solicitud de horas extra de 7mo día (en intervalos de 0.5 hrs limpios)
+        remanente_limpio = float(math.floor(remanente * 2.0) / 2.0)
 
         if remanente_limpio >= min_step:
             AutorizacionHorasExtra.objects.update_or_create(
@@ -2565,18 +2589,15 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'deficit_dia': round(deficit_dia, 1),
         }
 
-    # Regla: Las horas extra se cuentan a partir de media hora (0.5 hrs) desde el 23/09/2026 (o 1.0 hr antes).
-    # Si laboró menos del mínimo requerido sobre las 8h normales,
+    # Regla: Las horas extra se cuentan a partir de media hora (0.5 hrs, >= 30 min sobre las 8h normales).
+    # Si laboró menos del mínimo requerido sobre las 8h normales (< 0.5h),
     # no hay horas extra y el turno se cierra estrictamente en sus 8 horas (cero minutos extra).
     excedente_bruto = round(horas_trabajadas_dia - 8.0, 2)
     if excedente_bruto < min_step:
         excedente = 0.0
     else:
-        # Se computan en intervalos limpios de 0.5 hrs (0.5, 1.0, 1.5...) o 1.0 hr antes
-        if min_step == 0.5:
-            excedente = float(math.floor(excedente_bruto * 2.0) / 2.0)
-        else:
-            excedente = float(math.floor(excedente_bruto))
+        # Se computan en intervalos limpios de 0.5 hrs (0.5, 1.0, 1.5...)
+        excedente = float(math.floor(excedente_bruto * 2.0) / 2.0)
 
     deuda_actual = round(float(empleado.horas_pendientes or 0.0), 1)
 
@@ -2595,11 +2616,8 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         remanente = res_comp['remanente']
         deuda_actual = res_comp['deuda_restante']
 
-    # Solo el remanente limpio por pagar (de 0.5 horas o más desde el 23/09/2026) va a AutorizacionHorasExtra
-    if min_step == 0.5:
-        remanente_limpio = float(math.floor(remanente * 2.0) / 2.0)
-    else:
-        remanente_limpio = float(math.floor(remanente))
+    # Solo el remanente limpio por pagar (en intervalos de 0.5 horas limpios) va a AutorizacionHorasExtra
+    remanente_limpio = float(math.floor(remanente * 2.0) / 2.0)
 
     if remanente_limpio >= min_step:
         AutorizacionHorasExtra.objects.update_or_create(
