@@ -69,7 +69,25 @@ import {
   Receipt,
   FileText,
   ChevronDown,
+  ChevronUp,
+  LayoutGrid,
+  Table,
+  UtensilsCrossed,
+  Wine,
+  Eye,
+  User,
 } from 'lucide-react';
+
+type AreaOperativa = 'TODAS' | 'COCINA' | 'SALON' | 'BARRA_CAJA' | 'OPERACIONES' | 'ADMIN';
+
+const getEmpleadoArea = (cargoStr?: string): 'COCINA' | 'SALON' | 'BARRA_CAJA' | 'OPERACIONES' | 'ADMIN' => {
+  const c = (cargoStr || '').toLowerCase();
+  if (c.includes('gerent') || c.includes('admin') || c.includes('contador') || c.includes('recursos')) return 'ADMIN';
+  if (c.includes('cocin') || c.includes('chef') || c.includes('parrill') || c.includes('produccion') || c.includes('ayudante de cocina')) return 'COCINA';
+  if (c.includes('meser') || c.includes('salon') || c.includes('atencion') || c.includes('servicio') || c.includes('runner') || c.includes('capitan')) return 'SALON';
+  if (c.includes('caj') || c.includes('bar') || c.includes('bartender') || c.includes('bebida') || c.includes('facturacion')) return 'BARRA_CAJA';
+  return 'OPERACIONES';
+};
 
 const MESES_NOMBRES: Record<number, string> = {
   1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio',
@@ -125,6 +143,9 @@ export default function NominaAdminPage() {
   const [fechaInicio, setFechaInicio] = useState(primerDiaMes);
   const [fechaFin, setFechaFin] = useState(hoyStr);
   const [searchColaborador, setSearchColaborador] = useState('');
+  const [areaFiltro, setAreaFiltro] = useState<AreaOperativa>('TODAS');
+  const [vistaModo, setVistaModo] = useState<'TABLA' | 'TARJETAS'>('TABLA');
+  const [colabExpandidoId, setColabExpandidoId] = useState<number | null>(null);
   const deferredSearchColaborador = useDeferredValue(searchColaborador);
   const deferredSearchExtra = useDeferredValue(searchExtra);
   const deferredSearchCompensacion = useDeferredValue(searchCompensacion);
@@ -954,15 +975,35 @@ export default function NominaAdminPage() {
     pagosVacaciones,
   ]);
 
+  const conteoPorArea = useMemo(() => {
+    const counts: Record<AreaOperativa, number> = {
+      TODAS: resumenEmpleados.length,
+      COCINA: 0,
+      SALON: 0,
+      BARRA_CAJA: 0,
+      OPERACIONES: 0,
+      ADMIN: 0,
+    };
+    resumenEmpleados.forEach((item) => {
+      const area = getEmpleadoArea(item.emp.cargo_display || item.emp.cargo);
+      counts[area] = (counts[area] || 0) + 1;
+    });
+    return counts;
+  }, [resumenEmpleados]);
+
   const resumenFiltrado = useMemo(() => {
-    if (!searchColaborador.trim()) return resumenEmpleados;
+    let list = resumenEmpleados;
+    if (areaFiltro !== 'TODAS') {
+      list = list.filter((item) => getEmpleadoArea(item.emp.cargo_display || item.emp.cargo) === areaFiltro);
+    }
+    if (!searchColaborador.trim()) return list;
     const term = searchColaborador.toLowerCase().trim();
-    return resumenEmpleados.filter((item) => {
+    return list.filter((item) => {
       const nombreCompleto = `${item.emp.nombre} ${item.emp.apellido}`.toLowerCase();
       const cargo = (item.emp.cargo_display || item.emp.cargo || '').toLowerCase();
       return nombreCompleto.includes(term) || cargo.includes(term);
     });
-  }, [resumenEmpleados, searchColaborador]);
+  }, [resumenEmpleados, areaFiltro, searchColaborador]);
 
   const totalOrdinariasPeriodo = useMemo(() => resumenFiltrado.reduce((acc, item) => acc + item.horasOrdinarias, 0), [resumenFiltrado]);
   const totalFeriadasPeriodo = useMemo(() => resumenFiltrado.reduce((acc, item) => acc + item.feriadosTrabajadosDias, 0), [resumenFiltrado]);
@@ -1579,211 +1620,516 @@ export default function NominaAdminPage() {
             </div>
           )}
 
-          {/* Tabla de Resumen de Horas (9 Columnas Ejecutivas con Feriados Pagados) */}
-          <div className="glass-panel border border-white rounded-3xl overflow-hidden shadow-premium">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm">
-                <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4">Empleado y Puesto</th>
-                    <th className="px-6 py-4 text-center">Días Trabajados</th>
-                    <th className="px-6 py-4 text-center">Días Libres (Tomados)</th>
-                    <th className="px-6 py-4 text-right">Horas Ordinarias</th>
-                    <th className="px-6 py-4 text-right">Feriados Trabajados (Días)</th>
-                    <th className="px-6 py-4 text-right text-amber-900 bg-amber-50/40 border-x border-amber-100/50">Vacaciones Pagadas</th>
-                    <th className="px-6 py-4 text-right">Horas Extra Aprobadas</th>
-                    <th className="px-6 py-4 text-right text-amber-800 bg-amber-50/60">H. Extra por Aprobar</th>
-                    <th className="px-6 py-4 text-right text-rose-700 bg-rose-50/50">Horas Debidas (Déficit)</th>
-                    <th className="px-6 py-4 text-right text-emerald-800 bg-emerald-50/60">Vacaciones Restantes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-200 text-stone-800 font-medium">
-                  {loading ? (
+          {/* Barra de Filtros por Área y Selector de Vista (Tabla vs Tarjetas) */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2">
+            {/* Filtros de Área (Pills) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+              <span className="text-stone-400 font-bold uppercase text-[10px] tracking-wider mr-1 whitespace-nowrap">Área:</span>
+              <button
+                type="button"
+                onClick={() => setAreaFiltro('TODAS')}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  areaFiltro === 'TODAS'
+                    ? 'bg-[#1c6856] text-white shadow-2xs'
+                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                }`}
+              >
+                Todos ({conteoPorArea.TODAS})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAreaFiltro('COCINA')}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  areaFiltro === 'COCINA'
+                    ? 'bg-amber-700 text-white shadow-2xs'
+                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                }`}
+              >
+                <span>🍳</span> Cocina & Parrilla ({conteoPorArea.COCINA})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAreaFiltro('SALON')}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  areaFiltro === 'SALON'
+                    ? 'bg-blue-700 text-white shadow-2xs'
+                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                }`}
+              >
+                <span>🍽️</span> Salón & Servicio ({conteoPorArea.SALON})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAreaFiltro('BARRA_CAJA')}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  areaFiltro === 'BARRA_CAJA'
+                    ? 'bg-purple-700 text-white shadow-2xs'
+                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                }`}
+              >
+                <span>🍸</span> Caja & Barra ({conteoPorArea.BARRA_CAJA})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAreaFiltro('OPERACIONES')}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  areaFiltro === 'OPERACIONES'
+                    ? 'bg-teal-700 text-white shadow-2xs'
+                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                }`}
+              >
+                <span>🧹</span> Operaciones ({conteoPorArea.OPERACIONES})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAreaFiltro('ADMIN')}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  areaFiltro === 'ADMIN'
+                    ? 'bg-stone-800 text-white shadow-2xs'
+                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                }`}
+              >
+                <span>⭐</span> Gerencia ({conteoPorArea.ADMIN})
+              </button>
+            </div>
+
+            {/* Selector de Modo de Vista */}
+            <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl border border-stone-200 self-start lg:self-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => setVistaModo('TABLA')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  vistaModo === 'TABLA'
+                    ? 'bg-white text-[#1c6856] shadow-2xs'
+                    : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                <Table className="w-3.5 h-3.5" />
+                <span>Tabla Detallada</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setVistaModo('TARJETAS')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  vistaModo === 'TARJETAS'
+                    ? 'bg-white text-[#1c6856] shadow-2xs'
+                    : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Vista Tarjetas</span>
+              </button>
+            </div>
+          </div>
+
+          {/* VISTA 1: TABLA CON COLUMNA Y ENCABEZADOS STICKY */}
+          {vistaModo === 'TABLA' && (
+            <div className="glass-panel border border-stone-200/90 rounded-3xl overflow-hidden shadow-premium">
+              <div className="max-h-[72vh] overflow-auto relative">
+                <table className="w-full text-left text-xs sm:text-sm border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-30 bg-stone-100/95 backdrop-blur text-stone-700 font-bold uppercase tracking-wider text-[11px] sm:text-xs">
                     <tr>
-                      <td colSpan={10} className="px-6 py-8 text-center text-stone-400">
-                        Calculando registros...
-                      </td>
+                      <th className="sticky left-0 top-0 z-40 bg-stone-100 px-6 py-4 border-b border-stone-200 border-r border-stone-200 shadow-[2px_0_6px_rgba(0,0,0,0.06)] min-w-[240px]">
+                        Empleado y Puesto
+                      </th>
+                      <th className="px-6 py-4 text-center border-b border-stone-200 whitespace-nowrap">Días Trabajados</th>
+                      <th className="px-6 py-4 text-center border-b border-stone-200 whitespace-nowrap">Días Libres (Tomados)</th>
+                      <th className="px-6 py-4 text-right border-b border-stone-200 whitespace-nowrap">Horas Ordinarias</th>
+                      <th className="px-6 py-4 text-right border-b border-stone-200 whitespace-nowrap">Feriados Trabajados (Días)</th>
+                      <th className="px-6 py-4 text-right text-amber-900 bg-amber-50/60 border-b border-stone-200 border-x border-amber-100/60 whitespace-nowrap">Vacaciones Pagadas</th>
+                      <th className="px-6 py-4 text-right border-b border-stone-200 whitespace-nowrap">Horas Extra Aprobadas</th>
+                      <th className="px-6 py-4 text-right text-amber-800 bg-amber-50/70 border-b border-stone-200 whitespace-nowrap">H. Extra por Aprobar</th>
+                      <th className="px-6 py-4 text-right text-rose-700 bg-rose-50/60 border-b border-stone-200 whitespace-nowrap">Horas Debidas (Déficit)</th>
+                      <th className="px-6 py-4 text-right text-emerald-800 bg-emerald-50/70 border-b border-stone-200 whitespace-nowrap">Vacaciones Restantes</th>
                     </tr>
-                  ) : resumenEmpleados.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="px-6 py-8 text-center text-stone-400 font-normal">
-                        No hay registros disponibles para este rango.
-                      </td>
-                    </tr>
-                  ) : resumenFiltrado.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="px-6 py-8 text-center text-stone-400 font-normal">
-                        No se encontró ningún trabajador que coincida con &quot;{searchColaborador}&quot;.
-                      </td>
-                    </tr>
-                  ) : (
-                    resumenFiltrado.map((item) => (
-                      <tr key={item.emp.id} className="hover:bg-stone-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="font-bold text-stone-900 leading-tight">
-                            {item.emp.nombre} {item.emp.apellido}
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                            <span className="inline-block px-2 py-0.5 rounded-full bg-[#1c6856]/5 border border-[#1c6856]/15 text-[11px] font-bold text-[#1c6856]">
-                              {item.emp.cargo_display}
-                            </span>
-                            {item.permisosInfo.length > 0 && (
-                              <span
-                                className="inline-block px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700"
-                                title={item.permisosInfo.join('\n')}
+                  </thead>
+                  <tbody className="text-stone-800 font-medium">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={10} className="px-6 py-12 text-center text-stone-400">
+                          Calculando registros...
+                        </td>
+                      </tr>
+                    ) : resumenEmpleados.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="px-6 py-12 text-center text-stone-400 font-normal">
+                          No hay registros disponibles para este rango.
+                        </td>
+                      </tr>
+                    ) : resumenFiltrado.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="px-6 py-12 text-center text-stone-400 font-normal">
+                          No se encontró ningún trabajador que coincida con los filtros seleccionados.
+                        </td>
+                      </tr>
+                    ) : (
+                      resumenFiltrado.map((item) => (
+                        <tr key={item.emp.id} className="group hover:bg-stone-50/80 transition-colors">
+                          <td className="sticky left-0 z-20 bg-white group-hover:bg-stone-50/95 transition-colors px-6 py-4 border-b border-stone-100 border-r border-stone-200 shadow-[2px_0_6px_rgba(0,0,0,0.06)] min-w-[240px]">
+                            <div className="font-bold text-stone-900 leading-tight">
+                              {item.emp.nombre} {item.emp.apellido}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              <span className="inline-block px-2 py-0.5 rounded-full bg-[#1c6856]/5 border border-[#1c6856]/15 text-[11px] font-bold text-[#1c6856]">
+                                {item.emp.cargo_display}
+                              </span>
+                              {item.permisosInfo.length > 0 && (
+                                <span
+                                  className="inline-block px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700"
+                                  title={item.permisosInfo.join('\n')}
+                                >
+                                  {item.permisosInfo[0]}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center font-bold text-stone-700 border-b border-stone-100 whitespace-nowrap">
+                            {item.diasUnicos} {item.diasUnicos === 1 ? 'día' : 'días'}
+                          </td>
+                          <td className="px-6 py-4 text-center font-bold text-emerald-700 bg-emerald-50/30 border-b border-stone-100 whitespace-nowrap">
+                            {item.diasLibres} {item.diasLibres === 1 ? 'libre' : 'libres'}
+                          </td>
+                          <td className="px-6 py-4 text-right font-mono font-bold text-stone-900 border-b border-stone-100 whitespace-nowrap">
+                            {item.horasOrdinarias.toFixed(1)} hrs
+                          </td>
+                          <td className="px-6 py-4 text-right font-mono font-bold text-[#1c6856] border-b border-stone-100 whitespace-nowrap">
+                            <div className="flex flex-col items-end">
+                              <span>{item.feriadosTrabajadosDias} {item.feriadosTrabajadosDias === 1 ? 'feriado' : 'feriados'}</span>
+                              {item.feriadosTrabajadosDias > 0 && (
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded mt-0.5 font-sans">
+                                  +{item.feriadosTrabajadosDias * 2}d vac.
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right font-mono font-bold bg-amber-50/20 border-b border-stone-100 border-x border-amber-100/30 whitespace-nowrap">
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span className={item.vacacionesPagadasDias > 0 ? "text-emerald-800 font-bold font-mono text-xs sm:text-sm" : "text-stone-400 font-normal text-xs sm:text-sm"}>
+                                  {item.vacacionesPagadasDias} {item.vacacionesPagadasDias === 1 ? 'día' : 'días'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEmpleadoParaPagoVac(item.emp);
+                                    setShowModalEmitirPagoVac(true);
+                                  }}
+                                  className="inline-flex items-center p-1 rounded-lg text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
+                                  title={`Emitir pago de vacaciones en dinero para ${item.emp.nombre}`}
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
+                              {item.pagosVacEmp.length > 0 && (
+                                <div className="flex flex-col items-end gap-0.5 mt-0.5">
+                                  {item.pagosVacEmp.map((p) => (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={() => setSelectedPagoVacaciones(p)}
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1c6856] hover:text-[#154f42] hover:underline bg-[#1c6856]/10 px-1.5 py-0.5 rounded border border-[#1c6856]/20 transition-all cursor-pointer"
+                                      title={`Ver Boleta N° ${p.numero_recibo} (C$ ${parseFloat(String(p.monto_pagado)).toLocaleString('es-NI', { minimumFractionDigits: 2 })})`}
+                                    >
+                                      <FileText className="w-3 h-3" />
+                                      <span>{p.numero_recibo}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700 border-b border-stone-100 whitespace-nowrap">
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span>{item.horasExtraAprobadas.toFixed(1)} hrs</span>
+                              {item.excedeLimiteArt58 && (
+                                <span
+                                  className="inline-flex items-center gap-1 text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded shadow-2xs"
+                                  title={`Atención: Excede el límite de 9h semanales (${item.maxHorasExtraSemana.toFixed(1)} hrs en una sola semana - Art. 58 Código del Trabajo)`}
+                                >
+                                  <span>⚠️ &gt;9h sem (Art. 58)</span>
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right font-mono font-bold bg-amber-50/20 border-b border-stone-100 whitespace-nowrap">
+                            {item.horasExtraPendientes > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab('extras');
+                                  setSubTabExtras('pendientes');
+                                }}
+                                className="inline-flex items-center gap-1.5 text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-xl transition-all hover:scale-105 active:scale-95 cursor-pointer text-xs font-bold"
+                                title="Haga clic para ir a revisar y autorizar estas horas extra pendientes"
                               >
-                                {item.permisosInfo[0]}
-                              </span>
+                                <span>+{item.horasExtraPendientes.toFixed(1)} hrs</span>
+                                <span className="text-[9px] bg-amber-200/90 text-amber-950 px-1 py-0.2 rounded font-black uppercase">Pendiente</span>
+                              </button>
+                            ) : (
+                              <span className="text-stone-400 font-normal">0.0 hrs</span>
                             )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center font-bold text-stone-700">
-                          {item.diasUnicos} {item.diasUnicos === 1 ? 'día' : 'días'}
-                        </td>
-                        <td className="px-6 py-4 text-center font-bold text-emerald-700 bg-emerald-50/30">
-                          {item.diasLibres} {item.diasLibres === 1 ? 'libre' : 'libres'}
-                        </td>
-                        <td className="px-6 py-4 text-right font-mono font-bold text-stone-900">
-                          {item.horasOrdinarias.toFixed(1)} hrs
-                        </td>
-                        <td className="px-6 py-4 text-right font-mono font-bold text-[#1c6856]">
-                          <div className="flex flex-col items-end">
-                            <span>{item.feriadosTrabajadosDias} {item.feriadosTrabajadosDias === 1 ? 'feriado' : 'feriados'}</span>
-                            {item.feriadosTrabajadosDias > 0 && (
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded mt-0.5 font-sans">
-                                +{item.feriadosTrabajadosDias * 2}d vac.
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right font-mono font-bold bg-amber-50/20 border-x border-amber-100/30">
-                          <div className="flex flex-col items-end gap-1">
+                          </td>
+                          <td className="px-6 py-4 text-right font-mono font-bold text-rose-700 bg-rose-50/20 border-b border-stone-100 whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
-                              <span className={item.vacacionesPagadasDias > 0 ? "text-emerald-800 font-bold font-mono text-xs sm:text-sm" : "text-stone-400 font-normal text-xs sm:text-sm"}>
-                                {item.vacacionesPagadasDias} {item.vacacionesPagadasDias === 1 ? 'día' : 'días'}
+                              <span>{item.horasDebidas.toFixed(1)} hrs</span>
+                              {Number(item.emp.horas_pendientes || 0) > 0 && (
+                                <span
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs"
+                                  title={`Saldo activo en Bolsa de Horas: ${Number(item.emp.horas_pendientes).toFixed(1)} hrs a reponer`}
+                                >
+                                  Bolsa
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right bg-emerald-50/20 border-b border-stone-100 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedVacacionesEmp(item.emp)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+                              title="Haga clic para ver el desglose legal auditado de días acumulados, tomados y saldo disponible"
+                            >
+                              <span className={item.vacRestantes < 0 ? 'text-rose-600' : 'text-emerald-800'}>
+                                {item.vacRestantes.toFixed(1)} {Math.abs(item.vacRestantes) === 1 ? 'día' : 'días'}
                               </span>
+                              <Info className="w-3 h-3 text-emerald-600 opacity-60 group-hover:opacity-100" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  <tfoot className="sticky bottom-0 z-30 bg-stone-100/95 backdrop-blur font-bold text-stone-900 shadow-[0_-2px_6px_rgba(0,0,0,0.05)]">
+                    <tr>
+                      <td className="sticky left-0 bottom-0 z-40 bg-stone-100 px-6 py-4 border-t-2 border-stone-300 border-r border-stone-200 shadow-[2px_0_6px_rgba(0,0,0,0.06)] text-left uppercase text-xs text-stone-600">
+                        Totales ({resumenFiltrado.length} colab.):
+                      </td>
+                      <td className="px-6 py-4 text-center border-t-2 border-stone-300 font-mono text-xs font-bold text-stone-700 whitespace-nowrap">
+                        {resumenFiltrado.reduce((acc, c) => acc + c.diasUnicos, 0)} d
+                      </td>
+                      <td className="px-6 py-4 text-center border-t-2 border-stone-300 font-mono text-xs font-bold text-emerald-700 bg-emerald-50/30 whitespace-nowrap">
+                        {resumenFiltrado.reduce((acc, c) => acc + c.diasLibres, 0)} d
+                      </td>
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-stone-950 text-base font-mono font-black whitespace-nowrap">
+                        {totalOrdinariasPeriodo.toFixed(1)} hrs
+                      </td>
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-[#1c6856] text-base font-mono font-black whitespace-nowrap">
+                        {totalFeriadasPeriodo} {totalFeriadasPeriodo === 1 ? 'día' : 'días'}
+                      </td>
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-amber-900 bg-amber-50/50 text-base font-mono font-black border-x border-amber-100/50 whitespace-nowrap">
+                        {totalVacacionesPagadasPeriodo.toFixed(1)} {totalVacacionesPagadasPeriodo === 1 ? 'día' : 'días'}
+                      </td>
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-emerald-700 text-base font-mono font-black whitespace-nowrap">
+                        {totalExtrasPeriodo.toFixed(1)} hrs
+                      </td>
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-amber-700 bg-amber-50/50 text-base font-mono font-black whitespace-nowrap">
+                        {totalExtrasPendientesPeriodo > 0 ? `+${totalExtrasPendientesPeriodo.toFixed(1)} hrs` : '0.0 hrs'}
+                      </td>
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-rose-700 bg-rose-50/50 text-base font-mono font-black whitespace-nowrap">
+                        {totalDebidasPeriodo.toFixed(1)} hrs
+                      </td>
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-emerald-800 bg-emerald-50/50 text-base font-mono font-black whitespace-nowrap">
+                        {totalVacacionesPeriodo.toFixed(1)} días
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* VISTA 2: TARJETAS RESPONSIVAS POR COLABORADOR */}
+          {vistaModo === 'TARJETAS' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {loading ? (
+                <div className="col-span-full py-16 text-center text-stone-400 bg-white rounded-3xl border border-stone-200">
+                  Calculando registros...
+                </div>
+              ) : resumenEmpleados.length === 0 ? (
+                <div className="col-span-full py-16 text-center text-stone-400 bg-white rounded-3xl border border-stone-200 font-normal">
+                  No hay registros disponibles para este rango.
+                </div>
+              ) : resumenFiltrado.length === 0 ? (
+                <div className="col-span-full py-16 text-center text-stone-400 bg-white rounded-3xl border border-stone-200 font-normal">
+                  No se encontró ningún colaborador con los filtros seleccionados.
+                </div>
+              ) : (
+                resumenFiltrado.map((item) => {
+                  const area = getEmpleadoArea(item.emp.cargo || '');
+                  return (
+                    <div
+                      key={item.emp.id}
+                      className="bg-white rounded-3xl border border-stone-200/90 hover:border-[#1c6856]/40 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-4 group"
+                    >
+                      {/* Top: Info del empleado */}
+                      <div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-[#1c6856]/10 text-[#1c6856] font-black text-sm flex items-center justify-center shrink-0 border border-[#1c6856]/20 shadow-2xs">
+                              {item.emp.nombre.charAt(0)}{item.emp.apellido.charAt(0)}
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-stone-900 leading-snug group-hover:text-[#1c6856] transition-colors">
+                                {item.emp.nombre} {item.emp.apellido}
+                              </h3>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                <span className="px-2 py-0.5 rounded-full bg-stone-100 border border-stone-200 text-[10px] font-bold text-stone-600">
+                                  {item.emp.cargo_display}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  area === 'COCINA' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                                  area === 'SALON' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
+                                  area === 'BARRA_CAJA' ? 'bg-purple-50 text-purple-800 border border-purple-200' :
+                                  area === 'OPERACIONES' ? 'bg-teal-50 text-teal-800 border border-teal-200' :
+                                  'bg-stone-100 text-stone-700 border border-stone-200'
+                                }`}>
+                                  {area === 'COCINA' ? '🍳 Cocina' :
+                                   area === 'SALON' ? '🍽️ Salón' :
+                                   area === 'BARRA_CAJA' ? '🍸 Barra/Caja' :
+                                   area === 'OPERACIONES' ? '🧹 Operaciones' : '⭐ Gerencia'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Permisos */}
+                        {item.permisosInfo.length > 0 && (
+                          <div className="mt-2.5">
+                            <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
+                              {item.permisosInfo[0]}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Quick Stats Ribbon */}
+                        <div className="grid grid-cols-2 gap-2 mt-3.5 p-2 bg-stone-50 rounded-2xl border border-stone-100 text-xs">
+                          <div className="text-center">
+                            <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Trabajados</span>
+                            <span className="font-extrabold text-stone-800 font-mono">{item.diasUnicos} {item.diasUnicos === 1 ? 'día' : 'días'}</span>
+                          </div>
+                          <div className="text-center border-l border-stone-200">
+                            <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block">Libres</span>
+                            <span className="font-extrabold text-emerald-700 font-mono">{item.diasLibres} {item.diasLibres === 1 ? 'libre' : 'libres'}</span>
+                          </div>
+                        </div>
+
+                        {/* Grid de Métricas Principales */}
+                        <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                          <div className="p-2.5 rounded-xl bg-stone-50/70 border border-stone-100">
+                            <span className="text-[10px] text-stone-400 font-bold uppercase block">H. Ordinarias</span>
+                            <span className="font-mono font-bold text-stone-900 text-sm">{item.horasOrdinarias.toFixed(1)} hrs</span>
+                          </div>
+
+                          <div className="p-2.5 rounded-xl bg-[#1c6856]/5 border border-[#1c6856]/10">
+                            <span className="text-[10px] text-[#1c6856] font-bold uppercase block">Feriados</span>
+                            <div className="flex items-baseline gap-1">
+                              <span className="font-mono font-bold text-[#1c6856] text-sm">{item.feriadosTrabajadosDias}</span>
+                              {item.feriadosTrabajadosDias > 0 && (
+                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">
+                                  +{item.feriadosTrabajadosDias * 2}d vac
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="p-2.5 rounded-xl bg-amber-50/40 border border-amber-100/60">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-amber-800 font-bold uppercase">Vac. Pagadas</span>
                               <button
                                 type="button"
                                 onClick={() => {
                                   setEmpleadoParaPagoVac(item.emp);
                                   setShowModalEmitirPagoVac(true);
                                 }}
-                                className="inline-flex items-center p-1 rounded-lg text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
-                                title={`Emitir pago de vacaciones en dinero para ${item.emp.nombre}`}
+                                className="p-1 rounded bg-amber-200/60 hover:bg-amber-300 text-amber-950 transition-colors cursor-pointer"
+                                title={`Emitir pago de vacaciones para ${item.emp.nombre}`}
                               >
-                                <Plus className="w-3 h-3" />
+                                <Plus className="w-2.5 h-2.5" />
                               </button>
                             </div>
+                            <span className={item.vacacionesPagadasDias > 0 ? "font-mono font-bold text-amber-900 text-sm" : "font-mono text-stone-400 text-sm"}>
+                              {item.vacacionesPagadasDias} d
+                            </span>
                             {item.pagosVacEmp.length > 0 && (
-                              <div className="flex flex-col items-end gap-0.5 mt-0.5">
+                              <div className="flex flex-wrap gap-1 mt-1">
                                 {item.pagosVacEmp.map((p) => (
                                   <button
                                     key={p.id}
                                     type="button"
                                     onClick={() => setSelectedPagoVacaciones(p)}
-                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1c6856] hover:text-[#154f42] hover:underline bg-[#1c6856]/10 px-1.5 py-0.5 rounded border border-[#1c6856]/20 transition-all cursor-pointer"
-                                    title={`Ver Boleta N° ${p.numero_recibo} (C$ ${parseFloat(String(p.monto_pagado)).toLocaleString('es-NI', { minimumFractionDigits: 2 })})`}
+                                    className="inline-flex items-center gap-0.5 text-[9px] font-bold text-[#1c6856] hover:underline bg-[#1c6856]/10 px-1 py-0.2 rounded border border-[#1c6856]/20 cursor-pointer"
                                   >
-                                    <FileText className="w-3 h-3" />
+                                    <FileText className="w-2.5 h-2.5" />
                                     <span>{p.numero_recibo}</span>
                                   </button>
                                 ))}
                               </div>
                             )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700">
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span>{item.horasExtraAprobadas.toFixed(1)} hrs</span>
-                            {item.excedeLimiteArt58 && (
-                              <span
-                                className="inline-flex items-center gap-1 text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded shadow-2xs"
-                                title={`Atención: Excede el límite de 9h semanales (${item.maxHorasExtraSemana.toFixed(1)} hrs en una sola semana - Art. 58 Código del Trabajo)`}
+
+                          <div className="p-2.5 rounded-xl bg-emerald-50/40 border border-emerald-100/60">
+                            <span className="text-[10px] text-emerald-800 font-bold uppercase block">H. Extra Aprob.</span>
+                            <div className="flex items-center gap-1">
+                              <span className="font-mono font-bold text-emerald-700 text-sm">{item.horasExtraAprobadas.toFixed(1)} hrs</span>
+                              {item.excedeLimiteArt58 && (
+                                <span className="text-[9px] font-black bg-amber-100 text-amber-900 px-1 rounded" title="Excede 9h semanales (Art. 58)">⚠️</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/70">
+                            <span className="text-[10px] text-amber-900 font-bold uppercase block">H. Extra Pend.</span>
+                            {item.horasExtraPendientes > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab('extras');
+                                  setSubTabExtras('pendientes');
+                                }}
+                                className="inline-flex items-center gap-1 font-mono font-bold text-xs text-amber-900 bg-amber-200/80 hover:bg-amber-300 px-1.5 py-0.5 rounded-lg mt-0.5 transition-colors cursor-pointer"
                               >
-                                <span>⚠️ &gt;9h sem (Art. 58)</span>
-                              </span>
+                                +{item.horasExtraPendientes.toFixed(1)} hrs
+                              </button>
+                            ) : (
+                              <span className="font-mono text-stone-400 text-sm">0.0 hrs</span>
                             )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-right font-mono font-bold bg-amber-50/20">
-                          {item.horasExtraPendientes > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveTab('extras');
-                                setSubTabExtras('pendientes');
-                              }}
-                              className="inline-flex items-center gap-1.5 text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-xl transition-all hover:scale-105 active:scale-95 cursor-pointer text-xs font-bold"
-                              title="Haga clic para ir a revisar y autorizar estas horas extra pendientes"
-                            >
-                              <span>+{item.horasExtraPendientes.toFixed(1)} hrs</span>
-                              <span className="text-[9px] bg-amber-200/90 text-amber-950 px-1 py-0.2 rounded font-black uppercase">Pendiente</span>
-                            </button>
-                          ) : (
-                            <span className="text-stone-400 font-normal">0.0 hrs</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-right font-mono font-bold text-rose-700 bg-rose-50/20">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <span>{item.horasDebidas.toFixed(1)} hrs</span>
-                            {Number(item.emp.horas_pendientes || 0) > 0 && (
-                              <span
-                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs"
-                                title={`Saldo activo en Bolsa de Horas: ${Number(item.emp.horas_pendientes).toFixed(1)} hrs a reponer`}
-                              >
-                                Bolsa
-                              </span>
-                            )}
+
+                          <div className="p-2.5 rounded-xl bg-rose-50/40 border border-rose-100/60">
+                            <span className="text-[10px] text-rose-800 font-bold uppercase block">H. Debidas</span>
+                            <div className="flex items-center gap-1">
+                              <span className="font-mono font-bold text-rose-700 text-sm">{item.horasDebidas.toFixed(1)} hrs</span>
+                              {Number(item.emp.horas_pendientes || 0) > 0 && (
+                                <span className="text-[9px] font-black bg-amber-100 text-amber-900 px-1 rounded border border-amber-200" title={`Bolsa: ${Number(item.emp.horas_pendientes).toFixed(1)}h`}>
+                                  Bolsa
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-right bg-emerald-50/20">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedVacacionesEmp(item.emp)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all hover:scale-105 active:scale-95 cursor-pointer group"
-                            title="Haga clic para ver el desglose legal auditado de días acumulados, tomados y saldo disponible"
-                          >
-                            <span className={item.vacRestantes < 0 ? 'text-rose-600' : 'text-emerald-800'}>
-                              {item.vacRestantes.toFixed(1)} {Math.abs(item.vacRestantes) === 1 ? 'día' : 'días'}
-                            </span>
-                            <Info className="w-3 h-3 text-emerald-600 opacity-60 group-hover:opacity-100" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                <tfoot className="bg-stone-50 border-t-2 border-stone-200 font-bold text-stone-900">
-                  <tr>
-                    <td colSpan={3} className="px-6 py-4 text-right text-stone-500 uppercase text-xs">
-                      Totales del Período:
-                    </td>
-                    <td className="px-6 py-4 text-right text-stone-950 text-base font-mono font-black">
-                      {totalOrdinariasPeriodo.toFixed(1)} hrs
-                    </td>
-                    <td className="px-6 py-4 text-right text-[#1c6856] text-base font-mono font-black">
-                      {totalFeriadasPeriodo} {totalFeriadasPeriodo === 1 ? 'día' : 'días'}
-                    </td>
-                    <td className="px-6 py-4 text-right text-amber-900 bg-amber-50/50 text-base font-mono font-black border-x border-amber-100/50">
-                      {totalVacacionesPagadasPeriodo.toFixed(1)} {totalVacacionesPagadasPeriodo === 1 ? 'día' : 'días'}
-                    </td>
-                    <td className="px-6 py-4 text-right text-emerald-700 text-base font-mono font-black">
-                      {totalExtrasPeriodo.toFixed(1)} hrs
-                    </td>
-                    <td className="px-6 py-4 text-right text-amber-700 bg-amber-50/50 text-base font-mono font-black">
-                      {totalExtrasPendientesPeriodo > 0 ? `+${totalExtrasPendientesPeriodo.toFixed(1)} hrs` : '0.0 hrs'}
-                    </td>
-                    <td className="px-6 py-4 text-right text-rose-700 bg-rose-50/50 text-base font-mono font-black">
-                      {totalDebidasPeriodo.toFixed(1)} hrs
-                    </td>
-                    <td className="px-6 py-4 text-right text-emerald-800 bg-emerald-50/50 text-base font-mono font-black">
-                      {totalVacacionesPeriodo.toFixed(1)} días
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                        </div>
+                      </div>
+
+                      {/* Card Bottom: Saldo Vacaciones */}
+                      <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
+                        <span className="text-xs text-stone-500 font-medium">Saldo Vacaciones:</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedVacacionesEmp(item.emp)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors cursor-pointer"
+                        >
+                          <span className={item.vacRestantes < 0 ? 'text-rose-600' : 'text-emerald-800'}>
+                            {item.vacRestantes.toFixed(1)} {Math.abs(item.vacRestantes) === 1 ? 'día' : 'días'}
+                          </span>
+                          <Info className="w-3 h-3 text-emerald-600" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
-          </div>
+          )}
         </div>
       )}
 
