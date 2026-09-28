@@ -163,8 +163,8 @@ export default function BodegonControlPage() {
       const jList = (jData as JornadaDiaria[]) || [];
       setJornadas(jList);
 
-      // Determinar si hay alguna jornada actualmente ABIERTA en la PC del restaurante
-      const activa = jList.find((j) => j.estado === 'ABIERTA') || null;
+      // Determinar si hay alguna jornada actualmente ABIERTA en la PC del restaurante estrictamente para el día de hoy
+      const activa = jList.find((j) => j.estado === 'ABIERTA' && j.fecha === hoyStr) || null;
       setJornadaActiva(activa);
 
       setGastos((gData as CompraGasto[]) || []);
@@ -173,7 +173,7 @@ export default function BodegonControlPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [hoyStr]);
 
   // 2. Suscripción en Tiempo Real
   useEffect(() => {
@@ -816,6 +816,31 @@ export default function BodegonControlPage() {
       if (error) throw error;
     } catch (err: any) {
       alert('Error: ' + err.message);
+    }
+  };
+
+  // Detectar si quedó alguna jornada anterior sin cerrar (de días pasados)
+  const jornadaAnteriorAbierta = useMemo(() => {
+    return jornadas.find((j) => j.estado === 'ABIERTA' && j.fecha < hoyStr) || null;
+  }, [jornadas, hoyStr]);
+
+  // Cerrar administrativamente una jornada de un día anterior que no fue cerrada
+  const handleCerrarJornadaAnterior = async (j: JornadaDiaria) => {
+    if (!window.confirm(`¿Deseas cerrar formalmente la jornada pendiente del ${j.fecha} (${j.responsable})?`)) return;
+    try {
+      const { error } = await supabase
+        .from('jornadas_diarias')
+        .update({
+          estado: 'CERRADA',
+          fecha_cierre: new Date().toISOString(),
+          observaciones: (j.observaciones || '') + ' • Cierre administrativo desde el portal web',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', j.id);
+      if (error) throw error;
+      cargarDatos();
+    } catch (err: any) {
+      alert('Error cerrando jornada anterior: ' + err.message);
     }
   };
 
@@ -1649,6 +1674,30 @@ export default function BodegonControlPage() {
               </div>
             </div>
           </div>
+
+          {/* Aviso si quedó un turno de un día anterior sin cerrar formalmente */}
+          {jornadaAnteriorAbierta && (
+            <div className="bg-amber-950/40 border border-amber-500/40 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-200">
+              <div className="flex items-center gap-2.5 text-xs">
+                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <span className="font-bold text-amber-300 block">
+                    Turno anterior sin cerrar formalmente: {jornadaAnteriorAbierta.fecha}
+                  </span>
+                  <span className="text-[11px] text-amber-200/80">
+                    Responsable: {jornadaAnteriorAbierta.responsable || 'Cajero'}. El restaurante ya pasó a una nueva fecha contable.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCerrarJornadaAnterior(jornadaAnteriorAbierta)}
+                className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer active:scale-95 shadow-xs shrink-0"
+              >
+                Cerrar Turno Anterior
+              </button>
+            </div>
+          )}
 
           {/* ── NAVEGACIÓN POR PESTAÑAS ── */}
           <div className="flex items-center justify-between gap-3 border-b border-stone-200/90 pb-2">
