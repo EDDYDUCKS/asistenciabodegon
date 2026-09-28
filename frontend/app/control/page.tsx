@@ -47,14 +47,16 @@ import {
   AlertCircle,
   ArrowLeft,
   Percent,
-  Edit3,
+  Landmark,
+  ShoppingCart,
   Download,
   FileSpreadsheet,
   Save,
+  Edit3,
 } from 'lucide-react';
 import PinSecurityGate from '@/components/PinSecurityGate';
 
-interface ParsedSalesData {
+export interface ParsedSalesData {
   salesCash: number;
   cardsBAC: number;
   cardsFicohsa: number;
@@ -65,6 +67,34 @@ interface ParsedSalesData {
   totalGrossSales: number;
   tips?: number;
   source: 'JSON' | 'REGEX' | 'DEFAULT';
+}
+
+export interface ParsedOpeningData {
+  totalOpeningNIO: number;
+  totalOpeningUSD: number;
+  exchangeRate: number;
+  totalOpeningEquivNIO: number;
+  openingNotes?: string;
+  openedBy?: string;
+}
+
+export interface ParsedClosingAudit {
+  actualCashNIO: number;
+  expectedCashNIO: number;
+  differenceNIO: number;
+  auditStatus: 'SQUARED' | 'SURPLUS' | 'SHORTAGE';
+  dailyNetProfit: number;
+  closedBy?: string;
+  closedAt?: string;
+}
+
+export interface ParsedPettyClosing {
+  actualCashCounted: number;
+  expectedBalance: number;
+  difference: number;
+  auditStatus: 'SQUARED' | 'SURPLUS' | 'SHORTAGE';
+  closedBy?: string;
+  closedAt?: string;
 }
 
 type TabType = 'VENTAS' | 'GASTOS' | 'CONSOLIDADO';
@@ -298,12 +328,90 @@ export default function BodegonControlPage() {
     };
   }, []);
 
+  // Helper para parsear datos de apertura de Caja General
+  const parseOpeningFromObservaciones = useCallback((obs?: string | null, fallbackFondo: number = 0): ParsedOpeningData => {
+    if (obs) {
+      const match = obs.match(/\[OPENING_DATA:(\{.*?\})\]/);
+      if (match && match[1]) {
+        try {
+          const p = JSON.parse(match[1]);
+          const nio = Number(p.totalOpeningNIO) || 0;
+          const usd = Number(p.totalOpeningUSD) || 0;
+          const rate = Number(p.exchangeRate) || 36.0;
+          const equiv = Number(p.totalOpeningEquivNIO) || (nio + usd * rate);
+          return {
+            totalOpeningNIO: nio,
+            totalOpeningUSD: usd,
+            exchangeRate: rate,
+            totalOpeningEquivNIO: equiv,
+            openingNotes: p.openingNotes || '',
+            openedBy: p.openedBy || '',
+          };
+        } catch {}
+      }
+    }
+    return {
+      totalOpeningNIO: fallbackFondo,
+      totalOpeningUSD: 0,
+      exchangeRate: 36.0,
+      totalOpeningEquivNIO: fallbackFondo,
+      openingNotes: '',
+      openedBy: '',
+    };
+  }, []);
+
+  // Helper para parsear la auditoría de cierre de Caja General
+  const parseClosingAuditFromObservaciones = useCallback((obs?: string | null): ParsedClosingAudit | null => {
+    if (!obs) return null;
+    const match = obs.match(/\[CLOSING_AUDIT:(\{.*?\})\]/);
+    if (match && match[1]) {
+      try {
+        const a = JSON.parse(match[1]);
+        return {
+          actualCashNIO: Number(a.actualCashNIO) || 0,
+          expectedCashNIO: Number(a.expectedCashNIO) || 0,
+          differenceNIO: Number(a.differenceNIO) || 0,
+          auditStatus: a.auditStatus || 'SQUARED',
+          dailyNetProfit: Number(a.dailyNetProfit) || 0,
+          closedBy: a.closedBy || '',
+          closedAt: a.closedAt || '',
+        };
+      } catch {}
+    }
+    return null;
+  }, []);
+
+  // Helper para parsear el cierre de Caja Chica
+  const parsePettyClosingFromObservaciones = useCallback((obs?: string | null): ParsedPettyClosing | null => {
+    if (!obs) return null;
+    const match = obs.match(/\[PETTY_CLOSING:(\{.*?\})\]/);
+    if (match && match[1]) {
+      try {
+        const p = JSON.parse(match[1]);
+        return {
+          actualCashCounted: Number(p.actualCashCounted) || 0,
+          expectedBalance: Number(p.expectedBalance) || 0,
+          difference: Number(p.difference) || 0,
+          auditStatus: p.auditStatus || 'SQUARED',
+          closedBy: p.closedBy || '',
+          closedAt: p.closedAt || '',
+        };
+      } catch {}
+    }
+    return null;
+  }, []);
+
   // 4. Map de días consolidado para la gráfica y tabla histórica
   const dailyHistoryMap = useMemo(() => {
     const map = new Map<string, {
       date: string;
       jornada?: JornadaDiaria;
       sales: ParsedSalesData;
+      opening: ParsedOpeningData;
+      closingAudit: ParsedClosingAudit | null;
+      pettyClosing: ParsedPettyClosing | null;
+      isCajaGeneralOpen: boolean;
+      isCajaChicaOpen: boolean;
       expensesTotal: number;
       expensesCash: number;
       expensesTransf: number;
@@ -314,10 +422,25 @@ export default function BodegonControlPage() {
     // Indexar jornadas
     jornadas.forEach((j) => {
       const sales = parseVentasFromObservaciones(j.observaciones);
+      const opening = parseOpeningFromObservaciones(j.observaciones, Number(j.fondo_inicial) || 0);
+      const closingAudit = parseClosingAuditFromObservaciones(j.observaciones);
+      const pettyClosing = parsePettyClosingFromObservaciones(j.observaciones);
+
+      const hasGeneralOpening = /\[OPENING_DATA:\{.*?\}\]/.test(j.observaciones || '');
+      const hasPettyOpening = /\[FONDOS_COMPOSITION:\{.*?\}\]/.test(j.observaciones || '') || Number(j.fondo_inicial) > 0;
+
+      const isCajaGeneralOpen = j.estado === 'ABIERTA' && (hasGeneralOpening || !closingAudit);
+      const isCajaChicaOpen = j.estado === 'ABIERTA' && hasPettyOpening && !pettyClosing && !/Cierre liquidado/.test(j.observaciones || '');
+
       map.set(j.fecha, {
         date: j.fecha,
         jornada: j,
         sales,
+        opening,
+        closingAudit,
+        pettyClosing,
+        isCajaGeneralOpen,
+        isCajaChicaOpen,
         expensesTotal: 0,
         expensesCash: 0,
         expensesTransf: 0,
@@ -345,6 +468,16 @@ export default function BodegonControlPage() {
             totalGrossSales: 0,
             source: 'DEFAULT',
           },
+          opening: {
+            totalOpeningNIO: 0,
+            totalOpeningUSD: 0,
+            exchangeRate: 36.0,
+            totalOpeningEquivNIO: 0,
+          },
+          closingAudit: null,
+          pettyClosing: null,
+          isCajaGeneralOpen: false,
+          isCajaChicaOpen: false,
           expensesTotal: 0,
           expensesCash: 0,
           expensesTransf: 0,
@@ -368,7 +501,7 @@ export default function BodegonControlPage() {
     });
 
     return map;
-  }, [jornadas, gastos, parseVentasFromObservaciones]);
+  }, [jornadas, gastos, parseVentasFromObservaciones, parseOpeningFromObservaciones, parseClosingAuditFromObservaciones, parsePettyClosingFromObservaciones]);
 
   // 5. Datos del día seleccionado
   const selectedDayData = useMemo(() => {
@@ -401,6 +534,16 @@ export default function BodegonControlPage() {
         totalGrossSales: 0,
         source: 'DEFAULT' as const,
       },
+      opening: {
+        totalOpeningNIO: 0,
+        totalOpeningUSD: 0,
+        exchangeRate: 36.0,
+        totalOpeningEquivNIO: 0,
+      },
+      closingAudit: null,
+      pettyClosing: null,
+      isCajaGeneralOpen: false,
+      isCajaChicaOpen: false,
       expensesTotal: expTot,
       expensesCash: expCash,
       expensesTransf: expTransf,
@@ -533,8 +676,10 @@ export default function BodegonControlPage() {
     });
 
     const jornada = selectedDayData.jornada;
-    const fondoInicial = Number(jornada?.fondo_inicial || 0);
-    const fondosComp = parseFondosComposition(jornada?.observaciones, fondoInicial);
+    const hasGeneralOpening = /\[OPENING_DATA:\{.*?\}\]/.test(jornada?.observaciones || '');
+    const fallbackFondo = hasGeneralOpening ? 0 : Number(jornada?.fondo_inicial || 0);
+    const fondosComp = parseFondosComposition(jornada?.observaciones, fallbackFondo);
+    const fondoInicial = (fondosComp.previousDayRemaining || 0) + (fondosComp.generalCashTransfer || 0) + (fondosComp.bossContribution || 0);
     const totalEntradas = fondoInicial + totFondeosExtras;
     const saldoEfectivoRestante = totalEntradas - totEfectivo;
 
@@ -551,6 +696,64 @@ export default function BodegonControlPage() {
       saldoEfectivoRestante,
     };
   }, [gastos, selectedDate, selectedDayData, parseFondosComposition]);
+
+  // Métricas del día de hoy en vivo para el banner superior
+  const metricasGastosHoy = useMemo(() => {
+    let totEfectivo = 0;
+    let totTransf = 0;
+    let totFondeosExtras = 0;
+
+    const gastosHoy = gastos.filter((g) => g.fecha_hora.slice(0, 10) === hoyStr);
+    gastosHoy.forEach((g) => {
+      const m = Number(g.monto) || 0;
+      if (g.tipo === 'INGRESO_FONDEO') {
+        totFondeosExtras += m;
+      } else if (g.metodo_pago === 'TRANSFERENCIA') {
+        totTransf += m;
+      } else {
+        totEfectivo += m;
+      }
+    });
+
+    const jornadaHoy = jornadas.find((j) => j.fecha === hoyStr);
+    const hasGeneralOpening = /\[OPENING_DATA:\{.*?\}\]/.test(jornadaHoy?.observaciones || '');
+    const fallbackFondo = hasGeneralOpening ? 0 : Number(jornadaHoy?.fondo_inicial || 0);
+    const fondosComp = parseFondosComposition(jornadaHoy?.observaciones, fallbackFondo);
+    const fondoCajaChica = (fondosComp.previousDayRemaining || 0) + (fondosComp.generalCashTransfer || 0) + (fondosComp.bossContribution || 0);
+    const totalEntradas = fondoCajaChica + totFondeosExtras;
+    const saldoEfectivoRestante = totalEntradas - totEfectivo;
+
+    return {
+      total: totEfectivo + totTransf,
+      efectivo: totEfectivo,
+      transferencia: totTransf,
+      saldoEfectivoRestante,
+      fondoCajaChica,
+    };
+  }, [gastos, hoyStr, jornadas, parseFondosComposition]);
+
+  // Resumen del estado hoy para Caja General y Caja Chica
+  const todaySummary = useMemo(() => {
+    const jornadaHoy = jornadas.find((j) => j.fecha === hoyStr && j.estado === 'ABIERTA');
+    const isCajaGeneralAbierta = Boolean(jornadaHoy && /\[OPENING_DATA:\{.*?\}\]/.test(jornadaHoy.observaciones || ''));
+    const isCajaChicaAbierta = Boolean(
+      jornadaHoy &&
+      (/\[FONDOS_COMPOSITION:\{.*?\}\]/.test(jornadaHoy.observaciones || '') || Number(jornadaHoy.fondo_inicial) > 0) &&
+      !/\[PETTY_CLOSING:\{.*?\}\]/.test(jornadaHoy.observaciones || '') &&
+      !/Cierre liquidado/.test(jornadaHoy.observaciones || '')
+    );
+
+    const opening = parseOpeningFromObservaciones(jornadaHoy?.observaciones, Number(jornadaHoy?.fondo_inicial) || 0);
+    const sales = parseVentasFromObservaciones(jornadaHoy?.observaciones);
+
+    return {
+      jornadaHoy,
+      isCajaGeneralAbierta,
+      isCajaChicaAbierta,
+      opening,
+      sales,
+    };
+  }, [jornadas, hoyStr, parseOpeningFromObservaciones, parseVentasFromObservaciones]);
 
   // Libro Diario Contable estilo Excel (orden cronológico con running balance de gaveta)
   const ledgerItems = useMemo(() => {
@@ -1623,54 +1826,90 @@ export default function BodegonControlPage() {
 
         {/* ── CUERPO PRINCIPAL ── */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-5 flex-1 w-full">
-          {/* ── BANNER INFORMATIVO: ESTADO DE CAJA EN RESTAURANTE (ESTRICTAMENTE SOLO LECTURA) ── */}
-          <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-stone-100 rounded-3xl p-5 shadow-sm border border-stone-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shrink-0 border ${
-                  jornadaActiva
-                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                    : 'bg-stone-800 text-stone-400 border-stone-700'
-                }`}
-              >
-                <Wallet className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-black text-base text-white tracking-tight">
-                    {jornadaActiva
-                      ? `Caja Física Restaurante: Turno ${jornadaActiva.turno}`
-                      : 'Caja Física del Restaurante Cerrada'}
-                  </h3>
-                  {jornadaActiva ? (
-                    <span className="bg-emerald-500/25 text-emerald-300 border border-emerald-500/50 text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      ABIERTA AHORA
-                    </span>
-                  ) : (
-                    <span className="bg-stone-700 text-stone-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      CERRADA
-                    </span>
-                  )}
+          {/* ── BANNER INFORMATIVO: ESTADO DUAL DE CAJAS EN RESTAURANTE (ESTRICTAMENTE SOLO LECTURA) ── */}
+          <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-stone-100 rounded-3xl p-4 sm:p-5 shadow-sm border border-stone-800">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+              {/* Tarjeta 1: Caja General */}
+              <div className="flex-1 bg-stone-950/60 border border-stone-800 rounded-2xl p-3.5 flex items-center gap-3">
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg shrink-0 border ${
+                    todaySummary.isCajaGeneralAbierta
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                      : 'bg-stone-800 text-stone-400 border-stone-700'
+                  }`}
+                >
+                  🏛️
                 </div>
-                <p className="text-xs text-stone-400 mt-0.5">
-                  {jornadaActiva
-                    ? `Responsable: ${jornadaActiva.responsable || 'Cajero'} • Fecha: ${jornadaActiva.fecha} • Fondo Inicial: C$ ${Number(jornadaActiva.fondo_inicial).toLocaleString('es-NI', { minimumFractionDigits: 2 })}`
-                    : 'No hay turno activo en el restaurante en este momento. Esperando apertura en caja física.'}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-black text-xs sm:text-sm text-white tracking-tight">
+                      Caja General (Restaurante & POS)
+                    </h4>
+                    {todaySummary.isCajaGeneralAbierta ? (
+                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        ABIERTA HOY
+                      </span>
+                    ) : (
+                      <span className="bg-stone-800 text-stone-400 border border-stone-700 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        CERRADA
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-stone-400 mt-0.5 truncate">
+                    {todaySummary.isCajaGeneralAbierta
+                      ? `Apertura: C$ ${(todaySummary.opening?.totalOpeningNIO || Number(todaySummary.jornadaHoy?.fondo_inicial) || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })} • Resp: ${todaySummary.jornadaHoy?.responsable || 'Cajero'}`
+                      : 'Arqueo de billetes y POS gestionado desde el ejecutable en caja'}
+                  </p>
+                </div>
               </div>
-            </div>
 
-            {/* Sello de seguridad: Control exclusivo en PC de caja física */}
-            <div className="flex items-center gap-2.5 bg-stone-950/60 border border-stone-800 px-3.5 py-2 rounded-2xl text-[11px] text-stone-400">
-              <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-              <div>
-                <span className="font-bold text-stone-200 block text-[10px] uppercase tracking-wider">
-                  Control de Turno Exclusivo en PC
-                </span>
-                <span className="text-[10px] text-stone-400">
-                  Apertura y Cierre con arqueo solo en el restaurante.
-                </span>
+              {/* Tarjeta 2: Caja Chica */}
+              <div className="flex-1 bg-stone-950/60 border border-stone-800 rounded-2xl p-3.5 flex items-center gap-3">
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg shrink-0 border ${
+                    todaySummary.isCajaChicaAbierta
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                      : 'bg-stone-800 text-stone-400 border-stone-700'
+                  }`}
+                >
+                  🛒
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-black text-xs sm:text-sm text-white tracking-tight">
+                      Caja Chica (Compras & Gastos)
+                    </h4>
+                    {todaySummary.isCajaChicaAbierta ? (
+                      <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        DISPONIBLE
+                      </span>
+                    ) : (
+                      <span className="bg-stone-800 text-stone-400 border border-stone-700 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        SIN FONDO ACTIVO
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-stone-400 mt-0.5 truncate">
+                    {todaySummary.isCajaChicaAbierta
+                      ? `Fondo Inicial: C$ ${metricasGastosHoy.fondoCajaChica.toLocaleString('es-NI', { minimumFractionDigits: 2 })} • En Gaveta: C$ ${metricasGastosHoy.saldoEfectivoRestante.toLocaleString('es-NI', { minimumFractionDigits: 2 })}`
+                      : 'Control de compras operativas y pagos de proveedores'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Sello de seguridad: Control exclusivo en PC de caja física */}
+              <div className="hidden xl:flex items-center gap-2.5 bg-stone-950/40 border border-stone-800/80 px-3 py-2 rounded-2xl text-[11px] text-stone-400 shrink-0">
+                <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                <div>
+                  <span className="font-bold text-stone-200 block text-[9px] uppercase tracking-wider">
+                    Control Exclusivo en PC
+                  </span>
+                  <span className="text-[9px] text-stone-500">
+                    Apertura y Cierre solo en caja física.
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -1711,7 +1950,7 @@ export default function BodegonControlPage() {
                 }`}
               >
                 <BarChart3 className="w-3.5 h-3.5 text-amber-600" />
-                <span>Ganancias & Ventas Diarias</span>
+                <span>🏛️ Caja General & Ventas</span>
               </button>
 
               <button
@@ -1723,7 +1962,7 @@ export default function BodegonControlPage() {
                 }`}
               >
                 <Receipt className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Gastos & Caja Chica ({gastosFiltrados.length})</span>
+                <span>🛒 Caja Chica & Compras ({gastosFiltrados.length})</span>
               </button>
 
               <button
@@ -1735,7 +1974,7 @@ export default function BodegonControlPage() {
                 }`}
               >
                 <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Tabla del Tiempo Histórica</span>
+                <span>📊 Tabla Consolidada</span>
               </button>
             </div>
           </div>
@@ -1859,11 +2098,11 @@ export default function BodegonControlPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleOpenEditSales}
-                    className="flex items-center gap-1.5 text-xs font-black text-amber-950 bg-amber-400 hover:bg-amber-500 border border-amber-500 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer active:scale-95"
-                    title="Cargar o modificar las ventas de este día"
+                    className="flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 border border-stone-300 px-3 py-1.5 rounded-xl transition cursor-pointer active:scale-95"
+                    title="Ajuste administrativo de ventas del día"
                   >
-                    <Edit3 className="w-4 h-4" />
-                    <span>📝 Cargar / Editar Ventas</span>
+                    <Edit3 className="w-3.5 h-3.5 text-stone-500" />
+                    <span>Ajuste Ventas</span>
                   </button>
 
                   <button
@@ -1885,6 +2124,111 @@ export default function BodegonControlPage() {
                   </button>
                 </div>
               </div>
+
+              {/* ── CARD AUDITORÍA & ARQUEO DE CAJA GENERAL (APERTURA Y CIERRE) ── */}
+              {selectedDayData.closingAudit ? (
+                <div className="bg-gradient-to-br from-stone-900 via-stone-900 to-stone-950 text-white rounded-3xl p-5 border border-stone-800 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-800 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold shrink-0">
+                        <ShieldCheck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-black text-sm text-white">
+                            Arqueo & Cierre Oficial de Caja General
+                          </h3>
+                          <span
+                            className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                              selectedDayData.closingAudit.auditStatus === 'SQUARED'
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                : selectedDayData.closingAudit.auditStatus === 'SURPLUS'
+                                ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                                : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                            }`}
+                          >
+                            {selectedDayData.closingAudit.auditStatus === 'SQUARED' && '✅ CUADRADO EXACTO'}
+                            {selectedDayData.closingAudit.auditStatus === 'SURPLUS' &&
+                              `🔵 SOBRANTE (+C$ ${selectedDayData.closingAudit.differenceNIO.toLocaleString('es-NI', { minimumFractionDigits: 2 })})`}
+                            {selectedDayData.closingAudit.auditStatus === 'SHORTAGE' &&
+                              `🔴 FALTANTE (-C$ ${Math.abs(selectedDayData.closingAudit.differenceNIO).toLocaleString('es-NI', { minimumFractionDigits: 2 })})`}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-400 mt-0.5">
+                          Turno cerrado por: <strong className="text-stone-200">{selectedDayData.closingAudit.closedBy || selectedDayData.jornada?.responsable || 'Cajero'}</strong>
+                          {selectedDayData.closingAudit.closedAt && ` a las ${selectedDayData.closingAudit.closedAt}`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-left sm:text-right text-[11px] text-stone-400">
+                      Tasa de Cambio Oficial: <strong className="text-white font-mono">1 USD = C$ {(selectedDayData.opening?.exchangeRate || 36.0).toFixed(2)}</strong>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="bg-stone-900/90 p-3.5 rounded-2xl border border-stone-800">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Fondo Apertura</span>
+                      <span className="font-mono font-black text-sm text-stone-100 block mt-1">
+                        C$ {(selectedDayData.opening?.totalOpeningNIO || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                      </span>
+                      {(selectedDayData.opening?.totalOpeningUSD || 0) > 0 && (
+                        <span className="text-[10px] text-amber-400 font-mono">
+                          + ${(selectedDayData.opening?.totalOpeningUSD || 0).toFixed(2)} USD
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="bg-stone-900/90 p-3.5 rounded-2xl border border-stone-800">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Físico Contado Gaveta</span>
+                      <span className="font-mono font-black text-sm text-emerald-400 block mt-1">
+                        C$ {selectedDayData.closingAudit.actualCashNIO.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="bg-stone-900/90 p-3.5 rounded-2xl border border-stone-800">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Efectivo Teórico Esperado</span>
+                      <span className="font-mono font-black text-sm text-stone-200 block mt-1">
+                        C$ {selectedDayData.closingAudit.expectedCashNIO.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                      </span>
+                      <span className="text-[10px] text-stone-500">
+                        (Apertura + Ventas Efectivo)
+                      </span>
+                    </div>
+
+                    <div className="bg-stone-900/90 p-3.5 rounded-2xl border border-stone-800">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Propinas Recaudadas</span>
+                      <span className="font-mono font-black text-sm text-amber-300 block mt-1">
+                        C$ {(selectedDayData.sales.tips || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : selectedDayData.jornada?.estado === 'ABIERTA' ? (
+                <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-3xl p-4.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-stone-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold shrink-0">
+                      <Clock className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-xs sm:text-sm text-emerald-300">
+                          Turno de Caja General en Curso (Abierto en Restaurante)
+                        </span>
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      </div>
+                      <p className="text-[11px] text-stone-400 mt-0.5">
+                        Fondo Inicial: <strong className="text-white font-mono">C$ {(selectedDayData.opening?.totalOpeningNIO || Number(selectedDayData.jornada?.fondo_inicial) || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong>
+                        {selectedDayData.opening?.totalOpeningUSD ? ` (+ $${selectedDayData.opening.totalOpeningUSD} USD)` : ''} • Aperturado por: <strong className="text-white">{selectedDayData.jornada?.responsable || 'Cajero'}</strong>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right text-[11px] text-emerald-300/80 shrink-0 bg-emerald-900/30 px-3 py-1.5 rounded-xl border border-emerald-700/40">
+                    <span>Efectivo Gaveta Teórico: </span>
+                    <strong className="text-white font-mono">C$ {((selectedDayData.opening?.totalOpeningNIO || Number(selectedDayData.jornada?.fondo_inicial) || 0) + selectedDayData.sales.salesCash).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong>
+                  </div>
+                </div>
+              ) : null}
 
               {/* ── GRID DE TARJETAS PRINCIPALES DE VENTAS ── */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
