@@ -47,6 +47,10 @@ import {
   AlertCircle,
   ArrowLeft,
   Percent,
+  Edit3,
+  Download,
+  FileSpreadsheet,
+  Save,
 } from 'lucide-react';
 import PinSecurityGate from '@/components/PinSecurityGate';
 
@@ -116,7 +120,20 @@ export default function BodegonControlPage() {
   // Modales de funciones
   const [showModalGasto, setShowModalGasto] = useState(false);
   const [showModalPrint, setShowModalPrint] = useState(false);
+  const [showModalEditSales, setShowModalEditSales] = useState(false);
   const [fotoModalUrl, setFotoModalUrl] = useState<string | null>(null);
+
+  // Formulario de ventas (para carga/edición manual del jefe)
+  const [salesForm, setSalesForm] = useState({
+    salesCash: '',
+    cardsBAC: '',
+    cardsFicohsa: '',
+    cardsBanpro: '',
+    cardsLafise: '',
+    salesPedidosYa: '',
+    tips: '',
+  });
+  const [submittingSales, setSubmittingSales] = useState(false);
 
   // Formulario único permitido: Registro de Compra / Gasto
   const [concepto, setConcepto] = useState('');
@@ -802,6 +819,154 @@ export default function BodegonControlPage() {
     }
   };
 
+  // Abrir modal de edición de ventas cargando los valores del día
+  const handleOpenEditSales = () => {
+    const s = selectedDayData.sales;
+    setSalesForm({
+      salesCash: s.salesCash > 0 ? String(s.salesCash) : '',
+      cardsBAC: s.cardsBAC > 0 ? String(s.cardsBAC) : '',
+      cardsFicohsa: s.cardsFicohsa > 0 ? String(s.cardsFicohsa) : '',
+      cardsBanpro: s.cardsBanpro > 0 ? String(s.cardsBanpro) : '',
+      cardsLafise: s.cardsLafise > 0 ? String(s.cardsLafise) : '',
+      salesPedidosYa: s.salesPedidosYa > 0 ? String(s.salesPedidosYa) : '',
+      tips: s.tips && s.tips > 0 ? String(s.tips) : '',
+    });
+    setShowModalEditSales(true);
+  };
+
+  // Guardar ventas del día ingresadas por el jefe
+  const handleGuardarVentas = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingSales(true);
+    try {
+      const cash = parseFloat(salesForm.salesCash) || 0;
+      const bac = parseFloat(salesForm.cardsBAC) || 0;
+      const fico = parseFloat(salesForm.cardsFicohsa) || 0;
+      const banpro = parseFloat(salesForm.cardsBanpro) || 0;
+      const lafise = parseFloat(salesForm.cardsLafise) || 0;
+      const totalCards = bac + fico + banpro + lafise;
+      const pedidosYa = parseFloat(salesForm.salesPedidosYa) || 0;
+      const tips = parseFloat(salesForm.tips) || 0;
+      const totalGross = cash + totalCards + pedidosYa;
+
+      const salesDataObj = {
+        salesCash: cash,
+        cardsBAC: bac,
+        cardsFicohsa: fico,
+        cardsBanpro: banpro,
+        cardsLafise: lafise,
+        totalCards,
+        salesPedidosYa: pedidosYa,
+        totalGrossSales: totalGross,
+        tips,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const summaryText = `[VENTAS_DATA:${JSON.stringify(salesDataObj)}] Cierre Caja: Efectivo C$ ${cash.toFixed(2)} | Tarjetas C$ ${totalCards.toFixed(2)} (BAC: ${bac}, Fico: ${fico}, Banpro: ${banpro}, Laf: ${lafise}) | PedidosYa C$ ${pedidosYa.toFixed(2)} | Ventas Brutas: C$ ${totalGross.toFixed(2)}`;
+
+      const existing = jornadas.find((j) => j.fecha === selectedDate);
+      if (existing) {
+        const prevObs = existing.observaciones || '';
+        const cleanedPrev = prevObs.replace(/\[VENTAS_DATA:\{.*?\}\]\s*/g, '').trim();
+        const updatedObs = cleanedPrev ? `${summaryText} • ${cleanedPrev}` : summaryText;
+
+        const { error } = await supabase
+          .from('jornadas_diarias')
+          .update({
+            observaciones: updatedObs,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('jornadas_diarias').insert({
+          fecha: selectedDate,
+          turno: 'COMPLETO',
+          estado: 'CERRADA',
+          fondo_inicial: 0,
+          responsable: 'Gerencia Web',
+          observaciones: summaryText,
+          fecha_cierre: new Date().toISOString(),
+        });
+
+        if (error) throw error;
+      }
+
+      await cargarDatos();
+      setShowModalEditSales(false);
+    } catch (err: any) {
+      alert('Error guardando ventas: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setSubmittingSales(false);
+    }
+  };
+
+  // Exportar reporte contable del día a archivo CSV legible en Excel
+  const handleExportarReporteCSV = () => {
+    try {
+      const day = selectedDayData;
+      const s = day.sales;
+      const lineas: string[] = [];
+
+      lineas.push(`"EL BODEGÓN RESTAURANTE & BAR - REPORTE CONTABLE Y FINANCIERO"`);
+      lineas.push(`"Fecha:","${selectedDate}"`);
+      lineas.push(`"Responsable:","${day.jornada?.responsable || 'Gerencia'}"`);
+      lineas.push(`"Estado Caja:","${day.jornada?.estado || 'CERRADA'}"`);
+      lineas.push(``);
+      lineas.push(`"1. CONCILIACIÓN DE INGRESOS BRUTOS POR CANAL"`);
+      lineas.push(`"Canal / Método","Detalle","Monto C$","% Participación"`);
+      const totalGross = s.totalGrossSales || 0;
+      const pct = (val: number) => (totalGross > 0 ? ((val / totalGross) * 100).toFixed(1) + '%' : '0%');
+      lineas.push(`"Efectivo en Gaveta","Cobro en efectivo","${s.salesCash.toFixed(2)}","${pct(s.salesCash)}"`);
+      lineas.push(`"Tarjeta POS BAC","Datáfono BAC","${s.cardsBAC.toFixed(2)}","${pct(s.cardsBAC)}"`);
+      lineas.push(`"Tarjeta POS Ficohsa","Datáfono Ficohsa","${s.cardsFicohsa.toFixed(2)}","${pct(s.cardsFicohsa)}"`);
+      lineas.push(`"Tarjeta POS Banpro","Datáfono Banpro","${s.cardsBanpro.toFixed(2)}","${pct(s.cardsBanpro)}"`);
+      lineas.push(`"Tarjeta POS LAFISE","Datáfono LAFISE","${s.cardsLafise.toFixed(2)}","${pct(s.cardsLafise)}"`);
+      lineas.push(`"Subtotal Tarjetas POS","Total Datáfonos","${s.totalCards.toFixed(2)}","${pct(s.totalCards)}"`);
+      lineas.push(`"Delivery PedidosYa","App Externa","${s.salesPedidosYa.toFixed(2)}","${pct(s.salesPedidosYa)}"`);
+      lineas.push(`"TOTAL VENTAS BRUTAS","Total Ingresos","${totalGross.toFixed(2)}","100%"`);
+      lineas.push(``);
+      lineas.push(`"2. RENDIMIENTO FINANCIERO Y UTILIDAD"`);
+      lineas.push(`"Concepto","Monto C$"`);
+      lineas.push(`"(+) Ventas Brutas","${totalGross.toFixed(2)}"`);
+      lineas.push(`"(-) Egresos Totales Caja Chica","${day.expensesTotal.toFixed(2)}"`);
+      lineas.push(`"(=) GANANCIA NETA","${day.netProfit.toFixed(2)}"`);
+      lineas.push(`"Margen Operativo","${day.marginPercent.toFixed(1)}%"`);
+      if (s.tips && s.tips > 0) {
+        lineas.push(`"Propinas Recaudadas","${s.tips.toFixed(2)}"`);
+      }
+      lineas.push(``);
+      lineas.push(`"3. LIBRO DIARIO DE COMPRAS Y GASTOS (CAJA CHICA)"`);
+      lineas.push(`"#","Hora","Concepto","Categoría","Proveedor","Método","Estado","Monto C$"`);
+
+      const dayGastos = gastos.filter((g) => g.fecha_hora.slice(0, 10) === selectedDate);
+      dayGastos.forEach((g, idx) => {
+        const hora = new Date(g.fecha_hora).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' });
+        lineas.push(
+          `"${idx + 1}","${hora}","${(g.concepto || '').replace(/"/g, '""')}","${g.categoria}","${(g.proveedor || '').replace(/"/g, '""')}","${g.metodo_pago}","${g.estado_pago}","${Number(g.monto).toFixed(2)}"`
+        );
+      });
+      lineas.push(``);
+      lineas.push(`"Total Egresos Efectivo","${metricasGastosDia.efectivo.toFixed(2)}"`);
+      lineas.push(`"Total Egresos Transferencias","${metricasGastosDia.transferencia.toFixed(2)}"`);
+      lineas.push(`"Fondo Inicial Caja Chica","${metricasGastosDia.fondoCaja.toFixed(2)}"`);
+      lineas.push(`"Saldo Restante en Gaveta","${metricasGastosDia.saldoEfectivoRestante.toFixed(2)}"`);
+
+      const csvContent = '\uFEFF' + lineas.join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Bodegon_Control_${selectedDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      alert('Error exportando reporte: ' + err.message);
+    }
+  };
+
   // 9. Impresión Oficial en Blanco y Negro (Formato 1 o 2 Hojas para Archivo y Firmas)
   const handleImprimirActaOficial = (modo: 'TODO' | 'GENERAL' | 'CHICA') => {
     try {
@@ -1392,6 +1557,18 @@ export default function BodegonControlPage() {
                 <span>Portal</span>
               </Link>
 
+              {/* Botón Exportar CSV / Excel */}
+              <button
+                type="button"
+                onClick={handleExportarReporteCSV}
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+                title="Exportar reporte contable a Excel / CSV"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+                <span className="hidden sm:inline">📥 Exportar Excel</span>
+                <span className="sm:hidden">Excel</span>
+              </button>
+
               {/* Botón de Impresión Oficial B/N */}
               <button
                 type="button"
@@ -1630,14 +1807,34 @@ export default function BodegonControlPage() {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => setShowModalPrint(true)}
-                  className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-stone-700 hover:text-stone-950 bg-white border border-stone-300 hover:bg-stone-50 px-3.5 py-2 rounded-xl shadow-2xs transition cursor-pointer"
-                  title="Imprimir Acta Oficial en Blanco y Negro"
-                >
-                  <Printer className="w-4 h-4 text-stone-700" />
-                  <span>🖨️ Imprimir Acta (B/N)</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleOpenEditSales}
+                    className="flex items-center gap-1.5 text-xs font-black text-amber-950 bg-amber-400 hover:bg-amber-500 border border-amber-500 px-3.5 py-2 rounded-xl shadow-xs transition cursor-pointer active:scale-95"
+                    title="Cargar o modificar las ventas de este día"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    <span>📝 Cargar / Editar Ventas</span>
+                  </button>
+
+                  <button
+                    onClick={handleExportarReporteCSV}
+                    className="hidden md:flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3.5 py-2 rounded-xl shadow-2xs transition cursor-pointer"
+                    title="Exportar reporte contable a Excel / CSV"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+                    <span>📥 Exportar Excel</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowModalPrint(true)}
+                    className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-stone-700 hover:text-stone-950 bg-white border border-stone-300 hover:bg-stone-50 px-3.5 py-2 rounded-xl shadow-2xs transition cursor-pointer"
+                    title="Imprimir Acta Oficial en Blanco y Negro"
+                  >
+                    <Printer className="w-4 h-4 text-stone-700" />
+                    <span>🖨️ Imprimir Acta (B/N)</span>
+                  </button>
+                </div>
               </div>
 
               {/* ── GRID DE TARJETAS PRINCIPALES DE VENTAS ── */}
@@ -2936,6 +3133,197 @@ export default function BodegonControlPage() {
                   Cancelar
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* ── MODAL: CARGAR / EDITAR VENTAS DEL DÍA (CONTROL GERENCIA) ─── */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {showModalEditSales && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150 my-8">
+              <div className="flex items-center justify-between pb-4 border-b border-stone-100">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-amber-100 text-amber-900 border border-amber-200">
+                    <Edit3 className="w-5 h-5 text-amber-800" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg text-stone-900">
+                      Cargar / Editar Ventas
+                    </h3>
+                    <p className="text-xs text-stone-500 font-medium">
+                      Fecha:{' '}
+                      <strong className="text-stone-800">
+                        {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-NI', {
+                          weekday: 'long',
+                          day: 'numeric',
+                          month: 'long',
+                        })}
+                      </strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowModalEditSales(false)}
+                  className="p-2 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleGuardarVentas} className="mt-5 space-y-4">
+                {/* 1. Efectivo */}
+                <div>
+                  <label className="block text-xs font-black uppercase text-emerald-800 mb-1 flex items-center gap-1.5">
+                    <Banknote className="w-4 h-4 text-emerald-600" />
+                    <span>1. Efectivo en Caja (C$)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={salesForm.salesCash}
+                    onChange={(e) => setSalesForm({ ...salesForm, salesCash: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none text-base font-mono font-bold text-stone-900 bg-emerald-50/20"
+                  />
+                </div>
+
+                {/* 2. Tarjetas POS desglosadas por Banco */}
+                <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black uppercase text-indigo-900 flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-indigo-600" />
+                      <span>2. Tarjetas POS por Banco (C$)</span>
+                    </label>
+                    <span className="text-[11px] font-mono font-bold text-indigo-700">
+                      Subtotal: C${' '}
+                      {(
+                        (parseFloat(salesForm.cardsBAC) || 0) +
+                        (parseFloat(salesForm.cardsFicohsa) || 0) +
+                        (parseFloat(salesForm.cardsBanpro) || 0) +
+                        (parseFloat(salesForm.cardsLafise) || 0)
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <span className="block text-[10px] font-extrabold text-rose-800 mb-0.5">BAC Credomatic</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={salesForm.cardsBAC}
+                        onChange={(e) => setSalesForm({ ...salesForm, cardsBAC: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded-lg border border-rose-200 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-rose-400"
+                      />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-extrabold text-sky-800 mb-0.5">Banco Ficohsa</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={salesForm.cardsFicohsa}
+                        onChange={(e) => setSalesForm({ ...salesForm, cardsFicohsa: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded-lg border border-sky-200 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-sky-400"
+                      />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-extrabold text-emerald-800 mb-0.5">Banpro Promerica</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={salesForm.cardsBanpro}
+                        onChange={(e) => setSalesForm({ ...salesForm, cardsBanpro: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded-lg border border-emerald-200 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-extrabold text-amber-800 mb-0.5">Banco LAFISE</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={salesForm.cardsLafise}
+                        onChange={(e) => setSalesForm({ ...salesForm, cardsLafise: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded-lg border border-amber-200 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-amber-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Delivery PedidosYa */}
+                <div>
+                  <label className="block text-xs font-black uppercase text-amber-900 mb-1 flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-amber-600" />
+                    <span>3. Delivery / PedidosYa (C$)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={salesForm.salesPedidosYa}
+                    onChange={(e) => setSalesForm({ ...salesForm, salesPedidosYa: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-amber-600 focus:ring-2 focus:ring-amber-100 outline-none text-base font-mono font-bold text-stone-900 bg-amber-50/20"
+                  />
+                </div>
+
+                {/* 4. Propinas Recaudadas */}
+                <div>
+                  <label className="block text-xs font-bold text-stone-600 mb-1">
+                    Propinas Recaudadas (Opcional C$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={salesForm.tips}
+                    onChange={(e) => setSalesForm({ ...salesForm, tips: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-stone-300 focus:border-stone-500 outline-none text-sm font-mono text-stone-900"
+                  />
+                </div>
+
+                {/* Resumen Total Bruto Calculado */}
+                <div className="bg-stone-900 text-white p-4 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase text-stone-300">
+                    Total Ventas Brutas Calculadas:
+                  </span>
+                  <span className="text-xl font-black font-mono text-emerald-400">
+                    C${' '}
+                    {(
+                      (parseFloat(salesForm.salesCash) || 0) +
+                      (parseFloat(salesForm.cardsBAC) || 0) +
+                      (parseFloat(salesForm.cardsFicohsa) || 0) +
+                      (parseFloat(salesForm.cardsBanpro) || 0) +
+                      (parseFloat(salesForm.cardsLafise) || 0) +
+                      (parseFloat(salesForm.salesPedidosYa) || 0)
+                    ).toFixed(2)}
+                  </span>
+                </div>
+
+                {/* Botones de acción */}
+                <div className="pt-3 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowModalEditSales(false)}
+                    className="px-4 py-2.5 rounded-xl border border-stone-300 text-xs font-bold text-stone-600 hover:bg-stone-100 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingSales}
+                    className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs shadow-md transition cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{submittingSales ? 'Guardando...' : 'Guardar Ventas'}</span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
