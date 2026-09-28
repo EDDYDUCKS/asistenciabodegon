@@ -573,61 +573,81 @@ export default function BoletaHorasExtraModal({
               </div>
 
               {/* Desglose de Amortización de Déficit / Salidas Tempranas si aplica */}
-              {compDia && Number(compDia.horas_deducidas) > 0 && (
-                <div className="bg-amber-50/80 border border-amber-300/80 rounded-xl p-3 text-xs space-y-2 print-amortizacion-box">
-                  <div className="flex flex-wrap items-center justify-between gap-1 text-amber-900 font-bold">
-                    <span className="flex items-center gap-1.5 uppercase text-[11px] tracking-wide">
-                      <Scale className="w-3.5 h-3.5 text-amber-700" />
-                      Amortización Automática de Salidas Tempranas (Bolsa de Horas)
+              {((compDia && Number(compDia.horas_deducidas) > 0) || ((horaExtra.comentario || '').includes('compensaron') || (horaExtra.comentario || '').includes('amortizaron'))) && (
+                <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-3 text-xs space-y-2.5 print-amortizacion-box">
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-amber-950 font-bold border-b border-amber-200/80 pb-1.5">
+                    <span className="flex items-center gap-1.5 uppercase text-[11px] tracking-wide text-amber-900">
+                      <Scale className="w-4 h-4 text-amber-700 shrink-0" />
+                      Conciliación de Bolsa de Horas: Deducción de Déficit Previo
                     </span>
-                    <span className="font-mono text-[11px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md">
-                      Déficit cubierto: -{Number(compDia.horas_deducidas).toFixed(1)} hrs
+                    <span className="font-mono text-[11px] bg-amber-200 text-amber-950 px-2 py-0.5 rounded-md font-bold">
+                      Déficit Cubierto: -{compDia ? Number(compDia.horas_deducidas).toFixed(1) : 'Deuda saldada'} hrs
                     </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 bg-white/90 p-2.5 rounded-lg border border-amber-200 text-center">
-                    <div>
-                      <span className="text-[10px] text-stone-500 uppercase block font-bold">Extra Bruto Total:</span>
-                      <strong className="text-stone-900 font-mono text-sm">+{Number(compDia.horas_extra_generadas).toFixed(1)} hrs</strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-amber-700 uppercase block font-bold">Deducido para Saldo:</span>
-                      <strong className="text-amber-700 font-mono text-sm">-{Number(compDia.horas_deducidas).toFixed(1)} hrs</strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-emerald-700 uppercase block font-bold">Remanente Neto a Pagar:</span>
-                      <strong className="text-emerald-800 font-mono text-sm">+{Number(compDia.remanente_extra).toFixed(1)} hrs</strong>
-                    </div>
                   </div>
 
-                  {/* Fechas específicas saldadas */}
-                  {desgloseItems.length > 0 && (
-                    <div className="bg-white/95 rounded-lg border border-amber-200/90 p-2 space-y-1 print-amortizacion-desglose">
-                      <div className="flex items-center justify-between text-[9px] font-bold uppercase text-amber-900 tracking-wider print:text-black">
-                        <span>Fechas y déficit saldados en esta resolución ({desgloseItems.length} registro{desgloseItems.length > 1 ? 's' : ''}):</span>
-                        <span className="font-mono">Total: -{Number(compDia.horas_deducidas).toFixed(1)} hrs</span>
+                  {compDia && (
+                    <div className="grid grid-cols-3 gap-2 bg-white p-2.5 rounded-lg border border-amber-200 text-center">
+                      <div>
+                        <span className="text-[10px] text-stone-500 uppercase block font-bold">Tiempo Extra Bruto:</span>
+                        <strong className="text-stone-900 font-mono text-sm">+{Number(compDia.horas_extra_generadas).toFixed(1)} hrs</strong>
+                        <span className="text-[9px] text-stone-400 block mt-0.5">Generado en turno</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-amber-800 uppercase block font-bold">Déficit Saldado:</span>
+                        <strong className="text-amber-800 font-mono text-sm">-{Number(compDia.horas_deducidas).toFixed(1)} hrs</strong>
+                        <span className="text-[9px] text-amber-700 block mt-0.5">Cubrió horas debidas</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-emerald-800 uppercase block font-bold">Neto Autorizado a Cobrar:</span>
+                        <strong className="text-emerald-800 font-mono text-sm">+{Number(compDia.remanente_extra).toFixed(1)} hrs</strong>
+                        <span className="text-[9px] text-emerald-700 block mt-0.5">En planilla / nómina</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fechas específicas de cuándo se generó el déficit */}
+                  {desgloseItems.length > 0 ? (
+                    <div className="bg-white rounded-lg border border-amber-200/90 p-2.5 space-y-1.5 print-amortizacion-desglose">
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase text-amber-950 tracking-wider print:text-black border-b border-amber-100 pb-1">
+                        <span>¿De cuándo es o cuándo se generó este déficit? ({desgloseItems.length} fecha{desgloseItems.length > 1 ? 's' : ''}):</span>
+                        <span className="font-mono text-amber-900">Total saldado: -{compDia ? Number(compDia.horas_deducidas).toFixed(1) : ''} hrs</span>
                       </div>
                       <div className="divide-y divide-amber-100 text-[11px] print:divide-stone-200">
                         {desgloseItems.map((d: any, i: number) => {
                           const fFormat = formatDateSafe(d.fecha || d.fecha_display);
                           const hComp = d.horas_compensadas ?? d.horas_aplicadas ?? d.deficit_original ?? 0;
                           return (
-                            <div key={`desglose-${i}`} className="flex items-center justify-between py-0.5 text-stone-800 print:text-black">
-                              <span className="font-semibold capitalize flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 print:bg-black"></span>
-                                <span>{fFormat} {d.tipo === 'HORAS_EXTRA_ORIGEN' ? '(Abono a extra)' : '(Salida anticipada)'}:</span>
-                              </span>
-                              <span className="font-mono font-bold text-amber-800 print:text-black">
-                                -{Number(hComp).toFixed(1)} hrs
-                              </span>
+                            <div key={`desglose-${i}`} className="flex items-center justify-between py-1 text-stone-800 print:text-black">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 print:bg-black"></span>
+                                <span className="font-bold text-stone-900 capitalize">{fFormat}</span>
+                                <span className="text-[10px] text-stone-500 font-medium">
+                                  ({d.tipo === 'HORAS_EXTRA_ORIGEN' ? 'Abono previo adeudado' : 'Salida anticipada / Horas adeudadas'})
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-mono font-bold text-amber-800 print:text-black">
+                                  -{Number(hComp).toFixed(1)} hrs saldadas
+                                </span>
+                              </div>
                             </div>
                           );
                         })}
                       </div>
                     </div>
-                  )}
+                  ) : horaExtra.comentario ? (
+                    <div className="bg-white rounded-lg border border-amber-200 p-2.5 space-y-1 text-xs text-amber-950 font-medium print:text-black">
+                      <span className="text-[10px] font-bold uppercase text-amber-900 block tracking-wide">
+                        Detalle del déficit y fechas saldadas:
+                      </span>
+                      <p className="font-mono text-[11px] text-stone-800 leading-relaxed bg-amber-50/50 p-2 rounded border border-amber-100">
+                        {horaExtra.comentario}
+                      </p>
+                    </div>
+                  ) : null}
 
-                  <p className="text-[10px] text-amber-900/90 leading-tight">
-                    * El colaborador generó {Number(compDia.horas_extra_generadas).toFixed(1)} hrs extraordinarias. Se aplicaron automáticamente {Number(compDia.horas_deducidas).toFixed(1)} hrs para saldar salidas tempranas acumuladas en su Bolsa de Horas (deuda previa de {Number(compDia.deuda_previa).toFixed(1)} hrs saldada), dejando {Number(compDia.remanente_extra).toFixed(1)} hrs netas para pago en nómina.
+                  <p className="text-[10px] text-amber-950 leading-tight">
+                    * Conforme al Art. 62 del Código del Trabajo, el tiempo adicional trabajado en este turno se aplicó preferentemente para saldar el déficit de horas pendientes acumuladas en las fechas detalladas arriba. La suma neta restante es la autorizada para remuneración en planilla.
                   </p>
                 </div>
               )}

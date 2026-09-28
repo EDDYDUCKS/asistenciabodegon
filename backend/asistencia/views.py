@@ -2372,6 +2372,7 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
         'deuda_restante': round(nueva_deuda, 1),
         'remanente': round(remanente_extra, 1),
         'compensacion': comp,
+        'desglose': desglose,
     }
 
 
@@ -2449,13 +2450,24 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         remanente_limpio = float(math.floor(remanente * 2.0) / 2.0)
 
         if remanente_limpio >= min_step:
+            comentario_7mo = f"[7mo Día Trabajado] Jornada de {round(horas_trabajadas_dia, 1)} hrs."
+            if horas_amortizadas > 0:
+                fechas_saldadas = []
+                if res_comp.get('desglose'):
+                    for d_item in res_comp['desglose']:
+                        f_txt = d_item.get('fecha_display') or d_item.get('fecha')
+                        h_txt = d_item.get('horas_aplicadas') or d_item.get('horas_compensadas') or ''
+                        fechas_saldadas.append(f"{f_txt} (-{h_txt}h)")
+                fechas_txt = ", ".join(fechas_saldadas) if fechas_saldadas else f"{fecha_hoy.strftime('%d/%m/%Y')}"
+                comentario_7mo += f" Se amortizaron automáticamente -{round(horas_amortizadas, 1)} hrs para saldar déficit previo del: {fechas_txt}. Remanente neto: {round(remanente_limpio, 1)} hrs."
+
             AutorizacionHorasExtra.objects.update_or_create(
                 empleado=empleado,
                 fecha=fecha_hoy,
                 defaults={
                     'horas_extra_solicitadas': remanente_limpio,
                     'estado': 'PENDIENTE',
-                    'comentario': '[7mo Día Trabajado (Día Libre)]'
+                    'comentario': comentario_7mo
                 }
             )
         else:
@@ -2548,13 +2560,27 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
     remanente_limpio = float(math.floor(remanente * 2.0) / 2.0)
 
     if remanente_limpio >= min_step:
+        defaults_extra = {
+            'horas_extra_solicitadas': remanente_limpio,
+            'estado': 'PENDIENTE',
+        }
+        if horas_amortizadas > 0:
+            fechas_detalles = []
+            if res_comp.get('desglose'):
+                for d_item in res_comp['desglose']:
+                    f_txt = d_item.get('fecha_display') or d_item.get('fecha')
+                    h_txt = d_item.get('horas_aplicadas') or d_item.get('horas_compensadas') or ''
+                    fechas_detalles.append(f"{f_txt} (-{h_txt}h)")
+            fechas_str = ", ".join(fechas_detalles) if fechas_detalles else f"{fecha_hoy.strftime('%d/%m/%Y')}"
+            defaults_extra['comentario'] = (
+                f"Jornada de {round(horas_trabajadas_dia, 1)} hrs (+{round(excedente, 1)} hrs extra brutas). "
+                f"Se compensaron automáticamente -{round(horas_amortizadas, 1)} hrs de déficit generado el: {fechas_str}. "
+                f"Remanente neto solicitado: {round(remanente_limpio, 1)} hrs."
+            )
         AutorizacionHorasExtra.objects.update_or_create(
             empleado=empleado,
             fecha=fecha_hoy,
-            defaults={
-                'horas_extra_solicitadas': remanente_limpio,
-                'estado': 'PENDIENTE'
-            }
+            defaults=defaults_extra
         )
     else:
         AutorizacionHorasExtra.objects.filter(

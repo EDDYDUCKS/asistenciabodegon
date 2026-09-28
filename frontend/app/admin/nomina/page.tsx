@@ -1374,22 +1374,32 @@ export default function NominaAdminPage() {
           </td>
           <td className="px-6 py-4 text-right">
             {compDia && Number(compDia.horas_deducidas) > 0 ? (
-              <div className="flex flex-col items-end">
+              <div className="flex flex-col items-end space-y-1">
                 <span className="font-mono font-black text-emerald-700 text-sm block">
-                  +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+                  +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs netas
                 </span>
                 <span
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-1.5 py-0.5 rounded mt-0.5"
-                  title={`Generó +${Number(compDia.horas_extra_generadas).toFixed(1)}h brutas. Se dedujeron -${Number(compDia.horas_deducidas).toFixed(1)}h de deudas (${fechasSaldadasStr}).`}
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs text-right"
+                  title={`Generó +${Number(compDia.horas_extra_generadas).toFixed(1)}h brutas en su jornada. Se aplicaron automáticamente -${Number(compDia.horas_deducidas).toFixed(1)}h para cubrir salidas tempranas de: ${fechasSaldadasStr || 'días anteriores'}.`}
                 >
-                  <Scale className="w-2.5 h-2.5 text-amber-700 shrink-0" />
-                  -{Number(compDia.horas_deducidas).toFixed(1)}h deuda
-                  {fechasSaldadasStr && (
-                    <span className="text-[9px] font-mono opacity-80">({fechasSaldadasStr})</span>
-                  )}
+                  <Scale className="w-3 h-3 text-amber-700 shrink-0" />
+                  <span>Saldó -{Number(compDia.horas_deducidas).toFixed(1)}h {fechasSaldadasStr ? `del: ${fechasSaldadasStr}` : ''}</span>
                 </span>
-                <span className="text-[9px] text-stone-400 font-mono">
-                  (Bruto: +{Number(compDia.horas_extra_generadas).toFixed(1)}h)
+                <span className="text-[9px] text-stone-500 font-mono">
+                  (Bruto: +{Number(compDia.horas_extra_generadas).toFixed(1)}h en turno)
+                </span>
+              </div>
+            ) : item.comentario && (item.comentario.includes('compensaron') || item.comentario.includes('amortizaron')) ? (
+              <div className="flex flex-col items-end space-y-1">
+                <span className="font-mono font-black text-emerald-700 text-sm block">
+                  +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs netas
+                </span>
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs text-right max-w-[210px] truncate"
+                  title={item.comentario}
+                >
+                  <Scale className="w-3 h-3 text-amber-700 shrink-0" />
+                  <span>Compensó déficit previo</span>
                 </span>
               </div>
             ) : (
@@ -3638,6 +3648,14 @@ export default function NominaAdminPage() {
                               return cEmpId === empIdHist && c.fecha_compensacion === item.fecha;
                             });
 
+                            const fechasHistStr = compHist?.desglose && Array.isArray(compHist.desglose) && compHist.desglose.length > 0
+                              ? compHist.desglose.map((d: any) => {
+                                  const h = Number(d.horas_compensadas || d.horas_aplicadas || 0).toFixed(1);
+                                  const f = d.fecha ? `${d.fecha.slice(8, 10)}/${d.fecha.slice(5, 7)}` : '';
+                                  return `${f} (-${h}h)`;
+                                }).join(', ')
+                              : '';
+
                             return (
                               <tr key={item.id} className="hover:bg-stone-50/70 transition-colors">
                                 <td className="px-4 py-3.5 font-mono font-bold text-[#1c6856] whitespace-nowrap">
@@ -3664,16 +3682,32 @@ export default function NominaAdminPage() {
                                 </td>
                                 <td className="px-4 py-3.5 text-right font-mono font-bold text-stone-700 whitespace-nowrap">
                                   {compHist && Number(compHist.horas_deducidas) > 0 ? (
-                                    <div className="flex flex-col items-end">
+                                    <div className="flex flex-col items-end space-y-0.5">
                                       <span className="text-stone-900 font-black">
-                                        +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
+                                        +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs netas
                                       </span>
                                       <span
-                                        className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-800 bg-amber-100/80 border border-amber-300 px-1 py-0.5 rounded mt-0.5"
-                                        title={`Generó +${Number(compHist.horas_extra_generadas).toFixed(1)}h brutas. Se dedujeron -${Number(compHist.horas_deducidas).toFixed(1)}h para saldar salidas tempranas.`}
+                                        className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded shadow-2xs"
+                                        title={`Generó +${Number(compHist.horas_extra_generadas).toFixed(1)}h brutas. Se dedujeron -${Number(compHist.horas_deducidas).toFixed(1)}h para saldar salidas tempranas de: ${fechasHistStr || 'días anteriores'}.`}
                                       >
                                         <Scale className="w-2.5 h-2.5 text-amber-700 shrink-0" />
-                                        -{Number(compHist.horas_deducidas).toFixed(1)}h deuda (Bruto: +{Number(compHist.horas_extra_generadas).toFixed(1)}h)
+                                        Saldó -{Number(compHist.horas_deducidas).toFixed(1)}h {fechasHistStr ? `(${fechasHistStr})` : ''}
+                                      </span>
+                                      <span className="text-[9px] text-stone-400 font-mono">
+                                        (Bruto: +{Number(compHist.horas_extra_generadas).toFixed(1)}h)
+                                      </span>
+                                    </div>
+                                  ) : item.comentario && (item.comentario.includes('compensaron') || item.comentario.includes('amortizaron')) ? (
+                                    <div className="flex flex-col items-end space-y-0.5">
+                                      <span className="text-stone-900 font-black">
+                                        +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs netas
+                                      </span>
+                                      <span
+                                        className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded shadow-2xs max-w-[190px] truncate"
+                                        title={item.comentario}
+                                      >
+                                        <Scale className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                                        Compensó déficit previo
                                       </span>
                                     </div>
                                   ) : (
