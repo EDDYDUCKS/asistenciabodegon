@@ -1,18 +1,20 @@
-export type MetodoPagoType = 'EFECTIVO' | 'TRANSFERENCIA' | 'PENDIENTE';
+export type MetodoPagoType = 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA' | 'PENDIENTE';
 export type EstadoPagoType = 'PAGADO' | 'PENDIENTE_TRANSFERENCIA';
 export type TurnoJornadaType = 'ALMUERZO' | 'CENA' | 'COMPLETO';
 export type EstadoJornadaType = 'ABIERTA' | 'CERRADA';
 
 export type CategoriaGastoType =
   | 'CARNES'
-  | 'VERDURAS'
-  | 'LACTEOS'
-  | 'ABARROTES'
+  | 'POLLO'
+  | 'HIELO'
   | 'BEBIDAS'
-  | 'DESECHABLES'
-  | 'LIMPIEZA'
-  | 'MANTENIMIENTO'
-  | 'SERVICIOS'
+  | 'BEBIDAS_ALCOHOLICAS'
+  | 'DELIVERYS_ACARREOS'
+  | 'FRUTAS_VEGETALES'
+  | 'SUPERMERCADO'
+  | 'MERCADO'
+  | 'LACTEOS'
+  | 'PAGOS_PERSONAL'
   | 'OTROS';
 
 export interface CategoriaConfig {
@@ -24,16 +26,18 @@ export interface CategoriaConfig {
 }
 
 export const CATEGORIAS_GASTO: CategoriaConfig[] = [
-  { id: 'CARNES', label: 'Carnes & Pollo', emoji: '🥩', color: '#e11d48', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' },
-  { id: 'VERDURAS', label: 'Verduras & Frutas', emoji: '🥦', color: '#16a34a', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  { id: 'LACTEOS', label: 'Lácteos & Huevos', emoji: '🧀', color: '#ca8a04', badgeClass: 'bg-amber-50 text-amber-800 border-amber-200' },
-  { id: 'ABARROTES', label: 'Abarrotes & Especias', emoji: '🌾', color: '#d97706', badgeClass: 'bg-orange-50 text-orange-700 border-orange-200' },
-  { id: 'BEBIDAS', label: 'Bebidas & Licores', emoji: '🥤', color: '#0284c7', badgeClass: 'bg-sky-50 text-sky-700 border-sky-200' },
-  { id: 'DESECHABLES', label: 'Desechables & Empaques', emoji: '📦', color: '#475569', badgeClass: 'bg-slate-50 text-slate-700 border-slate-200' },
-  { id: 'LIMPIEZA', label: 'Limpieza & Químicos', emoji: '🧼', color: '#0d9488', badgeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
-  { id: 'MANTENIMIENTO', label: 'Gas & Mantenimiento', emoji: '🔧', color: '#4f46e5', badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  { id: 'SERVICIOS', label: 'Transporte / Fletes', emoji: '🚚', color: '#9333ea', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
-  { id: 'OTROS', label: 'Otros / Varios', emoji: '📝', color: '#57534e', badgeClass: 'bg-stone-100 text-stone-700 border-stone-200' },
+  { id: 'CARNES', label: 'Carnes', emoji: '🥩', color: '#e11d48', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' },
+  { id: 'POLLO', label: 'Pollo', emoji: '🍗', color: '#ea580c', badgeClass: 'bg-orange-50 text-orange-700 border-orange-200' },
+  { id: 'HIELO', label: 'Hielo', emoji: '🧊', color: '#0284c7', badgeClass: 'bg-sky-50 text-sky-700 border-sky-200' },
+  { id: 'BEBIDAS', label: 'Bebidas', emoji: '🥤', color: '#0ea5e9', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
+  { id: 'BEBIDAS_ALCOHOLICAS', label: 'Bebidas alcohólicas', emoji: '🍺', color: '#d97706', badgeClass: 'bg-amber-50 text-amber-800 border-amber-200' },
+  { id: 'DELIVERYS_ACARREOS', label: 'Deliverys y acarreos', emoji: '🛵', color: '#9333ea', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
+  { id: 'FRUTAS_VEGETALES', label: 'Frutas / Vegetales', emoji: '🥗', color: '#16a34a', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  { id: 'SUPERMERCADO', label: 'Supermercado', emoji: '🛒', color: '#2563eb', badgeClass: 'bg-blue-50 text-blue-800 border-blue-200' },
+  { id: 'MERCADO', label: 'Mercado', emoji: '🏪', color: '#0d9488', badgeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
+  { id: 'LACTEOS', label: 'Lácteos', emoji: '🧀', color: '#ca8a04', badgeClass: 'bg-yellow-50 text-yellow-800 border-yellow-200' },
+  { id: 'PAGOS_PERSONAL', label: 'Pagos personal', emoji: '👥', color: '#4f46e5', badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  { id: 'OTROS', label: 'Otros', emoji: '📝', color: '#57534e', badgeClass: 'bg-stone-100 text-stone-700 border-stone-200' },
 ];
 
 export interface CompraGasto {

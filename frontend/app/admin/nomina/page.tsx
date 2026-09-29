@@ -48,6 +48,7 @@ import {
   AlertCircle,
   AlertTriangle,
   Plus,
+  PlusCircle,
   Trash2,
   ThumbsUp,
   ThumbsDown,
@@ -178,6 +179,10 @@ export default function NominaAdminPage() {
   // State para Auditoría y Ajuste de Vacaciones
   const [selectedVacacionesEmp, setSelectedVacacionesEmp] = useState<Empleado | null>(null);
   const [ajustandoEmp, setAjustandoEmp] = useState<Empleado | null>(null);
+  const [modoAjusteVac, setModoAjusteVac] = useState<'SUMAR' | 'FIJAR'>('SUMAR');
+  const [diasASumar, setDiasASumar] = useState<string>('5');
+  const [motivoAcreditacion, setMotivoAcreditacion] = useState<string>('MATRIMONIO');
+  const [detalleOtroMotivo, setDetalleOtroMotivo] = useState<string>('');
   const [tempAjusteDias, setTempAjusteDias] = useState<string>('0.0');
   const tempAjusteMotivoRef = useRef('');
   const [savingAjusteVac, setSavingAjusteVac] = useState<boolean>(false);
@@ -474,8 +479,19 @@ export default function NominaAdminPage() {
     }
   };
 
+  const handleOpenAcreditar = (emp: Empleado) => {
+    setAjustandoEmp(emp);
+    setModoAjusteVac('SUMAR');
+    setDiasASumar('5');
+    setMotivoAcreditacion('MATRIMONIO');
+    setDetalleOtroMotivo('');
+    setTempAjusteDias(String(emp.dias_vacaciones_acumuladas ?? '0.0'));
+    tempAjusteMotivoRef.current = '';
+  };
+
   const handleOpenAjuste = (emp: Empleado) => {
     setAjustandoEmp(emp);
+    setModoAjusteVac('FIJAR');
     setTempAjusteDias(String(emp.dias_vacaciones_acumuladas ?? '0.0'));
     tempAjusteMotivoRef.current = '';
   };
@@ -483,14 +499,42 @@ export default function NominaAdminPage() {
   const handleSaveAjusteVacaciones = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ajustandoEmp) return;
-    const diasVal = parseFloat(tempAjusteDias);
-    if (isNaN(diasVal) || diasVal < 0) {
-      alert('Por favor ingrese una cantidad válida de días de vacaciones.');
-      return;
+
+    let diasVal = 0;
+    let motivoFinal = '';
+
+    if (modoAjusteVac === 'SUMAR') {
+      const addVal = parseFloat(diasASumar);
+      if (isNaN(addVal) || addVal <= 0) {
+        alert('Por favor ingrese una cantidad válida de días a otorgar (mayor a 0).');
+        return;
+      }
+      const saldoActual = Number(ajustandoEmp.dias_vacaciones_acumuladas || 0);
+      diasVal = Number((saldoActual + addVal).toFixed(2));
+
+      if (motivoAcreditacion === 'MATRIMONIO') {
+        motivoFinal = `Acreditación legal de +${addVal} días por Matrimonio`;
+      } else if (motivoAcreditacion === 'PATERNIDAD') {
+        motivoFinal = `Acreditación legal de +${addVal} días por Paternidad / Nacimiento de hijo`;
+      } else if (motivoAcreditacion === 'DUELO') {
+        motivoFinal = `Acreditación de +${addVal} días por Duelo / Luto familiar`;
+      } else if (motivoAcreditacion === 'BONIFICACION') {
+        motivoFinal = `Bonificación extraordinaria de +${addVal} días de vacaciones`;
+      } else {
+        motivoFinal = `Acreditación de +${addVal} días: ${detalleOtroMotivo.trim() || 'Motivo justificado por administración'}`;
+      }
+    } else {
+      diasVal = parseFloat(tempAjusteDias);
+      if (isNaN(diasVal) || diasVal < 0) {
+        alert('Por favor ingrese una cantidad válida de días de vacaciones.');
+        return;
+      }
+      motivoFinal = tempAjusteMotivoRef.current.trim() || 'Ajuste manual de saldo acumulado por administración';
     }
+
     setSavingAjusteVac(true);
     try {
-      const updated = await ajustarVacacionesEmpleado(ajustandoEmp.id, diasVal, tempAjusteMotivoRef.current.trim() || 'Ajuste inicial de saldo por administración');
+      const updated = await ajustarVacacionesEmpleado(ajustandoEmp.id, diasVal, motivoFinal);
       setEmpleados((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
       if (selectedVacacionesEmp?.id === updated.id) {
         setSelectedVacacionesEmp(updated);
@@ -4293,7 +4337,16 @@ export default function NominaAdminPage() {
                             {corteStr}
                           </td>
                           <td className="px-5 py-3 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAcreditar(emp)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                                title="Acreditar / Sumar días de vacaciones extraordinarias por ley o bonificación (matrimonio, etc.)"
+                              >
+                                <PlusCircle className="w-3.5 h-3.5" />
+                                <span>+ Vacaciones</span>
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => setSelectedVacacionesEmp(emp)}
@@ -5256,7 +5309,7 @@ export default function NominaAdminPage() {
         }}
       />
 
-      {/* ── MODAL 2: AJUSTE RÁPIDO DE SALDO INICIAL POR ADMINISTRACIÓN ── */}
+      {/* ── MODAL 2: ACREDITAR / AJUSTAR SALDO DE VACACIONES ── */}
       {ajustandoEmp && (() => {
         const emp = ajustandoEmp;
         const permisosVac = permisos.filter(
@@ -5267,20 +5320,39 @@ export default function NominaAdminPage() {
               (p.tipo === 'PERMISO_AUTORIZADO' && (p.motivo || '').toLowerCase().includes('vacaciones')))
         );
         const vacTom = permisosVac.reduce((acc, p) => acc + (p.total_dias || 0), 0);
-        const previewDias = parseFloat(tempAjusteDias) || 0;
-        const previewDisp = Number((previewDias - vacTom).toFixed(1));
+        const saldoActualAcum = Number(emp.dias_vacaciones_acumuladas ?? 0);
+
+        // Cálculos según el modo seleccionado
+        const addDiasNum = parseFloat(diasASumar) || 0;
+        const nuevoAcumulado =
+          modoAjusteVac === 'SUMAR'
+            ? Number((saldoActualAcum + addDiasNum).toFixed(2))
+            : parseFloat(tempAjusteDias) || 0;
+        const previewDisp = Number((nuevoAcumulado - vacTom).toFixed(2));
 
         return (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-stone-200/90 p-6 space-y-5">
+            <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-stone-200/90 p-6 space-y-4">
               <div className="flex items-start justify-between gap-3 border-b border-stone-100 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#1c6856] border border-emerald-200 flex items-center justify-center font-bold">
-                    <Edit3 className="w-5 h-5" />
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
+                      modoAjusteVac === 'SUMAR'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-stone-100 text-stone-700 border border-stone-200'
+                    }`}
+                  >
+                    {modoAjusteVac === 'SUMAR' ? (
+                      <PlusCircle className="w-5 h-5 text-emerald-600" />
+                    ) : (
+                      <Edit3 className="w-5 h-5 text-stone-700" />
+                    )}
                   </div>
                   <div>
                     <h3 className="font-bold text-base text-stone-900 leading-tight">
-                      Ajustar Saldo de Vacaciones
+                      {modoAjusteVac === 'SUMAR'
+                        ? 'Acreditar Vacaciones Extraordinarias'
+                        : 'Ajustar Saldo de Vacaciones'}
                     </h3>
                     <p className="text-xs text-stone-500 font-medium">
                       {emp.nombre} {emp.apellido} — {emp.cargo_display}
@@ -5291,91 +5363,197 @@ export default function NominaAdminPage() {
                 <button
                   type="button"
                   onClick={() => setAjustandoEmp(null)}
-                  className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-stone-700"
+                  className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-stone-700 cursor-pointer"
                 >
                   <XCircle className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveAjusteVacaciones} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    Días Acumulados Totales a Acreditar:
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      required
-                      value={tempAjusteDias}
-                      onChange={(e) => setTempAjusteDias(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-base font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856]"
-                      placeholder="Ej: 12.5"
-                    />
-                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400">
-                      días
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-stone-500 font-medium mt-1">
-                    💡 Ingrese el saldo acumulado histórico provisto por el administrador. El sistema le sumará automáticamente +2.5 días cada fin de mes.
-                  </p>
-                </div>
+              {/* Selector de Modo: Sumar Días vs Corregir Saldo Directo */}
+              <div className="flex bg-stone-100 p-1 rounded-2xl border border-stone-200 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setModoAjusteVac('SUMAR')}
+                  className={`flex-1 py-1.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    modoAjusteVac === 'SUMAR'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>➕ Sumar Días Extra (Matrimonio / Ley)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoAjusteVac('FIJAR')}
+                  className={`flex-1 py-1.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    modoAjusteVac === 'FIJAR'
+                      ? 'bg-stone-800 text-white shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>⚙️ Corregir Saldo Total</span>
+                </button>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    Motivo / Justificación del Ajuste:
-                  </label>
-                  <input
-                    type="text"
-                    defaultValue=""
-                    onChange={(e) => {
-                      tempAjusteMotivoRef.current = e.target.value;
-                    }}
-                    placeholder="Ej: Carga de saldo inicial proporcionado por Administración"
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                  />
-                </div>
+              <form onSubmit={handleSaveAjusteVacaciones} className="space-y-4">
+                {modoAjusteVac === 'SUMAR' ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 bg-emerald-50/50 p-3.5 rounded-2xl border border-emerald-200">
+                      <div>
+                        <span className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                          Saldo Acumulado Actual:
+                        </span>
+                        <div className="text-xl font-mono font-black text-stone-900">
+                          {saldoActualAcum.toFixed(2)}{' '}
+                          <span className="text-xs font-normal text-stone-500">días</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1">
+                          Días a Otorgar / Sumar (+):
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0.5"
+                            required
+                            value={diasASumar}
+                            onChange={(e) => setDiasASumar(e.target.value)}
+                            className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-base font-mono font-black text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            placeholder="5"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-600">
+                            días
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 mb-1">
+                        Motivo Legal / Justificación de la Acreditación:
+                      </label>
+                      <select
+                        value={motivoAcreditacion}
+                        onChange={(e) => setMotivoAcreditacion(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs text-stone-900 font-bold"
+                      >
+                        <option value="MATRIMONIO">💍 Permiso legal por Matrimonio (5 días por ley / política)</option>
+                        <option value="PATERNIDAD">👶 Permiso por Paternidad / Nacimiento de hijo</option>
+                        <option value="DUELO">🕊️ Permiso por Duelo / Luto familiar</option>
+                        <option value="BONIFICACION">🎁 Bonificación extraordinaria / Incentivo laboral</option>
+                        <option value="OTRO">📝 Otro motivo justificado por gerencia</option>
+                      </select>
+                    </div>
+
+                    {motivoAcreditacion === 'OTRO' && (
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 mb-1">
+                          Especificar justificación:
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={detalleOtroMotivo}
+                          onChange={(e) => setDetalleOtroMotivo(e.target.value)}
+                          placeholder="Ej: Acreditación especial autorizada por Gerencia General"
+                          className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs text-stone-900"
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 mb-1">
+                        Días Acumulados Totales a Fijar:
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          required
+                          value={tempAjusteDias}
+                          onChange={(e) => setTempAjusteDias(e.target.value)}
+                          className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-base font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856]"
+                          placeholder="Ej: 12.5"
+                        />
+                        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400">
+                          días
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 font-medium mt-1">
+                        💡 Reemplaza directamente el valor de días acumulados del empleado.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 mb-1">
+                        Motivo / Justificación de la Corrección:
+                      </label>
+                      <input
+                        type="text"
+                        defaultValue=""
+                        onChange={(e) => {
+                          tempAjusteMotivoRef.current = e.target.value;
+                        }}
+                        placeholder="Ej: Corrección de saldo acumulado histórico"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                      />
+                    </div>
+                  </>
+                )}
 
                 {/* Previsualización en Vivo */}
-                <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-3 text-xs space-y-1">
-                  <span className="font-bold text-emerald-950 uppercase tracking-wider text-[10px] block">
-                    Previsualización del Balance:
-                  </span>
-                  <div className="flex items-center justify-between font-mono text-stone-700">
-                    <span>Acumuladas a fijar:</span>
-                    <strong className="text-stone-900">+{previewDias.toFixed(1)} d</strong>
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3.5 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between font-bold text-emerald-950 uppercase tracking-wider text-[10px]">
+                    <span>Previsualización del Saldo Resultante:</span>
+                    <span className="font-mono text-emerald-800">
+                      {modoAjusteVac === 'SUMAR'
+                        ? `+${addDiasNum.toFixed(1)} días por ${motivoAcreditacion.toLowerCase()}`
+                        : 'Fijación directa'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between font-mono text-stone-700 pt-1">
+                    <span>Nuevo acumulado total:</span>
+                    <strong className="text-stone-900">+{nuevoAcumulado.toFixed(2)} d</strong>
                   </div>
                   <div className="flex items-center justify-between font-mono text-stone-700">
-                    <span>Días tomados registrados:</span>
-                    <strong className="text-amber-700">-{vacTom.toFixed(1)} d</strong>
+                    <span>Días ya tomados / gozados:</span>
+                    <strong className="text-amber-700">-{vacTom.toFixed(2)} d</strong>
                   </div>
-                  <div className="flex items-center justify-between font-mono border-t border-emerald-200/60 pt-1 font-bold">
-                    <span className="text-emerald-950">Nuevo Saldo Disponible:</span>
-                    <strong className="text-emerald-800 text-sm">={previewDisp.toFixed(1)} días</strong>
+                  <div className="flex items-center justify-between font-mono border-t border-emerald-200/80 pt-1.5 font-bold">
+                    <span className="text-emerald-950 text-xs">Saldo Total Disponible:</span>
+                    <strong className="text-emerald-800 text-base">={previewDisp.toFixed(2)} días</strong>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
                   <button
                     type="button"
                     onClick={() => setAjustandoEmp(null)}
                     disabled={savingAjusteVac}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 border border-stone-200"
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 border border-stone-200 cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={savingAjusteVac}
-                    className="bg-[#1c6856] hover:bg-[#154f42] disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     {savingAjusteVac ? (
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                     ) : (
                       <CheckCircle className="w-3.5 h-3.5" />
                     )}
-                    <span>Guardar Saldo Oficial</span>
+                    <span>
+                      {modoAjusteVac === 'SUMAR' ? `Acreditar +${addDiasNum} Días` : 'Guardar Saldo Oficial'}
+                    </span>
                   </button>
                 </div>
               </form>

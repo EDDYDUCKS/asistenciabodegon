@@ -142,7 +142,7 @@ export default function BodegonControlPage() {
 
   // Filtros de gastos
   const [filtroCategoria, setFiltroCategoria] = useState<string>('TODAS');
-  const [filtroMetodo, setFiltroMetodo] = useState<'TODOS' | 'EFECTIVO' | 'TRANSFERENCIA'>('TODOS');
+  const [filtroMetodo, setFiltroMetodo] = useState<'TODOS' | 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA'>('TODOS');
   const [filtroEstado, setFiltroEstado] = useState<'TODOS' | 'PAGADO' | 'PENDIENTE_TRANSFERENCIA'>('TODOS');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortChronological, setSortChronological] = useState<boolean>(true); // true = Cronológico (Mañana ➔ Noche, como en Excel)
@@ -415,6 +415,7 @@ export default function BodegonControlPage() {
       expensesTotal: number;
       expensesCash: number;
       expensesTransf: number;
+      expensesCard: number;
       netProfit: number;
       marginPercent: number;
     }>();
@@ -444,6 +445,7 @@ export default function BodegonControlPage() {
         expensesTotal: 0,
         expensesCash: 0,
         expensesTransf: 0,
+        expensesCard: 0,
         netProfit: 0,
         marginPercent: 0,
       });
@@ -481,6 +483,7 @@ export default function BodegonControlPage() {
           expensesTotal: 0,
           expensesCash: 0,
           expensesTransf: 0,
+          expensesCard: 0,
           netProfit: 0,
           marginPercent: 0,
         };
@@ -489,6 +492,7 @@ export default function BodegonControlPage() {
       item.expensesTotal += montoNum;
       if (g.metodo_pago === 'EFECTIVO') item.expensesCash += montoNum;
       if (g.metodo_pago === 'TRANSFERENCIA') item.expensesTransf += montoNum;
+      if (g.metodo_pago === 'TARJETA') item.expensesCard += montoNum;
     });
 
     // Calcular ganancia neta y margen de cada día
@@ -513,11 +517,13 @@ export default function BodegonControlPage() {
     let expTot = 0;
     let expCash = 0;
     let expTransf = 0;
+    let expCard = 0;
     dayGastos.forEach((g) => {
       const m = Number(g.monto) || 0;
       expTot += m;
       if (g.metodo_pago === 'EFECTIVO') expCash += m;
       if (g.metodo_pago === 'TRANSFERENCIA') expTransf += m;
+      if (g.metodo_pago === 'TARJETA') expCard += m;
     });
 
     return {
@@ -547,6 +553,7 @@ export default function BodegonControlPage() {
       expensesTotal: expTot,
       expensesCash: expCash,
       expensesTransf: expTransf,
+      expensesCard: expCard,
       netProfit: 0 - expTot,
       marginPercent: 0,
     };
@@ -651,10 +658,11 @@ export default function BodegonControlPage() {
     };
   }, []);
 
-  // Métricas del día seleccionado para gastos (desglose claro de efectivo vs banco)
+  // Métricas del día seleccionado para gastos (desglose claro de efectivo vs banco/tarjeta)
   const metricasGastosDia = useMemo(() => {
     let totEfectivo = 0;
     let totTransf = 0;
+    let totTarjeta = 0;
     let totFondeosExtras = 0;
     let pendientesCount = 0;
     let pendientesMonto = 0;
@@ -670,6 +678,8 @@ export default function BodegonControlPage() {
           pendientesCount++;
           pendientesMonto += m;
         }
+      } else if (g.metodo_pago === 'TARJETA') {
+        totTarjeta += m;
       } else {
         totEfectivo += m;
       }
@@ -684,9 +694,11 @@ export default function BodegonControlPage() {
     const saldoEfectivoRestante = totalEntradas - totEfectivo;
 
     return {
-      total: totEfectivo + totTransf,
+      total: totEfectivo + totTransf + totTarjeta,
       efectivo: totEfectivo,
       transferencia: totTransf,
+      tarjeta: totTarjeta,
+      bancoYTarjeta: totTransf + totTarjeta,
       pendientesCount,
       pendientesMonto,
       fondoCaja: fondoInicial,
@@ -701,6 +713,7 @@ export default function BodegonControlPage() {
   const metricasGastosHoy = useMemo(() => {
     let totEfectivo = 0;
     let totTransf = 0;
+    let totTarjeta = 0;
     let totFondeosExtras = 0;
 
     const gastosHoy = gastos.filter((g) => g.fecha_hora.slice(0, 10) === hoyStr);
@@ -710,6 +723,8 @@ export default function BodegonControlPage() {
         totFondeosExtras += m;
       } else if (g.metodo_pago === 'TRANSFERENCIA') {
         totTransf += m;
+      } else if (g.metodo_pago === 'TARJETA') {
+        totTarjeta += m;
       } else {
         totEfectivo += m;
       }
@@ -724,9 +739,11 @@ export default function BodegonControlPage() {
     const saldoEfectivoRestante = totalEntradas - totEfectivo;
 
     return {
-      total: totEfectivo + totTransf,
+      total: totEfectivo + totTransf + totTarjeta,
       efectivo: totEfectivo,
       transferencia: totTransf,
+      tarjeta: totTarjeta,
+      bancoYTarjeta: totTransf + totTarjeta,
       saldoEfectivoRestante,
       fondoCajaChica,
     };
@@ -769,7 +786,7 @@ export default function BodegonControlPage() {
       categoriaEmoji?: string;
       categoriaLabel?: string;
       proveedor?: string;
-      tipoPago: 'EFECTIVO' | 'TRANSFERENCIA' | '-';
+      tipoPago: 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA' | '-';
       montoTotalBanco: number | null;
       reembolsoCajaChica: number | null;
       gastosCajaChica: number | null;
@@ -840,6 +857,7 @@ export default function BodegonControlPage() {
     for (const g of dayGastos) {
       const monto = Number(g.monto) || 0;
       const isTransfer = g.metodo_pago === 'TRANSFERENCIA';
+      const isCard = g.metodo_pago === 'TARJETA';
       const isFondeo = g.tipo === 'INGRESO_FONDEO';
 
       let montoTotalBanco: number | null = null;
@@ -849,9 +867,9 @@ export default function BodegonControlPage() {
       if (isFondeo) {
         reembolsoCajaChica = monto;
         runningSaldo += monto;
-      } else if (isTransfer) {
+      } else if (isTransfer || isCard) {
         montoTotalBanco = monto;
-        // La transferencia no altera el efectivo físico en gaveta
+        // La transferencia o tarjeta no altera el efectivo físico en gaveta
       } else {
         gastosCajaChica = monto;
         runningSaldo -= monto;
@@ -890,7 +908,7 @@ export default function BodegonControlPage() {
           categoriaEmoji: catDef.emoji,
           categoriaLabel: catDef.label,
           proveedor: g.proveedor || undefined,
-          tipoPago: isTransfer ? 'TRANSFERENCIA' : 'EFECTIVO',
+          tipoPago: isTransfer ? 'TRANSFERENCIA' : isCard ? 'TARJETA' : 'EFECTIVO',
           montoTotalBanco,
           reembolsoCajaChica,
           gastosCajaChica,
@@ -1178,6 +1196,7 @@ export default function BodegonControlPage() {
       lineas.push(``);
       lineas.push(`"Total Egresos Efectivo","${metricasGastosDia.efectivo.toFixed(2)}"`);
       lineas.push(`"Total Egresos Transferencias","${metricasGastosDia.transferencia.toFixed(2)}"`);
+      lineas.push(`"Total Egresos Tarjetas","${metricasGastosDia.tarjeta.toFixed(2)}"`);
       lineas.push(`"Fondo Inicial Caja Chica","${metricasGastosDia.fondoCaja.toFixed(2)}"`);
       lineas.push(`"Saldo Restante en Gaveta","${metricasGastosDia.saldoEfectivoRestante.toFixed(2)}"`);
 
@@ -1267,7 +1286,7 @@ export default function BodegonControlPage() {
               hour12: true,
             });
             const catLabel = CATEGORIAS_GASTO.find((c) => c.id === g.categoria)?.label || g.categoria;
-            const metodoTxt = g.metodo_pago === 'EFECTIVO' ? 'Efectivo' : 'Transf.';
+            const metodoTxt = g.metodo_pago === 'EFECTIVO' ? 'Efectivo' : g.metodo_pago === 'TARJETA' ? 'Tarjeta' : 'Transf.';
             const estadoRef =
               g.metodo_pago === 'TRANSFERENCIA'
                 ? (g.estado_pago === 'PAGADO' ? 'Pagado' : 'Pendiente') +
@@ -1586,7 +1605,7 @@ export default function BodegonControlPage() {
               </tr>
               <tr>
                 <td><strong>FONDO INICIAL ASIGNADO:</strong><br>C$ ${fondoInicial.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
-                <td><strong>TRANSFERENCIAS BANCARIAS:</strong><br>C$ ${expensesTransf.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                <td><strong>BANCO / TARJETAS:</strong><br>C$ ${(expensesTransf + (selectedDayData.expensesCard || 0)).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                 <td><strong>PENDIENTES DE TRANSFERIR:</strong><br>C$ ${metricasGastosDia.pendientesMonto.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                 <td><strong>SALDO RESTANTE EN GAVETA:</strong><br><strong>C$ ${saldoRemanente.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong></td>
               </tr>
@@ -1617,8 +1636,12 @@ export default function BodegonControlPage() {
                   <td>(+) Facturas y Compras Pagadas mediante Transferencia Bancaria</td>
                   <td class="text-right font-mono">C$ ${expensesTransf.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                 </tr>
+                <tr>
+                  <td>(+) Compras Pagadas mediante Tarjeta de Débito / Crédito (POS)</td>
+                  <td class="text-right font-mono">C$ ${(selectedDayData.expensesCard || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                </tr>
                 <tr class="highlight-row">
-                  <td><strong>TOTAL GENERAL DE EGRESOS DEL DÍA (EFECTIVO + TRANSFERENCIAS)</strong></td>
+                  <td><strong>TOTAL GENERAL DE EGRESOS DEL DÍA (EFECTIVO + BANCO + TARJETA)</strong></td>
                   <td class="text-right font-mono" style="font-size: 10.5px;"><strong>C$ ${expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong></td>
                 </tr>
               </tbody>
@@ -2588,19 +2611,19 @@ export default function BodegonControlPage() {
                   </p>
                 </div>
 
-                {/* Tarjeta 3: Pagos por Transferencia */}
+                {/* Tarjeta 3: Pagos Banco & Tarjetas */}
                 <div className="bg-white border border-sky-200 rounded-2xl p-4 shadow-2xs bg-sky-50/20">
                   <div className="flex items-center justify-between gap-2 text-sky-800 text-xs font-black uppercase tracking-wider">
-                    <span>3. Pagos por Transferencia (🏦 Banco)</span>
+                    <span>3. Banco & Tarjetas (🏦 / 💳 Digital)</span>
                     <Send className="w-4 h-4 text-sky-600" />
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
                     <span className="text-2xl font-black font-mono text-sky-700">
-                      C$ {metricasGastosDia.transferencia.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                      C$ {metricasGastosDia.bancoYTarjeta.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <p className="text-[11px] text-sky-700 mt-1 font-bold">
-                    Cuenta bancaria • <span className="underline">NO resta dinero de la gaveta</span>
+                    Transf: C$ {metricasGastosDia.transferencia.toLocaleString('es-NI')} • Tarj: C$ {metricasGastosDia.tarjeta.toLocaleString('es-NI')} • <span className="underline">NO resta de gaveta</span>
                   </p>
                 </div>
 
@@ -2630,7 +2653,7 @@ export default function BodegonControlPage() {
                     C$ {metricasGastosDia.total.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                   </span>
                   <span className="text-[11px] text-stone-500 font-normal">
-                    (C$ {metricasGastosDia.efectivo.toLocaleString('es-NI')} en efectivo + C$ {metricasGastosDia.transferencia.toLocaleString('es-NI')} por banco)
+                    (C$ {metricasGastosDia.efectivo.toLocaleString('es-NI')} efectivo + C$ {metricasGastosDia.transferencia.toLocaleString('es-NI')} transf. + C$ {metricasGastosDia.tarjeta.toLocaleString('es-NI')} tarjeta)
                   </span>
                 </div>
                 {metricasGastosDia.pendientesCount > 0 && (
@@ -2669,6 +2692,7 @@ export default function BodegonControlPage() {
                       <option value="TODOS">Todos</option>
                       <option value="EFECTIVO">💵 Solo Efectivo (Gaveta)</option>
                       <option value="TRANSFERENCIA">🏦 Solo Transferencias (Banco)</option>
+                      <option value="TARJETA">💳 Solo Tarjetas (POS / Banco)</option>
                     </select>
                   </div>
 
@@ -2797,6 +2821,8 @@ export default function BodegonControlPage() {
                                   ? 'bg-amber-50/40 font-semibold'
                                   : isTransfer
                                   ? 'bg-sky-50/20 hover:bg-sky-50/40'
+                                  : item.tipoPago === 'TARJETA'
+                                  ? 'bg-purple-50/20 hover:bg-purple-50/40'
                                   : 'hover:bg-stone-50'
                               }`}
                             >
@@ -2827,6 +2853,11 @@ export default function BodegonControlPage() {
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100 text-sky-900 border border-sky-300">
                                     <span>🏦</span>
                                     <span>Transferencia</span>
+                                  </span>
+                                ) : item.tipoPago === 'TARJETA' ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-900 border border-purple-300 font-medium">
+                                    <span>💳</span>
+                                    <span>Tarjeta</span>
                                   </span>
                                 ) : item.tipoPago === 'EFECTIVO' ? (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 border border-stone-200 font-mono">
@@ -2907,7 +2938,7 @@ export default function BodegonControlPage() {
                           TOTALES DEL DÍA:
                         </td>
                         <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-sky-100/70 text-sky-950 font-black">
-                          C$ {metricasGastosDia.transferencia.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                          C$ {metricasGastosDia.bancoYTarjeta.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-emerald-100/70 text-emerald-950 font-black">
                           C$ {metricasGastosDia.totalEntradas.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
@@ -3135,8 +3166,9 @@ export default function BodegonControlPage() {
                       onChange={(e) => setMetodoPago(e.target.value as any)}
                       className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 font-bold"
                     >
-                      <option value="EFECTIVO">💵 Efectivo (Caja Chica)</option>
+                      <option value="EFECTIVO">💵 Efectivo (Gaveta de Compras)</option>
                       <option value="TRANSFERENCIA">📲 Transferencia Bancaria</option>
+                      <option value="TARJETA">💳 Tarjeta (POS Débito/Crédito)</option>
                     </select>
                   </div>
 
@@ -3149,6 +3181,19 @@ export default function BodegonControlPage() {
                       className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 font-medium"
                     />
                   </div>
+                </div>
+
+                <div className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${
+                  metodoPago === 'EFECTIVO' 
+                    ? 'bg-rose-50 border-rose-200 text-rose-800' 
+                    : 'bg-sky-50 border-sky-200 text-sky-800'
+                }`}>
+                  <span>{metodoPago === 'EFECTIVO' ? '🔴' : '🔵'}</span>
+                  <span>
+                    {metodoPago === 'EFECTIVO'
+                      ? 'Impacto en Arqueo: RESTA directamente de los billetes/monedas en la gaveta física.'
+                      : 'Impacto en Arqueo: Pago digital/bancario. NO resta dinero de la gaveta de caja chica.'}
+                  </span>
                 </div>
 
                 {metodoPago === 'TRANSFERENCIA' && (
@@ -3175,6 +3220,19 @@ export default function BodegonControlPage() {
                         className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 font-mono text-stone-900"
                       />
                     </div>
+                  </div>
+                )}
+
+                {metodoPago === 'TARJETA' && (
+                  <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200">
+                    <label className="block text-stone-600 font-bold mb-1">Terminal POS / Banco / No. Voucher (Opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="Ej. POS BAC, Banpro, Voucher #..."
+                      value={referenciaBanco}
+                      onChange={(e) => setReferenciaBanco(e.target.value)}
+                      className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 font-mono text-stone-900"
+                    />
                   </div>
                 )}
 
