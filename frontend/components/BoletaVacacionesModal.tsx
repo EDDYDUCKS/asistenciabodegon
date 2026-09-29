@@ -2,14 +2,15 @@
 
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Empleado, PermisoAusencia, CompensacionFeriado, PagoVacaciones } from '@/lib/types';
-import { Utensils, Printer, X, Palmtree, User, CheckCircle, Clock, Edit3, Award, Banknote } from 'lucide-react';
+import { Empleado, PermisoAusencia, CompensacionFeriado, PagoVacaciones, BitacoraAccion } from '@/lib/types';
+import { Utensils, Printer, X, Palmtree, User, CheckCircle, Clock, Edit3, Award, Banknote, Sparkles } from 'lucide-react';
 
 interface BoletaVacacionesModalProps {
   empleado: Empleado | null;
   permisos: PermisoAusencia[];
   compensacionesFeriados?: CompensacionFeriado[];
   pagosVacaciones?: PagoVacaciones[];
+  bitacora?: BitacoraAccion[];
   onClose: () => void;
   onAjustar?: () => void;
 }
@@ -19,6 +20,7 @@ export default function BoletaVacacionesModal({
   permisos,
   compensacionesFeriados = [],
   pagosVacaciones = [],
+  bitacora = [],
   onClose,
   onAjustar,
 }: BoletaVacacionesModalProps) {
@@ -69,15 +71,100 @@ export default function BoletaVacacionesModal({
   );
   const diasGozados = permisosVac.reduce((acc, p) => acc + (p.total_dias || 0), 0);
 
+  // Extraer acreditaciones extraordinarias y ajustes de saldo desde Bitácora
+  const normalize = (str: string) =>
+    (str || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+  const empNombreNorm = normalize(emp.nombre);
+  const empApellidoNorm = normalize(emp.apellido || '');
+
+  const logsAjustesEmp = (bitacora || []).filter((b) => {
+    const descNorm = normalize(b.descripcion);
+    const tieneNombre = descNorm.includes(empNombreNorm) && (empApellidoNorm === '' || descNorm.includes(empApellidoNorm));
+    const esVacaciones = descNorm.includes('vacaciones');
+    const esAjusteOSaldo = descNorm.includes('ajustad') || descNorm.includes('acreditaci') || descNorm.includes('motivo');
+    return tieneNombre && esVacaciones && esAjusteOSaldo;
+  });
+
+  const acreditacionesParsed = logsAjustesEmp.map((b) => {
+    const desc = b.descripcion || '';
+    const matchMotivo = desc.match(/Motivo:\s*(.*)$/i);
+    const motivoTexto = matchMotivo ? matchMotivo[1].trim() : desc;
+    const mLower = motivoTexto.toLowerCase();
+
+    const matchDelta = motivoTexto.match(/\+([\d.]+)\s*d[ií]as/i);
+    const matchSaldo = desc.match(/ajustado a ([\d.]+)\s*d[ií]as/i);
+
+    let diasNum = 0;
+    let diasStr = '';
+    const diasSign: 'PLUS' | 'MINUS' = 'PLUS';
+    let badge = '✨ Acreditación Extra';
+    let tipo: 'ACREDITACION' | 'AJUSTE' = 'ACREDITACION';
+
+    if (matchDelta) {
+      diasNum = parseFloat(matchDelta[1]);
+      diasStr = `+${diasNum.toFixed(1)} d`;
+    } else if (matchSaldo) {
+      const saldoFijado = parseFloat(matchSaldo[1]);
+      diasStr = `Saldo: ${saldoFijado.toFixed(1)} d`;
+      tipo = 'AJUSTE';
+    } else {
+      diasStr = '+0.0 d';
+    }
+
+    if (mLower.includes('matrimonio')) {
+      badge = '💍 Matrimonio';
+      tipo = 'ACREDITACION';
+    } else if (mLower.includes('paternidad')) {
+      badge = '👶 Paternidad';
+      tipo = 'ACREDITACION';
+    } else if (mLower.includes('duelo') || mLower.includes('luto')) {
+      badge = '🕊️ Duelo / Luto';
+      tipo = 'ACREDITACION';
+    } else if (mLower.includes('bonificaci')) {
+      badge = '⭐ Bonificación';
+      tipo = 'ACREDITACION';
+    } else if (mLower.includes('carga inicial') || mLower.includes('cuadro oficial')) {
+      badge = '📌 Carga Saldo Inicial';
+      tipo = 'AJUSTE';
+    } else if (tipo === 'AJUSTE') {
+      badge = '📝 Ajuste de Saldo';
+    }
+
+    const fechaRaw = b.fecha_hora ? b.fecha_hora.split('T')[0] : '';
+    const fechaReg = b.fecha_hora
+      ? new Date(b.fecha_hora).toLocaleDateString('es-NI')
+      : fechaRaw;
+
+    return {
+      id: `bit-${b.id}`,
+      fecha: fechaRaw,
+      tipo,
+      badge,
+      diasNum,
+      diasStr,
+      diasSign,
+      descripcion: motivoTexto,
+      fechaReg,
+    };
+  });
+
+  const totalDiasExtraordinarios = acreditacionesParsed
+    .filter((a) => a.tipo === 'ACREDITACION')
+    .reduce((acc, a) => acc + a.diasNum, 0);
+
   // Saldo disponible real
   const vacDisp = Number((vacAcum - diasGozados).toFixed(2));
-  const vacBaseLey = Number(Math.max(0, vacAcum + diasPagados - diasFeriados).toFixed(2));
+  const vacBaseLey = Number(Math.max(0, vacAcum + diasPagados - diasFeriados - totalDiasExtraordinarios).toFixed(2));
 
   // Historial unificado cronológico de movimientos
   const movimientos: Array<{
     id: string;
     fecha: string;
-    tipo: 'FERIADO' | 'GOCE' | 'PAGO';
+    tipo: 'FERIADO' | 'GOCE' | 'PAGO' | 'ACREDITACION' | 'AJUSTE';
     badge: string;
     diasStr: string;
     diasSign: 'PLUS' | 'MINUS';
@@ -113,6 +200,16 @@ export default function BoletaVacacionesModal({
       diasSign: 'MINUS' as const,
       descripcion: `Boleta ${pv.numero_recibo} (C$ ${Number(pv.monto_pagado).toLocaleString('es-NI', { minimumFractionDigits: 2 })}). ${pv.motivo || ''}`.trim(),
       fechaReg: pv.fecha_pago,
+    })),
+    ...acreditacionesParsed.map((ac) => ({
+      id: ac.id,
+      fecha: ac.fecha,
+      tipo: ac.tipo,
+      badge: ac.badge,
+      diasStr: ac.diasStr,
+      diasSign: ac.diasSign,
+      descripcion: ac.descripcion,
+      fechaReg: ac.fechaReg,
     })),
   ].sort((a, b) => b.fecha.localeCompare(a.fecha));
 
@@ -391,12 +488,12 @@ export default function BoletaVacacionesModal({
               </p>
             </div>
 
-            {/* Cuadro 3: Desglose Matemático y Legal en 4 Tarjetas */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {/* Cuadro 3: Desglose Matemático y Legal en Tarjetas */}
+            <div className={`grid grid-cols-2 ${totalDiasExtraordinarios > 0 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2`}>
               {/* 1. Acumuladas Ley */}
               <div className="bg-stone-50 border border-stone-200/80 rounded-xl p-2 space-y-0.5">
                 <span className="text-[8.5px] text-stone-500 uppercase font-black tracking-wider block">
-                  📈 1. Base Ley
+                  📈 1. Base Ley C.T.
                 </span>
                 <div className="text-sm font-mono font-black text-stone-900">
                   +{vacBaseLey.toFixed(2)} <span className="text-[9px] font-sans font-bold text-stone-500">días</span>
@@ -406,10 +503,25 @@ export default function BoletaVacacionesModal({
                 </p>
               </div>
 
-              {/* 2. Feriados Laborados */}
+              {/* Tarjeta Extra: Acreditaciones Extraordinarias por Ley (si existen) */}
+              {totalDiasExtraordinarios > 0 && (
+                <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-2 space-y-0.5">
+                  <span className="text-[8.5px] text-purple-900 uppercase font-black tracking-wider block">
+                    💍 2. Extras Ley
+                  </span>
+                  <div className="text-sm font-mono font-black text-purple-800">
+                    +{totalDiasExtraordinarios.toFixed(2)} <span className="text-[9px] font-sans font-bold text-purple-600">días</span>
+                  </div>
+                  <p className="text-[8px] text-purple-700 font-medium leading-tight truncate" title="Días otorgados por matrimonio, paternidad, etc.">
+                    Matrimonio / Ley acreditados.
+                  </p>
+                </div>
+              )}
+
+              {/* 2 o 3. Feriados Laborados */}
               <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-2 space-y-0.5">
                 <span className="text-[8.5px] text-emerald-900 uppercase font-black tracking-wider block">
-                  ⭐ 2. Feriados (+2d)
+                  ⭐ {totalDiasExtraordinarios > 0 ? '3.' : '2.'} Feriados (+2d)
                 </span>
                 <div className="text-sm font-mono font-black text-emerald-800">
                   +{diasFeriados.toFixed(2)} <span className="text-[9px] font-sans font-bold text-emerald-600">días</span>
@@ -419,10 +531,10 @@ export default function BoletaVacacionesModal({
                 </p>
               </div>
 
-              {/* 3. Días Gozados / Pagados */}
+              {/* 3 o 4. Días Gozados / Pagados */}
               <div className="bg-amber-50/40 border border-amber-200 rounded-xl p-2 space-y-0.5">
                 <span className="text-[8.5px] text-amber-900 uppercase font-black tracking-wider block">
-                  📉 3. Goces y Pagos
+                  📉 {totalDiasExtraordinarios > 0 ? '4.' : '3.'} Goces y Pagos
                 </span>
                 <div className="text-sm font-mono font-black text-amber-800">
                   -{(diasGozados + diasPagados).toFixed(2)}{' '}
@@ -433,10 +545,10 @@ export default function BoletaVacacionesModal({
                 </p>
               </div>
 
-              {/* 4. Saldo Disponible */}
+              {/* 4 o 5. Saldo Disponible */}
               <div className="bg-emerald-100/50 border border-emerald-300 rounded-xl p-2 space-y-0.5">
                 <span className="text-[8.5px] text-emerald-950 uppercase font-black tracking-wider block">
-                  🧮 4. Saldo Neto
+                  🧮 {totalDiasExtraordinarios > 0 ? '5.' : '4.'} Saldo Neto
                 </span>
                 <div className="text-sm font-mono font-black text-emerald-900">
                   {vacDisp.toFixed(2)} <span className="text-[9px] font-sans font-bold text-emerald-700">días</span>
@@ -447,7 +559,7 @@ export default function BoletaVacacionesModal({
               </div>
             </div>
 
-            {/* Cuadro 4: Historial Detallado de Movimientos (Feriados, Goces y Pagos) */}
+            {/* Cuadro 4: Historial Detallado de Movimientos (Feriados, Goces, Pagos y Acreditaciones) */}
             <div className="border border-stone-200 rounded-xl p-2.5">
               <h3 className="text-[10px] font-black text-stone-800 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                 <span className="flex items-center gap-1">
@@ -487,6 +599,10 @@ export default function BoletaVacacionesModal({
                                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                                 : m.tipo === 'PAGO'
                                 ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                : m.tipo === 'ACREDITACION'
+                                ? 'bg-purple-100 text-purple-900 border border-purple-300 font-black'
+                                : m.tipo === 'AJUSTE'
+                                ? 'bg-stone-100 text-stone-700 border border-stone-300'
                                 : 'bg-amber-100 text-amber-800 border border-amber-200'
                             }`}
                           >
@@ -495,7 +611,7 @@ export default function BoletaVacacionesModal({
                         </td>
                         <td
                           className={`py-1 px-1.5 text-center font-mono font-bold text-[9.5px] ${
-                            m.diasSign === 'PLUS' ? 'text-emerald-700' : 'text-rose-700'
+                            m.diasSign === 'PLUS' ? 'text-emerald-700 font-black' : 'text-rose-700 font-black'
                           }`}
                         >
                           {m.diasStr}
@@ -515,7 +631,7 @@ export default function BoletaVacacionesModal({
 
             {/* Cláusula Legal de Conformidad */}
             <p className="text-[8px] text-stone-500 text-justify leading-snug italic pt-0.5">
-              Se hace constar formalmente el balance de días de vacaciones correspondientes al colaborador citado, computados a razón de 2.5 días hábiles remunerados por cada mes continuo laborado conforme al Artículo 76 del Código del Trabajo de la República de Nicaragua, más los abonos por feriados laborados (+2 días c/u) y deducciones por vacaciones gozadas y pagadas en dinero. El saldo aquí auditado coincide con los libros oficiales de asistencia y planilla del Restaurante El Bodegón.
+              Se hace constar formalmente el balance de días de vacaciones correspondientes al colaborador citado, computados a razón de 2.5 días hábiles remunerados por cada mes continuo laborado conforme al Artículo 76 del Código del Trabajo de la República de Nicaragua, más los abonos por feriados laborados (+2 días c/u), acreditaciones legales extraordinarias (matrimonio, paternidad, etc.) y deducciones por vacaciones gozadas y pagadas en dinero. El saldo aquí auditado coincide con los libros oficiales de asistencia y planilla del Restaurante El Bodegón.
             </p>
 
             {/* Bloque Legal de Firmas */}

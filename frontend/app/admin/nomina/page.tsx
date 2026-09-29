@@ -26,8 +26,9 @@ import {
   sincronizarDescansosTrabajados,
   fetchPagosHorasExtra,
   deletePagoHorasExtra,
+  fetchBitacora,
 } from '@/lib/api-client';
-import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras, CompensacionFeriado, PagoVacaciones, PagoHorasExtra } from '@/lib/types';
+import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras, CompensacionFeriado, PagoVacaciones, PagoHorasExtra, BitacoraAccion } from '@/lib/types';
 import BoletaCompensacionModal from '@/components/BoletaCompensacionModal';
 import BoletaVacacionesModal from '@/components/BoletaVacacionesModal';
 import ModalLiquidarFeriado from '@/components/ModalLiquidarFeriado';
@@ -132,6 +133,7 @@ export default function NominaAdminPage() {
   const [searchCompensacion, setSearchCompensacion] = useState('');
   const [searchExtra, setSearchExtra] = useState('');
   const [separarPorDiaExtras, setSepararPorDiaExtras] = useState(true);
+  const [bitacora, setBitacora] = useState<BitacoraAccion[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -199,7 +201,7 @@ export default function NominaAdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empList, asisList, feriadosList, extrasList, permisosList, compList, compFeriadosList, pagosVacList, pagosHEList] = await Promise.all([
+      const [empList, asisList, feriadosList, extrasList, permisosList, compList, compFeriadosList, pagosVacList, pagosHEList, bitacoraList] = await Promise.all([
         fetchEmpleados(),
         fetchAsistencias(),
         fetchFeriados(),
@@ -209,6 +211,7 @@ export default function NominaAdminPage() {
         fetchCompensacionesFeriados(),
         fetchPagosVacaciones(),
         fetchPagosHorasExtra(),
+        fetchBitacora(),
       ]);
       setEmpleados(empList);
       setAsistencias(asisList);
@@ -219,6 +222,7 @@ export default function NominaAdminPage() {
       setCompensacionesFeriados(compFeriadosList);
       setPagosVacaciones(pagosVacList);
       setPagosHorasExtra(pagosHEList);
+      setBitacora(bitacoraList);
       if (empList.length > 0 && nuevoPermisoEmp === 0) {
         setNuevoPermisoEmp(empList[0].id);
       }
@@ -539,7 +543,18 @@ export default function NominaAdminPage() {
       if (selectedVacacionesEmp?.id === updated.id) {
         setSelectedVacacionesEmp(updated);
       }
+      try {
+        const updatedBit = await fetchBitacora();
+        setBitacora(updatedBit);
+      } catch (errBit) {
+        console.warn('No se pudo refrescar bitacora:', errBit);
+      }
       setAjustandoEmp(null);
+      alert(
+        modoAjusteVac === 'SUMAR'
+          ? `✅ ¡Acreditación registrada exitosamente!\n\nSe han agregado +${diasASumar} días a ${ajustandoEmp.nombre} ${ajustandoEmp.apellido || ''} por concepto de:\n${motivoFinal}.\n\nNuevo saldo acumulado: ${diasVal.toFixed(2)} días.`
+          : `✅ Saldo de vacaciones actualizado a ${diasVal.toFixed(2)} días para ${ajustandoEmp.nombre}.`
+      );
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al ajustar vacaciones');
     } finally {
@@ -4310,14 +4325,82 @@ export default function NominaAdminPage() {
                           })
                         : 'Al día';
 
+                      const normalizeStr = (s: string) =>
+                        (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                      const empNorm = normalizeStr(emp.nombre);
+                      const empApeNorm = normalizeStr(emp.apellido || '');
+
+                      const logsAcred = bitacora.filter((b) => {
+                        const dNorm = normalizeStr(b.descripcion);
+                        const tieneNombre = dNorm.includes(empNorm) && (empApeNorm === '' || dNorm.includes(empApeNorm));
+                        return (
+                          tieneNombre &&
+                          dNorm.includes('vacaciones') &&
+                          (dNorm.includes('matrimonio') ||
+                            dNorm.includes('paternidad') ||
+                            dNorm.includes('duelo') ||
+                            dNorm.includes('bonificaci') ||
+                            dNorm.includes('acreditaci'))
+                        );
+                      });
+
+                      const badgesAcred = logsAcred.map((b) => {
+                        const desc = b.descripcion || '';
+                        const matchDelta = desc.match(/\+([\d.]+)\s*d[ií]as/i);
+                        const dias = matchDelta ? parseFloat(matchDelta[1]) : 0;
+                        const dLower = desc.toLowerCase();
+                        let icon = '✨';
+                        let tag = 'Extra';
+                        if (dLower.includes('matrimonio')) {
+                          icon = '💍';
+                          tag = 'Matrimonio';
+                        } else if (dLower.includes('paternidad')) {
+                          icon = '👶';
+                          tag = 'Paternidad';
+                        } else if (dLower.includes('duelo') || dLower.includes('luto')) {
+                          icon = '🕊️';
+                          tag = 'Duelo';
+                        } else if (dLower.includes('bonificaci')) {
+                          icon = '⭐';
+                          tag = 'Bonificación';
+                        }
+                        return { icon, tag, dias, id: b.id, motivo: desc };
+                      });
+
+                      const totalDiasExtra = badgesAcred.reduce((acc, x) => acc + x.dias, 0);
+
                       return (
                         <tr key={emp.id} className="hover:bg-stone-50/60 transition-colors">
                           <td className="px-5 py-3">
                             <div className="font-bold text-stone-900">{emp.nombre} {emp.apellido}</div>
-                            <span className="text-[10px] text-stone-500 font-medium">{emp.cargo_display}</span>
+                            <div className="text-[10px] text-stone-500 font-medium">{emp.cargo_display}</div>
+                            {badgesAcred.length > 0 && (
+                              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                {badgesAcred.slice(0, 2).map((ac, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-purple-50 text-purple-800 border border-purple-200 shadow-2xs"
+                                    title={ac.motivo}
+                                  >
+                                    <span>{ac.icon}</span>
+                                    <span>+{ac.dias > 0 ? ac.dias.toFixed(1) : ''}d {ac.tag}</span>
+                                  </span>
+                                ))}
+                                {badgesAcred.length > 2 && (
+                                  <span className="text-[9px] text-purple-600 font-bold">
+                                    +{badgesAcred.length - 2} más
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-right font-mono font-bold text-stone-700">
-                            +{vacAcum.toFixed(2)} días
+                            <div>+{vacAcum.toFixed(2)} días</div>
+                            {totalDiasExtra > 0 && (
+                              <div className="text-[9.5px] font-sans font-semibold text-purple-700">
+                                (incl. +{totalDiasExtra.toFixed(1)}d extras)
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-right font-mono font-bold text-amber-700">
                             {vacTom > 0 ? `-${vacTom.toFixed(2)} días` : '0.00 días'}
@@ -5301,6 +5384,7 @@ export default function NominaAdminPage() {
         permisos={permisos}
         compensacionesFeriados={compensacionesFeriados}
         pagosVacaciones={pagosVacaciones}
+        bitacora={bitacora}
         onClose={() => setSelectedVacacionesEmp(null)}
         onAjustar={() => {
           if (selectedVacacionesEmp) {
