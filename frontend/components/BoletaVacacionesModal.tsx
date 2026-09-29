@@ -71,7 +71,7 @@ export default function BoletaVacacionesModal({
   );
   const diasGozados = permisosVac.reduce((acc, p) => acc + (p.total_dias || 0), 0);
 
-  // Extraer acreditaciones extraordinarias y ajustes de saldo desde Bitácora
+  // Extraer exclusivamente las acreditaciones extraordinarias del botón (+ Vacaciones) desde Bitácora
   const normalize = (str: string) =>
     (str || '')
       .toLowerCase()
@@ -82,11 +82,35 @@ export default function BoletaVacacionesModal({
   const empApellidoNorm = normalize(emp.apellido || '');
 
   const logsAjustesEmp = (bitacora || []).filter((b) => {
-    const descNorm = normalize(b.descripcion);
-    const tieneNombre = descNorm.includes(empNombreNorm) && (empApellidoNorm === '' || descNorm.includes(empApellidoNorm));
-    const esVacaciones = descNorm.includes('vacaciones');
-    const esAjusteOSaldo = descNorm.includes('ajustad') || descNorm.includes('acreditaci') || descNorm.includes('motivo');
-    return tieneNombre && esVacaciones && esAjusteOSaldo;
+    const desc = b.descripcion || '';
+    const descNorm = normalize(desc);
+
+    // Descartar acumulaciones diarias automáticas por ley para no inundar el historial
+    if (descNorm.includes('diaria continua') || descNorm.includes('diariacontinua')) {
+      return false;
+    }
+
+    const tieneNombre =
+      descNorm.includes(empNombreNorm) &&
+      (empApellidoNorm === '' || descNorm.includes(empApellidoNorm));
+    if (!tieneNombre) return false;
+
+    // Solo registros que provengan de una acreditación del botón con "Motivo:" explícito
+    const matchMotivo = desc.match(/Motivo:\s*(.*)$/i);
+    if (!matchMotivo) return false;
+
+    const motivoTexto = matchMotivo[1].toLowerCase();
+    const esBotonAcreditar =
+      motivoTexto.includes('matrimonio') ||
+      motivoTexto.includes('paternidad') ||
+      motivoTexto.includes('duelo') ||
+      motivoTexto.includes('luto') ||
+      motivoTexto.includes('bonificacion') ||
+      motivoTexto.includes('bonificación') ||
+      (motivoTexto.includes('acreditacion') && motivoTexto.includes('+')) ||
+      (motivoTexto.includes('acreditación') && motivoTexto.includes('+'));
+
+    return esBotonAcreditar;
   });
 
   const acreditacionesParsed = logsAjustesEmp.map((b) => {
@@ -102,36 +126,26 @@ export default function BoletaVacacionesModal({
     let diasStr = '';
     const diasSign: 'PLUS' | 'MINUS' = 'PLUS';
     let badge = '✨ Acreditación Extra';
-    let tipo: 'ACREDITACION' | 'AJUSTE' = 'ACREDITACION';
+    const tipo: 'ACREDITACION' = 'ACREDITACION';
 
     if (matchDelta) {
       diasNum = parseFloat(matchDelta[1]);
       diasStr = `+${diasNum.toFixed(1)} d`;
     } else if (matchSaldo) {
       const saldoFijado = parseFloat(matchSaldo[1]);
-      diasStr = `Saldo: ${saldoFijado.toFixed(1)} d`;
-      tipo = 'AJUSTE';
+      diasStr = `+${saldoFijado.toFixed(1)} d`;
     } else {
       diasStr = '+0.0 d';
     }
 
     if (mLower.includes('matrimonio')) {
       badge = '💍 Matrimonio';
-      tipo = 'ACREDITACION';
     } else if (mLower.includes('paternidad')) {
       badge = '👶 Paternidad';
-      tipo = 'ACREDITACION';
     } else if (mLower.includes('duelo') || mLower.includes('luto')) {
       badge = '🕊️ Duelo / Luto';
-      tipo = 'ACREDITACION';
     } else if (mLower.includes('bonificaci')) {
       badge = '⭐ Bonificación';
-      tipo = 'ACREDITACION';
-    } else if (mLower.includes('carga inicial') || mLower.includes('cuadro oficial')) {
-      badge = '📌 Carga Saldo Inicial';
-      tipo = 'AJUSTE';
-    } else if (tipo === 'AJUSTE') {
-      badge = '📝 Ajuste de Saldo';
     }
 
     const fechaRaw = b.fecha_hora ? b.fecha_hora.split('T')[0] : '';
@@ -152,8 +166,18 @@ export default function BoletaVacacionesModal({
     };
   });
 
-  const totalDiasExtraordinarios = acreditacionesParsed
-    .filter((a) => a.tipo === 'ACREDITACION')
+  // Desduplicar acreditaciones idénticas generadas por doble clic accidental en el mismo día
+  const uniqueAcreditaciones: typeof acreditacionesParsed = [];
+  const seenAccKeys = new Set<string>();
+  for (const ac of acreditacionesParsed) {
+    const key = `${ac.badge}_${ac.fecha}_${ac.diasNum}`;
+    if (!seenAccKeys.has(key)) {
+      seenAccKeys.add(key);
+      uniqueAcreditaciones.push(ac);
+    }
+  }
+
+  const totalDiasExtraordinarios = uniqueAcreditaciones
     .reduce((acc, a) => acc + a.diasNum, 0);
 
   // Saldo disponible real
@@ -201,7 +225,7 @@ export default function BoletaVacacionesModal({
       descripcion: `Boleta ${pv.numero_recibo} (C$ ${Number(pv.monto_pagado).toLocaleString('es-NI', { minimumFractionDigits: 2 })}). ${pv.motivo || ''}`.trim(),
       fechaReg: pv.fecha_pago,
     })),
-    ...acreditacionesParsed.map((ac) => ({
+    ...uniqueAcreditaciones.map((ac) => ({
       id: ac.id,
       fecha: ac.fecha,
       tipo: ac.tipo,
