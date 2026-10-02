@@ -122,12 +122,38 @@ const PROVEEDORES_FRECUENTES = [
   'Distribuidora Roma',
 ];
 
+export const isFondeoTransaction = (g: any): boolean => {
+  if (!g) return false;
+  if (g.tipo === 'INGRESO_FONDEO' || g.tipo === 'INFLOW') return true;
+  if (g.categoria === 'FONDEO') return true;
+  if (g.observaciones && /\[TIPO:FONDEO\]|\[TYPE:INFLOW\]/i.test(g.observaciones)) return true;
+  const texto = `${g.concepto || ''} ${g.proveedor || ''}`.toLowerCase();
+  if (
+    texto.includes('deposito') ||
+    texto.includes('depósito') ||
+    texto.includes('depositado') ||
+    texto.includes('fondeo') ||
+    texto.includes('traslado a caja chica') ||
+    texto.includes('traspaso a caja chica') ||
+    texto.includes('aporte jefe') ||
+    texto.includes('aporte de jefe') ||
+    texto.includes('reembolso') ||
+    texto.includes('inflow') ||
+    texto.includes('correcion de saldo') ||
+    texto.includes('correccion de saldo')
+  ) {
+    return true;
+  }
+  return false;
+};
+
 export default function BodegonControlPage() {
   const [gastos, setGastos] = useState<CompraGasto[]>([]);
   const [jornadas, setJornadas] = useState<JornadaDiaria[]>([]);
   const [jornadaActiva, setJornadaActiva] = useState<JornadaDiaria | null>(null);
   const [loading, setLoading] = useState(true);
   const [realtimeStatus, setRealtimeStatus] = useState<'conectado' | 'conectando' | 'error'>('conectando');
+  const [modalTipoMovimiento, setModalTipoMovimiento] = useState<'GASTO' | 'FONDEO'>('GASTO');
 
   // Pestaña principal activa
   const [activeTab, setActiveTab] = useState<TabType>('VENTAS');
@@ -451,8 +477,9 @@ export default function BodegonControlPage() {
       });
     });
 
-    // Agregar y sumar gastos por fecha
+    // Agregar y sumar gastos por fecha (excluyendo fondeos / depósitos internos)
     gastos.forEach((g) => {
+      if (isFondeoTransaction(g)) return;
       const f = g.fecha_hora.slice(0, 10);
       const montoNum = Number(g.monto) || 0;
       let item = map.get(f);
@@ -519,6 +546,7 @@ export default function BodegonControlPage() {
     let expTransf = 0;
     let expCard = 0;
     dayGastos.forEach((g) => {
+      if (isFondeoTransaction(g)) return;
       const m = Number(g.monto) || 0;
       expTot += m;
       if (g.metodo_pago === 'EFECTIVO') expCash += m;
@@ -670,7 +698,7 @@ export default function BodegonControlPage() {
     const gastosDelDia = gastos.filter((g) => g.fecha_hora.slice(0, 10) === selectedDate);
     gastosDelDia.forEach((g) => {
       const m = Number(g.monto) || 0;
-      if (g.tipo === 'INGRESO_FONDEO') {
+      if (isFondeoTransaction(g)) {
         totFondeosExtras += m;
       } else if (g.metodo_pago === 'TRANSFERENCIA') {
         totTransf += m;
@@ -719,7 +747,7 @@ export default function BodegonControlPage() {
     const gastosHoy = gastos.filter((g) => g.fecha_hora.slice(0, 10) === hoyStr);
     gastosHoy.forEach((g) => {
       const m = Number(g.monto) || 0;
-      if (g.tipo === 'INGRESO_FONDEO') {
+      if (isFondeoTransaction(g)) {
         totFondeosExtras += m;
       } else if (g.metodo_pago === 'TRANSFERENCIA') {
         totTransf += m;
@@ -858,7 +886,7 @@ export default function BodegonControlPage() {
       const monto = Number(g.monto) || 0;
       const isTransfer = g.metodo_pago === 'TRANSFERENCIA';
       const isCard = g.metodo_pago === 'TARJETA';
-      const isFondeo = g.tipo === 'INGRESO_FONDEO';
+      const isFondeo = isFondeoTransaction(g);
 
       let montoTotalBanco: number | null = null;
       let reembolsoCajaChica: number | null = null;
@@ -971,7 +999,7 @@ export default function BodegonControlPage() {
     reader.readAsDataURL(file);
   };
 
-  // Guardar Gasto (Única función activa de escritura)
+  // Guardar Gasto o Depósito / Fondeo (Única función activa de escritura)
   const handleGuardarGasto = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -984,19 +1012,26 @@ export default function BodegonControlPage() {
 
     setSubmitting(true);
     try {
+      const isFondeo = modalTipoMovimiento === 'FONDEO' || categoria === 'FONDEO';
+      const catFinal: CategoriaGastoType = isFondeo ? 'FONDEO' : categoria;
+      const obsFinal = isFondeo ? '[TIPO:FONDEO] Depósito a caja chica' : null;
+      const provFinal = proveedor.trim() || (isFondeo ? 'Gerencia / Caja General' : null);
+      const estadoFinal = isFondeo ? 'PAGADO' : (metodoPago === 'TRANSFERENCIA' ? estadoPago : 'PAGADO');
+
       const { error } = await supabase.from('compras_gastos').insert([
         {
           jornada_id: jornadaActiva?.id || selectedDayData.jornada?.id || null,
           fecha_hora: new Date().toISOString(),
           concepto: concepto.trim(),
-          categoria,
-          proveedor: proveedor.trim() || null,
+          categoria: catFinal,
+          proveedor: provFinal,
           monto: montoNum,
           metodo_pago: metodoPago,
-          estado_pago: metodoPago === 'TRANSFERENCIA' ? estadoPago : 'PAGADO',
+          estado_pago: estadoFinal,
           referencia_banco: referenciaBanco.trim() || null,
           foto_comprobante: fotoBase64,
           registrado_por: registradoPor.trim() || 'Gerencia Online',
+          observaciones: obsFinal,
         },
       ]);
 
@@ -1007,9 +1042,10 @@ export default function BodegonControlPage() {
       setProveedor('');
       setReferenciaBanco('');
       setFotoBase64(null);
+      setModalTipoMovimiento('GASTO');
       setShowModalGasto(false);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error guardando gasto.');
+      setErrorMsg(err.message || 'Error guardando registro.');
     } finally {
       setSubmitting(false);
     }
@@ -1183,22 +1219,47 @@ export default function BodegonControlPage() {
         lineas.push(`"Propinas Recaudadas","${s.tips.toFixed(2)}"`);
       }
       lineas.push(``);
-      lineas.push(`"3. LIBRO DIARIO DE COMPRAS Y GASTOS (CAJA CHICA)"`);
-      lineas.push(`"#","Hora","Concepto","Categoría","Proveedor","Método","Estado","Monto C$"`);
+      lineas.push(`"3. LIBRO DIARIO DE MOVIMIENTOS Y CAJA CHICA (CUADRO EN VIVO)"`);
+      lineas.push(`"#","Hora","Concepto","Categoría","Proveedor","Método","Estado","Entradas (+)","Salidas (-)","Saldo Gaveta"`);
 
-      const dayGastos = gastos.filter((g) => g.fecha_hora.slice(0, 10) === selectedDate);
+      const dayGastos = gastos
+        .filter((g) => g.fecha_hora.slice(0, 10) === selectedDate)
+        .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));
+
+      let runningBal = Number(day.jornada?.fondo_inicial || 0);
+      let totIn = 0;
+      let totOut = 0;
+
       dayGastos.forEach((g, idx) => {
         const hora = new Date(g.fecha_hora).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' });
+        const monto = Number(g.monto) || 0;
+        const isIngreso = isFondeoTransaction(g);
+        const isCash = g.metodo_pago === 'EFECTIVO' || !g.metodo_pago;
+
+        const inAmt = isIngreso ? monto : 0;
+        const outAmt = !isIngreso ? monto : 0;
+
+        if (inAmt > 0) {
+          totIn += inAmt;
+          runningBal += inAmt;
+        } else if (isCash && outAmt > 0) {
+          totOut += outAmt;
+          runningBal -= outAmt;
+        } else if (outAmt > 0) {
+          totOut += outAmt;
+        }
+
         lineas.push(
-          `"${idx + 1}","${hora}","${(g.concepto || '').replace(/"/g, '""')}","${g.categoria}","${(g.proveedor || '').replace(/"/g, '""')}","${g.metodo_pago}","${g.estado_pago}","${Number(g.monto).toFixed(2)}"`
+          `"${idx + 1}","${hora}","${(g.concepto || '').replace(/"/g, '""')}","${g.categoria}","${(g.proveedor || '').replace(/"/g, '""')}","${g.metodo_pago}","${g.estado_pago}","${inAmt > 0 ? inAmt.toFixed(2) : '-'}","${outAmt > 0 ? outAmt.toFixed(2) : '-'}","${runningBal.toFixed(2)}"`
         );
       });
       lineas.push(``);
+      lineas.push(`"Fondo Inicial Asignado","${Number(day.jornada?.fondo_inicial || 0).toFixed(2)}"`);
+      lineas.push(`"Total Depósitos / Fondeos Extras","${totIn.toFixed(2)}"`);
       lineas.push(`"Total Egresos Efectivo","${metricasGastosDia.efectivo.toFixed(2)}"`);
       lineas.push(`"Total Egresos Transferencias","${metricasGastosDia.transferencia.toFixed(2)}"`);
       lineas.push(`"Total Egresos Tarjetas","${metricasGastosDia.tarjeta.toFixed(2)}"`);
-      lineas.push(`"Fondo Inicial Caja Chica","${metricasGastosDia.fondoCaja.toFixed(2)}"`);
-      lineas.push(`"Saldo Restante en Gaveta","${metricasGastosDia.saldoEfectivoRestante.toFixed(2)}"`);
+      lineas.push(`"SALDO FINAL EN GAVETA","${runningBal.toFixed(2)}"`);
 
       const csvContent = '\uFEFF' + lineas.join('\r\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1259,7 +1320,12 @@ export default function BodegonControlPage() {
 
       const jornada = selectedDayData.jornada;
       const fondoInicial = Number(jornada?.fondo_inicial || 0);
-      const saldoRemanente = fondoInicial - expensesCash;
+
+      const totalInflows = dayGastos
+        .filter((g) => isFondeoTransaction(g))
+        .reduce((sum, g) => sum + (Number(g.monto) || 0), 0);
+
+      const saldoRemanente = fondoInicial + totalInflows - expensesCash;
       const responsableCaja = jornada?.responsable || 'Caja Principal';
       const turnoJornada = jornada?.turno || 'COMPLETO';
       const estadoCaja = jornada?.estado || (selectedDate === hoyStr ? 'ABIERTA' : 'CERRADA');
@@ -1267,49 +1333,68 @@ export default function BodegonControlPage() {
         .replace(/\[VENTAS_DATA:\{.*?\}\]\s*/g, '')
         .trim();
 
-      // Generar filas de gastos para la Hoja 2
+      // Generar filas de movimientos para la Hoja 2 (Idéntico al cuadro en vivo)
       let rowsGastosHtml = '';
       if (dayGastos.length === 0) {
         rowsGastosHtml = `
           <tr>
-            <td colspan="8" style="text-align: center; padding: 14px; color: #444; font-style: italic;">
-              No se registraron compras ni egresos de caja chica en la fecha indicada.
+            <td colspan="9" style="text-align: center; padding: 14px; color: #444; font-style: italic;">
+              No se registraron movimientos de caja chica en la fecha indicada.
             </td>
           </tr>
         `;
       } else {
+        let runningBal = fondoInicial;
         rowsGastosHtml = dayGastos
           .map((g, idx) => {
+            const monto = Number(g.monto) || 0;
             const horaGasto = new Date(g.fecha_hora).toLocaleTimeString('es-NI', {
               hour: '2-digit',
               minute: '2-digit',
               hour12: true,
             });
             const catLabel = CATEGORIAS_GASTO.find((c) => c.id === g.categoria)?.label || g.categoria;
-            const metodoTxt = g.metodo_pago === 'EFECTIVO' ? 'Efectivo' : g.metodo_pago === 'TARJETA' ? 'Tarjeta' : 'Transf.';
-            const estadoRef =
-              g.metodo_pago === 'TRANSFERENCIA'
-                ? (g.estado_pago === 'PAGADO' ? 'Pagado' : 'Pendiente') +
-                  (g.referencia_banco ? ` (Ref: ${g.referencia_banco})` : '')
-                : 'Pagado';
+            const isCash = g.metodo_pago === 'EFECTIVO' || !g.metodo_pago;
+            const isTransf = g.metodo_pago === 'TRANSFERENCIA';
+            const isCard = g.metodo_pago === 'TARJETA';
+            const metodoTxt = isCash ? 'Efectivo' : isCard ? 'Tarjeta' : 'Transf.';
+            const isIngreso = isFondeoTransaction(g);
+
+            const inflowAmt = isIngreso ? monto : 0;
+            const outflowAmt = !isIngreso ? monto : 0;
+
+            if (inflowAmt > 0) {
+              runningBal += inflowAmt;
+            } else if (isCash && outflowAmt > 0) {
+              runningBal -= outflowAmt;
+            }
+
+            const estadoRef = isTransf
+              ? (g.estado_pago === 'PAGADO' ? 'Pagado' : 'Pendiente') +
+                (g.referencia_banco ? ` (#${g.referencia_banco})` : '')
+              : 'Pagado';
+
+            const entradaText = inflowAmt > 0 ? `+C$ ${inflowAmt.toLocaleString('es-NI', { minimumFractionDigits: 2 })}` : '—';
+            const salidaText = outflowAmt > 0 ? `-C$ ${outflowAmt.toLocaleString('es-NI', { minimumFractionDigits: 2 })}` : '—';
 
             return `
               <tr>
                 <td style="text-align: center;">${idx + 1}</td>
                 <td style="text-align: center; font-family: monospace;">${horaGasto}</td>
-                <td>${catLabel}</td>
                 <td><strong>${g.concepto}</strong></td>
-                <td>${g.proveedor || '-'}</td>
+                <td>${catLabel}</td>
                 <td style="text-align: center;">${metodoTxt}</td>
-                <td style="text-align: center; font-size: 9px;">${estadoRef}</td>
-                <td class="text-right font-mono font-bold">C$ ${Number(g.monto).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                <td style="text-align: center; font-size: 8.5px;">${estadoRef}</td>
+                <td class="text-right font-mono ${inflowAmt > 0 ? 'font-bold' : ''}">${entradaText}</td>
+                <td class="text-right font-mono ${outflowAmt > 0 ? 'font-bold' : ''}">${salidaText}</td>
+                <td class="text-right font-mono font-bold">C$ ${runningBal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
               </tr>
             `;
           })
           .join('');
       }
 
-      // Estilos CSS expresamente para impresión en Blanco y Negro (B/N)
+      // Estilos CSS expresamente para impresión en Blanco y Negro Puro (B/N Láser Monocromático)
       const printStyles = `
         <style>
           @page {
@@ -1318,8 +1403,8 @@ export default function BodegonControlPage() {
           }
           * {
             box-sizing: border-box;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           body {
             margin: 0;
@@ -1361,7 +1446,7 @@ export default function BodegonControlPage() {
           }
           .doc-subtitle {
             font-size: 8.5px;
-            color: #333;
+            color: #000;
             letter-spacing: 0.3px;
           }
           table {
@@ -1374,27 +1459,34 @@ export default function BodegonControlPage() {
             padding: 3.5px 5px;
             text-align: left;
             font-size: 9.5px;
+            background-color: #fff;
+            color: #000;
           }
           th {
-            background-color: #f2f2f2;
-            font-weight: bold;
+            background-color: #fff;
+            color: #000;
+            font-weight: 900;
             text-transform: uppercase;
             font-size: 9px;
+            border-bottom: 2px solid #000;
           }
           .meta-table td {
-            border: 1px solid #555;
+            border: 1px solid #000;
             font-size: 9px;
             padding: 3px 5px;
+            background-color: #fff;
+            color: #000;
           }
           .section-title {
             font-size: 9.5px;
-            font-weight: bold;
+            font-weight: 900;
             text-transform: uppercase;
-            background-color: #e5e5e5;
-            border: 1px solid #000;
-            padding: 2.5px 5px;
-            margin-top: 4px;
-            margin-bottom: 2px;
+            background-color: #fff;
+            color: #000;
+            border-bottom: 2px solid #000;
+            padding: 2.5px 0px;
+            margin-top: 6px;
+            margin-bottom: 3px;
             letter-spacing: 0.3px;
           }
           .text-right {
@@ -1411,7 +1503,7 @@ export default function BodegonControlPage() {
           }
           .highlight-row td {
             font-weight: bold;
-            background-color: #f7f7f7;
+            background-color: #fff;
             border-top: 2px solid #000;
             border-bottom: 2px solid #000;
           }
@@ -1502,7 +1594,7 @@ export default function BodegonControlPage() {
                   <td class="text-right font-mono">C$ ${cardsLafise.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                   <td class="text-right font-mono">${lafisePct}%</td>
                 </tr>
-                <tr style="background-color: #fafafa;">
+                <tr>
                   <td colspan="2" style="text-align: right; padding-right: 8px;"><strong>SUBTOTAL TODAS LAS TARJETAS POS:</strong></td>
                   <td class="text-right font-mono font-bold">C$ ${totalCards.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                   <td class="text-right font-mono font-bold">${cardsPct}%</td>
@@ -1599,15 +1691,15 @@ export default function BodegonControlPage() {
             <table class="meta-table">
               <tr>
                 <td style="width: 25%;"><strong>FECHA CONTABLE:</strong><br>${diaSemanaCap}, ${fechaLarga}</td>
-                <td style="width: 25%;"><strong>TOTAL MOVIMIENTOS:</strong><br>${dayGastos.length} compras / egresos</td>
+                <td style="width: 25%;"><strong>TOTAL MOVIMIENTOS:</strong><br>${dayGastos.length} registros contables</td>
                 <td style="width: 25%;"><strong>RESPONSABLE:</strong><br>${responsableCaja}</td>
                 <td style="width: 25%;"><strong>PAGOS EN EFECTIVO:</strong><br>C$ ${expensesCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
               </tr>
               <tr>
                 <td><strong>FONDO INICIAL ASIGNADO:</strong><br>C$ ${fondoInicial.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                <td><strong>DEPÓSITOS / FONDEOS EXTRAS:</strong><br>C$ ${totalInflows.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                 <td><strong>BANCO / TARJETAS:</strong><br>C$ ${(expensesTransf + (selectedDayData.expensesCard || 0)).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
-                <td><strong>PENDIENTES DE TRANSFERIR:</strong><br>C$ ${metricasGastosDia.pendientesMonto.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
-                <td><strong>SALDO RESTANTE EN GAVETA:</strong><br><strong>C$ ${saldoRemanente.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong></td>
+                <td><strong>SALDO RESTANTE EN GAVETA:</strong><br><strong style="font-size: 10px;">C$ ${saldoRemanente.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong></td>
               </tr>
             </table>
 
@@ -1624,13 +1716,23 @@ export default function BodegonControlPage() {
                   <td>(+) Fondo Inicial de Caja Chica Asignado para el Turno</td>
                   <td class="text-right font-mono">C$ ${fondoInicial.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                 </tr>
+                ${totalInflows > 0 ? `
+                <tr>
+                  <td>(+) Depósitos y Fondeos Adicionales en Efectivo (Ingresos a Gaveta)</td>
+                  <td class="text-right font-mono font-bold">+ C$ ${totalInflows.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                </tr>
+                <tr style="font-weight: 600;">
+                  <td>(=) Total Efectivo Ingresado a Caja Chica (Fondo + Fondeos)</td>
+                  <td class="text-right font-mono">C$ ${(fondoInicial + totalInflows).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                </tr>
+                ` : ''}
                 <tr>
                   <td>(-) Total Compras y Gastos Pagados en Efectivo (Salidas de Gaveta)</td>
                   <td class="text-right font-mono">- C$ ${expensesCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                 </tr>
-                <tr style="background-color: #fafafa; font-weight: bold;">
+                <tr style="font-weight: bold;">
                   <td>(=) SALDO EFECTIVO RESTANTE EN GAVETA FÍSICA</td>
-                  <td class="text-right font-mono">C$ ${saldoRemanente.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-mono" style="font-size: 10px;">C$ ${saldoRemanente.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                 </tr>
                 <tr>
                   <td>(+) Facturas y Compras Pagadas mediante Transferencia Bancaria</td>
@@ -1647,25 +1749,28 @@ export default function BodegonControlPage() {
               </tbody>
             </table>
 
-            <div class="section-title">2. RELACIÓN DETALLADA DE COMPRAS Y GASTOS REALIZADOS EN EL DÍA</div>
+            <div class="section-title">2. RELACIÓN DETALLADA DE MOVIMIENTOS, COMPRAS Y GASTOS (CUADRO EN VIVO)</div>
             <table>
               <thead>
                 <tr>
                   <th style="width: 4%; text-align: center;">#</th>
-                  <th style="width: 9%; text-align: center;">HORA</th>
+                  <th style="width: 8%; text-align: center;">HORA</th>
+                  <th style="width: 28%;">CONCEPTO / DETALLE EXACTO</th>
                   <th style="width: 14%;">CATEGORÍA</th>
-                  <th style="width: 29%;">CONCEPTO / DETALLE EXACTO</th>
-                  <th style="width: 15%;">PROVEEDOR</th>
                   <th style="width: 10%; text-align: center;">MÉTODO</th>
-                  <th style="width: 9%; text-align: center;">ESTADO</th>
-                  <th style="width: 10%;" class="text-right">MONTO (C$)</th>
+                  <th style="width: 9%; text-align: center;">COMPROBANTE</th>
+                  <th style="width: 9%;" class="text-right">ENTRADAS (+)</th>
+                  <th style="width: 9%;" class="text-right">SALIDAS (-)</th>
+                  <th style="width: 9%;" class="text-right">SALDO (C$)</th>
                 </tr>
               </thead>
               <tbody>
                 ${rowsGastosHtml}
                 <tr class="highlight-row">
-                  <td colspan="7" style="text-align: right; font-weight: bold;">TOTAL ACUMULADO DE COMPRAS / EGRESOS:</td>
-                  <td class="text-right font-mono font-bold" style="font-size: 10.5px;">C$ ${expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td colspan="6" style="text-align: right; font-weight: bold;">TOTALES DEL DÍA:</td>
+                  <td class="text-right font-mono font-bold" style="font-size: 9.5px;">+C$ ${totalInflows.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-mono font-bold" style="font-size: 9.5px;">-C$ ${expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-mono font-bold" style="font-size: 9.5px;">C$ ${saldoRemanente.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                 </tr>
               </tbody>
             </table>
@@ -2774,11 +2879,35 @@ export default function BodegonControlPage() {
 
                     <button
                       type="button"
-                      onClick={() => setShowModalGasto(true)}
+                      onClick={() => {
+                        setModalTipoMovimiento('GASTO');
+                        setConcepto('');
+                        setMonto('');
+                        setCategoria('CARNES');
+                        setProveedor('');
+                        setShowModalGasto(true);
+                      }}
                       className="bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[3]" />
                       <span>+ Registrar Compra</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalTipoMovimiento('FONDEO');
+                        setConcepto('Depósito a caja chica');
+                        setMonto('');
+                        setCategoria('FONDEO');
+                        setProveedor('Gerencia / Caja General');
+                        setMetodoPago('EFECTIVO');
+                        setShowModalGasto(true);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>+ Depósito Caja Chica</span>
                     </button>
                   </div>
                 </div>
@@ -3065,15 +3194,19 @@ export default function BodegonControlPage() {
         </main>
 
         {/* ══════════════════════════════════════════════════════════════════ */}
-        {/* ── MODAL ÚNICO DE ESCRITURA: + REGISTRAR COMPRA / GASTO ──────── */}
+        {/* ── MODAL ÚNICO DE ESCRITURA: + REGISTRAR COMPRA O DEPÓSITO ────── */}
         {/* ══════════════════════════════════════════════════════════════════ */}
         {showModalGasto && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95">
-              <div className="bg-[#1c6856] text-white p-4.5 flex items-center justify-between">
+              <div className={`${modalTipoMovimiento === 'FONDEO' ? 'bg-emerald-800' : 'bg-[#1c6856]'} text-white p-4.5 flex items-center justify-between transition-colors`}>
                 <h3 className="font-bold text-sm flex items-center gap-2">
                   <Plus className="w-4 h-4" />
-                  <span>Registrar Compra / Gasto de Insumos</span>
+                  <span>
+                    {modalTipoMovimiento === 'FONDEO'
+                      ? '💵 Registrar Entrada / Depósito a Caja Chica'
+                      : '🛒 Registrar Compra / Gasto de Insumos'}
+                  </span>
                 </h3>
                 <button
                   onClick={() => setShowModalGasto(false)}
@@ -3081,6 +3214,46 @@ export default function BodegonControlPage() {
                 >
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+
+              {/* Selector de Tipo de Movimiento (Gasto vs Depósito) */}
+              <div className="p-5 pb-0">
+                <div className="grid grid-cols-2 p-1 bg-stone-100 rounded-2xl border border-stone-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalTipoMovimiento('GASTO');
+                      if (categoria === 'FONDEO') setCategoria('CARNES');
+                    }}
+                    className={`py-2 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      modalTipoMovimiento === 'GASTO'
+                        ? 'bg-white text-stone-900 shadow-xs'
+                        : 'text-stone-500 hover:text-stone-900'
+                    }`}
+                  >
+                    <span>🛒</span>
+                    <span>Gasto / Compra (- Salida)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalTipoMovimiento('FONDEO');
+                      setCategoria('FONDEO');
+                      if (!concepto) setConcepto('Depósito a caja chica');
+                      if (!proveedor) setProveedor('Gerencia / Caja General');
+                      setMetodoPago('EFECTIVO');
+                    }}
+                    className={`py-2 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      modalTipoMovimiento === 'FONDEO'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-stone-500 hover:text-emerald-700'
+                    }`}
+                  >
+                    <span>💵</span>
+                    <span>Depósito / Fondeo (+ Entrada)</span>
+                  </button>
+                </div>
               </div>
 
               <form onSubmit={handleGuardarGasto} className="p-5 space-y-4 text-xs">
@@ -3093,7 +3266,9 @@ export default function BodegonControlPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-stone-700 font-bold mb-1">Monto en C$ *</label>
+                    <label className="block text-stone-700 font-bold mb-1">
+                      {modalTipoMovimiento === 'FONDEO' ? 'Monto del Depósito C$ *' : 'Monto de la Compra C$ *'}
+                    </label>
                     <input
                       type="number"
                       step="0.01"
@@ -3108,25 +3283,38 @@ export default function BodegonControlPage() {
 
                   <div>
                     <label className="block text-stone-700 font-bold mb-1">Categoría</label>
-                    <select
-                      value={categoria}
-                      onChange={(e) => setCategoria(e.target.value as any)}
-                      className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 font-medium"
-                    >
-                      {CATEGORIAS_GASTO.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.emoji} {c.label}
-                        </option>
-                      ))}
-                    </select>
+                    {modalTipoMovimiento === 'FONDEO' ? (
+                      <div className="w-full bg-emerald-50 border border-emerald-300 rounded-xl px-3 py-2 text-emerald-900 font-black flex items-center gap-1.5">
+                        <span>💵</span>
+                        <span>FONDEO (Entrada Caja)</span>
+                      </div>
+                    ) : (
+                      <select
+                        value={categoria}
+                        onChange={(e) => setCategoria(e.target.value as any)}
+                        className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 font-medium"
+                      >
+                        {CATEGORIAS_GASTO.filter(c => c.id !== 'FONDEO').map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.emoji} {c.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-stone-700 font-bold mb-1">Concepto / Detalle de la Compra *</label>
+                  <label className="block text-stone-700 font-bold mb-1">
+                    {modalTipoMovimiento === 'FONDEO' ? 'Concepto / Motivo del Depósito *' : 'Concepto / Detalle de la Compra *'}
+                  </label>
                   <input
                     type="text"
-                    placeholder="Ej: 30 lbs carne de res para bistec, 2 sacos de papa..."
+                    placeholder={
+                      modalTipoMovimiento === 'FONDEO'
+                        ? 'Ej: Depósito reposición caja chica, fondeo adicional, aporte...'
+                        : 'Ej: 30 lbs carne de res para bistec, 2 sacos de papa...'
+                    }
                     required
                     value={concepto}
                     onChange={(e) => setConcepto(e.target.value)}
@@ -3135,38 +3323,42 @@ export default function BodegonControlPage() {
                 </div>
 
                 <div>
-                  <label className="block text-stone-700 font-bold mb-1">Proveedor / Negocio</label>
+                  <label className="block text-stone-700 font-bold mb-1">
+                    {modalTipoMovimiento === 'FONDEO' ? 'Origen / Depositado por' : 'Proveedor / Negocio'}
+                  </label>
                   <input
                     type="text"
-                    placeholder="Nombre del proveedor o distribuidora..."
+                    placeholder={modalTipoMovimiento === 'FONDEO' ? 'Ej: Gerencia, Eddy, Traslado de General...' : 'Nombre del proveedor o distribuidora...'}
                     value={proveedor}
                     onChange={(e) => setProveedor(e.target.value)}
                     className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 mb-2"
                   />
-                  {/* Chips de proveedores rápidos */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {PROVEEDORES_FRECUENTES.map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setProveedor(p)}
-                        className="text-[10px] font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 px-2 py-0.5 rounded-lg border border-stone-200 transition cursor-pointer"
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
+                  {/* Chips de proveedores rápidos solo para compras */}
+                  {modalTipoMovimiento === 'GASTO' && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {PROVEEDORES_FRECUENTES.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setProveedor(p)}
+                          className="text-[10px] font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 px-2 py-0.5 rounded-lg border border-stone-200 transition cursor-pointer"
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-stone-700 font-bold mb-1">Método de Pago</label>
+                    <label className="block text-stone-700 font-bold mb-1">Método / Vía de Pago</label>
                     <select
                       value={metodoPago}
                       onChange={(e) => setMetodoPago(e.target.value as any)}
                       className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 font-bold"
                     >
-                      <option value="EFECTIVO">💵 Efectivo (Gaveta de Compras)</option>
+                      <option value="EFECTIVO">💵 Efectivo (Gaveta Física)</option>
                       <option value="TRANSFERENCIA">📲 Transferencia Bancaria</option>
                       <option value="TARJETA">💳 Tarjeta (POS Débito/Crédito)</option>
                     </select>
@@ -3184,15 +3376,19 @@ export default function BodegonControlPage() {
                 </div>
 
                 <div className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${
-                  metodoPago === 'EFECTIVO' 
-                    ? 'bg-rose-50 border-rose-200 text-rose-800' 
-                    : 'bg-sky-50 border-sky-200 text-sky-800'
+                  modalTipoMovimiento === 'FONDEO'
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                    : metodoPago === 'EFECTIVO' 
+                      ? 'bg-rose-50 border-rose-200 text-rose-800' 
+                      : 'bg-sky-50 border-sky-200 text-sky-800'
                 }`}>
-                  <span>{metodoPago === 'EFECTIVO' ? '🔴' : '🔵'}</span>
+                  <span>{modalTipoMovimiento === 'FONDEO' ? '🟢' : (metodoPago === 'EFECTIVO' ? '🔴' : '🔵')}</span>
                   <span>
-                    {metodoPago === 'EFECTIVO'
-                      ? 'Impacto en Arqueo: RESTA directamente de los billetes/monedas en la gaveta física.'
-                      : 'Impacto en Arqueo: Pago digital/bancario. NO resta dinero de la gaveta de caja chica.'}
+                    {modalTipoMovimiento === 'FONDEO'
+                      ? 'Impacto en Arqueo: ENTRADA / SUMA directamente al efectivo disponible en la gaveta de caja chica.'
+                      : (metodoPago === 'EFECTIVO'
+                        ? 'Impacto en Arqueo: RESTA directamente de los billetes/monedas en la gaveta física.'
+                        : 'Impacto en Arqueo: Pago digital/bancario. NO resta dinero de la gaveta de caja chica.')}
                   </span>
                 </div>
 
@@ -3237,7 +3433,7 @@ export default function BodegonControlPage() {
                 )}
 
                 <div>
-                  <label className="block text-stone-700 font-bold mb-1">Ticket / Factura (Opcional)</label>
+                  <label className="block text-stone-700 font-bold mb-1">Comprobante / Recibo (Opcional)</label>
                   <input
                     type="file"
                     accept="image/*"
@@ -3260,9 +3456,13 @@ export default function BodegonControlPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="bg-[#1c6856] hover:bg-[#154f42] text-white px-5 py-2 rounded-xl font-bold transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+                    className={`${modalTipoMovimiento === 'FONDEO' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-[#1c6856] hover:bg-[#154f42]'} text-white px-5 py-2 rounded-xl font-bold transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50`}
                   >
-                    {submitting ? 'Guardando en la Nube...' : 'Registrar y Sincronizar'}
+                    {submitting
+                      ? 'Guardando en la Nube...'
+                      : modalTipoMovimiento === 'FONDEO'
+                        ? 'Registrar Depósito (+ Entrada)'
+                        : 'Registrar Compra / Gasto'}
                   </button>
                 </div>
               </form>

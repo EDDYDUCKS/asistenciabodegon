@@ -15,7 +15,8 @@ export type CategoriaGastoType =
   | 'MERCADO'
   | 'LACTEOS'
   | 'PAGOS_PERSONAL'
-  | 'OTROS';
+  | 'OTROS'
+  | 'FONDEO';
 
 export interface CategoriaConfig {
   id: CategoriaGastoType;
@@ -38,6 +39,7 @@ export const CATEGORIAS_GASTO: CategoriaConfig[] = [
   { id: 'LACTEOS', label: 'Lácteos', emoji: '🧀', color: '#ca8a04', badgeClass: 'bg-yellow-50 text-yellow-800 border-yellow-200' },
   { id: 'PAGOS_PERSONAL', label: 'Pagos personal', emoji: '👥', color: '#4f46e5', badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   { id: 'OTROS', label: 'Otros', emoji: '📝', color: '#57534e', badgeClass: 'bg-stone-100 text-stone-700 border-stone-200' },
+  { id: 'FONDEO', label: 'Depósito / Fondeo', emoji: '💵', color: '#059669', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 ];
 
 export interface CompraGasto {
