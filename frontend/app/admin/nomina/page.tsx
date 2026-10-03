@@ -4824,10 +4824,10 @@ export default function NominaAdminPage() {
                 <div>
                   <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5">
                     <Coins className="w-4 h-4" />
-                    Liquidación de Feriados Laborados
+                    Liquidación y Acreditación de Feriados Laborados
                   </h3>
                   <p className="text-xs text-stone-500 font-medium mt-0.5">
-                    Cada jornada de 8 horas en feriado genera 2 días compensatorios. Liquídelos en dinero, a vacaciones o mixto.
+                    Detección automática al cierre de jornada. Si no se pagan en nómina/dinero en 24 horas, se acreditan automáticamente a vacaciones (+2d).
                   </p>
                 </div>
 
@@ -4838,13 +4838,13 @@ export default function NominaAdminPage() {
                   className="bg-stone-50 hover:bg-[#1c6856]/10 text-[#1c6856] border border-[#1c6856]/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${syncingFeriados ? 'animate-spin' : ''}`} />
-                  <span>Sincronizar Feriados Laborados</span>
+                  <span>Sincronizar / Refrescar Feriados</span>
                 </button>
               </div>
 
               {compensacionesFeriados.length === 0 ? (
                 <div className="py-8 text-center text-stone-400 text-xs">
-                  No hay feriados laborados registrados. Presione &quot;Sincronizar Feriados Laborados&quot; para escanear las asistencias de los días festivos.
+                  No hay feriados laborados pendientes. El sistema detecta los feriados al cierre de jornada y los acredita automáticamente a vacaciones tras la ventana de 24 horas.
                 </div>
               ) : (
                 <div className="overflow-x-auto">

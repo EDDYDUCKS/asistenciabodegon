@@ -243,6 +243,10 @@ def _verificar_acreditacion_vacaciones_todos():
     Verifica y devenga las vacaciones de todos los colaboradores activos diariamente.
     """
     _ejecutar_correccion_vacaciones_no_laboradas()
+    try:
+        _evaluar_y_autoacreditar_feriados_pendientes()
+    except Exception as e:
+        print(f"Error evaluando feriados pendientes en verificación general: {e}")
     hoy = timezone.now().astimezone(timezone.get_current_timezone()).date()
     candidatos = list(Empleado.objects.filter(activo=True).filter(
         Q(ultimo_corte_vacaciones__isnull=True) | Q(ultimo_corte_vacaciones__lt=hoy)
@@ -835,86 +839,34 @@ class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
     serializer_class = CompensacionFeriadoSerializer
     permission_classes = [permissions.AllowAny]
 
+    def list(self, request, *args, **kwargs):
+        try:
+            _evaluar_y_autoacreditar_feriados_pendientes(request=request)
+        except Exception as e:
+            print(f"Error auto-acreditando feriados en list(): {e}")
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            _evaluar_y_autoacreditar_feriados_pendientes(request=request)
+        except Exception as e:
+            print(f"Error auto-acreditando feriados en retrieve(): {e}")
+        return super().retrieve(request, *args, **kwargs)
+
     @action(detail=False, methods=['post'], url_path='sincronizar')
     def sincronizar(self, request):
         """
         Escanea todas las asistencias registradas en fechas feriadas y acredita
         automáticamente los 2 días compensatorios al saldo de vacaciones del trabajador.
         """
-        from decimal import Decimal
-        tz = timezone.get_current_timezone()
-        feriados = list(DiaFeriado.objects.all())
-        if not feriados:
-            return Response({'status': 'ok', 'creados': 0, 'mensaje': 'No hay días feriados configurados.'})
-
-        feriados_map = {f.fecha: f.descripcion for f in feriados}
-        empleados = Empleado.objects.filter(activo=True)
-        creados = 0
-
-        for emp in empleados:
-            for f_fecha, f_nombre in feriados_map.items():
-                start_dt = timezone.make_aware(datetime.datetime.combine(f_fecha, datetime.time.min), tz)
-                end_dt = timezone.make_aware(datetime.datetime.combine(f_fecha, datetime.time.max), tz) + datetime.timedelta(hours=5)
-
-                regs = RegistroAsistencia.objects.filter(
-                    empleado=emp,
-                    fecha_hora__range=(start_dt, end_dt)
-                ).order_by('fecha_hora')
-
-                if not regs.exists():
-                    continue
-
-                horas_dia = _calcular_horas_netas_dia(regs)
-
-                if horas_dia >= 4.0:  # Tolera margen de marcaje / medio turno o más en feriado
-                    comp, created = CompensacionFeriado.objects.get_or_create(
-                        empleado=emp,
-                        fecha_feriado=f_fecha,
-                        defaults={
-                            'nombre_feriado': f_nombre,
-                            'horas_trabajadas': Decimal(str(round(horas_dia, 2))),
-                            'dias_compensatorios_totales': Decimal('2.0'),
-                            'estado': 'VACACIONES',
-                            'dias_acreditados_vacaciones': Decimal('2.0'),
-                            'fecha_liquidacion': timezone.now(),
-                            'observaciones': 'Acreditación automática a vacaciones por feriado laborado (+2d)',
-                        }
-                    )
-                    if created:
-                        creados += 1
-                        # Acreditar automáticamente los 2 días al balance de vacaciones
-                        emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + Decimal('2.0')
-                        emp.save(update_fields=['dias_vacaciones_acumuladas'])
-
-                        BitacoraAccion.objects.create(
-                            usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
-                            accion='ACREDITAR_FERIADO_VACACIONES',
-                            descripcion=f"Acreditados automáticamente +2.0 días de vacaciones a {emp.nombre} {emp.apellido} por feriado {f_fecha} ({f_nombre}). Nuevo saldo: {emp.dias_vacaciones_acumuladas} d.",
-                            ip_address=_get_clean_ip(request) if request else None
-                        )
-                    elif comp.estado == 'PENDIENTE' or (comp.dias_acreditados_vacaciones or Decimal('0.0')) == Decimal('0.0'):
-                        # Actualizar compensación existente que aún no tenía acreditados los 2 días
-                        comp.estado = 'VACACIONES'
-                        comp.dias_acreditados_vacaciones = Decimal('2.0')
-                        comp.fecha_liquidacion = timezone.now()
-                        comp.observaciones = 'Acreditación automática a vacaciones por feriado laborado (+2d)'
-                        comp.save(update_fields=['estado', 'dias_acreditados_vacaciones', 'fecha_liquidacion', 'observaciones'])
-
-                        emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + Decimal('2.0')
-                        emp.save(update_fields=['dias_vacaciones_acumuladas'])
-                        creados += 1
-
-                        BitacoraAccion.objects.create(
-                            usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
-                            accion='ACREDITAR_FERIADO_VACACIONES',
-                            descripcion=f"Acreditados +2.0 días de vacaciones a {emp.nombre} {emp.apellido} por feriado previo {f_fecha} ({f_nombre}). Nuevo saldo: {emp.dias_vacaciones_acumuladas} d.",
-                            ip_address=_get_clean_ip(request) if request else None
-                        )
+        try:
+            _evaluar_y_autoacreditar_feriados_pendientes(request=request)
+        except Exception as e:
+            print(f"Error sincronizando feriados: {e}")
 
         return Response({
             'status': 'ok',
-            'creados': creados,
-            'mensaje': f'Sincronización completada. {creados} feriado(s) laborado(s) acreditado(s) directamente a vacaciones (+2 días c/u).'
+            'mensaje': 'Sincronización y acreditación automática de feriados completada exitosamente.'
         })
 
     @action(detail=False, methods=['post'], url_path='sincronizar-descansos-trabajados')
@@ -2965,6 +2917,13 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
     empleado.periodo_horas_pendientes = primer_dia_mes
     empleado.save(update_fields=['periodo_horas_pendientes'])
 
+    # ── EVALUACIÓN AUTOMÁTICA DE FERIADO LABORADO Y VENTANA 24H ──
+    try:
+        _evaluar_feriado_al_cierre_jornada(empleado, fecha_hoy, horas_trabajadas_dia, request=request)
+        _evaluar_y_autoacreditar_feriados_pendientes(request=request)
+    except Exception as e:
+        print(f"Error evaluando feriado automático al cierre de jornada: {e}")
+
     es_septimo_dia = _es_septimo_dia_semana(empleado, fecha_hoy)
 
     # Regla: Las horas extra se cuentan de forma permanente y universal a partir de media hora (0.5 hrs) en pasos limpios (0.5, 1.0, 1.5...)
@@ -3149,6 +3108,168 @@ def _verificar_septimo_dia(empleado, fecha_hoy, horas_trabajadas_dia):
     pass
 
 
+def _evaluar_feriado_al_cierre_jornada(empleado, fecha_hoy, horas_trabajadas_dia, request=None):
+    """
+    Evalúa automáticamente al cierre de jornada si la fecha coincide con un día feriado.
+    Si el colaborador laboró al menos 4.0 horas, registra la Compensación de Feriado en estado PENDIENTE,
+    iniciando la ventana legal de 24 horas para liquidación en nómina/dinero o pase automático a vacaciones.
+    """
+    nombre_completo = f"{empleado.nombre} {empleado.apellido}".lower()
+    if 'maverick' in nombre_completo:
+        return
+
+    feriado = DiaFeriado.objects.filter(fecha=fecha_hoy).first()
+    if not feriado:
+        return
+
+    if horas_trabajadas_dia >= 4.0:
+        comp, created = CompensacionFeriado.objects.get_or_create(
+            empleado=empleado,
+            fecha_feriado=fecha_hoy,
+            defaults={
+                'nombre_feriado': feriado.descripcion,
+                'horas_trabajadas': Decimal(str(round(horas_trabajadas_dia, 2))),
+                'dias_compensatorios_totales': Decimal('2.0'),
+                'estado': 'PENDIENTE',
+                'dias_pagados_dinero': Decimal('0.0'),
+                'dias_acreditados_vacaciones': Decimal('0.0'),
+                'observaciones': 'Feriado laborado registrado automáticamente al cierre de jornada. Ventana legal de 24h para liquidación en dinero o pase automático a vacaciones (+2d).'
+            }
+        )
+        if created:
+            BitacoraAccion.objects.create(
+                usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
+                accion='REGISTRO_FERIADO_LABORADO',
+                descripcion=(
+                    f"Feriado laborado registrado automáticamente para {empleado.nombre} {empleado.apellido} "
+                    f"({fecha_hoy} - {feriado.descripcion}). Inicia ventana legal de 24 horas para pago en dinero o acreditación a vacaciones."
+                ),
+                ip_address=_get_clean_ip(request) if request else None
+            )
+
+
+def _evaluar_y_autoacreditar_feriados_pendientes(request=None):
+    """
+    Rutina automática que gestiona los feriados sin requerir pulsar ningún botón manual:
+    1. Revisa todas las compensaciones en estado PENDIENTE. Si han transcurrido al menos 24 horas
+       desde el feriado (o desde su registro) sin haber sido liquidadas en dinero, las acredita
+       automáticamente a vacaciones (+2.0 días al saldo acumulado del colaborador).
+    2. Realiza barrido preventivo de feriados oficiales en catálogo (ej. 24 de septiembre). Si algún
+       colaborador activo laboró >= 4.0 hrs y no tenía compensación registrada:
+       - Si la fecha es de hace más de 24 horas, se acredita directamente a vacaciones (+2.0 días).
+       - Si está dentro de las 24 horas, se crea en estado PENDIENTE.
+    """
+    tz = timezone.get_current_timezone()
+    ahora = timezone.now()
+    hoy = ahora.astimezone(tz).date()
+
+    # 1. Procesar registros PENDIENTES con más de 24 horas transcurridas
+    pendientes = CompensacionFeriado.objects.filter(estado='PENDIENTE').select_related('empleado')
+    for comp in pendientes:
+        emp = comp.empleado
+        nombre_completo = f"{emp.nombre} {emp.apellido}".lower()
+        if 'maverick' in nombre_completo:
+            continue
+
+        delta_horas = (ahora - comp.created_at).total_seconds() / 3600.0 if comp.created_at else 25.0
+        dias_diferencia = (hoy - comp.fecha_feriado).days
+
+        if delta_horas >= 24.0 or dias_diferencia >= 1:
+            comp.estado = 'VACACIONES'
+            comp.dias_acreditados_vacaciones = Decimal('2.0')
+            comp.fecha_liquidacion = ahora
+            comp.observaciones = 'Acreditación automática a vacaciones (+2.0 días) al cumplirse la ventana legal de 24 horas sin pago en dinero.'
+            comp.save(update_fields=['estado', 'dias_acreditados_vacaciones', 'fecha_liquidacion', 'observaciones'])
+
+            emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + Decimal('2.0')
+            emp.save(update_fields=['dias_vacaciones_acumuladas'])
+
+            BitacoraAccion.objects.create(
+                usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
+                accion='ACREDITAR_FERIADO_VACACIONES',
+                descripcion=(
+                    f"Acreditados automáticamente +2.0 días de vacaciones a {emp.nombre} {emp.apellido} "
+                    f"por feriado {comp.fecha_feriado} ({comp.nombre_feriado}) tras ventana de 24h sin pago en dinero. "
+                    f"Nuevo saldo: {emp.dias_vacaciones_acumuladas} d."
+                ),
+                ip_address=_get_clean_ip(request) if request else None
+            )
+
+    # 2. Barrido preventivo y retroactivo de feriados oficiales configurados
+    feriados = list(DiaFeriado.objects.all())
+    if not feriados:
+        return
+
+    feriados_map = {f.fecha: f.descripcion for f in feriados}
+    empleados_activos = Empleado.objects.filter(activo=True)
+
+    for emp in empleados_activos:
+        nombre_completo = f"{emp.nombre} {emp.apellido}".lower()
+        if 'maverick' in nombre_completo:
+            continue
+
+        for f_fecha, f_nombre in feriados_map.items():
+            if f_fecha > hoy:
+                continue
+
+            if CompensacionFeriado.objects.filter(empleado=emp, fecha_feriado=f_fecha).exists():
+                continue
+
+            start_dt = timezone.make_aware(datetime.datetime.combine(f_fecha, datetime.time.min), tz)
+            end_dt = timezone.make_aware(datetime.datetime.combine(f_fecha, datetime.time.max), tz) + datetime.timedelta(hours=5)
+
+            regs = list(RegistroAsistencia.objects.filter(
+                empleado=emp,
+                fecha_hora__range=(start_dt, end_dt)
+            ).order_by('fecha_hora'))
+
+            if not regs:
+                continue
+
+            horas_dia = _calcular_horas_netas_dia(regs)
+            if horas_dia >= 4.0:
+                dias_transcurridos = (hoy - f_fecha).days
+                if dias_transcurridos >= 1:
+                    CompensacionFeriado.objects.create(
+                        empleado=emp,
+                        fecha_feriado=f_fecha,
+                        nombre_feriado=f_nombre,
+                        horas_trabajadas=Decimal(str(round(horas_dia, 2))),
+                        dias_compensatorios_totales=Decimal('2.0'),
+                        estado='VACACIONES',
+                        dias_pagados_dinero=Decimal('0.0'),
+                        dias_acreditados_vacaciones=Decimal('2.0'),
+                        fecha_liquidacion=ahora,
+                        observaciones='Acreditación automática a vacaciones (+2.0 días) por feriado laborado tras superar ventana legal de 24 horas sin pago en dinero.'
+                    )
+                    emp.dias_vacaciones_acumuladas = (emp.dias_vacaciones_acumuladas or Decimal('0.00')) + Decimal('2.0')
+                    emp.save(update_fields=['dias_vacaciones_acumuladas'])
+
+                    BitacoraAccion.objects.create(
+                        usuario=request.user if (request and hasattr(request, 'user') and request.user.is_authenticated) else None,
+                        accion='ACREDITAR_FERIADO_VACACIONES',
+                        descripcion=(
+                            f"Acreditados automáticamente +2.0 días de vacaciones a {emp.nombre} {emp.apellido} "
+                            f"por feriado {f_fecha} ({f_nombre}) tras ventana de 24h sin pago en dinero. "
+                            f"Nuevo saldo: {emp.dias_vacaciones_acumuladas} d."
+                        ),
+                        ip_address=_get_clean_ip(request) if request else None
+                    )
+                else:
+                    CompensacionFeriado.objects.create(
+                        empleado=emp,
+                        fecha_feriado=f_fecha,
+                        nombre_feriado=f_nombre,
+                        horas_trabajadas=Decimal(str(round(horas_dia, 2))),
+                        dias_compensatorios_totales=Decimal('2.0'),
+                        estado='PENDIENTE',
+                        dias_pagados_dinero=Decimal('0.0'),
+                        dias_acreditados_vacaciones=Decimal('0.0'),
+                        observaciones='Feriado laborado registrado al cierre de jornada. Ventana legal de 24h para liquidación en dinero o pase automático a vacaciones (+2d).'
+                    )
+
+
+
 # ==========================================
 # 📊 GENERADOR DE REPORTES EXCEL DE NÓMINA
 # ==========================================
@@ -3177,6 +3298,11 @@ def exportar_reporte_nomina_excel(request):
         hoy = timezone.localdate()
         fecha_inicio = dt.strptime(inicio_str, '%Y-%m-%d').date() if inicio_str else hoy.replace(day=1)
         fecha_fin = dt.strptime(fin_str, '%Y-%m-%d').date() if fin_str else hoy
+
+        try:
+            _evaluar_y_autoacreditar_feriados_pendientes(request=request)
+        except Exception:
+            pass
 
         # Generar lista de días del período
         dias_periodo = []
@@ -3917,6 +4043,11 @@ def exportar_reporte_vacaciones_excel(request):
 
         mes_str = request.GET.get('mes')
         anio_str = request.GET.get('anio')
+
+        try:
+            _evaluar_y_autoacreditar_feriados_pendientes(request=request)
+        except Exception:
+            pass
         inicio_str = request.GET.get('fecha_inicio')
         fin_str = request.GET.get('fecha_fin')
 
