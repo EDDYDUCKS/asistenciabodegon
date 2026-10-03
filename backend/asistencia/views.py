@@ -58,6 +58,15 @@ def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
     """
     if not emp.activo:
         return False
+
+    # Maverick Calderón culminó su plazo de 15 días de vacaciones previo a su renuncia (19/09/2026).
+    # Su saldo de vacaciones queda congelado; a partir de que acabaron esos 15 días, no se le suman ni restan.
+    if 'maverick' in emp.nombre.lower() or emp.id == 40:
+        if emp.ultimo_corte_vacaciones != fecha_referencia:
+            emp.ultimo_corte_vacaciones = fecha_referencia
+            emp.save(update_fields=['ultimo_corte_vacaciones'])
+        return False
+
     if not fecha_referencia:
         fecha_referencia = timezone.now().astimezone(timezone.get_current_timezone()).date()
 
@@ -389,6 +398,12 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             for emp in Empleado.objects.filter(activo=True).order_by('nombre', 'apellido'):
+                # Maverick Calderón culminó su plazo de 15 días de vacaciones previo a su renuncia (19/09/2026).
+                # Conforme a la instrucción administrativa, a partir de que acabaron esos 15 días,
+                # no se le restan ni se le suman vacaciones ni horas de deuda.
+                if 'maverick' in emp.nombre.lower() or emp.id == 40:
+                    continue
+
                 primer_reg = RegistroAsistencia.objects.filter(empleado=emp).order_by('fecha_hora').first()
                 if not primer_reg:
                     continue
@@ -459,13 +474,17 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                     curr_lunes += datetime.timedelta(days=7)
 
                 if faltas_empleado:
-                    num_faltas = len(faltas_empleado)
-                    total_faltas_detectadas += num_faltas
+                    # Calcular saldo disponible previo a las deducciones de inasistencias
+                    permisos_previos = PermisoAusencia.objects.filter(
+                        empleado=emp,
+                        tipo__in=['VACACIONES', 'VACACIONES_PAGADAS']
+                    )
+                    dias_tomados_previos = sum(Decimal(str(p.total_dias or 0.0)) for p in permisos_previos)
+                    saldo_vac_acum = emp.dias_vacaciones_acumuladas or Decimal('0.00')
+                    saldo_disp_inicial = max(Decimal('0.00'), saldo_vac_acum - dias_tomados_previos)
 
-                    saldo_vac_inicial = emp.dias_vacaciones_acumuladas or Decimal('0.00')
+                    saldo_disp_actual = saldo_disp_inicial
                     deuda_horas_inicial = emp.horas_pendientes or Decimal('0.00')
-
-                    saldo_vac_actual = saldo_vac_inicial
                     deuda_horas_actual = deuda_horas_inicial
                     dias_vac_deducir = Decimal('0.00')
                     horas_deuda_sumar = Decimal('0.00')
@@ -473,8 +492,18 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
                     for f in faltas_empleado:
                         f_date = datetime.datetime.strptime(f['fecha'], '%Y-%m-%d').date()
-                        if saldo_vac_actual >= Decimal('1.00'):
-                            saldo_vac_actual = max(Decimal('0.00'), saldo_vac_actual - Decimal('1.00'))
+
+                        # Comprobar si ya existe un permiso para esa fecha exacta para evitar duplicar
+                        ya_existe = PermisoAusencia.objects.filter(
+                            empleado=emp,
+                            fecha_inicio__lte=f_date,
+                            fecha_fin__gte=f_date
+                        ).exists()
+                        if ya_existe:
+                            continue
+
+                        if saldo_disp_actual >= Decimal('1.00'):
+                            saldo_disp_actual = max(Decimal('0.00'), saldo_disp_actual - Decimal('1.00'))
                             dias_vac_deducir += Decimal('1.00')
                             acciones_detalle.append(f"{f['fecha']}: -1.0 día de vacaciones")
 
@@ -484,7 +513,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                                     fecha_inicio=f_date,
                                     fecha_fin=f_date,
                                     tipo='VACACIONES',
-                                    motivo=f"Compensación retroactiva: Inasistencia injustificada del {f_date.strftime('%d/%m/%Y')}"
+                                    motivo=f"Deducción por inasistencia injustificada del {f_date.strftime('%d/%m/%Y')}"
                                 )
                         else:
                             deuda_horas_actual += Decimal('8.00')
@@ -497,24 +526,25 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                                     fecha_inicio=f_date,
                                     fecha_fin=f_date,
                                     tipo='PERMISO_AUTORIZADO',
-                                    motivo=f"Deuda retroactiva: Inasistencia sin saldo de vacaciones (+8.0 hrs) del {f_date.strftime('%d/%m/%Y')}"
+                                    motivo=f"Deuda por inasistencia sin saldo de vacaciones (+8.0 hrs) del {f_date.strftime('%d/%m/%Y')}"
                                 )
 
+                    total_faltas_detectadas += len(acciones_detalle)
                     total_vacaciones_deducidas += dias_vac_deducir
                     total_horas_deuda_cargadas += horas_deuda_sumar
 
                     if aplicar:
-                        emp.dias_vacaciones_acumuladas = saldo_vac_actual
-                        emp.horas_pendientes = deuda_horas_actual
-                        emp.save(update_fields=['dias_vacaciones_acumuladas', 'horas_pendientes'])
+                        if horas_deuda_sumar > Decimal('0.00'):
+                            emp.horas_pendientes = deuda_horas_actual
+                            emp.save(update_fields=['horas_pendientes'])
 
                         BitacoraAccion.objects.create(
                             usuario=request.user if request.user.is_authenticated else None,
                             accion='EDITAR_EMPLEADO',
                             descripcion=(
-                                f"Auditoría Histórica Inasistencias (01/09 al {fecha_fin.strftime('%d/%m')}): {num_faltas} falta(s) aplicada(s) a "
+                                f"Auditoría Histórica Inasistencias (01/09 al {fecha_fin.strftime('%d/%m')}): {len(acciones_detalle)} falta(s) aplicada(s) a "
                                 f"{emp.nombre} {emp.apellido}. Vacaciones deducidas: -{dias_vac_deducir:.2f} d "
-                                f"(Saldo: {saldo_vac_inicial:.2f} d -> {saldo_vac_actual:.2f} d). "
+                                f"(Saldo disponible: {saldo_disp_inicial:.2f} d -> {saldo_disp_actual:.2f} d). "
                                 f"Deuda horas: +{horas_deuda_sumar:.1f} h (Deuda: {deuda_horas_inicial:.1f} h -> {deuda_horas_actual:.1f} h)."
                             ),
                             ip_address=_get_clean_ip(request)
@@ -524,11 +554,11 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
                         'empleado_id': emp.id,
                         'nombre': f"{emp.nombre} {emp.apellido}",
                         'cargo': emp.get_cargo_display(),
-                        'num_faltas': num_faltas,
+                        'num_faltas': len(acciones_detalle),
                         'faltas': faltas_empleado,
-                        'saldo_vacaciones_inicial': float(saldo_vac_inicial),
+                        'saldo_vacaciones_inicial': float(saldo_disp_inicial),
                         'dias_vacaciones_deducir': float(dias_vac_deducir),
-                        'nuevo_saldo_vacaciones': float(saldo_vac_actual),
+                        'nuevo_saldo_vacaciones': float(saldo_disp_actual),
                         'deuda_horas_inicial': float(deuda_horas_inicial),
                         'horas_deuda_sumar': float(horas_deuda_sumar),
                         'nueva_deuda_horas': float(deuda_horas_actual),

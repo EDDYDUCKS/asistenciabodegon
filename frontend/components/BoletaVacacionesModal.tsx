@@ -62,14 +62,28 @@ export default function BoletaVacacionesModal({
   const pagosEmp = (pagosVacaciones || []).filter((pv) => pv.empleado === emp.id);
   const diasPagados = pagosEmp.reduce((acc, pv) => acc + Number(pv.dias_pagados || 0), 0);
 
-  // Vacaciones gozadas en tiempo
+  // Vacaciones gozadas en tiempo vs deducciones por inasistencias
   const permisosVac = permisos.filter(
     (p) =>
       p.empleado === emp.id &&
       (p.tipo === 'VACACIONES' ||
         (p.tipo === 'PERMISO_AUTORIZADO' && (p.motivo || '').toLowerCase().includes('vacaciones')))
   );
-  const diasGozados = permisosVac.reduce((acc, p) => acc + (p.total_dias || 0), 0);
+
+  const permisosInasistencia = permisosVac.filter(
+    (p) =>
+      (p.motivo || '').toLowerCase().includes('inasistencia') ||
+      (p.motivo || '').toLowerCase().includes('falta')
+  );
+  const permisosGoceReal = permisosVac.filter(
+    (p) =>
+      !(p.motivo || '').toLowerCase().includes('inasistencia') &&
+      !(p.motivo || '').toLowerCase().includes('falta')
+  );
+
+  const diasGozados = permisosGoceReal.reduce((acc, p) => acc + (p.total_dias || 0), 0);
+  const diasInasistencias = permisosInasistencia.reduce((acc, p) => acc + (p.total_dias || 0), 0);
+  const totalDeduccionesVac = diasGozados + diasInasistencias;
 
   // Extraer exclusivamente las acreditaciones extraordinarias del botón (+ Vacaciones) desde Bitácora
   const normalize = (str: string) =>
@@ -181,7 +195,7 @@ export default function BoletaVacacionesModal({
     .reduce((acc, a) => acc + a.diasNum, 0);
 
   // Saldo disponible real
-  const vacDisp = Number((vacAcum - diasGozados).toFixed(2));
+  const vacDisp = Number((vacAcum - totalDeduccionesVac).toFixed(2));
   const vacBaseLey = Number(Math.max(0, vacAcum + diasPagados - diasFeriados - totalDiasExtraordinarios).toFixed(2));
 
   // Historial unificado cronológico de movimientos
@@ -205,16 +219,22 @@ export default function BoletaVacacionesModal({
       descripcion: `Abono por feriado laborado: ${cf.nombre_feriado || 'Feriado Nacional'}`,
       fechaReg: cf.fecha_liquidacion ? new Date(cf.fecha_liquidacion).toLocaleDateString('es-NI') : cf.fecha_feriado,
     })),
-    ...permisosVac.map((p) => ({
-      id: `p-${p.id}`,
-      fecha: p.fecha_inicio,
-      tipo: 'GOCE' as const,
-      badge: 'Vacaciones Gozadas',
-      diasStr: `-${(p.total_dias || 1).toFixed(1)} d`,
-      diasSign: 'MINUS' as const,
-      descripcion: `Período del ${p.fecha_inicio} al ${p.fecha_fin}${p.motivo ? ` — ${p.motivo}` : ''}`,
-      fechaReg: p.created_at ? new Date(p.created_at).toLocaleDateString('es-NI') : p.fecha_inicio,
-    })),
+    ...permisosVac.map((p) => {
+      const motivoLower = (p.motivo || '').toLowerCase();
+      const esInasistencia = motivoLower.includes('inasistencia') || motivoLower.includes('falta');
+      return {
+        id: `p-${p.id}`,
+        fecha: p.fecha_inicio,
+        tipo: esInasistencia ? ('AJUSTE' as const) : ('GOCE' as const),
+        badge: esInasistencia ? '⚠️ Deducción Inasistencia' : 'Vacaciones Gozadas',
+        diasStr: `-${(p.total_dias || 1).toFixed(1)} d`,
+        diasSign: 'MINUS' as const,
+        descripcion: esInasistencia
+          ? `Deducción por inasistencia no justificada (${p.fecha_inicio})${p.motivo ? `: ${p.motivo}` : ''}`
+          : `Período del ${p.fecha_inicio} al ${p.fecha_fin}${p.motivo ? ` — ${p.motivo}` : ''}`,
+        fechaReg: p.created_at ? new Date(p.created_at).toLocaleDateString('es-NI') : p.fecha_inicio,
+      };
+    }),
     ...pagosEmp.map((pv) => ({
       id: `pv-${pv.id}`,
       fecha: pv.fecha_pago,
@@ -513,7 +533,13 @@ export default function BoletaVacacionesModal({
             </div>
 
             {/* Cuadro 3: Desglose Matemático y Legal en Tarjetas */}
-            <div className={`grid grid-cols-2 ${totalDiasExtraordinarios > 0 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2`}>
+            <div className={`grid grid-cols-2 ${
+              (totalDiasExtraordinarios > 0 && diasInasistencias > 0)
+                ? 'sm:grid-cols-6'
+                : (totalDiasExtraordinarios > 0 || diasInasistencias > 0)
+                ? 'sm:grid-cols-5'
+                : 'sm:grid-cols-4'
+            } gap-2`}>
               {/* 1. Acumuladas Ley */}
               <div className="bg-stone-50 border border-stone-200/80 rounded-xl p-2 space-y-0.5">
                 <span className="text-[8.5px] text-stone-500 uppercase font-black tracking-wider block">
@@ -569,10 +595,26 @@ export default function BoletaVacacionesModal({
                 </p>
               </div>
 
-              {/* 4 o 5. Saldo Disponible */}
+              {/* Inasistencias Deducidas (si existen) */}
+              {diasInasistencias > 0 && (
+                <div className="bg-rose-50/80 border border-rose-300 rounded-xl p-2 space-y-0.5 shadow-xs">
+                  <span className="text-[8.5px] text-rose-900 uppercase font-black tracking-wider block">
+                    ⚠️ Inasistencias
+                  </span>
+                  <div className="text-sm font-mono font-black text-rose-800">
+                    -{diasInasistencias.toFixed(2)}{' '}
+                    <span className="text-[9px] font-sans font-bold text-rose-600">días</span>
+                  </div>
+                  <p className="text-[8px] text-rose-700 font-medium leading-tight">
+                    {permisosInasistencia.length} falta(s) injustificada(s).
+                  </p>
+                </div>
+              )}
+
+              {/* Saldo Neto */}
               <div className="bg-emerald-100/50 border border-emerald-300 rounded-xl p-2 space-y-0.5">
                 <span className="text-[8.5px] text-emerald-950 uppercase font-black tracking-wider block">
-                  🧮 {totalDiasExtraordinarios > 0 ? '5.' : '4.'} Saldo Neto
+                  🧮 Saldo Neto
                 </span>
                 <div className="text-sm font-mono font-black text-emerald-900">
                   {vacDisp.toFixed(2)} <span className="text-[9px] font-sans font-bold text-emerald-700">días</span>
@@ -618,8 +660,10 @@ export default function BoletaVacacionesModal({
                         </td>
                         <td className="py-1 px-1.5">
                           <span
-                            className={`inline-block px-1.5 py-0.2 rounded text-[8px] font-bold ${
-                              m.tipo === 'FERIADO'
+                            className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                              m.badge.includes('Inasistencia')
+                                ? 'bg-rose-100 text-rose-900 border border-rose-300 font-black'
+                                : m.tipo === 'FERIADO'
                                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                                 : m.tipo === 'PAGO'
                                 ? 'bg-blue-100 text-blue-800 border border-blue-200'
