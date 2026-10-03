@@ -523,7 +523,7 @@ export default function BoletaVacacionesModal({
                   +{vacBaseLey.toFixed(2)} <span className="text-[9px] font-sans font-bold text-stone-500">días</span>
                 </div>
                 <p className="text-[8px] text-stone-500 font-medium leading-tight">
-                  +0.0833d/día (+2.5d/mes) Art. 76 C.T.
+                  +0.0833d/día laborado (+2.5d/mes) Art. 76 C.T.
                 </p>
               </div>
 
