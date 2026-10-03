@@ -364,9 +364,10 @@ export default function BodegonControlPage() {
           const nio = Number(p.totalOpeningNIO) || 0;
           const usd = Number(p.totalOpeningUSD) || 0;
           const rate = Number(p.exchangeRate) || 36.0;
-          const equiv = Number(p.totalOpeningEquivNIO) || (nio + usd * rate);
+          // El fondo de gaveta de apertura es estrictamente en Córdobas (los dólares se entregan a Snyder)
+          const equiv = nio > 0 ? nio : (Number(p.totalOpeningEquivNIO) || fallbackFondo);
           return {
-            totalOpeningNIO: nio,
+            totalOpeningNIO: nio || fallbackFondo,
             totalOpeningUSD: usd,
             exchangeRate: rate,
             totalOpeningEquivNIO: equiv,
@@ -427,6 +428,23 @@ export default function BodegonControlPage() {
     return null;
   }, []);
 
+  // Mapeo de jornada_id hacia la fecha comercial de la jornada
+  const jornadaIdToFechaMap = useMemo(() => {
+    const m = new Map<number, string>();
+    jornadas.forEach((j) => m.set(j.id, j.fecha));
+    return m;
+  }, [jornadas]);
+
+  const getGastoFecha = useCallback(
+    (g: CompraGasto): string => {
+      if (g.jornada_id && jornadaIdToFechaMap.has(g.jornada_id)) {
+        return jornadaIdToFechaMap.get(g.jornada_id)!;
+      }
+      return g.fecha_hora.slice(0, 10);
+    },
+    [jornadaIdToFechaMap]
+  );
+
   // 4. Map de días consolidado para la gráfica y tabla histórica
   const dailyHistoryMap = useMemo(() => {
     const map = new Map<string, {
@@ -477,10 +495,10 @@ export default function BodegonControlPage() {
       });
     });
 
-    // Agregar y sumar gastos por fecha (excluyendo fondeos / depósitos internos)
+    // Agregar y sumar gastos por fecha (usando la fecha de su jornada activa si fue digitado al día siguiente)
     gastos.forEach((g) => {
       if (isFondeoTransaction(g)) return;
-      const f = g.fecha_hora.slice(0, 10);
+      const f = getGastoFecha(g);
       const montoNum = Number(g.monto) || 0;
       let item = map.get(f);
       if (!item) {
@@ -540,7 +558,7 @@ export default function BodegonControlPage() {
     if (existing) return existing;
 
     // Día sin jornada registrada aún
-    const dayGastos = gastos.filter((g) => g.fecha_hora.slice(0, 10) === selectedDate);
+    const dayGastos = gastos.filter((g) => getGastoFecha(g) === selectedDate);
     let expTot = 0;
     let expCash = 0;
     let expTransf = 0;
@@ -642,7 +660,7 @@ export default function BodegonControlPage() {
   // 8. Gastos filtrados para la pestaña de Gastos / Caja Chica (estrictamente por la fecha seleccionada)
   const gastosFiltrados = useMemo(() => {
     return gastos.filter((g) => {
-      const fechaGastoStr = g.fecha_hora.slice(0, 10);
+      const fechaGastoStr = getGastoFecha(g);
       // Filtrar SIEMPRE por la fecha seleccionada (por defecto hoy)
       if (selectedDate && fechaGastoStr !== selectedDate) {
         return false;
@@ -695,7 +713,7 @@ export default function BodegonControlPage() {
     let pendientesCount = 0;
     let pendientesMonto = 0;
 
-    const gastosDelDia = gastos.filter((g) => g.fecha_hora.slice(0, 10) === selectedDate);
+    const gastosDelDia = gastos.filter((g) => getGastoFecha(g) === selectedDate);
     gastosDelDia.forEach((g) => {
       const m = Number(g.monto) || 0;
       if (isFondeoTransaction(g)) {
