@@ -1099,13 +1099,21 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             )
 
     def list(self, request, *args, **kwargs):
-        # Al listar alertas, verificar ausencias de la semana y mantenimiento semestral con blindaje
+        # 1. Procesar resolución automática de 24 horas para inasistencias vencidas
+        try:
+            self._procesar_resolucion_automatica_inasistencias()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error procesando resolucion automatica de inasistencias: {e}")
+
+        # 2. Verificar ausencias de la semana
         try:
             self._verificar_ausencias_semanales()
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Error verificando ausencias semanales: {e}")
 
+        # 3. Mantenimiento semestral
         try:
             self._verificar_mantenimiento_semestral()
         except Exception as e:
@@ -1113,6 +1121,96 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             logging.getLogger(__name__).error(f"Error verificando mantenimiento semestral: {e}")
 
         return super().list(request, *args, **kwargs)
+
+    def _procesar_resolucion_automatica_inasistencias(self):
+        """
+        Ventana de gracia de 24 horas:
+        Revisa alertas de inasistencia pendientes creadas hace más de 24 horas.
+        Si la administración no las justificó:
+        - Si saldo de vacaciones >= 1.0 d: descuenta automáticamente 1.0 día de vacaciones.
+        - Si saldo de vacaciones < 1.0 d (o 0 días): carga automáticamente 8.0 horas de deuda a la bolsa de horas.
+        """
+        import datetime
+        limite_24h = timezone.now() - datetime.timedelta(hours=24)
+        alertas_pendientes = AlertaAsistencia.objects.filter(
+            tipo__in=['SEGUNDA_AUSENCIA', 'INASISTENCIA'],
+            leida=False,
+            created_at__lte=limite_24h
+        ).select_related('empleado')
+
+        tz = timezone.get_current_timezone()
+        for alerta in alertas_pendientes:
+            emp = alerta.empleado
+            if not emp:
+                alerta.leida = True
+                alerta.save(update_fields=['leida'])
+                continue
+
+            fecha_alerta = alerta.created_at.astimezone(tz).date()
+
+            # Verificar si ya existe un permiso registrado para esa fecha
+            ya_permiso = PermisoAusencia.objects.filter(
+                empleado=emp,
+                fecha_inicio__lte=fecha_alerta,
+                fecha_fin__gte=fecha_alerta
+            ).exists()
+            if ya_permiso:
+                alerta.leida = True
+                alerta.save(update_fields=['leida'])
+                continue
+
+            saldo_vac = float(emp.dias_vacaciones_acumuladas or 0.0)
+            if saldo_vac >= 1.0:
+                nuevo_saldo = round(saldo_vac - 1.0, 2)
+                emp.dias_vacaciones_acumuladas = Decimal(str(nuevo_saldo))
+                emp.save(update_fields=['dias_vacaciones_acumuladas'])
+
+                PermisoAusencia.objects.create(
+                    empleado=emp,
+                    fecha_inicio=fecha_alerta,
+                    fecha_fin=fecha_alerta,
+                    tipo='VACACIONES',
+                    motivo=f"Compensación automática 24h: 1.0 día de vacaciones deducido por inasistencia no justificada (Alerta #{alerta.id})"
+                )
+
+                BitacoraAccion.objects.create(
+                    usuario=None,
+                    accion='REGISTRO_MANUAL',
+                    descripcion=(
+                        f"Resolución automática (vencidas 24h): Se descontó 1.0 día de vacaciones a "
+                        f"{emp.nombre} {emp.apellido} por inasistencia del {fecha_alerta}. "
+                        f"Saldo previo: {saldo_vac:.2f} d -> Nuevo saldo: {nuevo_saldo:.2f} d."
+                    ),
+                    ip_address='127.0.0.1'
+                )
+                alerta.mensaje += f"\n\n[RESUELTA AUTOMÁTICAMENTE]: Vencidas las 24h sin justificar, se dedujo 1.0 día de vacaciones. Nuevo saldo: {nuevo_saldo:.2f} d."
+            else:
+                hoy = timezone.localdate()
+                emp.periodo_horas_pendientes = hoy.replace(day=1)
+                emp.horas_pendientes = float(emp.horas_pendientes or 0.0) + 8.00
+                emp.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+
+                PermisoAusencia.objects.create(
+                    empleado=emp,
+                    fecha_inicio=fecha_alerta,
+                    fecha_fin=fecha_alerta,
+                    tipo='PERMISO_AUTORIZADO',
+                    motivo=f"Compensación automática 24h: +8.0 horas añadidas a deuda por inasistencia sin saldo de vacaciones (Alerta #{alerta.id})"
+                )
+
+                BitacoraAccion.objects.create(
+                    usuario=None,
+                    accion='REGISTRO_MANUAL',
+                    descripcion=(
+                        f"Resolución automática (vencidas 24h): Se sumaron +8.0 hrs de deuda a "
+                        f"{emp.nombre} {emp.apellido} por inasistencia del {fecha_alerta} (saldo vacaciones insuficiente: {saldo_vac:.2f} d)."
+                    ),
+                    ip_address='127.0.0.1'
+                )
+                alerta.mensaje += f"\n\n[RESUELTA AUTOMÁTICAMENTE]: Vencidas las 24h sin justificar y con saldo de vacaciones insuficiente, se cargaron +8.0 hrs de deuda."
+
+            alerta.leida = True
+            alerta.save(update_fields=['leida', 'mensaje'])
 
     def _verificar_mantenimiento_semestral(self):
         """
@@ -1141,8 +1239,8 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
 
     def _verificar_ausencias_semanales(self):
         """
-        Revisa la semana en curso (Lunes a hoy). Si un empleado tiene 2 o más días sin marcaje
-        y no es feriado, genera la alerta de SEGUNDA_AUSENCIA para que el admin tome una decisión.
+        Revisa la semana en curso (Lunes a hoy). Si un empleado tiene días sin marcaje
+        y no es feriado, genera la alerta con ventana de 24 horas para justificación o auto-compensación.
         """
         import datetime
         tz = timezone.get_current_timezone()
@@ -1150,25 +1248,21 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
         inicio_semana = hoy - datetime.timedelta(days=hoy.weekday())
         inicio_dt = timezone.make_aware(datetime.datetime.combine(inicio_semana, datetime.time.min), tz)
         hoy_fin_dt = timezone.make_aware(datetime.datetime.combine(hoy, datetime.time.max), tz)
-        
-        # Obtener feriados de la semana
+
         feriados = set(DiaFeriado.objects.filter(
             fecha__gte=inicio_semana,
             fecha__lte=hoy
         ).values_list('fecha', flat=True))
 
-        # Si no hay registros de asistencia en la semana (sistema recién estrenado o purgado), no generar falsas alertas
         if not RegistroAsistencia.objects.filter(fecha_hora__gte=inicio_dt).exists():
             return
 
         empleados = Empleado.objects.filter(activo=True)
         for emp in empleados:
-            # Si el empleado nunca ha marcado en el sistema, no evaluar ausencias previas a su inicio
             primer_registro = RegistroAsistencia.objects.filter(empleado=emp).order_by('fecha_hora').first()
             if not primer_registro:
                 continue
 
-            # Obtener días con marcajes en la semana evaluando en Python para total compatibilidad DB
             dias_con_marcaje = {
                 fh.astimezone(tz).date()
                 for fh in RegistroAsistencia.objects.filter(
@@ -1178,7 +1272,6 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                 ).values_list('fecha_hora', flat=True)
             }
 
-            # Obtener días con permiso o vacaciones autorizadas
             permisos_emp = PermisoAusencia.objects.filter(
                 empleado=emp,
                 fecha_inicio__lte=hoy,
@@ -1195,42 +1288,41 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             dias_sin_marcaje = []
             fecha_inicio_eval = max(inicio_semana, primer_registro.fecha_hora.astimezone(tz).date())
             curr = fecha_inicio_eval
-            # Revisar hasta ayer (hoy aún puede marcar durante su turno)
             while curr < hoy:
                 if curr not in feriados and curr not in dias_con_marcaje and curr not in dias_permiso:
                     dias_sin_marcaje.append(curr)
                 curr += datetime.timedelta(days=1)
 
-            # Si tiene 2 o más días sin marcar en la semana (excluyendo permisos y vacaciones)
             if len(dias_sin_marcaje) >= 2:
-                # Verificar si ya existe una alerta de SEGUNDA_AUSENCIA para esta semana
-                titulo_busqueda = f"Segunda Ausencia Semanal: {emp.nombre} {emp.apellido}"
+                titulo_busqueda = f"Inasistencia pendiente de justificar: {emp.nombre} {emp.apellido}"
                 alerta_existente = AlertaAsistencia.objects.filter(
                     empleado=emp,
-                    tipo='SEGUNDA_AUSENCIA',
+                    tipo__in=['SEGUNDA_AUSENCIA', 'INASISTENCIA'],
                     created_at__gte=inicio_dt
                 ).exists()
 
-                # Blindaje extra: verificar si ya fue gestionada en la bitácora durante la semana
                 ya_gestionada = BitacoraAccion.objects.filter(
                     created_at__gte=inicio_dt,
                     descripcion__icontains=f"{emp.nombre} {emp.apellido}"
                 ).filter(
                     Q(descripcion__icontains="justificó") |
                     Q(descripcion__icontains="deuda") |
+                    Q(descripcion__icontains="descontó") |
                     Q(descripcion__icontains="ausencia")
                 ).exists()
 
                 if not alerta_existente and not ya_gestionada:
                     fechas_str = ", ".join(d.strftime('%d/%m') for d in dias_sin_marcaje)
+                    saldo_actual = float(emp.dias_vacaciones_acumuladas or 0.0)
+                    consecuencia = "se deducirá automáticamente 1.0 día de vacaciones" if saldo_actual >= 1.0 else "se cargarán automáticamente 8.0 horas de deuda a su bolsa"
                     AlertaAsistencia.objects.create(
-                        tipo='SEGUNDA_AUSENCIA',
+                        tipo='INASISTENCIA',
                         empleado=emp,
                         titulo=titulo_busqueda,
                         mensaje=(
-                            f"El empleado {emp.nombre} {emp.apellido} acumula {len(dias_sin_marcaje)} días sin registrar asistencia "
-                            f"esta semana ({fechas_str}). El 1er día cuenta como día libre. "
-                            f"Decida si autoriza la falta o si suma las 8 horas como deuda pendiente."
+                            f"El colaborador {emp.nombre} {emp.apellido} no registró asistencia en fecha(s): {fechas_str}. "
+                            f"Cuenta con una ventana de gracia de 24 horas para justificar (motivo médico, fuerza mayor, situación imprevista o permiso). "
+                            f"De no justificarse en 24h, {consecuencia}."
                         ),
                         leida=False
                     )
@@ -1238,140 +1330,141 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='resolver')
     def resolver_alerta(self, request, pk=None):
         """
-        Resuelve una alerta:
-        decision='JUSTIFICAR': Marca como justificada (no genera deuda, crea PermisoAusencia)
-        decision='SUMAR_DEUDA': Suma 8 horas al saldo de horas_pendientes del empleado y registra la falta
+        Resuelve una alerta de inasistencia:
+        - decision='JUSTIFICAR': Autoriza la falta por cualquier motivo libre (médica, fuerza mayor, imprevisto, etc.) sin recargos.
+        - decision='RESTAR_VACACIONES': Deduce de inmediato 1.0 día de vacaciones.
+        - decision='SUMAR_DEUDA': Carga 8.0 horas de deuda a su bolsa de horas.
         """
         alerta = self.get_object()
-        decision = request.data.get('decision', 'JUSTIFICAR')  # 'JUSTIFICAR' o 'SUMAR_DEUDA'
+        decision = request.data.get('decision', 'JUSTIFICAR')
+        motivo = request.data.get('motivo', '').strip()
         empleado = alerta.empleado
 
         if empleado:
-            if alerta.tipo == 'SEGUNDA_AUSENCIA':
-                tz = timezone.get_current_timezone()
-                fecha_ref = alerta.created_at.astimezone(tz).date() if alerta.created_at else timezone.localdate()
-                inicio_semana = fecha_ref - datetime.timedelta(days=fecha_ref.weekday())
-                inicio_dt = timezone.make_aware(datetime.datetime.combine(inicio_semana, datetime.time.min), tz)
-                fin_dt = timezone.make_aware(datetime.datetime.combine(fecha_ref, datetime.time.max), tz)
+            tz = timezone.get_current_timezone()
+            fecha_ref = alerta.created_at.astimezone(tz).date() if alerta.created_at else timezone.localdate()
+            inicio_semana = fecha_ref - datetime.timedelta(days=fecha_ref.weekday())
+            inicio_dt = timezone.make_aware(datetime.datetime.combine(inicio_semana, datetime.time.min), tz)
+            fin_dt = timezone.make_aware(datetime.datetime.combine(fecha_ref, datetime.time.max), tz)
 
-                feriados = set(DiaFeriado.objects.filter(
-                    fecha__gte=inicio_semana,
-                    fecha__lte=fecha_ref
-                ).values_list('fecha', flat=True))
+            feriados = set(DiaFeriado.objects.filter(
+                fecha__gte=inicio_semana,
+                fecha__lte=fecha_ref
+            ).values_list('fecha', flat=True))
 
-                dias_con_marcaje = {
-                    fh.astimezone(tz).date()
-                    for fh in RegistroAsistencia.objects.filter(
-                        empleado=empleado,
-                        fecha_hora__gte=inicio_dt,
-                        fecha_hora__lte=fin_dt
-                    ).values_list('fecha_hora', flat=True)
-                }
-
-                permisos_emp = PermisoAusencia.objects.filter(
+            dias_con_marcaje = {
+                fh.astimezone(tz).date()
+                for fh in RegistroAsistencia.objects.filter(
                     empleado=empleado,
-                    fecha_inicio__lte=fecha_ref,
-                    fecha_fin__gte=inicio_semana
-                )
-                dias_permiso = set()
-                for p in permisos_emp:
-                    d_c = max(p.fecha_inicio, inicio_semana)
-                    d_f = min(p.fecha_fin, fecha_ref)
-                    while d_c <= d_f:
-                        dias_permiso.add(d_c)
-                        d_c += datetime.timedelta(days=1)
+                    fecha_hora__gte=inicio_dt,
+                    fecha_hora__lte=fin_dt
+                ).values_list('fecha_hora', flat=True)
+            }
 
-                dias_sin_marcaje = []
-                curr = inicio_semana
-                while curr <= fecha_ref:
-                    if curr not in feriados and curr not in dias_con_marcaje and curr not in dias_permiso:
-                        dias_sin_marcaje.append(curr)
-                    curr += datetime.timedelta(days=1)
+            permisos_emp = PermisoAusencia.objects.filter(
+                empleado=empleado,
+                fecha_inicio__lte=fecha_ref,
+                fecha_fin__gte=inicio_semana
+            )
+            dias_permiso = set()
+            for p in permisos_emp:
+                d_c = max(p.fecha_inicio, inicio_semana)
+                d_f = min(p.fecha_fin, fecha_ref)
+                while d_c <= d_f:
+                    dias_permiso.add(d_c)
+                    d_c += datetime.timedelta(days=1)
 
-                # El 1er día es su día libre semanal; del 2do en adelante son las ausencias a registrar
-                dias_a_registrar = dias_sin_marcaje[1:] if len(dias_sin_marcaje) >= 2 else (dias_sin_marcaje if dias_sin_marcaje else [fecha_ref])
+            dias_sin_marcaje = []
+            curr = inicio_semana
+            while curr <= fecha_ref:
+                if curr not in feriados and curr not in dias_con_marcaje and curr not in dias_permiso:
+                    dias_sin_marcaje.append(curr)
+                curr += datetime.timedelta(days=1)
 
-                if decision == 'SUMAR_DEUDA':
-                    hoy = timezone.localdate()
-                    primer_dia_mes = hoy.replace(day=1)
-                    empleado.periodo_horas_pendientes = primer_dia_mes
-                    empleado.horas_pendientes = float(empleado.horas_pendientes or 0.0) + 8.00
-                    empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+            dias_a_registrar = dias_sin_marcaje[1:] if len(dias_sin_marcaje) >= 2 else (dias_sin_marcaje if dias_sin_marcaje else [fecha_ref])
 
-                    for dia_ausente in dias_a_registrar:
-                        PermisoAusencia.objects.get_or_create(
-                            empleado=empleado,
-                            fecha_inicio=dia_ausente,
-                            fecha_fin=dia_ausente,
-                            defaults={
-                                'tipo': 'PERMISO_AUTORIZADO',
-                                'motivo': f"Ausencia cargada a deuda de horas (Alerta #{alerta.id})"
-                            }
-                        )
+            if decision == 'SUMAR_DEUDA':
+                hoy = timezone.localdate()
+                primer_dia_mes = hoy.replace(day=1)
+                empleado.periodo_horas_pendientes = primer_dia_mes
+                empleado.horas_pendientes = float(empleado.horas_pendientes or 0.0) + 8.00
+                empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
 
-                    BitacoraAccion.objects.create(
-                        usuario=request.user if request.user.is_authenticated else None,
-                        accion='REGISTRO_MANUAL',
-                        descripcion=f"Se sumaron 8.0 hrs de deuda a {empleado.nombre} {empleado.apellido} por ausencia no justificada (Alerta #{alerta.id}).",
-                        ip_address=_get_clean_ip(request)
+                motivo_desc = motivo or f"Inasistencia cargada a deuda de horas (Alerta #{alerta.id})"
+                for dia_ausente in dias_a_registrar:
+                    PermisoAusencia.objects.get_or_create(
+                        empleado=empleado,
+                        fecha_inicio=dia_ausente,
+                        fecha_fin=dia_ausente,
+                        defaults={
+                            'tipo': 'PERMISO_AUTORIZADO',
+                            'motivo': motivo_desc
+                        }
                     )
-                elif decision == 'RESTAR_VACACIONES':
-                    from decimal import Decimal
-                    # Descontar 1 día de vacaciones
-                    dias_antes = float(empleado.dias_vacaciones_acumuladas or 0.0)
-                    empleado.dias_vacaciones_acumuladas = max(Decimal('0.00'), (empleado.dias_vacaciones_acumuladas or Decimal('0.00')) - Decimal('1.00'))
-                    empleado.save(update_fields=['dias_vacaciones_acumuladas'])
 
-                    for dia_ausente in dias_a_registrar:
-                        PermisoAusencia.objects.get_or_create(
-                            empleado=empleado,
-                            fecha_inicio=dia_ausente,
-                            fecha_fin=dia_ausente,
-                            defaults={
-                                'tipo': 'VACACIONES',
-                                'motivo': f"Inasistencia deducida de saldo de vacaciones (Alerta #{alerta.id})"
-                            }
-                        )
-
-                    BitacoraAccion.objects.create(
-                        usuario=request.user if request.user.is_authenticated else None,
-                        accion='REGISTRO_MANUAL',
-                        descripcion=f"Se descontó 1.0 día de vacaciones a {empleado.nombre} {empleado.apellido} por inasistencia (Alerta #{alerta.id}). Saldo previo: {dias_antes:.2f} d, nuevo saldo: {empleado.dias_vacaciones_acumuladas} d.",
-                        ip_address=_get_clean_ip(request)
-                    )
-                else:
-                    for dia_ausente in dias_a_registrar:
-                        PermisoAusencia.objects.get_or_create(
-                            empleado=empleado,
-                            fecha_inicio=dia_ausente,
-                            fecha_fin=dia_ausente,
-                            defaults={
-                                'tipo': 'PERMISO_AUTORIZADO',
-                                'motivo': f"Falta semanal justificada por administración (Alerta #{alerta.id})"
-                            }
-                        )
-
-                    BitacoraAccion.objects.create(
-                        usuario=request.user if request.user.is_authenticated else None,
-                        accion='REGISTRO_MANUAL',
-                        descripcion=f"Se justificó la alerta #{alerta.id} de {empleado.nombre} {empleado.apellido} (sin recargo de horas).",
-                        ip_address=_get_clean_ip(request)
-                    )
-            else:
                 BitacoraAccion.objects.create(
                     usuario=request.user if request.user.is_authenticated else None,
                     accion='REGISTRO_MANUAL',
-                    descripcion=f"Se gestionó la alerta #{alerta.id} de {empleado.nombre} {empleado.apellido}.",
+                    descripcion=f"Se sumaron 8.0 hrs de deuda a {empleado.nombre} {empleado.apellido} por inasistencia. Motivo: {motivo_desc}",
+                    ip_address=_get_clean_ip(request)
+                )
+            elif decision == 'RESTAR_VACACIONES':
+                dias_antes = float(empleado.dias_vacaciones_acumuladas or 0.0)
+                empleado.dias_vacaciones_acumuladas = max(Decimal('0.00'), (empleado.dias_vacaciones_acumuladas or Decimal('0.00')) - Decimal('1.00'))
+                empleado.save(update_fields=['dias_vacaciones_acumuladas'])
+
+                motivo_desc = motivo or f"Inasistencia deducida de saldo de vacaciones (Alerta #{alerta.id})"
+                for dia_ausente in dias_a_registrar:
+                    PermisoAusencia.objects.get_or_create(
+                        empleado=empleado,
+                        fecha_inicio=dia_ausente,
+                        fecha_fin=dia_ausente,
+                        defaults={
+                            'tipo': 'VACACIONES',
+                            'motivo': motivo_desc
+                        }
+                    )
+
+                BitacoraAccion.objects.create(
+                    usuario=request.user if request.user.is_authenticated else None,
+                    accion='REGISTRO_MANUAL',
+                    descripcion=(
+                        f"Se descontó 1.0 día de vacaciones a {empleado.nombre} {empleado.apellido} por inasistencia. "
+                        f"Saldo previo: {dias_antes:.2f} d -> Nuevo saldo: {empleado.dias_vacaciones_acumuladas} d. Motivo: {motivo_desc}"
+                    ),
+                    ip_address=_get_clean_ip(request)
+                )
+            else:
+                motivo_desc = motivo or f"Falta justificada por administración (fuera de alcance / emergencia / causa médica) (Alerta #{alerta.id})"
+                for dia_ausente in dias_a_registrar:
+                    PermisoAusencia.objects.get_or_create(
+                        empleado=empleado,
+                        fecha_inicio=dia_ausente,
+                        fecha_fin=dia_ausente,
+                        defaults={
+                            'tipo': 'PERMISO_AUTORIZADO',
+                            'motivo': motivo_desc
+                        }
+                    )
+
+                BitacoraAccion.objects.create(
+                    usuario=request.user if request.user.is_authenticated else None,
+                    accion='REGISTRO_MANUAL',
+                    descripcion=f"Se justificó la inasistencia de {empleado.nombre} {empleado.apellido}. Motivo: {motivo_desc}",
                     ip_address=_get_clean_ip(request)
                 )
 
-        alerta.leida = True
-        alerta.save(update_fields=['leida'])
+            alerta.leida = True
+            alerta.save(update_fields=['leida'])
+        else:
+            alerta.leida = True
+            alerta.save(update_fields=['leida'])
+
         return Response({
             'status': 'ok',
-            'mensaje': 'Alerta procesada correctamente.',
+            'mensaje': 'Alerta resuelta exitosamente',
             'empleado_horas_pendientes': float(empleado.horas_pendientes) if empleado else 0.0,
-            'empleado_vacaciones_acumuladas': float(empleado.dias_vacaciones_acumuladas) if (empleado and empleado.dias_vacaciones_acumuladas is not None) else 0.0,
+            'empleado_vacaciones_acumuladas': float(empleado.dias_vacaciones_acumuladas) if (empleado and empleado.dias_vacaciones_acumuladas is not None) else 0.0
         })
 
     @action(detail=True, methods=['post'], url_path='cerrar-salida-11pm')
@@ -4251,4 +4344,131 @@ def exportar_respaldo_base_datos(request):
     filename = f"respaldo_bodegon_{fecha_str}.json"
     response = HttpResponse(json.dumps(data, indent=2, ensure_ascii=False), content_type='application/json')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def exportar_reporte_inasistencias_excel(request):
+    """
+    Genera un archivo Excel (.xlsx) oficial con el detalle de todas las inasistencias
+    del mes o rango de fechas, desglosando:
+    - Fecha
+    - Colaborador y Cargo
+    - Estado de Resolución (Compensado Vacaciones -1.0d, Bolsa de Horas +8.0h, Justificado)
+    - Motivo / Justificación
+    - Saldo Resultante
+    - Espacio de firma de conformidad del colaborador
+    """
+    fecha_inicio_str = request.GET.get('fecha_inicio')
+    fecha_fin_str = request.GET.get('fecha_fin')
+    tz = timezone.get_current_timezone()
+    hoy = timezone.localdate()
+
+    if fecha_inicio_str and fecha_fin_str:
+        try:
+            fecha_inicio = datetime.datetime.strptime(fecha_inicio_str, '%Y-%m-%d').date()
+            fecha_fin = datetime.datetime.strptime(fecha_fin_str, '%Y-%m-%d').date()
+        except Exception:
+            fecha_inicio = hoy.replace(day=1)
+            fecha_fin = hoy
+    else:
+        fecha_inicio = hoy.replace(day=1)
+        fecha_fin = hoy
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Inasistencias y Compensaciones"
+    ws.views.sheetView[0].showGridLines = True
+
+    font_title = Font(name='Calibri', size=14, bold=True, color='1C6856')
+    font_sub = Font(name='Calibri', size=9, italic=True, color='555555')
+    font_th = Font(name='Calibri', size=9, bold=True, color='FFFFFF')
+    fill_th = PatternFill(fill_type='solid', start_color='1C6856', end_color='1C6856')
+    font_td = Font(name='Calibri', size=9)
+    align_center = Alignment(horizontal='center', vertical='center')
+    align_left = Alignment(horizontal='left', vertical='center')
+    align_right = Alignment(horizontal='right', vertical='center')
+    thin = Side(border_style='thin', color='CCCCCC')
+    border_cell = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    ws['A1'] = "EL BODEGÓN — REPORTE OFICIAL DE INASISTENCIAS Y COMPENSACIÓN"
+    ws['A1'].font = font_title
+    ws['A2'] = f"Período auditado: del {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')} | Generado: {timezone.now().astimezone(tz).strftime('%d/%m/%Y %I:%M %p')}"
+    ws['A2'].font = font_sub
+
+    headers = [
+        "No.", "Fecha Falta", "Colaborador", "Cargo",
+        "Forma de Compensación", "Motivo / Causa",
+        "Saldo Vacaciones", "Deuda Horas", "Firma Colaborador (Enterado)", "Firma Administración"
+    ]
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col_idx, value=h)
+        cell.font = font_th
+        cell.fill = fill_th
+        cell.alignment = align_center
+        cell.border = border_cell
+
+    ws.row_dimensions[4].height = 24
+
+    permisos = PermisoAusencia.objects.filter(
+        fecha_inicio__gte=fecha_inicio,
+        fecha_fin__lte=fecha_fin
+    ).select_related('empleado').order_by('fecha_inicio', 'empleado__nombre')
+
+    row_idx = 5
+    item_num = 1
+    for p in permisos:
+        emp = p.empleado
+        motivo_lower = (p.motivo or '').lower()
+        es_inasistencia = 'inasistencia' in motivo_lower or 'ausencia' in motivo_lower or 'falta' in motivo_lower or 'alerta' in motivo_lower
+        if not es_inasistencia and p.tipo not in ['VACACIONES', 'PERMISO_AUTORIZADO']:
+            continue
+
+        if p.tipo == 'VACACIONES':
+            forma = "🌴 Deducido de Vacaciones (-1.0 d)"
+        elif 'deuda' in motivo_lower or (emp.horas_pendientes and float(emp.horas_pendientes) > 0 and 'bolsa' in motivo_lower):
+            forma = "⏳ Bolsa de Horas (+8.0 hrs)"
+        else:
+            forma = "✅ Justificado sin recargo"
+
+        ws.cell(row=row_idx, column=1, value=item_num).alignment = align_center
+        ws.cell(row=row_idx, column=2, value=p.fecha_inicio.strftime('%d/%m/%Y')).alignment = align_center
+        ws.cell(row=row_idx, column=3, value=f"{emp.nombre} {emp.apellido}").alignment = align_left
+        ws.cell(row=row_idx, column=4, value=emp.get_cargo_display()).alignment = align_left
+        ws.cell(row=row_idx, column=5, value=forma).alignment = align_center
+        ws.cell(row=row_idx, column=6, value=p.motivo or "Sin observaciones").alignment = align_left
+        ws.cell(row=row_idx, column=7, value=f"{float(emp.dias_vacaciones_acumuladas or 0):.2f} d").alignment = align_right
+        ws.cell(row=row_idx, column=8, value=f"{float(emp.horas_pendientes or 0):.1f} h").alignment = align_right
+        ws.cell(row=row_idx, column=9, value="____________________").alignment = align_center
+        ws.cell(row=row_idx, column=10, value="____________________").alignment = align_center
+
+        for c in range(1, 11):
+            ws.cell(row=row_idx, column=c).border = border_cell
+            ws.cell(row=row_idx, column=c).font = font_td
+
+        ws.row_dimensions[row_idx].height = 20
+        row_idx += 1
+        item_num += 1
+
+    if item_num == 1:
+        c_emp = ws.cell(row=row_idx, column=1, value="No se registraron inasistencias en este período.")
+        c_emp.font = font_sub
+        ws.merge_cells(f'A{row_idx}:J{row_idx}')
+        c_emp.alignment = align_center
+        ws.row_dimensions[row_idx].height = 22
+
+    col_widths = {
+        'A': 6, 'B': 13, 'C': 26, 'D': 20, 'E': 26,
+        'F': 36, 'G': 16, 'H': 14, 'I': 24, 'J': 24
+    }
+    for col_letter, width in col_widths.items():
+        ws.column_dimensions[col_letter].width = width
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"Inasistencias_Compensadas_ElBodegon_{fecha_inicio.strftime('%Y%m')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
     return response

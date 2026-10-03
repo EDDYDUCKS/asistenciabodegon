@@ -186,6 +186,7 @@ class AlertaAsistencia(models.Model):
         ('MANTENIMIENTO', 'Recordatorio de Mantenimiento Semestral'),
         ('COMPENSACION_HORAS', 'Compensación de Horas (Bolsa de Horas)'),
         ('SANCION_DISCIPLINARIA', 'Sanción y Amonestación Disciplinaria'),
+        ('INASISTENCIA', 'Inasistencia / Falta a Laborar'),
     ]
     tipo = models.CharField(max_length=30, choices=TIPOS)
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='alertas', null=True, blank=True)

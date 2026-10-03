@@ -277,6 +277,34 @@ export async function downloadVacacionesExcel(opts?: {
   window.URL.revokeObjectURL(downloadUrl);
 }
 
+// ── DESCARGA DE REPORTE EXCEL DE INASISTENCIAS Y COMPENSACIÓN ───────────
+export async function downloadInasistenciasExcel(opts?: {
+  fechaInicio?: string;
+  fechaFin?: string;
+}): Promise<void> {
+  const params = new URLSearchParams();
+  if (opts?.fechaInicio) params.append('fecha_inicio', opts.fechaInicio);
+  if (opts?.fechaFin) params.append('fecha_fin', opts.fechaFin);
+
+  const url = `${API_BASE_URL}/reportes/inasistencias-excel/?${params.toString()}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error('Error generando el reporte Excel de inasistencias');
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = downloadUrl;
+  const fileName = `Inasistencias_Compensadas_ElBodegon_${opts?.fechaInicio || 'periodo'}.xlsx`;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}
+
 // ── FERIADOS DINÁMICOS ──────────────────────────────────────────────────────
 export async function fetchFeriados(): Promise<DiaFeriado[]> {
   const data = await apiRequest<DiaFeriado[] | { results: DiaFeriado[] }>('/feriados/');
@@ -357,7 +385,8 @@ export async function updateAlerta(id: number, payload: Partial<AlertaAsistencia
 
 export async function resolverAlerta(
   id: number,
-  decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES'
+  decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES',
+  motivo?: string
 ): Promise<{
   status: string;
   mensaje: string;
@@ -372,7 +401,7 @@ export async function resolverAlerta(
   }>(`/alertas/${id}/resolver/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ decision }),
+    body: JSON.stringify({ decision, motivo }),
   });
 }
 

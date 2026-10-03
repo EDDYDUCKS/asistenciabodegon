@@ -10,6 +10,7 @@ import {
   marcarTodasAlertasLeidas,
   limpiarAlertasLeidas,
   cerrarSalida11pm,
+  downloadInasistenciasExcel,
 } from '@/lib/api-client';
 import BoletaIncidenciaModal from '@/components/BoletaIncidenciaModal';
 import ModalAplicarSancion from '@/components/ModalAplicarSancion';
@@ -28,9 +29,10 @@ import {
   Trash2,
   Scale,
   Gavel,
+  FileSpreadsheet,
 } from 'lucide-react';
 
-type FiltroTipo = 'TODAS' | 'SANCION' | 'COMPENSACION' | 'SEGUNDA_AUSENCIA' | 'TARDANZA' | 'REGISTRO_INCOMPLETO' | 'LEIDAS';
+type FiltroTipo = 'TODAS' | 'INASISTENCIA' | 'SANCION' | 'COMPENSACION' | 'SEGUNDA_AUSENCIA' | 'TARDANZA' | 'REGISTRO_INCOMPLETO' | 'LEIDAS';
 
 export default function NotificacionesDetalladasPage() {
   const [alertas, setAlertas] = useState<AlertaAsistencia[]>([]);
@@ -83,9 +85,18 @@ export default function NotificacionesDetalladasPage() {
     id: number,
     decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES'
   ) => {
+    let motivo: string | undefined = undefined;
+    if (decision === 'JUSTIFICAR') {
+      const resp = prompt(
+        'Ingrese el motivo de la justificación (ej. reposo médico, emergencia familiar, causa de fuerza mayor, situación fuera de su alcance, etc.):',
+        'Situación imprevista justificada por administración'
+      );
+      if (resp === null) return; // Si cancela, no procede
+      motivo = resp.trim() || 'Falta justificada por administración';
+    }
     setProcessingId(id);
     try {
-      await resolverAlerta(id, decision);
+      await resolverAlerta(id, decision, motivo);
       await loadData();
     } catch (e) {
       console.error(e);
@@ -145,6 +156,7 @@ export default function NotificacionesDetalladasPage() {
   const counts = useMemo(() => {
     return {
       todas: alertas.length,
+      inasistencias: alertas.filter((a) => a.tipo === 'INASISTENCIA').length,
       sanciones: alertas.filter((a) => a.tipo === 'SANCION_DISCIPLINARIA' || a.titulo.toLowerCase().includes('sanción') || a.titulo.toLowerCase().includes('sancion')).length,
       compensaciones: alertas.filter((a) => a.tipo === 'COMPENSACION_HORAS').length,
       ausencias: alertas.filter((a) => a.tipo === 'SEGUNDA_AUSENCIA').length,
@@ -159,6 +171,7 @@ export default function NotificacionesDetalladasPage() {
   const filteredAlertas = useMemo(() => {
     return alertas.filter((al) => {
       // Filtro por tab
+      if (filtroTipo === 'INASISTENCIA' && al.tipo !== 'INASISTENCIA') return false;
       if (filtroTipo === 'SANCION') {
         const isS = al.tipo === 'SANCION_DISCIPLINARIA' || al.titulo.toLowerCase().includes('sanción') || al.titulo.toLowerCase().includes('sancion');
         if (!isS) return false;
@@ -199,6 +212,12 @@ export default function NotificacionesDetalladasPage() {
       };
     }
     switch (tipo) {
+      case 'INASISTENCIA':
+        return {
+          badge: 'bg-red-100 text-red-900 border-red-300 font-black',
+          border: 'border-red-300 bg-red-50/25 shadow-xs',
+          label: 'Inasistencia No Justificada (Ventana 24h)',
+        };
       case 'COMPENSACION_HORAS':
         return {
           badge: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -249,6 +268,15 @@ export default function NotificacionesDetalladasPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => downloadInasistenciasExcel()}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+            title="Descargar Reporte Oficial de Inasistencias y Compensaciones en Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+            Reporte Inasistencias
+          </button>
+
           <button
             onClick={() => {
               setSancionEmpleadoId(null);
@@ -306,6 +334,18 @@ export default function NotificacionesDetalladasPage() {
             }`}
           >
             Todas ({counts.todas})
+          </button>
+
+          <button
+            onClick={() => setFiltroTipo('INASISTENCIA')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              filtroTipo === 'INASISTENCIA'
+                ? 'bg-red-700 text-white shadow-sm'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+            Inasistencias ({counts.inasistencias})
           </button>
 
           <button
@@ -473,37 +513,56 @@ export default function NotificacionesDetalladasPage() {
                       Imprimir Boleta Oficial
                     </button>
 
-                    {/* Acciones interactivas para Segunda Ausencia */}
-                    {!al.leida && al.tipo === 'SEGUNDA_AUSENCIA' && (
-                      <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                        <button
-                          disabled={processingId === al.id}
-                          onClick={() => handleResolver(al.id!, 'JUSTIFICAR')}
-                          className="flex-1 sm:flex-initial bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
-                          title="Autorizar la falta sin recargo de deuda ni deducción de vacaciones"
-                        >
-                          ✅ Justificar
-                        </button>
-                        <button
-                          disabled={processingId === al.id}
-                          onClick={() => handleResolver(al.id!, 'SUMAR_DEUDA')}
-                          className="flex-1 sm:flex-initial bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
-                          title="Cargar 1 día (8.0 hrs) a su saldo deudor en la Bolsa de Horas"
-                        >
-                          ⏳ Sumar 8h Deuda
-                        </button>
-                        <button
-                          disabled={processingId === al.id}
-                          onClick={() => handleResolver(al.id!, 'RESTAR_VACACIONES')}
-                          className="flex-1 sm:flex-initial bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
-                          title="Deducir 1.0 día de su saldo de vacaciones acumuladas (sin deuda de horas)"
-                        >
-                          🏖️ Restar Vacaciones (-1d)
-                        </button>
+                    {/* Acciones interactivas para Ausencias e Inasistencias */}
+                    {!al.leida && (al.tipo === 'SEGUNDA_AUSENCIA' || al.tipo === 'INASISTENCIA') && (
+                      <div className="flex flex-col items-end gap-2 w-full sm:w-auto">
+                        {al.tipo === 'INASISTENCIA' && (
+                          <div className="w-full text-right pb-0.5">
+                            {(() => {
+                              const horasP = al.created_at ? (Date.now() - new Date(al.created_at).getTime()) / (1000 * 60 * 60) : 0;
+                              const horasRest = Math.max(0, 24 - horasP);
+                              return (
+                                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full inline-block ${
+                                  horasRest > 6
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : 'bg-rose-100 text-rose-900 border border-rose-300 animate-pulse'
+                                }`}>
+                                  ⏱️ Ventana 24h: {horasRest > 0 ? `Quedan ${horasRest.toFixed(1)} hrs para justificar antes de auto-compensar` : 'Plazo de 24h cumplido'}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+                          <button
+                            disabled={processingId === al.id}
+                            onClick={() => handleResolver(al.id!, 'JUSTIFICAR')}
+                            className="flex-1 sm:flex-initial bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                            title="Autorizar la falta sin recargo de deuda ni deducción de vacaciones (motivo médico, fuerza mayor o causa imprevista)"
+                          >
+                            ✅ Justificar
+                          </button>
+                          <button
+                            disabled={processingId === al.id}
+                            onClick={() => handleResolver(al.id!, 'SUMAR_DEUDA')}
+                            className="flex-1 sm:flex-initial bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                            title="Cargar 1 día (8.0 hrs) a su saldo deudor en la Bolsa de Horas"
+                          >
+                            ⏳ Sumar 8h Deuda
+                          </button>
+                          <button
+                            disabled={processingId === al.id}
+                            onClick={() => handleResolver(al.id!, 'RESTAR_VACACIONES')}
+                            className="flex-1 sm:flex-initial bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                            title="Deducir 1.0 día de su saldo de vacaciones acumuladas"
+                          >
+                            🏖️ Restar Vacaciones (-1d)
+                          </button>
+                        </div>
                       </div>
                     )}
 
-                    {!al.leida && al.tipo !== 'SEGUNDA_AUSENCIA' && (
+                    {!al.leida && al.tipo !== 'SEGUNDA_AUSENCIA' && al.tipo !== 'INASISTENCIA' && (
                       <div className="flex flex-wrap items-center gap-1.5 self-end">
                         {al.tipo === 'REGISTRO_INCOMPLETO' && (
                           <button

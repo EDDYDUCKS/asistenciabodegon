@@ -101,7 +101,7 @@ export interface AutorizacionHorasExtra {
 
 export interface AlertaAsistencia {
   id?: number;
-  tipo: 'TARDANZA' | 'SALIDA_ANTICIPADA' | 'MARCACION_SOSPECHOSA' | 'SEGUNDA_AUSENCIA' | 'REGISTRO_INCOMPLETO' | 'MANTENIMIENTO' | 'COMPENSACION_HORAS' | 'SANCION_DISCIPLINARIA';
+  tipo: 'TARDANZA' | 'SALIDA_ANTICIPADA' | 'MARCACION_SOSPECHOSA' | 'SEGUNDA_AUSENCIA' | 'INASISTENCIA' | 'REGISTRO_INCOMPLETO' | 'MANTENIMIENTO' | 'COMPENSACION_HORAS' | 'SANCION_DISCIPLINARIA';
   empleado?: number | null;
   empleado_detalle?: Empleado | null;
   titulo: string;
