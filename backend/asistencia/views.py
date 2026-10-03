@@ -345,6 +345,212 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             'empleados_corregidos': empleados_corregidos
         })
 
+    @action(detail=False, methods=['get', 'post'], url_path='auditar-inasistencias-historial')
+    def auditar_inasistencias_historial(self, request):
+        """
+        Escanea el historial de asistencia (Opción A: desde el 1 de septiembre de 2026 hasta ayer)
+        buscando colaboradores con faltas injustificadas:
+        - Si aplicar=False (o GET): Modo SIMULACIÓN / DRY-RUN. Devuelve el desglose detallado de quiénes,
+          qué días faltaron y cómo cambiaría su saldo sin modificar la base de datos.
+        - Si aplicar=True (POST): Aplica la deducción de 1.0 día de vacaciones (si saldo >= 1) o
+          carga 8.0 horas de deuda (si saldo < 1), registrando en PermisoAusencia y BitacoraAccion.
+        """
+        import datetime
+        from django.db import transaction
+
+        tz = timezone.get_current_timezone()
+        hoy = timezone.localdate()
+
+        fecha_inicio_str = request.data.get('fecha_inicio') if request.method == 'POST' else request.GET.get('fecha_inicio')
+        fecha_fin_str = request.data.get('fecha_fin') if request.method == 'POST' else request.GET.get('fecha_fin')
+        aplicar_param = request.data.get('aplicar') if request.method == 'POST' else request.GET.get('aplicar')
+        aplicar = str(aplicar_param).lower() in ['true', '1', 'si', 'yes']
+
+        try:
+            fecha_inicio = datetime.datetime.strptime(fecha_inicio_str, '%Y-%m-%d').date() if fecha_inicio_str else datetime.date(2026, 9, 1)
+        except Exception:
+            fecha_inicio = datetime.date(2026, 9, 1)
+
+        try:
+            fecha_fin = datetime.datetime.strptime(fecha_fin_str, '%Y-%m-%d').date() if fecha_fin_str else (hoy - datetime.timedelta(days=1))
+        except Exception:
+            fecha_fin = hoy - datetime.timedelta(days=1)
+
+        # Cargar todos los feriados en el rango
+        feriados = set(DiaFeriado.objects.filter(
+            fecha__gte=fecha_inicio,
+            fecha__lte=fecha_fin
+        ).values_list('fecha', flat=True))
+
+        detalles_empleados = []
+        total_faltas_detectadas = 0
+        total_vacaciones_deducidas = Decimal('0.00')
+        total_horas_deuda_cargadas = Decimal('0.00')
+
+        with transaction.atomic():
+            for emp in Empleado.objects.filter(activo=True).order_by('nombre', 'apellido'):
+                primer_reg = RegistroAsistencia.objects.filter(empleado=emp).order_by('fecha_hora').first()
+                if not primer_reg:
+                    continue
+
+                primer_dia_emp = primer_reg.fecha_hora.astimezone(tz).date()
+                inicio_emp = max(fecha_inicio, primer_dia_emp)
+                if inicio_emp > fecha_fin:
+                    continue
+
+                # Recorrer semana a semana (lunes a domingo)
+                curr_lunes = inicio_emp - datetime.timedelta(days=inicio_emp.weekday())
+                faltas_empleado = []
+
+                while curr_lunes <= fecha_fin:
+                    domingo_semana = curr_lunes + datetime.timedelta(days=6)
+                    # Días de la semana que caen dentro del período de auditoría del empleado
+                    dias_eval_semana = []
+                    d = curr_lunes
+                    while d <= domingo_semana:
+                        if inicio_emp <= d <= fecha_fin:
+                            dias_eval_semana.append(d)
+                        d += datetime.timedelta(days=1)
+
+                    if dias_eval_semana:
+                        # Marcajes del empleado en esta semana
+                        start_semana_dt = timezone.make_aware(datetime.datetime.combine(dias_eval_semana[0], datetime.time.min), tz)
+                        end_semana_dt = timezone.make_aware(datetime.datetime.combine(dias_eval_semana[-1], datetime.time.max), tz)
+
+                        dias_con_marcaje = set(
+                            fh.astimezone(tz).date()
+                            for fh in RegistroAsistencia.objects.filter(
+                                empleado=emp,
+                                fecha_hora__gte=start_semana_dt,
+                                fecha_hora__lte=end_semana_dt
+                            ).values_list('fecha_hora', flat=True)
+                        )
+
+                        # Permisos ya registrados
+                        permisos_semana = PermisoAusencia.objects.filter(
+                            empleado=emp,
+                            fecha_inicio__lte=dias_eval_semana[-1],
+                            fecha_fin__gte=dias_eval_semana[0]
+                        )
+                        dias_con_permiso = set()
+                        for p in permisos_semana:
+                            p_curr = max(p.fecha_inicio, dias_eval_semana[0])
+                            p_end = min(p.fecha_fin, dias_eval_semana[-1])
+                            while p_curr <= p_end:
+                                dias_con_permiso.add(p_curr)
+                                p_curr += datetime.timedelta(days=1)
+
+                        dias_libres_o_faltas = [
+                            dia for dia in dias_eval_semana
+                            if dia not in dias_con_marcaje and dia not in dias_con_permiso and dia not in feriados
+                        ]
+
+                        # En una semana completa de trabajo de 6 días, 1 día no laborado es el descanso semanal regular.
+                        # Si hay 2 o más días sin laborar ni justificar, el 1ero es su libre y los demás son faltas.
+                        if len(dias_libres_o_faltas) >= 2:
+                            # Los días a partir del segundo son inasistencias injustificadas
+                            for falta_dia in dias_libres_o_faltas[1:]:
+                                faltas_empleado.append({
+                                    'fecha': falta_dia.strftime('%Y-%m-%d'),
+                                    'dia_semana': falta_dia.strftime('%A'),
+                                    'semana': f"Semana {curr_lunes.strftime('%d/%m')} al {domingo_semana.strftime('%d/%m')}",
+                                })
+
+                    curr_lunes += datetime.timedelta(days=7)
+
+                if faltas_empleado:
+                    num_faltas = len(faltas_empleado)
+                    total_faltas_detectadas += num_faltas
+
+                    saldo_vac_inicial = emp.dias_vacaciones_acumuladas or Decimal('0.00')
+                    deuda_horas_inicial = emp.horas_pendientes or Decimal('0.00')
+
+                    saldo_vac_actual = saldo_vac_inicial
+                    deuda_horas_actual = deuda_horas_inicial
+                    dias_vac_deducir = Decimal('0.00')
+                    horas_deuda_sumar = Decimal('0.00')
+                    acciones_detalle = []
+
+                    for f in faltas_empleado:
+                        f_date = datetime.datetime.strptime(f['fecha'], '%Y-%m-%d').date()
+                        if saldo_vac_actual >= Decimal('1.00'):
+                            saldo_vac_actual = max(Decimal('0.00'), saldo_vac_actual - Decimal('1.00'))
+                            dias_vac_deducir += Decimal('1.00')
+                            acciones_detalle.append(f"{f['fecha']}: -1.0 día de vacaciones")
+
+                            if aplicar:
+                                PermisoAusencia.objects.create(
+                                    empleado=emp,
+                                    fecha_inicio=f_date,
+                                    fecha_fin=f_date,
+                                    tipo='VACACIONES',
+                                    motivo=f"Compensación retroactiva: Inasistencia injustificada del {f_date.strftime('%d/%m/%Y')}"
+                                )
+                        else:
+                            deuda_horas_actual += Decimal('8.00')
+                            horas_deuda_sumar += Decimal('8.00')
+                            acciones_detalle.append(f"{f['fecha']}: +8.0 hrs de deuda a bolsa")
+
+                            if aplicar:
+                                PermisoAusencia.objects.create(
+                                    empleado=emp,
+                                    fecha_inicio=f_date,
+                                    fecha_fin=f_date,
+                                    tipo='PERMISO_AUTORIZADO',
+                                    motivo=f"Deuda retroactiva: Inasistencia sin saldo de vacaciones (+8.0 hrs) del {f_date.strftime('%d/%m/%Y')}"
+                                )
+
+                    total_vacaciones_deducidas += dias_vac_deducir
+                    total_horas_deuda_cargadas += horas_deuda_sumar
+
+                    if aplicar:
+                        emp.dias_vacaciones_acumuladas = saldo_vac_actual
+                        emp.horas_pendientes = deuda_horas_actual
+                        emp.save(update_fields=['dias_vacaciones_acumuladas', 'horas_pendientes'])
+
+                        BitacoraAccion.objects.create(
+                            usuario=request.user if request.user.is_authenticated else None,
+                            accion='EDITAR_EMPLEADO',
+                            descripcion=(
+                                f"Auditoría Histórica Inasistencias (01/09 al {fecha_fin.strftime('%d/%m')}): {num_faltas} falta(s) aplicada(s) a "
+                                f"{emp.nombre} {emp.apellido}. Vacaciones deducidas: -{dias_vac_deducir:.2f} d "
+                                f"(Saldo: {saldo_vac_inicial:.2f} d -> {saldo_vac_actual:.2f} d). "
+                                f"Deuda horas: +{horas_deuda_sumar:.1f} h (Deuda: {deuda_horas_inicial:.1f} h -> {deuda_horas_actual:.1f} h)."
+                            ),
+                            ip_address=_get_clean_ip(request)
+                        )
+
+                    detalles_empleados.append({
+                        'empleado_id': emp.id,
+                        'nombre': f"{emp.nombre} {emp.apellido}",
+                        'cargo': emp.get_cargo_display(),
+                        'num_faltas': num_faltas,
+                        'faltas': faltas_empleado,
+                        'saldo_vacaciones_inicial': float(saldo_vac_inicial),
+                        'dias_vacaciones_deducir': float(dias_vac_deducir),
+                        'nuevo_saldo_vacaciones': float(saldo_vac_actual),
+                        'deuda_horas_inicial': float(deuda_horas_inicial),
+                        'horas_deuda_sumar': float(horas_deuda_sumar),
+                        'nueva_deuda_horas': float(deuda_horas_actual),
+                        'acciones': acciones_detalle,
+                    })
+
+        return Response({
+            'status': 'ok',
+            'modo': 'APLICADO' if aplicar else 'SIMULACION_PREVIA',
+            'periodo': {
+                'fecha_inicio': fecha_inicio.strftime('%Y-%m-%d'),
+                'fecha_fin': fecha_fin.strftime('%Y-%m-%d'),
+            },
+            'resumen': {
+                'total_empleados_con_faltas': len(detalles_empleados),
+                'total_faltas_detectadas': total_faltas_detectadas,
+                'total_vacaciones_deducidas': float(total_vacaciones_deducidas),
+                'total_horas_deuda_cargadas': float(total_horas_deuda_cargadas),
+            },
+            'detalles': detalles_empleados
+        })
+
     @action(detail=True, methods=['post'], url_path='ajustar-vacaciones')
     def ajustar_vacaciones(self, request, pk=None):
         empleado = self.get_object()
