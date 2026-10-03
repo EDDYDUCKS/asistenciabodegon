@@ -268,45 +268,77 @@ export default function NominaAdminPage() {
     }
   };
 
+  const obtenerRangoQuincena = (tipo: '1ra' | '2da' | 'anterior' | 'mes_completo') => {
+    const now = new Date();
+    let anio = now.getFullYear();
+    let mes = now.getMonth(); // 0-indexado
+    let qInicio = '';
+    let qFin = '';
+
+    if (tipo === 'anterior') {
+      if (now.getDate() <= 15) {
+        // Si estamos en la 1ra quincena, la quincena anterior fue la 2da quincena del mes pasado
+        mes = mes - 1;
+        if (mes < 0) {
+          mes = 11;
+          anio = anio - 1;
+        }
+        const ultDia = new Date(anio, mes + 1, 0).getDate();
+        const mesPad = String(mes + 1).padStart(2, '0');
+        qInicio = `${anio}-${mesPad}-16`;
+        qFin = `${anio}-${mesPad}-${ultDia}`;
+      } else {
+        // Si estamos en la 2da quincena, la quincena anterior fue la 1ra quincena de este mes
+        const mesPad = String(mes + 1).padStart(2, '0');
+        qInicio = `${anio}-${mesPad}-01`;
+        qFin = `${anio}-${mesPad}-15`;
+      }
+    } else if (tipo === '1ra') {
+      const mesPad = String(mes + 1).padStart(2, '0');
+      qInicio = `${anio}-${mesPad}-01`;
+      qFin = `${anio}-${mesPad}-15`;
+    } else if (tipo === '2da') {
+      const mesPad = String(mes + 1).padStart(2, '0');
+      const ultDia = new Date(anio, mes + 1, 0).getDate();
+      qInicio = `${anio}-${mesPad}-16`;
+      qFin = `${anio}-${mesPad}-${ultDia}`;
+    } else if (tipo === 'mes_completo') {
+      const mesPad = String(mes + 1).padStart(2, '0');
+      const ultDia = new Date(anio, mes + 1, 0).getDate();
+      qInicio = `${anio}-${mesPad}-01`;
+      qFin = `${anio}-${mesPad}-${ultDia}`;
+    }
+
+    return { qInicio, qFin };
+  };
+
+  const aplicarFiltroQuincena = (tipo: '1ra' | '2da' | 'anterior' | 'mes_completo') => {
+    const { qInicio, qFin } = obtenerRangoQuincena(tipo);
+    setFechaInicio(qInicio);
+    setFechaFin(qFin);
+  };
+
+  const quincenaActiva = useMemo(() => {
+    const r1 = obtenerRangoQuincena('1ra');
+    if (fechaInicio === r1.qInicio && fechaFin === r1.qFin) return '1ra';
+
+    const r2 = obtenerRangoQuincena('2da');
+    if (fechaInicio === r2.qInicio && fechaFin === r2.qFin) return '2da';
+
+    const rant = obtenerRangoQuincena('anterior');
+    if (fechaInicio === rant.qInicio && fechaFin === rant.qFin) return 'anterior';
+
+    const rmes = obtenerRangoQuincena('mes_completo');
+    if (fechaInicio === rmes.qInicio && fechaFin === rmes.qFin) return 'mes_completo';
+
+    return 'personalizado';
+  }, [fechaInicio, fechaFin]);
+
   const handleDescargarQuincena = async (tipo: '1ra' | '2da' | 'anterior') => {
     setShowQuincenaMenu(false);
     setDownloadingQuincenal(true);
     try {
-      const now = new Date();
-      let anio = now.getFullYear();
-      let mes = now.getMonth(); // 0-indexado
-      let qInicio = '';
-      let qFin = '';
-
-      if (tipo === 'anterior') {
-        if (now.getDate() <= 15) {
-          // Si estamos en la 1ra quincena, la quincena anterior fue la 2da quincena del mes pasado
-          mes = mes - 1;
-          if (mes < 0) {
-            mes = 11;
-            anio = anio - 1;
-          }
-          const ultDia = new Date(anio, mes + 1, 0).getDate();
-          const mesPad = String(mes + 1).padStart(2, '0');
-          qInicio = `${anio}-${mesPad}-16`;
-          qFin = `${anio}-${mesPad}-${ultDia}`;
-        } else {
-          // Si estamos en la 2da quincena, la quincena anterior fue la 1ra quincena de este mes
-          const mesPad = String(mes + 1).padStart(2, '0');
-          qInicio = `${anio}-${mesPad}-01`;
-          qFin = `${anio}-${mesPad}-15`;
-        }
-      } else if (tipo === '1ra') {
-        const mesPad = String(mes + 1).padStart(2, '0');
-        qInicio = `${anio}-${mesPad}-01`;
-        qFin = `${anio}-${mesPad}-15`;
-      } else {
-        const mesPad = String(mes + 1).padStart(2, '0');
-        const ultDia = new Date(anio, mes + 1, 0).getDate();
-        qInicio = `${anio}-${mesPad}-16`;
-        qFin = `${anio}-${mesPad}-${ultDia}`;
-      }
-
+      const { qInicio, qFin } = obtenerRangoQuincena(tipo);
       setFechaInicio(qInicio);
       setFechaFin(qFin);
       await downloadNominaExcel(qInicio, qFin);
@@ -2046,45 +2078,100 @@ export default function NominaAdminPage() {
                       className="fixed inset-0 z-40"
                       onClick={() => setShowQuincenaMenu(false)}
                     />
-                    <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-64 bg-white border border-stone-200 rounded-2xl shadow-2xl p-2 z-50 space-y-1 animate-in fade-in zoom-in-95 duration-150">
-                      <div className="px-3 py-1.5 border-b border-stone-100">
+                    <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-72 bg-white border border-stone-200 rounded-2xl shadow-2xl p-2 z-50 space-y-1.5 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-3 py-1.5 border-b border-stone-100 flex items-center justify-between">
                         <span className="text-[10px] font-black uppercase text-stone-400 tracking-wider">
-                          Seleccione la Quincena
+                          Opciones de Quincena
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDescargarQuincena('1ra')}
-                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-[#1c6856]/10 hover:text-[#1c6856] transition-colors flex items-center justify-between cursor-pointer"
-                      >
-                        <div>
-                          <div className="font-bold">1ra Quincena</div>
-                          <div className="text-[10px] text-stone-400 font-normal">Días 01 al 15 de este mes</div>
+                      
+                      {/* Sección 1: Visualizar en Pantalla */}
+                      <div className="space-y-0.5">
+                        <div className="px-2 pt-1 pb-0.5 text-[9px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
+                          <Eye className="w-3 h-3 text-[#1c6856]" />
+                          Visualizar en Pantalla
                         </div>
-                        <Download className="w-3.5 h-3.5 text-[#1c6856]" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDescargarQuincena('2da')}
-                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-[#1c6856]/10 hover:text-[#1c6856] transition-colors flex items-center justify-between cursor-pointer"
-                      >
-                        <div>
-                          <div className="font-bold">2da Quincena</div>
-                          <div className="text-[10px] text-stone-400 font-normal">Días 16 al fin de este mes</div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            aplicarFiltroQuincena('1ra');
+                            setShowQuincenaMenu(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                            quincenaActiva === '1ra' ? 'bg-[#1c6856]/15 text-[#1c6856]' : 'text-stone-700 hover:bg-stone-100'
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold">1ra Quincena (01-15)</div>
+                            <div className="text-[10px] text-stone-400 font-normal">Días 01 al 15 del mes</div>
+                          </div>
+                          <Eye className="w-3.5 h-3.5 text-[#1c6856]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            aplicarFiltroQuincena('2da');
+                            setShowQuincenaMenu(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                            quincenaActiva === '2da' ? 'bg-[#1c6856]/15 text-[#1c6856]' : 'text-stone-700 hover:bg-stone-100'
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold">2da Quincena (16-Fin)</div>
+                            <div className="text-[10px] text-stone-400 font-normal">Días 16 al cierre de mes</div>
+                          </div>
+                          <Eye className="w-3.5 h-3.5 text-[#1c6856]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            aplicarFiltroQuincena('anterior');
+                            setShowQuincenaMenu(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                            quincenaActiva === 'anterior' ? 'bg-[#1c6856]/15 text-[#1c6856]' : 'text-stone-700 hover:bg-stone-100'
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold">Quincena Anterior</div>
+                            <div className="text-[10px] text-stone-400 font-normal">Última quincena cerrada</div>
+                          </div>
+                          <Eye className="w-3.5 h-3.5 text-[#1c6856]" />
+                        </button>
+                      </div>
+
+                      {/* Sección 2: Descargar Planilla Excel */}
+                      <div className="border-t border-stone-100 pt-1 space-y-0.5">
+                        <div className="px-2 pt-1 pb-0.5 text-[9px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
+                          <Download className="w-3 h-3 text-[#1c6856]" />
+                          Descargar Excel (.xlsx)
                         </div>
-                        <Download className="w-3.5 h-3.5 text-[#1c6856]" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDescargarQuincena('anterior')}
-                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-stone-100 transition-colors flex items-center justify-between border-t border-stone-100 pt-2 cursor-pointer"
-                      >
-                        <div>
-                          <div className="font-bold">Quincena Anterior</div>
-                          <div className="text-[10px] text-stone-400 font-normal">Última quincena cerrada</div>
-                        </div>
-                        <Download className="w-3.5 h-3.5 opacity-60" />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDescargarQuincena('1ra')}
+                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-[#1c6856]/10 hover:text-[#1c6856] transition-colors flex items-center justify-between cursor-pointer"
+                        >
+                          <span className="font-medium text-stone-700">Excel 1ra Quincena</span>
+                          <Download className="w-3.5 h-3.5 text-[#1c6856]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDescargarQuincena('2da')}
+                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-[#1c6856]/10 hover:text-[#1c6856] transition-colors flex items-center justify-between cursor-pointer"
+                        >
+                          <span className="font-medium text-stone-700">Excel 2da Quincena</span>
+                          <Download className="w-3.5 h-3.5 text-[#1c6856]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDescargarQuincena('anterior')}
+                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-stone-100 transition-colors flex items-center justify-between cursor-pointer"
+                        >
+                          <span className="font-medium text-stone-700">Excel Quincena Anterior</span>
+                          <Download className="w-3.5 h-3.5 opacity-60" />
+                        </button>
+                      </div>
                     </div>
                   </>
                 )}
@@ -2108,8 +2195,81 @@ export default function NominaAdminPage() {
             </div>
           </div>
 
-          {/* Filtros Rango Fechas y Buscador */}
-          <div className="glass-panel border border-white rounded-3xl p-5 shadow-premium flex flex-col md:flex-row items-end gap-4 print-hide">
+          {/* Filtros Rango Fechas y Buscador con Selector Rápido de Quincenas */}
+          <div className="glass-panel border border-white rounded-3xl p-5 shadow-premium space-y-4 print-hide">
+            {/* Barra de Píldoras de Selección Rápida de Quincena para Visualización en Pantalla */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-stone-200/60">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1.5 mr-1">
+                  <Eye className="w-3.5 h-3.5 text-[#1c6856]" />
+                  Visualizar:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => aplicarFiltroQuincena('1ra')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    quincenaActiva === '1ra'
+                      ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
+                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200 active:scale-95'
+                  }`}
+                  title="Visualizar en pantalla la 1ra quincena de este mes (días 01 al 15)"
+                >
+                  <span>1ra Quincena (01-15)</span>
+                  {quincenaActiva === '1ra' && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => aplicarFiltroQuincena('2da')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    quincenaActiva === '2da'
+                      ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
+                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200 active:scale-95'
+                  }`}
+                  title="Visualizar en pantalla la 2da quincena de este mes (días 16 al cierre)"
+                >
+                  <span>2da Quincena (16-Fin)</span>
+                  {quincenaActiva === '2da' && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => aplicarFiltroQuincena('anterior')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    quincenaActiva === 'anterior'
+                      ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
+                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200 active:scale-95'
+                  }`}
+                  title="Visualizar en pantalla la última quincena cerrada anterior"
+                >
+                  <span>Quincena Anterior</span>
+                  {quincenaActiva === 'anterior' && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => aplicarFiltroQuincena('mes_completo')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    quincenaActiva === 'mes_completo'
+                      ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
+                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200 active:scale-95'
+                  }`}
+                  title="Visualizar en pantalla el mes completo"
+                >
+                  <span>Mes Completo</span>
+                  {quincenaActiva === 'mes_completo' && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+                </button>
+              </div>
+
+              {quincenaActiva !== 'personalizado' ? (
+                <span className="text-[11px] font-semibold text-[#1c6856] bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 hidden sm:inline-block">
+                  Viendo: <strong className="font-mono">{fechaInicio}</strong> al <strong className="font-mono">{fechaFin}</strong>
+                </span>
+              ) : (
+                <span className="text-[11px] font-semibold text-stone-500 bg-stone-100 px-2.5 py-1 rounded-lg border border-stone-200 hidden sm:inline-block">
+                  Rango libre: <strong className="font-mono">{fechaInicio}</strong> al <strong className="font-mono">{fechaFin}</strong>
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col md:flex-row items-end gap-4">
             <div className="w-full md:w-44">
               <label className="block text-xs font-bold text-stone-600 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
                 <Calendar className="w-4 h-4 text-[#1c6856]" />
@@ -2168,6 +2328,7 @@ export default function NominaAdminPage() {
             >
               Recalcular Balance
             </button>
+            </div>
           </div>
 
           {searchColaborador && (
