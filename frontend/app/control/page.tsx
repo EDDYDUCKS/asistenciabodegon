@@ -464,22 +464,32 @@ export default function BodegonControlPage() {
       marginPercent: number;
     }>();
 
-    // Indexar jornadas
+    // Indexar jornadas (agrupando por fecha para fusionar etiquetas si hay múltiples registros)
+    const jornadasPorFecha = new Map<string, JornadaDiaria[]>();
     jornadas.forEach((j) => {
-      const sales = parseVentasFromObservaciones(j.observaciones);
-      const opening = parseOpeningFromObservaciones(j.observaciones, Number(j.fondo_inicial) || 0);
-      const closingAudit = parseClosingAuditFromObservaciones(j.observaciones);
-      const pettyClosing = parsePettyClosingFromObservaciones(j.observaciones);
+      const arr = jornadasPorFecha.get(j.fecha) || [];
+      arr.push(j);
+      jornadasPorFecha.set(j.fecha, arr);
+    });
 
-      const hasGeneralOpening = /\[OPENING_DATA:\{.*?\}\]/.test(j.observaciones || '');
-      const hasPettyOpening = /\[FONDOS_COMPOSITION:\{.*?\}\]/.test(j.observaciones || '') || Number(j.fondo_inicial) > 0;
+    jornadasPorFecha.forEach((jList, f) => {
+      const combinedObs = jList.map((j) => j.observaciones || '').join(' ');
+      const primaryJornada = jList.find((j) => /\[FONDOS_COMPOSITION:\{.*?\}\]/.test(j.observaciones || '')) || jList[0];
+      const sales = parseVentasFromObservaciones(combinedObs);
+      const opening = parseOpeningFromObservaciones(combinedObs, Number(primaryJornada.fondo_inicial) || 0);
+      const closingAudit = parseClosingAuditFromObservaciones(combinedObs);
+      const pettyClosing = parsePettyClosingFromObservaciones(combinedObs);
 
-      const isCajaGeneralOpen = j.estado === 'ABIERTA' && (hasGeneralOpening || !closingAudit);
-      const isCajaChicaOpen = j.estado === 'ABIERTA' && hasPettyOpening && !pettyClosing && !/Cierre liquidado/.test(j.observaciones || '');
+      const hasGeneralOpening = /\[OPENING_DATA:\{.*?\}\]/.test(combinedObs);
+      const hasPettyOpening = /\[FONDOS_COMPOSITION:\{.*?\}\]/.test(combinedObs) || jList.some((j) => Number(j.fondo_inicial) > 0);
 
-      map.set(j.fecha, {
-        date: j.fecha,
-        jornada: j,
+      const isAnyAbierta = jList.some((j) => j.estado === 'ABIERTA');
+      const isCajaGeneralOpen = isAnyAbierta && (hasGeneralOpening || !closingAudit);
+      const isCajaChicaOpen = isAnyAbierta && hasPettyOpening && !pettyClosing && !/Cierre liquidado/.test(combinedObs);
+
+      map.set(f, {
+        date: f,
+        jornada: primaryJornada,
         sales,
         opening,
         closingAudit,
@@ -776,10 +786,12 @@ export default function BodegonControlPage() {
       }
     });
 
-    const jornadaHoy = jornadas.find((j) => j.fecha === hoyStr);
-    const hasGeneralOpening = /\[OPENING_DATA:\{.*?\}\]/.test(jornadaHoy?.observaciones || '');
-    const fallbackFondo = hasGeneralOpening ? 0 : Number(jornadaHoy?.fondo_inicial || 0);
-    const fondosComp = parseFondosComposition(jornadaHoy?.observaciones, fallbackFondo);
+    const jornadasHoy = jornadas.filter((j) => j.fecha === hoyStr);
+    const combinedObsHoy = jornadasHoy.map((j) => j.observaciones || '').join(' ');
+    const hasGeneralOpening = /\[OPENING_DATA:\{.*?\}\]/.test(combinedObsHoy);
+    const primaryJornada = jornadasHoy.find((j) => /\[FONDOS_COMPOSITION:\{.*?\}\]/.test(j.observaciones || '')) || jornadasHoy[0];
+    const fallbackFondo = hasGeneralOpening ? 0 : Number(primaryJornada?.fondo_inicial || 0);
+    const fondosComp = parseFondosComposition(combinedObsHoy, fallbackFondo);
     const fondoCajaChica = (fondosComp.previousDayRemaining || 0) + (fondosComp.generalCashTransfer || 0) + (fondosComp.bossContribution || 0);
     const totalEntradas = fondoCajaChica + totFondeosExtras;
     const saldoEfectivoRestante = totalEntradas - totEfectivo;
@@ -797,20 +809,22 @@ export default function BodegonControlPage() {
 
   // Resumen del estado hoy para Caja General y Caja Chica
   const todaySummary = useMemo(() => {
-    const jornadaHoy = jornadas.find((j) => j.fecha === hoyStr && j.estado === 'ABIERTA');
-    const isCajaGeneralAbierta = Boolean(jornadaHoy && /\[OPENING_DATA:\{.*?\}\]/.test(jornadaHoy.observaciones || ''));
+    const jornadasHoy = jornadas.filter((j) => j.fecha === hoyStr && j.estado === 'ABIERTA');
+    const combinedObs = jornadasHoy.map((j) => j.observaciones || '').join(' ');
+    const isCajaGeneralAbierta = Boolean(jornadasHoy.length > 0 && /\[OPENING_DATA:\{.*?\}\]/.test(combinedObs));
     const isCajaChicaAbierta = Boolean(
-      jornadaHoy &&
-      (/\[FONDOS_COMPOSITION:\{.*?\}\]/.test(jornadaHoy.observaciones || '') || Number(jornadaHoy.fondo_inicial) > 0) &&
-      !/\[PETTY_CLOSING:\{.*?\}\]/.test(jornadaHoy.observaciones || '') &&
-      !/Cierre liquidado/.test(jornadaHoy.observaciones || '')
+      jornadasHoy.length > 0 &&
+      (/\[FONDOS_COMPOSITION:\{.*?\}\]/.test(combinedObs) || jornadasHoy.some((j) => Number(j.fondo_inicial) > 0)) &&
+      !/\[PETTY_CLOSING:\{.*?\}\]/.test(combinedObs) &&
+      !/Cierre liquidado/.test(combinedObs)
     );
 
-    const opening = parseOpeningFromObservaciones(jornadaHoy?.observaciones, Number(jornadaHoy?.fondo_inicial) || 0);
-    const sales = parseVentasFromObservaciones(jornadaHoy?.observaciones);
+    const generalJornada = jornadasHoy.find((j) => /\[OPENING_DATA:\{.*?\}\]/.test(j.observaciones || '')) || jornadasHoy[0];
+    const opening = parseOpeningFromObservaciones(combinedObs, Number(generalJornada?.fondo_inicial) || 0);
+    const sales = parseVentasFromObservaciones(combinedObs);
 
     return {
-      jornadaHoy,
+      jornadaHoy: generalJornada || null,
       isCajaGeneralAbierta,
       isCajaChicaAbierta,
       opening,
