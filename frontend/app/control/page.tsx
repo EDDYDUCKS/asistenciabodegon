@@ -216,7 +216,7 @@ export default function BodegonControlPage() {
       if (jError) console.warn('Aviso jornadas:', jError.message);
       if (gError) console.warn('Aviso gastos:', gError.message);
 
-      const jList = (jData as JornadaDiaria[]) || [];
+      const jList = ((jData as JornadaDiaria[]) || []).filter((j) => j.turno !== 'CONFIG');
       setJornadas(jList);
 
       // Determinar si hay alguna jornada actualmente ABIERTA en la PC del restaurante estrictamente para el día de hoy
