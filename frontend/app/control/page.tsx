@@ -550,9 +550,14 @@ export default function BodegonControlPage() {
       if (g.metodo_pago === 'TARJETA') item.expensesCard += montoNum;
     });
 
-    // Calcular ganancia neta y margen de cada día
+    // Calcular ganancia neta y margen de cada día (Fórmula oficial Excel: Ingresos - Gastos Efectivo - Gastos Transf - Propina - Reserva)
     map.forEach((item) => {
-      item.netProfit = item.sales.totalGrossSales - item.expensesTotal;
+      if (item.closingAudit && item.closingAudit.dailyNetProfit !== undefined && item.closingAudit.dailyNetProfit !== null) {
+        item.netProfit = Number(item.closingAudit.dailyNetProfit);
+      } else {
+        const tips = item.sales.tips || 0;
+        item.netProfit = item.sales.totalGrossSales - item.expensesTotal - tips;
+      }
       item.marginPercent =
         item.sales.totalGrossSales > 0
           ? (item.netProfit / item.sales.totalGrossSales) * 100
@@ -3659,11 +3664,19 @@ export default function BodegonControlPage() {
                       </span>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-100">
-                      <span>(-) Total Gastos de Caja Chica:</span>
+                      <span>(-) Total Gastos Compras (Efectivo & Bancos):</span>
                       <span className="font-mono font-bold text-rose-700">
                         C$ {selectedDayData.expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
+                    {Boolean(selectedDayData.sales.tips) && (
+                      <div className="flex justify-between items-center py-1.5 border-b border-stone-100">
+                        <span>(-) Propinas Entregadas de Caja:</span>
+                        <span className="font-mono font-bold text-amber-700">
+                          C$ {(selectedDayData.sales.tips || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center pt-2 font-black text-base text-stone-900">
                       <span>(=) Ganancia Neta Real:</span>
                       <span
