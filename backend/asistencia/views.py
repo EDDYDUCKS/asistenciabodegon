@@ -2914,6 +2914,7 @@ def _ejecutar_reset_general_deficit_octubre(forzar=False):
                 ('Lucero', datetime.date(2026, 10, 8), Decimal('3.50'), 'Jornada extraordinaria (+3.5 hrs brutas). Sin deducción de déficit previo. Pendiente de aprobación gerencial.'),
                 ('Estefani', datetime.date(2026, 10, 9), Decimal('1.00'), 'Jornada extraordinaria (+1.0 hr bruta). Sin deducción de déficit previo. Pendiente de aprobación gerencial.'),
                 ('Martha', datetime.date(2026, 10, 9), Decimal('6.50'), 'Jornada extraordinaria (+6.5 hrs brutas). Sin deducción de déficit previo. Pendiente de aprobación gerencial.'),
+                ('Nelly', datetime.date(2026, 10, 8), Decimal('4.00'), 'Jornada extraordinaria (+3.82 hrs brutas, 11:12 AM - 11:00 PM). Redondeo justo de turno extendido aplicado a 4.0 hrs. Pendiente de aprobación gerencial.'),
             ]
             for nombre_busq, fecha_he, horas_brutas, com in casos_fijos:
                 emp = Empleado.objects.filter(Q(nombre__icontains=nombre_busq) | Q(apellido__icontains=nombre_busq)).first()
@@ -3220,6 +3221,42 @@ def _es_septimo_dia_semana(empleado, fecha_hoy):
     return dias_trabajados >= 6
 
 
+def _calcular_horas_extra_redondeadas(excedente_bruto: float) -> float:
+    """
+    Política oficial de redondeo justo para Horas Extra (Aprobada por Gerencia):
+    1. Retrasos menores (< 1.0 hr, es decir < 60 minutos):
+       - Menos de 30 min: 0.0 hrs extra (se toma como cierre normal de turno, entrega o plática).
+       - De 30 min a 59 min: se queda estrictamente en 0.5 hrs (no brinca a 1.0 hr).
+    2. Turnos pesados (>= 1.0 hr, es decir >= 60 minutos):
+       - Aplica tolerancia generosa de 10 a 12 minutos hacia el siguiente escalón de media hora o de hora completa:
+         * 0 a 19 min: se queda en la hora base (ej. 2h 10m -> 2.0h)
+         * 20 a 29 min: faltan <= 10 min para media hora -> sube a media hora (ej. 1h 20m -> 1.5h, 2h 21m -> 2.5h)
+         * 30 a 47 min: se queda en media hora (ej. 1h 35m -> 1.5h, 2h 45m -> 2.5h)
+         * 48 a 59 min: faltan <= 12 min para la siguiente hora -> sube a la siguiente hora completa (ej. 3h 48m -> 4.0h, Doña Nelly)
+    """
+    if not excedente_bruto or float(excedente_bruto) <= 0:
+        return 0.0
+
+    minutos_totales = int(round(float(excedente_bruto) * 60))
+
+    if minutos_totales < 30:
+        return 0.0
+    elif minutos_totales < 60:
+        return 0.5
+
+    horas_enteras = minutos_totales // 60
+    minutos_remanentes = minutos_totales % 60
+
+    if minutos_remanentes < 20:
+        return float(horas_enteras)
+    elif minutos_remanentes < 30:
+        return float(horas_enteras + 0.5)
+    elif minutos_remanentes < 48:
+        return float(horas_enteras + 0.5)
+    else:
+        return float(horas_enteras + 1.0)
+
+
 def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_dia, request=None):
     """
     Gestiona la deducción automática de déficit y creación de solicitud de Horas Extra al marcar salida:
@@ -3255,7 +3292,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
     min_step = 0.5
 
     if es_septimo_dia:
-        excedente = float(math.floor(horas_trabajadas_dia * 2.0) / 2.0)
+        excedente = _calcular_horas_extra_redondeadas(horas_trabajadas_dia)
         deuda_actual = round(float(empleado.horas_pendientes or 0.0), 1)
         horas_amortizadas = 0.0
         remanente = excedente
@@ -3272,8 +3309,8 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             remanente = res_comp['remanente']
             deuda_actual = res_comp['deuda_restante']
 
-        # El remanente pasa a solicitud de horas extra de 7mo día (en intervalos de 0.5 hrs limpios)
-        remanente_limpio = float(math.floor(remanente * 2.0) / 2.0)
+        # El remanente pasa a solicitud de horas extra de 7mo día (con redondeo justo)
+        remanente_limpio = _calcular_horas_extra_redondeadas(remanente)
 
         if remanente_limpio >= min_step:
             comentario_7mo = f"[7mo Día Trabajado] Jornada de {round(horas_trabajadas_dia, 1)} hrs."
@@ -3357,15 +3394,9 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'deficit_dia': round(deficit_dia, 1),
         }
 
-    # Regla: Las horas extra se cuentan a partir de media hora (0.5 hrs, >= 30 min sobre las 8h normales).
-    # Si laboró menos del mínimo requerido sobre las 8h normales (< 0.5h),
-    # no hay horas extra y el turno se cierra estrictamente en sus 8 horas (cero minutos extra).
+    # Regla: Las horas extra se computan con redondeo justo (turnos extendidos >= 1h con tolerancia 10-12 min)
     excedente_bruto = round(horas_trabajadas_dia - 8.0, 2)
-    if excedente_bruto < min_step:
-        excedente = 0.0
-    else:
-        # Se computan en intervalos limpios de 0.5 hrs (0.5, 1.0, 1.5...)
-        excedente = float(math.floor(excedente_bruto * 2.0) / 2.0)
+    excedente = _calcular_horas_extra_redondeadas(excedente_bruto)
 
     deuda_actual = round(float(empleado.horas_pendientes or 0.0), 1)
 
@@ -3384,8 +3415,8 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         remanente = res_comp['remanente']
         deuda_actual = res_comp['deuda_restante']
 
-    # Solo el remanente limpio por pagar (en intervalos de 0.5 horas limpios) va a AutorizacionHorasExtra
-    remanente_limpio = float(math.floor(remanente * 2.0) / 2.0)
+    # Solo el remanente limpio por pagar va a AutorizacionHorasExtra
+    remanente_limpio = _calcular_horas_extra_redondeadas(remanente)
 
     if remanente_limpio >= min_step:
         defaults_extra = {

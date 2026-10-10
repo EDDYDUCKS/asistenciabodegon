@@ -732,13 +732,28 @@ export default function NominaAdminPage() {
     [asistenciasPorEmpFechaMap]
   );
 
+  function calcularHorasExtraRedondeadas(excedenteBruto: number): number {
+  if (!excedenteBruto || excedenteBruto <= 0) return 0.0;
+  const minutosTotales = Math.round(excedenteBruto * 60);
+  if (minutosTotales < 30) return 0.0;
+  if (minutosTotales < 60) return 0.5;
+  const horasEnteras = Math.floor(minutosTotales / 60);
+  const minutosRemanentes = minutosTotales % 60;
+  if (minutosRemanentes < 20) return horasEnteras;
+  if (minutosRemanentes < 30) return horasEnteras + 0.5;
+  if (minutosRemanentes < 48) return horasEnteras + 0.5;
+  return horasEnteras + 1.0;
+}
+
   // ── HORAS EXTRA ACCIONES CON PIN 2322 ─────────────────────────────────────
   const startDecision = (item: AutorizacionHorasExtra) => {
     setPreviewExtraId(item.id || null);
     setEditingExtraId(item.id || null);
-    const raw = parseFloat(String(item.horas_extra_solicitadas)) || 0.5;
-    const clean = Math.floor(raw * 2) / 2;
-    setTempAutorizadas(String(Math.max(0.5, clean)));
+    const detalleDia = getDetalleAsistenciaDia(item.empleado, item.fecha);
+    const horasSugeridas = detalleDia && detalleDia.horasExcedente > 0
+      ? calcularHorasExtraRedondeadas(detalleDia.horasExcedente)
+      : (parseFloat(String(item.horas_extra_solicitadas)) || 0.5);
+    setTempAutorizadas(String(Math.max(0.5, horasSugeridas).toFixed(1)));
     tempComentarioRef.current = item.comentario || '';
   };
 
@@ -817,7 +832,7 @@ export default function NominaAdminPage() {
     const emp = empleados.find((e) => e.id === item.empleado);
     const empName = emp ? `${emp.nombre} ${emp.apellido}` : (item.empleado_detalle ? `${item.empleado_detalle.nombre} ${item.empleado_detalle.apellido}` : `Empleado #${item.empleado}`);
     const rawH = parseFloat(tempAutorizadas) || 0;
-    const cleanH = Math.floor(rawH * 2) / 2;
+    const cleanH = Math.round(rawH * 2) / 2;
     const horasVal = decision === 'APROBADO' ? cleanH : 0;
     const defaultComment = decision === 'APROBADO' ? 'Horas autorizadas' : 'Horas rechazadas';
     const deudaVal = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
@@ -1424,6 +1439,9 @@ export default function NominaAdminPage() {
     const detalleDia = getDetalleAsistenciaDia(empId, item.fecha);
     const hSolicitadasNum = parseFloat(String(item.horas_extra_solicitadas)) || 0;
     const montoEstimadoHE = hSolicitadasNum * tarifaHE;
+    const horasSugeridasCalculadas = detalleDia && detalleDia.horasExcedente > 0
+      ? calcularHorasExtraRedondeadas(detalleDia.horasExcedente)
+      : hSolicitadasNum;
 
     const fechaFormateada = new Date(item.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
       weekday: 'long',
@@ -1536,7 +1554,6 @@ export default function NominaAdminPage() {
                 type="number"
                 step="0.5"
                 min="0.5"
-                max={String(item.horas_extra_solicitadas)}
                 value={tempAutorizadas}
                 onChange={(e) => setTempAutorizadas(e.target.value)}
                 className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
@@ -1803,7 +1820,9 @@ export default function NominaAdminPage() {
                           <strong className="font-mono font-black text-emerald-900 text-sm">
                             {detalleDia ? `+${detalleDia.horasExcedente.toFixed(2)} hrs` : `+${item.horas_extra_solicitadas} hrs`}
                           </strong>
-                          <span className="text-[9px] text-emerald-600 block mt-0.5">Tiempo adicional</span>
+                          <span className="text-[9px] text-emerald-700 block mt-0.5 font-bold">
+                            {horasSugeridasCalculadas > 0 ? `Sugerido: +${horasSugeridasCalculadas.toFixed(1)} hrs` : 'Tiempo adicional'}
+                          </span>
                         </div>
                       </div>
 
@@ -1904,18 +1923,62 @@ export default function NominaAdminPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-[11px] font-bold text-stone-700 uppercase mb-1">
-                          Horas a Autorizar (hrs) *
-                        </label>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          max={String(item.horas_extra_solicitadas)}
-                          value={tempAutorizadas}
-                          onChange={(e) => setTempAutorizadas(e.target.value)}
-                          className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-right focus:outline-none focus:ring-2 focus:ring-[#1c6856] shadow-2xs"
-                        />
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-bold text-stone-700 uppercase">
+                            Horas a Autorizar (hrs) *
+                          </label>
+                          {horasSugeridasCalculadas > 0 && (
+                            <span className="text-[10px] font-bold text-[#1c6856] bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
+                              Sugerido: {horasSugeridasCalculadas.toFixed(1)}h
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = parseFloat(tempAutorizadas) || 0.5;
+                              const nextVal = Math.max(0.5, Math.round((curr - 0.5) * 2) / 2);
+                              setTempAutorizadas(String(nextVal.toFixed(1)));
+                            }}
+                            className="w-11 h-9 rounded-xl bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 font-bold text-xs flex items-center justify-center border border-stone-300 transition cursor-pointer select-none shrink-0"
+                            title="Restar 0.5 horas"
+                          >
+                            -0.5h
+                          </button>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0.5"
+                            value={tempAutorizadas}
+                            onChange={(e) => setTempAutorizadas(e.target.value)}
+                            className="flex-1 min-w-[70px] bg-white border border-stone-300 rounded-xl px-2 py-2 text-xs font-mono font-bold text-center focus:outline-none focus:ring-2 focus:ring-[#1c6856] shadow-2xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = parseFloat(tempAutorizadas) || 0.0;
+                              const nextVal = Math.round((curr + 0.5) * 2) / 2;
+                              setTempAutorizadas(String(nextVal.toFixed(1)));
+                            }}
+                            className="w-11 h-9 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-[#1c6856] font-bold text-xs flex items-center justify-center border border-emerald-300 transition cursor-pointer select-none shrink-0"
+                            title="Sumar 0.5 horas"
+                          >
+                            +0.5h
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between mt-1 text-[10px] text-stone-500">
+                          <span>Ajuste con 1 clic</span>
+                          {horasSugeridasCalculadas > 0 && Math.abs(parseFloat(tempAutorizadas) - horasSugeridasCalculadas) > 0.01 && (
+                            <button
+                              type="button"
+                              onClick={() => setTempAutorizadas(String(horasSugeridasCalculadas.toFixed(1)))}
+                              className="text-[#1c6856] underline font-semibold hover:text-[#154f42] cursor-pointer"
+                            >
+                              Volver a {horasSugeridasCalculadas.toFixed(1)}h
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="sm:col-span-2">
