@@ -385,23 +385,86 @@ export async function updateAlerta(id: number, payload: Partial<AlertaAsistencia
 
 export async function resolverAlerta(
   id: number,
-  decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES',
+  decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES' | 'DIA_LIBRE_LABORADO',
   motivo?: string
 ): Promise<{
   status: string;
   mensaje: string;
   empleado_horas_pendientes?: number;
   empleado_vacaciones_acumuladas?: number;
+  horas_extra_solicitadas?: number;
 }> {
   return apiRequest<{
     status: string;
     mensaje: string;
     empleado_horas_pendientes?: number;
     empleado_vacaciones_acumuladas?: number;
+    horas_extra_solicitadas?: number;
   }>(`/alertas/${id}/resolver/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ decision, motivo }),
+  });
+}
+
+export async function declararDiaLibreLaborado(
+  empleadoId: number,
+  fecha: string
+): Promise<{
+  status: string;
+  mensaje: string;
+  empleado_horas_pendientes?: number;
+  horas_extra_solicitadas?: number;
+}> {
+  return apiRequest<{
+    status: string;
+    mensaje: string;
+    empleado_horas_pendientes?: number;
+    horas_extra_solicitadas?: number;
+  }>('/empleados/declarar-dia-libre/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ empleado_id: empleadoId, fecha }),
+  });
+}
+
+export async function ajustarHorasPendientes(
+  empleadoId: number,
+  horas: number,
+  motivo?: string
+): Promise<Empleado> {
+  return apiRequest<Empleado>(`/empleados/${empleadoId}/ajustar-horas-pendientes/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ horas_pendientes: horas, motivo }),
+  });
+}
+
+export async function resetearDeficitGeneral(): Promise<{
+  status: string;
+  mensaje: string;
+  detalles: any;
+}> {
+  return apiRequest<{
+    status: string;
+    mensaje: string;
+    detalles: any;
+  }>('/empleados/resetear-deficit-general/', {
+    method: 'POST',
+  });
+}
+
+export async function ajustarCasosLuceroUriel(): Promise<{
+  status: string;
+  mensaje: string;
+  detalles: any;
+}> {
+  return apiRequest<{
+    status: string;
+    mensaje: string;
+    detalles: any;
+  }>('/empleados/resetear-deficit-general/', {
+    method: 'POST',
   });
 }
 

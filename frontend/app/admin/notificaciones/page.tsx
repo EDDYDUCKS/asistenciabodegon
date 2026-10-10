@@ -83,7 +83,7 @@ export default function NotificacionesDetalladasPage() {
 
   const handleResolver = async (
     id: number,
-    decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES'
+    decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES' | 'DIA_LIBRE_LABORADO'
   ) => {
     let motivo: string | undefined = undefined;
     if (decision === 'JUSTIFICAR') {
@@ -564,6 +564,34 @@ export default function NotificacionesDetalladasPage() {
 
                     {!al.leida && al.tipo !== 'SEGUNDA_AUSENCIA' && al.tipo !== 'INASISTENCIA' && (
                       <div className="flex flex-wrap items-center gap-1.5 self-end">
+                        {(al.tipo === 'DEFICIT_JORNADA' || al.tipo === 'SALIDA_ANTICIPADA') && (
+                          <>
+                            <button
+                              disabled={processingId === al.id}
+                              onClick={() => handleResolver(al.id!, 'DIA_LIBRE_LABORADO')}
+                              className="bg-[#1c6856] hover:bg-[#154f42] text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                              title="Declarar como día libre laborado: Anular deuda y pasar horas trabajadas a la cola de Horas Extra"
+                            >
+                              <span>🌟 Día Libre Laborado (Horas Extra)</span>
+                            </button>
+                            <button
+                              disabled={processingId === al.id}
+                              onClick={() => handleResolver(al.id!, 'SUMAR_DEUDA')}
+                              className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                              title="Confirmar llegada tardía o turno incompleto: Cargar horas faltantes a su Bolsa de Horas"
+                            >
+                              <span>⏳ Cargar a Déficit (Tarde)</span>
+                            </button>
+                            <button
+                              disabled={processingId === al.id}
+                              onClick={() => handleResolver(al.id!, 'JUSTIFICAR')}
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                              title="Justificar salida anticipada o tardanza sin cobrar horas debidas"
+                            >
+                              <span>✅ Justificar Salida</span>
+                            </button>
+                          </>
+                        )}
                         {al.tipo === 'REGISTRO_INCOMPLETO' && (
                           <button
                             disabled={processingId === al.id}

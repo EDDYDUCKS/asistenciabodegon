@@ -269,6 +269,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         try:
             _verificar_acreditacion_vacaciones_todos()
+            _ejecutar_reset_general_deficit_octubre()
         except Exception:
             pass
         return super().list(request, *args, **kwargs)
@@ -610,6 +611,135 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         )
         serializer = self.get_serializer(empleado)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='ajustar-horas-pendientes')
+    def ajustar_horas_pendientes(self, request, pk=None):
+        empleado = self.get_object()
+        horas = request.data.get('horas_pendientes', 0.0)
+        motivo = request.data.get('motivo', 'Ajuste manual de horas debidas por administración')
+        try:
+            val = round(float(horas), 2)
+        except (ValueError, TypeError):
+            return Response({'error': 'Valor de horas inválido.'}, status=400)
+
+        deuda_previa = float(empleado.horas_pendientes or 0.0)
+        empleado.horas_pendientes = Decimal(str(max(0.0, val)))
+        empleado.save(update_fields=['horas_pendientes'])
+
+        BitacoraAccion.objects.create(
+            usuario=self.request.user if (self.request.user and self.request.user.is_authenticated) else None,
+            accion='EDITAR_EMPLEADO',
+            descripcion=f"Saldo de horas debidas para {empleado.nombre} {empleado.apellido} ajustado de {deuda_previa:.1f}h a {val:.1f}h. Motivo: {motivo}",
+            ip_address=_get_clean_ip(self.request)
+        )
+        serializer = self.get_serializer(empleado)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='declarar-dia-libre')
+    def declarar_dia_libre(self, request):
+        empleado_id = request.data.get('empleado_id') or request.data.get('empleado')
+        fecha_str = request.data.get('fecha')
+        if not empleado_id or not fecha_str:
+            return Response({'error': 'Se requiere empleado_id y fecha (YYYY-MM-DD).'}, status=400)
+
+        try:
+            empleado = Empleado.objects.get(id=empleado_id)
+        except Empleado.DoesNotExist:
+            return Response({'error': 'Empleado no encontrado.'}, status=404)
+
+        from django.utils.dateparse import parse_date
+        fecha_obj = parse_date(str(fecha_str)[:10])
+        if not fecha_obj:
+            return Response({'error': 'Formato de fecha inválido.'}, status=400)
+
+        tz_ni = timezone.get_current_timezone()
+        start_dia = timezone.make_aware(datetime.datetime.combine(fecha_obj, datetime.time.min), tz_ni)
+        end_dia = timezone.make_aware(datetime.datetime.combine(fecha_obj, datetime.time.max), tz_ni) + datetime.timedelta(hours=5)
+
+        regs = list(RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            fecha_hora__range=(start_dia, end_dia)
+        ).order_by('fecha_hora'))
+
+        horas_netas = _calcular_horas_netas_dia(regs)
+
+        # Anular cualquier déficit que este día haya generado
+        deficit_dia = max(0.0, 8.0 - horas_netas) if (horas_netas < 8.0 and fecha_obj.weekday() != 6) else 0.0
+        deuda_previa = float(empleado.horas_pendientes or 0.0)
+        if deficit_dia > 0:
+            nueva_deuda = max(0.0, round(deuda_previa - deficit_dia, 1))
+            empleado.horas_pendientes = Decimal(str(nueva_deuda))
+            empleado.save(update_fields=['horas_pendientes'])
+
+        # Eliminar cualquier compensación de horas generada en esa fecha
+        CompensacionHoras.objects.filter(
+            empleado=empleado,
+            fecha_compensacion=fecha_obj
+        ).delete()
+
+        # Enviar las horas trabajadas a AutorizacionHorasExtra como PENDIENTE
+        horas_solicitadas = max(0.5, round(horas_netas, 1)) if horas_netas >= 0.5 else round(horas_netas, 1)
+        if horas_solicitadas > 0:
+            AutorizacionHorasExtra.objects.update_or_create(
+                empleado=empleado,
+                fecha=fecha_obj,
+                defaults={
+                    'horas_extra_solicitadas': Decimal(str(horas_solicitadas)),
+                    'horas_extra_autorizadas': Decimal('0.00'),
+                    'estado': 'PENDIENTE',
+                    'comentario': f"[Día Libre Laborado] Jornada de apoyo en descanso ({horas_netas:.1f} hrs trabajadas). Enviado para aprobación gerencial."
+                }
+            )
+
+        # Marcar cualquier alerta asociada como leída
+        alertas = AlertaAsistencia.objects.filter(
+            empleado=empleado,
+            created_at__range=(start_dia, end_dia + datetime.timedelta(days=1)),
+            tipo__in=['DEFICIT_JORNADA', 'SALIDA_ANTICIPADA', 'INASISTENCIA']
+        )
+        for al in alertas:
+            al.leida = True
+            al.mensaje += f"\n\n[RESUELTO - DÍA LIBRE LABORADO]: Déficit anulado. +{horas_solicitadas:.1f} hrs enviadas a aprobación de horas extra."
+            al.save(update_fields=['leida', 'mensaje'])
+
+        BitacoraAccion.objects.create(
+            usuario=request.user if (request.user and request.user.is_authenticated) else None,
+            accion='REGISTRO_MANUAL',
+            descripcion=f"Jornada del {fecha_obj.strftime('%d/%m/%Y')} de {empleado.nombre} {empleado.apellido} declarada como Día Libre Laborado. Déficit anulado (-{deficit_dia:.1f}h) y +{horas_solicitadas:.1f} hrs enviadas a aprobación de horas extra.",
+            ip_address=_get_clean_ip(request)
+        )
+
+        return Response({
+            'status': 'ok',
+            'mensaje': f'Jornada del {fecha_obj.strftime("%d/%m/%Y")} declarada exitosamente como Día Libre Laborado. Horas enviadas a cola de aprobación.',
+            'empleado_horas_pendientes': float(empleado.horas_pendientes or 0.0),
+            'horas_extra_solicitadas': horas_solicitadas,
+        })
+
+    @action(detail=False, methods=['post', 'get'], url_path='resetear-deficit-general')
+    def resetear_deficit_general(self, request):
+        """
+        Borrón y cuenta nueva gerencial:
+        Elimina cualquier déficit acumulado previo al 10/10/2026 y restaura las horas extra brutas.
+        """
+        res = _ejecutar_reset_general_deficit_octubre(forzar=True)
+        return Response({
+            'status': 'ok',
+            'mensaje': 'Borrón y cuenta nueva ejecutado exitosamente. Todo el déficit acumulado previo al 10 de octubre de 2026 fue eliminado y las horas extra brutas quedaron limpias para evaluación.',
+            'detalles': res
+        })
+
+    @action(detail=False, methods=['post', 'get'], url_path='ajustar-casos-lucero-uriel')
+    def ajustar_casos_lucero_uriel(self, request):
+        """
+        Ajuste general de déficit y horas extra.
+        """
+        res = _ejecutar_reset_general_deficit_octubre(forzar=True)
+        return Response({
+            'status': 'ok',
+            'mensaje': 'Borrón y cuenta nueva ejecutado exitosamente. Deudas previas eliminadas y horas extra brutas restauradas.',
+            'detalles': res
+        })
 
     def perform_create(self, serializer):
         emp = serializer.save()
@@ -1571,31 +1701,117 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
 
             dias_a_registrar = dias_sin_marcaje[1:] if len(dias_sin_marcaje) >= 2 else (dias_sin_marcaje if dias_sin_marcaje else [fecha_ref])
 
-            if decision == 'SUMAR_DEUDA':
-                hoy = timezone.localdate()
-                primer_dia_mes = hoy.replace(day=1)
-                empleado.periodo_horas_pendientes = primer_dia_mes
-                empleado.horas_pendientes = float(empleado.horas_pendientes or 0.0) + 8.00
-                empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+            if decision == 'DIA_LIBRE_LABORADO':
+                # Anular déficit y pasar horas trabajadas como Horas Extra PENDIENTE
+                start_dia = timezone.make_aware(datetime.datetime.combine(fecha_ref, datetime.time.min), tz)
+                end_dia = timezone.make_aware(datetime.datetime.combine(fecha_ref, datetime.time.max), tz) + datetime.timedelta(hours=5)
+                regs_dia = list(RegistroAsistencia.objects.filter(
+                    empleado=empleado,
+                    fecha_hora__range=(start_dia, end_dia)
+                ).order_by('fecha_hora'))
 
-                motivo_desc = motivo or f"Inasistencia cargada a deuda de horas (Alerta #{alerta.id})"
-                for dia_ausente in dias_a_registrar:
-                    PermisoAusencia.objects.get_or_create(
+                horas_netas = _calcular_horas_netas_dia(regs_dia)
+                deficit_dia = max(0.0, 8.0 - horas_netas) if (horas_netas < 8.0 and fecha_ref.weekday() != 6) else 0.0
+
+                if deficit_dia > 0:
+                    deuda_act = float(empleado.horas_pendientes or 0.0)
+                    empleado.horas_pendientes = Decimal(str(max(0.0, round(deuda_act - deficit_dia, 1))))
+                    empleado.save(update_fields=['horas_pendientes'])
+
+                CompensacionHoras.objects.filter(
+                    empleado=empleado,
+                    fecha_compensacion=fecha_ref
+                ).delete()
+
+                horas_a_solicitar = max(0.5, round(horas_netas, 1)) if horas_netas >= 0.5 else round(horas_netas, 1)
+                if horas_a_solicitar > 0:
+                    AutorizacionHorasExtra.objects.update_or_create(
                         empleado=empleado,
-                        fecha_inicio=dia_ausente,
-                        fecha_fin=dia_ausente,
+                        fecha=fecha_ref,
                         defaults={
-                            'tipo': 'PERMISO_AUTORIZADO',
-                            'motivo': motivo_desc
+                            'horas_extra_solicitadas': Decimal(str(horas_a_solicitar)),
+                            'horas_extra_autorizadas': Decimal('0.00'),
+                            'estado': 'PENDIENTE',
+                            'comentario': f"[Día Libre Laborado] Jornada de apoyo en descanso ({horas_netas:.1f} hrs trabajadas). Enviado para aprobación gerencial."
                         }
                     )
 
+                alerta.leida = True
+                alerta.mensaje += f"\n\n[RESUELTO - DÍA LIBRE LABORADO]: Déficit de {deficit_dia:.1f}h anulado. +{horas_a_solicitar:.1f} hrs extra enviadas a cola de aprobación de Nómina."
+                alerta.save(update_fields=['leida', 'mensaje'])
+
                 BitacoraAccion.objects.create(
-                    usuario=request.user if request.user.is_authenticated else None,
+                    usuario=request.user if (request.user and request.user.is_authenticated) else None,
                     accion='REGISTRO_MANUAL',
-                    descripcion=f"Se sumaron 8.0 hrs de deuda a {empleado.nombre} {empleado.apellido} por inasistencia. Motivo: {motivo_desc}",
+                    descripcion=f"Alerta #{alerta.id} resuelta como Día Libre Laborado para {empleado.nombre} {empleado.apellido} ({fecha_ref.strftime('%d/%m/%Y')}). Déficit anulado y +{horas_a_solicitar:.1f} hrs extra enviadas a aprobación gerencial.",
                     ip_address=_get_clean_ip(request)
                 )
+
+                return Response({
+                    'status': 'ok',
+                    'mensaje': f'Jornada del {fecha_ref.strftime("%d/%m/%Y")} declarada exitosamente como Día Libre Laborado. Horas enviadas a cola de aprobación.',
+                    'empleado_horas_pendientes': float(empleado.horas_pendientes or 0.0),
+                    'empleado_vacaciones_acumuladas': float(empleado.dias_vacaciones_acumuladas or 0.0),
+                    'horas_extra_solicitadas': horas_a_solicitar
+                })
+
+            elif decision == 'SUMAR_DEUDA':
+                hoy = timezone.localdate()
+                primer_dia_mes = hoy.replace(day=1)
+                empleado.periodo_horas_pendientes = primer_dia_mes
+
+                # Distinguir si es una jornada incompleta / tardanza vs una inasistencia de día completo
+                if alerta.tipo in ['DEFICIT_JORNADA', 'SALIDA_ANTICIPADA', 'TARDANZA']:
+                    start_dia = timezone.make_aware(datetime.datetime.combine(fecha_ref, datetime.time.min), tz)
+                    end_dia = timezone.make_aware(datetime.datetime.combine(fecha_ref, datetime.time.max), tz) + datetime.timedelta(hours=5)
+                    regs_dia = list(RegistroAsistencia.objects.filter(
+                        empleado=empleado,
+                        fecha_hora__range=(start_dia, end_dia)
+                    ).order_by('fecha_hora'))
+                    horas_netas = _calcular_horas_netas_dia(regs_dia)
+                    deficit_a_cargar = max(0.5, round(8.0 - horas_netas, 1)) if horas_netas < 8.0 else 1.0
+
+                    _recalcular_horas_pendientes_empleado(empleado, fecha_ref)
+
+                    alerta.mensaje += f"\n\n[RESUELTO - DÉFICIT CARGADO]: Se confirmó como llegada tardía / jornada incompleta. Déficit de {round(deficit_a_cargar, 1)} hrs cargado a la Bolsa de Horas."
+                    alerta.leida = True
+                    alerta.save(update_fields=['leida', 'mensaje'])
+
+                    BitacoraAccion.objects.create(
+                        usuario=request.user if (request.user and request.user.is_authenticated) else None,
+                        accion='REGISTRO_MANUAL',
+                        descripcion=f"Déficit confirmado por administración para {empleado.nombre} {empleado.apellido} el {fecha_ref.strftime('%d/%m/%Y')}: {deficit_a_cargar:.1f} hrs debidas por llegada tardía / jornada incompleta.",
+                        ip_address=_get_clean_ip(request)
+                    )
+
+                    return Response({
+                        'status': 'ok',
+                        'mensaje': f'Déficit de {deficit_a_cargar:.1f} hrs cargado exitosamente a la Bolsa de Horas de {empleado.nombre}.',
+                        'empleado_horas_pendientes': float(empleado.horas_pendientes or 0.0),
+                        'empleado_vacaciones_acumuladas': float(empleado.dias_vacaciones_acumuladas or 0.0),
+                    })
+                else:
+                    empleado.horas_pendientes = float(empleado.horas_pendientes or 0.0) + 8.00
+                    empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+
+                    motivo_desc = motivo or f"Inasistencia cargada a deuda de horas (Alerta #{alerta.id})"
+                    for dia_ausente in dias_a_registrar:
+                        PermisoAusencia.objects.get_or_create(
+                            empleado=empleado,
+                            fecha_inicio=dia_ausente,
+                            fecha_fin=dia_ausente,
+                            defaults={
+                                'tipo': 'PERMISO_AUTORIZADO',
+                                'motivo': motivo_desc
+                            }
+                        )
+
+                    BitacoraAccion.objects.create(
+                        usuario=request.user if request.user.is_authenticated else None,
+                        accion='REGISTRO_MANUAL',
+                        descripcion=f"Se sumaron 8.0 hrs de deuda a {empleado.nombre} {empleado.apellido} por inasistencia. Motivo: {motivo_desc}",
+                        ip_address=_get_clean_ip(request)
+                    )
             elif decision == 'RESTAR_VACACIONES':
                 dias_antes = float(empleado.dias_vacaciones_acumuladas or 0.0)
                 empleado.dias_vacaciones_acumuladas = max(Decimal('0.00'), (empleado.dias_vacaciones_acumuladas or Decimal('0.00')) - Decimal('1.00'))
@@ -1907,6 +2123,7 @@ def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro, empleado=None)
       (ENTRADA o ENTRADA_QUEBRADA), se auto-detecta como SALIDA_DEFINITIVA.
     - Primer evento del día -> siempre ENTRADA.
     - Cierre nocturno (después de las 9:30 PM / 1290 min) -> siempre SALIDA_DEFINITIVA.
+    - Si el último evento registrado ya fue SALIDA_DEFINITIVA -> siempre ENTRADA.
     - Segundo evento:
       * Si han transcurrido >= 6.8 horas (ej: 9am-5pm, o 3pm-11pm) -> SALIDA_DEFINITIVA.
       * Si han transcurrido < 6.8 horas y es mediodía/tarde -> SALIDA_QUEBRADA (Pausa).
@@ -1928,12 +2145,27 @@ def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro, empleado=None)
         if regs_ayer and regs_ayer[-1].tipo_evento in ('ENTRADA', 'ENTRADA_QUEBRADA'):
             return 'SALIDA_DEFINITIVA'
 
-    if not registros_hoy.exists():
+    # REGLA FUNDAMENTAL DE FILTRADO DIURNO:
+    # Si la marcación actual es de día (>= 05:00 AM), cualquier marcación previa antes de las 5:00 AM
+    # fue el cierre de trasnoche de anoche. NO forma parte de la jornada diurna de hoy.
+    regs_turno = list(registros_hoy)
+    if dt_local.hour >= 5:
+        regs_turno = [
+            r for r in regs_turno 
+            if r.fecha_hora.astimezone(timezone.get_current_timezone()).hour >= 5
+        ]
+
+    if not regs_turno:
         return 'ENTRADA'
 
-    cant = registros_hoy.count()
-    ultimo = registros_hoy.last()
-    primero = registros_hoy.first()
+    cant = len(regs_turno)
+    ultimo = regs_turno[-1]
+    primero = regs_turno[0]
+
+    # REGLA DE ORO: Si el último evento registrado ya fue SALIDA_DEFINITIVA,
+    # el siguiente evento OBLIGATORIAMENTE es una NUEVA ENTRADA (nunca dos salidas seguidas).
+    if ultimo.tipo_evento == 'SALIDA_DEFINITIVA':
+        return 'ENTRADA'
 
     # Regla de Cierre: Después de las 9:30 PM (21:30 = 1290 min) cualquier salida es definitiva
     if hora_mins >= 1290:
@@ -2630,13 +2862,99 @@ def _calcular_horas_netas_dia(registros_dia):
     return total_segundos / 3600.0
 
 
+def _ejecutar_reset_general_deficit_octubre(forzar=False):
+    """
+    Acuerdo Gerencial 10/10/2026:
+    Borrón y cuenta nueva general de déficit de horas previo al 10 de octubre de 2026.
+    El cómputo de déficit inicia oficialmente a partir del 10 de octubre de 2026.
+    1. Se reinician las horas_pendientes a 0.00 para todos los empleados.
+    2. Se eliminan las deducciones en CompensacionHoras previas al 10/10/2026.
+    3. Se restauran las horas extra a su valor bruto real (sin mutilación ni amortizaciones automáticas):
+       - Uriel: 6.0 hrs brutas
+       - Lucero: 3.5 hrs brutas
+       - Stefani: 1.0 hrs brutas
+       - Martha: 6.5 hrs brutas
+       - Y cualquier otra hora extra que hubiera sido amortizada.
+    4. Se silencian las alertas de déficit anteriores al 10/10/2026.
+    """
+    try:
+        if not forzar:
+            ya_ejecutado = BitacoraAccion.objects.filter(
+                descripcion__icontains="Borron y cuenta nueva: Deficit general de horas reiniciado a cero"
+            ).exists()
+            if ya_ejecutado:
+                return {'ya_ejecutado': True}
+
+        with transaction.atomic():
+            # 1. Todos los empleados quedan limpios en 0.00 horas pendientes
+            Empleado.objects.all().update(horas_pendientes=Decimal('0.00'))
+
+            # 2. Restaurar Horas Extra afectadas por CompensacionHoras anteriores al 10/10/2026
+            comps_antiguas = list(CompensacionHoras.objects.filter(fecha_compensacion__lt=datetime.date(2026, 10, 10)))
+            for comp in comps_antiguas:
+                hes = AutorizacionHorasExtra.objects.filter(
+                    empleado=comp.empleado,
+                    fecha=comp.fecha_compensacion
+                )
+                for he in hes:
+                    val_bruto = max(
+                        Decimal(str(he.horas_extra_solicitadas or 0.0)),
+                        Decimal(str(comp.horas_extra_generadas or 0.0))
+                    )
+                    he.horas_extra_solicitadas = val_bruto
+                    he.comentario = f"Jornada extraordinaria (+{float(val_bruto):.1f} hrs brutas). Sin deducción de déficit previo. Pendiente de aprobación gerencial."
+                    he.save(update_fields=['horas_extra_solicitadas', 'comentario'])
+
+            # 3. Eliminar los registros de compensación antiguos para que no figuren como 'Saldó...'
+            CompensacionHoras.objects.filter(fecha_compensacion__lt=datetime.date(2026, 10, 10)).delete()
+
+            # 4. Asegurar los casos emblemáticos de octubre con sus horas extra brutas exactas:
+            casos_fijos = [
+                ('Uriel', datetime.date(2026, 10, 9), Decimal('6.00'), 'Jornada extraordinaria (+6.0 hrs brutas). Sin deducción de déficit previo. Pendiente de aprobación gerencial.'),
+                ('Lucero', datetime.date(2026, 10, 8), Decimal('3.50'), 'Jornada extraordinaria (+3.5 hrs brutas). Sin deducción de déficit previo. Pendiente de aprobación gerencial.'),
+                ('Estefani', datetime.date(2026, 10, 9), Decimal('1.00'), 'Jornada extraordinaria (+1.0 hr bruta). Sin deducción de déficit previo. Pendiente de aprobación gerencial.'),
+                ('Martha', datetime.date(2026, 10, 9), Decimal('6.50'), 'Jornada extraordinaria (+6.5 hrs brutas). Sin deducción de déficit previo. Pendiente de aprobación gerencial.'),
+            ]
+            for nombre_busq, fecha_he, horas_brutas, com in casos_fijos:
+                emp = Empleado.objects.filter(Q(nombre__icontains=nombre_busq) | Q(apellido__icontains=nombre_busq)).first()
+                if emp:
+                    AutorizacionHorasExtra.objects.update_or_create(
+                        empleado=emp,
+                        fecha=fecha_he,
+                        defaults={
+                            'horas_extra_solicitadas': horas_brutas,
+                            'horas_extra_autorizadas': Decimal('0.00'),
+                            'estado': 'PENDIENTE',
+                            'comentario': com
+                        }
+                    )
+
+            # 5. Marcar como leídas alertas de déficit previas al 10/10/2026
+            tz_ni = timezone.get_current_timezone()
+            dt_corte = timezone.make_aware(datetime.datetime(2026, 10, 10, 0, 0, 0), tz_ni)
+            AlertaAsistencia.objects.filter(
+                tipo__in=['DEFICIT_JORNADA', 'SALIDA_ANTICIPADA'],
+                created_at__lt=dt_corte
+            ).update(leida=True)
+
+            BitacoraAccion.objects.create(
+                usuario=None,
+                accion='EDITAR_EMPLEADO',
+                descripcion="Borron y cuenta nueva: Deficit general de horas reiniciado a cero. Cómputo de horas pendientes inicia oficialmente a partir del 10/10/2026.",
+                ip_address='127.0.0.1'
+            )
+            return {'exitoso': True}
+    except Exception as e:
+        print(f"Error en _ejecutar_reset_general_deficit_octubre: {e}")
+        return {'error': str(e)}
+
+
 def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
     """
     Recalcula de forma determinista y auditable el saldo de horas_pendientes del empleado
     para el mes correspondiente a fecha_referencia (o el mes actual por defecto).
     Recorre cronológicamente los días que cuentan con SALIDA_DEFINITIVA registrada.
-    Si se eliminó una salida definitiva o se corrigió un marcaje por error humano,
-    este recálculo elimina deudas huérfanas y garantiza consistencia absoluta.
+    El cómputo de déficit inicia oficialmente a partir del 10 de octubre de 2026.
     """
     import datetime
     tz_ni = timezone.get_current_timezone()
@@ -2666,18 +2984,22 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
         por_dia.setdefault(d, []).append(r)
 
     deuda_acumulada = 0.0
+    fecha_corte_deficit = datetime.date(2026, 10, 10)
 
     for d in sorted(por_dia.keys()):
         regs_d = por_dia[d]
         tiene_salida_definitiva = any(r.tipo_evento == 'SALIDA_DEFINITIVA' for r in regs_d)
         
-        # Solo calculamos balance si la jornada del día está cerrada con salida definitiva
-        # En domingo no se acumula déficit por cierre anticipado autorizado
-        if tiene_salida_definitiva:
-            horas_dia = _calcular_horas_netas_dia(regs_d)
-            if d.weekday() != 6 and horas_dia < 8.0:
-                deficit = round(8.0 - horas_dia, 1)
-                deuda_acumulada += deficit
+        # Solo calculamos balance a partir del 10 de octubre de 2026
+        if tiene_salida_definitiva and d >= fecha_corte_deficit:
+            es_dia_libre = AutorizacionHorasExtra.objects.filter(
+                empleado=empleado, fecha=d, comentario__icontains='[Día Libre Laborado]'
+            ).exists()
+            if not es_dia_libre and d.weekday() != 6:
+                horas_dia = _calcular_horas_netas_dia(regs_d)
+                if horas_dia < 8.0:
+                    deficit = round(8.0 - horas_dia, 1)
+                    deuda_acumulada += deficit
     # Restar compensaciones formalmente aprobadas en el mes
     from django.db.models import Sum
     total_compensado = CompensacionHoras.objects.filter(
@@ -2696,8 +3018,11 @@ def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
     """
     Si el empleado trabajó menos de 8 horas, acumula el déficit en horas_pendientes.
     En domingo la administración autoriza salida anticipada por cierre a las 10 PM, no genera deuda.
-    Reinicia el saldo si el mes cambió desde el último registro del período.
+    El cómputo de déficit inicia oficialmente a partir del 10 de octubre de 2026.
     """
+    if fecha_hoy < datetime.date(2026, 10, 10):
+        return  # Todo déficit previo al 10 de octubre de 2026 queda condonado / borrón y cuenta nueva
+
     if fecha_hoy.weekday() == 6:
         return  # En domingo no se acumula deuda por cierre anticipado acordado
 
@@ -3012,10 +3337,12 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         AlertaAsistencia.objects.create(
             tipo='DEFICIT_JORNADA',
             empleado=empleado,
-            titulo=f"Salida Anticipada Registrada: {empleado.nombre} {empleado.apellido}",
+            titulo=f"Jornada Corta / Posible Día Libre: {empleado.nombre} {empleado.apellido}",
             mensaje=(
-                f"El {fecha_hoy.strftime('%d/%m/%Y')} el colaborador completó {round(horas_trabajadas_dia, 1)} hrs "
-                f"(déficit de {round(deficit_dia, 1)} hrs). Registrado en Bolsa de Horas para resolución gerencial."
+                f"El {fecha_hoy.strftime('%d/%m/%Y')} el colaborador completó una jornada corta de {round(horas_trabajadas_dia, 1)} hrs "
+                f"(déficit calculado de {round(deficit_dia, 1)} hrs). "
+                f"Si este día fue su descanso o apoyo especial, puede resolverla como 'Día Libre Laborado' para anular la deuda "
+                f"y enviar sus {round(horas_trabajadas_dia, 1)} hrs trabajadas como Horas Extra a aprobación."
             ),
             leida=False
         )

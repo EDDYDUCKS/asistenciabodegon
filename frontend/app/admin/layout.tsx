@@ -160,7 +160,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const handleResolverAlerta = async (
     alertId: number,
-    decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES'
+    decision: 'JUSTIFICAR' | 'SUMAR_DEUDA' | 'RESTAR_VACACIONES' | 'DIA_LIBRE_LABORADO'
   ) => {
     try {
       setResolvingAlertId(alertId);
@@ -531,6 +531,55 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                      )}
                                    </button>
                                  </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Acciones interactivas para Jornada Corta / Posible Día Libre */}
+                          {(al.tipo === 'DEFICIT_JORNADA' || al.tipo === 'SALIDA_ANTICIPADA') && (
+                            <div className="pt-2 border-t border-stone-200">
+                              {al.leida ? (
+                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg">
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span>Alerta resuelta</span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-1.5">
+                                  <button
+                                    disabled={resolvingAlertId === al.id}
+                                    onClick={() => handleResolverAlerta(al.id!, 'DIA_LIBRE_LABORADO')}
+                                    className="w-full bg-[#1c6856] hover:bg-[#154f42] text-white text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
+                                    title="Declarar como día libre laborado: Anular déficit y pasar horas trabajadas como Horas Extra a aprobación"
+                                  >
+                                    {resolvingAlertId === al.id ? (
+                                      <RefreshCw className="w-3 h-3 animate-spin text-white" />
+                                    ) : (
+                                      '🌟 Día Libre Laborado (Mover a Horas Extra)'
+                                    )}
+                                  </button>
+                                  <div className="flex gap-1.5">
+                                    <button
+                                      disabled={resolvingAlertId === al.id}
+                                      onClick={() => handleResolverAlerta(al.id!, 'SUMAR_DEUDA')}
+                                      className="flex-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                                      title="Confirmar llegada tardía o turno incompleto: Cargar las horas faltantes a su Bolsa de Horas"
+                                    >
+                                      {resolvingAlertId === al.id ? (
+                                        <RefreshCw className="w-3 h-3 animate-spin text-white" />
+                                      ) : (
+                                        '⏳ Cargar a Déficit (Tarde)'
+                                      )}
+                                    </button>
+                                    <button
+                                      disabled={resolvingAlertId === al.id}
+                                      onClick={() => handleResolverAlerta(al.id!, 'JUSTIFICAR')}
+                                      className="flex-1 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-[10px] font-bold py-1.5 px-2 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer"
+                                      title="Justificar salida o tardanza sin cobrar deuda"
+                                    >
+                                      ✅ Justificar Salida
+                                    </button>
+                                  </div>
+                                </div>
                               )}
                             </div>
                           )}

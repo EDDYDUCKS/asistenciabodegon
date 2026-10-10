@@ -1,6 +1,6 @@
 export type MetodoPagoType = 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA' | 'PENDIENTE';
 export type EstadoPagoType = 'PAGADO' | 'PENDIENTE_TRANSFERENCIA';
-export type TurnoJornadaType = 'ALMUERZO' | 'CENA' | 'COMPLETO';
+export type TurnoJornadaType = 'ALMUERZO' | 'CENA' | 'COMPLETO' | 'CONFIG';
 export type EstadoJornadaType = 'ABIERTA' | 'CERRADA';
 
 export type CategoriaGastoType =
