@@ -372,8 +372,7 @@ export default function BoletaPagoHorasExtraModal({
                 <thead>
                   <tr className="border-b border-stone-200 text-[10px] uppercase font-bold text-stone-500">
                     <th className="pb-1.5">Fecha Laborada</th>
-                    <th className="pb-1.5 text-right">H. Solicitadas</th>
-                    <th className="pb-1.5 text-right">H. Autorizadas / Pagadas</th>
+                    <th className="pb-1.5 text-right">Horas Reconocidas a Pago</th>
                     <th className="pb-1.5 text-right">Subtotal Aprox.</th>
                   </tr>
                 </thead>
@@ -396,9 +395,6 @@ export default function BoletaPagoHorasExtraModal({
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0"></span>
                             <span>{fStr}</span>
                           </td>
-                          <td className="py-1.5 text-right font-mono text-stone-600">
-                            +{parseFloat(String(d.horas_solicitadas || 0)).toFixed(1)} hrs
-                          </td>
                           <td className="py-1.5 text-right font-mono font-bold text-emerald-800">
                             +{hPag.toFixed(1)} hrs
                           </td>
@@ -410,7 +406,7 @@ export default function BoletaPagoHorasExtraModal({
                     })
                   ) : (
                     <tr>
-                      <td colSpan={4} className="py-2 text-center text-stone-500">
+                      <td colSpan={3} className="py-2 text-center text-stone-500">
                         Liquidación consolidada de {totalHoras.toFixed(1)} hrs extraordinarias acumuladas.
                       </td>
                     </tr>

@@ -62,7 +62,6 @@ export default function BoletaHorasExtraModal({
     minute: '2-digit',
   });
 
-  const horasSolicitadas = parseFloat(String(horaExtra.horas_extra_solicitadas || 0));
   const horasAutorizadas = parseFloat(String(horaExtra.horas_extra_autorizadas || 0));
   const esAprobado = horaExtra.estado === 'APROBADO';
   const esRechazado = horaExtra.estado === 'RECHAZADO';
@@ -274,14 +273,14 @@ export default function BoletaHorasExtraModal({
             border-radius: 6px !important;
           }
 
-          .print-solic-auto-grid > div {
-            padding: 1.8mm 2.5mm !important;
+          .print-auto-card {
+            padding: 2.2mm 3.2mm !important;
             border-radius: 6px !important;
           }
 
-          .print-solic-auto-grid .text-xl {
-            font-size: 1.15rem !important;
-            line-height: 1.25 !important;
+          .print-auto-card .text-2xl {
+            font-size: 1.25rem !important;
+            line-height: 1.2 !important;
           }
 
           .print-amortizacion-box {
@@ -533,42 +532,41 @@ export default function BoletaHorasExtraModal({
                 </div>
               </div>
 
-              {/* Tarjetas de Horas Solicitadas vs Horas Autorizadas */}
-              <div className="grid grid-cols-2 gap-3 text-xs print-solic-auto-grid">
-                <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200">
-                  <span className="text-stone-500 text-[10px] block uppercase font-bold">
-                    Horas Extra Solicitadas (Biométrico):
+              {/* Tarjeta de Horas Extra Autorizadas para Pago (Tiempo Efectivo) */}
+              <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs print-auto-card ${
+                esAprobado
+                  ? 'bg-emerald-50/80 border-emerald-300'
+                  : esRechazado
+                  ? 'bg-rose-50/80 border-rose-300'
+                  : 'bg-amber-50/80 border-amber-300'
+              }`}>
+                <div>
+                  <span className="text-stone-600 text-[11px] block uppercase font-bold tracking-wider">
+                    Horas Extra Autorizadas para Pago:
                   </span>
-                  <span className="text-xl font-mono font-black text-stone-900 mt-0.5 block">
-                    +{horasSolicitadas.toFixed(1)} hrs
-                  </span>
-                  <p className="text-[10px] text-stone-500 mt-1">
-                    Tiempo extraordinario laborado fuera del horario habitual de turno
+                  <p className="text-[11px] text-stone-600 font-medium mt-1">
+                    {esAprobado
+                      ? 'Tiempo extraordinario oficial reconocido por Administración para remuneración íntegra al 100% de ley.'
+                      : esRechazado
+                      ? 'Tiempo extraordinario no procedente o descartado según políticas de asistencia.'
+                      : 'Tiempo extraordinario en proceso de validación administrativa.'}
                   </p>
                 </div>
-
-                <div className={`p-3.5 rounded-xl border ${
-                  esAprobado
-                    ? 'bg-emerald-50/70 border-emerald-300'
-                    : esRechazado
-                    ? 'bg-rose-50/70 border-rose-300'
-                    : 'bg-amber-50/70 border-amber-300'
-                }`}>
-                  <span className="text-stone-500 text-[10px] block uppercase font-bold">
-                    Horas Extra Autorizadas por Administración:
-                  </span>
-                  <span className={`text-xl font-mono font-black mt-0.5 block ${
+                <div className="sm:text-right shrink-0">
+                  <span className={`text-2xl font-mono font-black block ${
                     esAprobado ? 'text-emerald-800' : esRechazado ? 'text-rose-700' : 'text-amber-800'
                   }`}>
                     {esAprobado ? `+${horasAutorizadas.toFixed(1)} hrs` : '0.0 hrs'}
                   </span>
-                  <p className="text-[10px] text-stone-600 font-medium mt-1">
-                    {esAprobado
-                      ? 'Tiempo efectivo aprobado para remuneración íntegra al 100%'
+                  <span className={`inline-block px-2 py-0.5 mt-1 text-[10px] font-bold uppercase rounded-md ${
+                    esAprobado
+                      ? 'bg-emerald-200/80 text-emerald-950'
                       : esRechazado
-                      ? 'Solicitud no procedente descartada'
-                      : 'En proceso de validación administrativa'}
-                  </p>
+                      ? 'bg-rose-200 text-rose-950'
+                      : 'bg-amber-200 text-amber-950'
+                  }`}>
+                    {esAprobado ? 'Aprobado en nómina' : esRechazado ? 'Rechazado' : 'Pendiente'}
+                  </span>
                 </div>
               </div>
 
