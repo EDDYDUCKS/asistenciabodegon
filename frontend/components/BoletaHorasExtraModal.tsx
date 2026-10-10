@@ -67,14 +67,49 @@ export default function BoletaHorasExtraModal({
   const esRechazado = horaExtra.estado === 'RECHAZADO';
   const esPendiente = horaExtra.estado === 'PENDIENTE';
 
-  // Buscar marcaciones reales del reloj biométrico para este colaborador en esta fecha
+  // Obtener fecha del turno asociando marcaciones de madrugada (< 05:00 AM) al turno previo
+  const getFechaTurnoMarcaje = (isoStr: string) => {
+    try {
+      const d = new Date(isoStr);
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Managua',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+      const parts = formatter.formatToParts(d);
+      const y = parts.find((p) => p.type === 'year')?.value;
+      const m = parts.find((p) => p.type === 'month')?.value;
+      const day = parts.find((p) => p.type === 'day')?.value;
+      const hour = parseInt(parts.find((p) => p.type === 'hour')?.value || '12', 10);
+      const dateStr = `${y}-${m}-${day}`;
+
+      if (hour < 5) {
+        const prev = new Date(d.getTime() - 24 * 3600 * 1000);
+        const prevParts = formatter.formatToParts(prev);
+        const py = prevParts.find((p) => p.type === 'year')?.value;
+        const pm = prevParts.find((p) => p.type === 'month')?.value;
+        const pday = prevParts.find((p) => p.type === 'day')?.value;
+        return `${py}-${pm}-${pday}`;
+      }
+      return dateStr;
+    } catch {
+      return (isoStr || '').slice(0, 10);
+    }
+  };
+
+  // Buscar marcaciones reales del reloj biométrico para este colaborador en esta jornada (incluyendo madrugada)
   const empId = typeof horaExtra.empleado === 'number' ? horaExtra.empleado : (emp?.id || 0);
   const marcajesDia = asistencias
     .filter((a) => {
       const aEmpId = typeof a.empleado === 'number' ? a.empleado : (a.empleado_detalle?.id || 0);
-      return aEmpId === empId && a.fecha_hora && a.fecha_hora.startsWith(horaExtra.fecha);
+      if (aEmpId !== empId || !a.fecha_hora) return false;
+      return getFechaTurnoMarcaje(a.fecha_hora) === horaExtra.fecha;
     })
-    .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));
+    .sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
 
   // Buscar si existió compensación de horas o deducción por déficit en este día
   const compDia = compensaciones.find((c) => {
@@ -85,10 +120,90 @@ export default function BoletaHorasExtraModal({
   const formatHora = (isoStr: string) => {
     try {
       const d = new Date(isoStr);
-      return d.toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit', hour12: true });
+      const timeStr = d.toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit', hour12: true });
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Managua',
+        hour: '2-digit',
+        hour12: false,
+      });
+      const hour = parseInt(formatter.format(d), 10);
+      if (hour < 5) {
+        return `${timeStr} (+1d)`;
+      }
+      return timeStr;
     } catch {
       return '--:--';
     }
+  };
+
+  const getMarcajeInfo = (m: any, idx: number, total: number) => {
+    let label = `Marcación #${idx + 1}`;
+    let textClass = 'text-stone-700';
+    let dotClass = 'bg-stone-500';
+
+    if (total === 4) {
+      if (idx === 0) {
+        label = '1ra Entrada (Inicio)';
+        textClass = 'text-emerald-800';
+        dotClass = 'bg-emerald-600';
+      } else if (idx === 1) {
+        label = 'Salida Quiebre (Pausa)';
+        textClass = 'text-amber-800';
+        dotClass = 'bg-amber-600';
+      } else if (idx === 2) {
+        label = 'Retorno Quiebre (2do Turno)';
+        textClass = 'text-blue-800';
+        dotClass = 'bg-blue-600';
+      } else if (idx === 3) {
+        label = 'Salida Definitiva (Cierre)';
+        textClass = 'text-rose-800';
+        dotClass = 'bg-rose-600';
+      }
+    } else if (total === 3) {
+      if (idx === 0) {
+        label = '1ra Entrada (Inicio)';
+        textClass = 'text-emerald-800';
+        dotClass = 'bg-emerald-600';
+      } else if (idx === 1) {
+        label = 'Salida Quiebre (Pausa)';
+        textClass = 'text-amber-800';
+        dotClass = 'bg-amber-600';
+      } else if (idx === 2) {
+        label = 'Retorno / Salida';
+        textClass = 'text-blue-800';
+        dotClass = 'bg-blue-600';
+      }
+    } else if (total === 2) {
+      if (idx === 0) {
+        label = 'Hora Entrada (Reloj)';
+        textClass = 'text-emerald-800';
+        dotClass = 'bg-emerald-600';
+      } else if (idx === 1) {
+        label = 'Hora Salida (Reloj)';
+        textClass = 'text-rose-800';
+        dotClass = 'bg-rose-600';
+      }
+    } else {
+      if (m.tipo_evento === 'ENTRADA') {
+        label = 'Hora Entrada (Inicio)';
+        textClass = 'text-emerald-800';
+        dotClass = 'bg-emerald-600';
+      } else if (m.tipo_evento === 'SALIDA_QUEBRADA') {
+        label = 'Salida Quiebre (Pausa)';
+        textClass = 'text-amber-800';
+        dotClass = 'bg-amber-600';
+      } else if (m.tipo_evento === 'ENTRADA_QUEBRADA') {
+        label = 'Retorno Quiebre';
+        textClass = 'text-blue-800';
+        dotClass = 'bg-blue-600';
+      } else if (m.tipo_evento === 'SALIDA_DEFINITIVA') {
+        label = 'Salida Definitiva';
+        textClass = 'text-rose-800';
+        dotClass = 'bg-rose-600';
+      }
+    }
+
+    return { label, textClass, dotClass };
   };
 
   const primerMarcaje = marcajesDia.length > 0 ? formatHora(marcajesDia[0].fecha_hora) : '08:00 AM (Aprox)';
@@ -513,23 +628,56 @@ export default function BoletaHorasExtraModal({
 
             <div className="p-4 space-y-3.5 bg-white print-desglose-body">
               {/* Marcajes biométricos reales registrados */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-stone-50/70 p-3 rounded-xl border border-stone-150 text-xs print-reloj-grid">
-                <div>
-                  <span className="text-[10px] font-bold text-stone-500 uppercase block">Hora Entrada (Reloj):</span>
-                  <strong className="font-mono text-stone-900 text-xs">{primerMarcaje}</strong>
+              <div className="bg-stone-50/80 p-3 rounded-xl border border-stone-200 text-xs print-reloj-grid space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-1 border-b border-stone-200/80 pb-1.5 text-[10px] uppercase font-bold text-stone-600">
+                  <span className="flex items-center gap-1.5 text-[#1c6856]">
+                    <Clock className="w-3.5 h-3.5" />
+                    Registros Biométricos Oficiales {marcajesDia.length >= 4 ? '(Horario Quebrado - 4 Marcaciones)' : `(${marcajesDia.length} marcación${marcajesDia.length !== 1 ? 'es' : ''})`}
+                  </span>
+                  <div className="flex items-center gap-2 font-mono text-stone-500">
+                    <span>Jornada Base: <strong>8.0 hrs</strong></span>
+                    <span>•</span>
+                    <span className="text-[#1c6856] font-bold">Total: {marcajesDia.length} registro(s)</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] font-bold text-stone-500 uppercase block">Hora Salida (Reloj):</span>
-                  <strong className="font-mono text-stone-900 text-xs">{ultimoMarcaje}</strong>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-stone-500 uppercase block">Jornada Ordinaria Base:</span>
-                  <span className="font-mono font-bold text-stone-700">8.0 hrs</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-stone-500 uppercase block">Total Registros Biométricos:</span>
-                  <span className="font-mono font-bold text-[#1c6856]">{marcajesDia.length} marcación(es)</span>
-                </div>
+
+                {marcajesDia.length > 0 ? (
+                  <div className={`grid gap-2 ${
+                    marcajesDia.length >= 4
+                      ? 'grid-cols-2 sm:grid-cols-4 print:grid-cols-4'
+                      : marcajesDia.length === 3
+                      ? 'grid-cols-3 print:grid-cols-3'
+                      : marcajesDia.length === 2
+                      ? 'grid-cols-2 print:grid-cols-2'
+                      : 'grid-cols-2 sm:grid-cols-4 print:grid-cols-4'
+                  }`}>
+                    {marcajesDia.map((m, idx) => {
+                      const info = getMarcajeInfo(m, idx, marcajesDia.length);
+                      return (
+                        <div key={idx} className="bg-white p-2 rounded-lg border border-stone-200/90 shadow-2xs">
+                          <span className={`text-[10px] font-bold uppercase block flex items-center gap-1 ${info.textClass}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${info.dotClass} shrink-0`}></span>
+                            {info.label}:
+                          </span>
+                          <strong className="font-mono text-stone-900 text-xs mt-0.5 block">
+                            {formatHora(m.fecha_hora)}
+                          </strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white p-2 rounded-lg border border-stone-150">
+                      <span className="text-[10px] font-bold text-stone-500 uppercase block">Hora Entrada (Reloj):</span>
+                      <strong className="font-mono text-stone-900 text-xs mt-0.5 block">{primerMarcaje}</strong>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-stone-150">
+                      <span className="text-[10px] font-bold text-stone-500 uppercase block">Hora Salida (Reloj):</span>
+                      <strong className="font-mono text-stone-900 text-xs mt-0.5 block">{ultimoMarcaje}</strong>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Tarjeta de Horas Extra Autorizadas para Pago (Tiempo Efectivo) */}
