@@ -440,6 +440,12 @@ export default function BodegonControlPage() {
       if (g.jornada_id && jornadaIdToFechaMap.has(g.jornada_id)) {
         return jornadaIdToFechaMap.get(g.jornada_id)!;
       }
+      try {
+        const d = new Date(g.fecha_hora);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+        }
+      } catch {}
       return g.fecha_hora.slice(0, 10);
     },
     [jornadaIdToFechaMap]
@@ -672,13 +678,18 @@ export default function BodegonControlPage() {
     return arr.slice(0, 30);
   }, [dailyHistoryMap]);
 
-  // 8. Gastos filtrados para la pestaña de Gastos / Caja Chica (estrictamente por la fecha seleccionada)
+  // 8. Gastos filtrados para la pestaña de Gastos / Caja Chica (estrictamente por la jornada seleccionada o fecha)
   const gastosFiltrados = useMemo(() => {
+    const currentJornadaId = selectedDayData.jornada?.id;
     return gastos.filter((g) => {
-      const fechaGastoStr = getGastoFecha(g);
-      // Filtrar SIEMPRE por la fecha seleccionada (por defecto hoy)
-      if (selectedDate && fechaGastoStr !== selectedDate) {
-        return false;
+      // Encapsulación estricta por jornada/apertura si existe
+      if (currentJornadaId && g.jornada_id) {
+        if (g.jornada_id !== currentJornadaId) return false;
+      } else {
+        const fechaGastoStr = getGastoFecha(g);
+        if (selectedDate && fechaGastoStr !== selectedDate) {
+          return false;
+        }
       }
       if (filtroCategoria !== 'TODAS' && g.categoria !== filtroCategoria) return false;
       if (filtroMetodo !== 'TODOS' && g.metodo_pago !== filtroMetodo) return false;
@@ -693,7 +704,7 @@ export default function BodegonControlPage() {
       }
       return true;
     });
-  }, [gastos, selectedDate, filtroCategoria, filtroMetodo, filtroEstado, searchTerm]);
+  }, [gastos, selectedDate, selectedDayData, getGastoFecha, filtroCategoria, filtroMetodo, filtroEstado, searchTerm]);
 
   // Helper para parsear la composición de fondos iniciales
   const parseFondosComposition = useCallback((obs?: string | null, fallbackFondoInicial: number = 0) => {
@@ -728,7 +739,13 @@ export default function BodegonControlPage() {
     let pendientesCount = 0;
     let pendientesMonto = 0;
 
-    const gastosDelDia = gastos.filter((g) => getGastoFecha(g) === selectedDate);
+    const currentJornadaId = selectedDayData.jornada?.id;
+    const gastosDelDia = gastos.filter((g) => {
+      if (currentJornadaId && g.jornada_id) {
+        return g.jornada_id === currentJornadaId;
+      }
+      return getGastoFecha(g) === selectedDate;
+    });
     gastosDelDia.forEach((g) => {
       const m = Number(g.monto) || 0;
       if (isFondeoTransaction(g)) {
@@ -768,7 +785,7 @@ export default function BodegonControlPage() {
       totalEntradas,
       saldoEfectivoRestante,
     };
-  }, [gastos, selectedDate, selectedDayData, parseFondosComposition]);
+  }, [gastos, selectedDate, selectedDayData, getGastoFecha, parseFondosComposition]);
 
   // Métricas del día de hoy en vivo para el banner superior
   const metricasGastosHoy = useMemo(() => {
@@ -777,7 +794,17 @@ export default function BodegonControlPage() {
     let totTarjeta = 0;
     let totFondeosExtras = 0;
 
-    const gastosHoy = gastos.filter((g) => g.fecha_hora.slice(0, 10) === hoyStr);
+    const jornadasHoy = jornadas.filter((j) => j.fecha === hoyStr);
+    const combinedObsHoy = jornadasHoy.map((j) => j.observaciones || '').join(' ');
+    const hasGeneralOpening = /\[OPENING_DATA:\{.*?\}\]/.test(combinedObsHoy);
+    const primaryJornada = jornadasHoy.find((j) => j.estado === 'ABIERTA') || jornadasHoy.find((j) => /\[FONDOS_COMPOSITION:\{.*?\}\]/.test(j.observaciones || '')) || jornadasHoy[0];
+
+    const gastosHoy = gastos.filter((g) => {
+      if (primaryJornada?.id && g.jornada_id) {
+        return g.jornada_id === primaryJornada.id;
+      }
+      return getGastoFecha(g) === hoyStr;
+    });
     gastosHoy.forEach((g) => {
       const m = Number(g.monto) || 0;
       if (isFondeoTransaction(g)) {
@@ -791,10 +818,6 @@ export default function BodegonControlPage() {
       }
     });
 
-    const jornadasHoy = jornadas.filter((j) => j.fecha === hoyStr);
-    const combinedObsHoy = jornadasHoy.map((j) => j.observaciones || '').join(' ');
-    const hasGeneralOpening = /\[OPENING_DATA:\{.*?\}\]/.test(combinedObsHoy);
-    const primaryJornada = jornadasHoy.find((j) => /\[FONDOS_COMPOSITION:\{.*?\}\]/.test(j.observaciones || '')) || jornadasHoy[0];
     const fallbackFondo = hasGeneralOpening ? 0 : Number(primaryJornada?.fondo_inicial || 0);
     const fondosComp = parseFondosComposition(combinedObsHoy, fallbackFondo);
     const fondoCajaChica = (fondosComp.previousDayRemaining || 0) + (fondosComp.generalCashTransfer || 0) + (fondosComp.bossContribution || 0);
@@ -810,7 +833,7 @@ export default function BodegonControlPage() {
       saldoEfectivoRestante,
       fondoCajaChica,
     };
-  }, [gastos, hoyStr, jornadas, parseFondosComposition]);
+  }, [gastos, hoyStr, jornadas, getGastoFecha, parseFondosComposition]);
 
   // Resumen del estado hoy para Caja General y Caja Chica
   const todaySummary = useMemo(() => {
@@ -916,7 +939,12 @@ export default function BodegonControlPage() {
 
     // 2. Transacciones del día ordenadas cronológicamente para calcular el saldo histórico
     const dayGastos = gastos
-      .filter((g) => g.fecha_hora.slice(0, 10) === selectedDate)
+      .filter((g) => {
+        if (jornada?.id && g.jornada_id) {
+          return g.jornada_id === jornada.id;
+        }
+        return getGastoFecha(g) === selectedDate;
+      })
       .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));
 
     for (const g of dayGastos) {
@@ -1000,6 +1028,7 @@ export default function BodegonControlPage() {
     filtroMetodo,
     filtroEstado,
     searchTerm,
+    getGastoFecha,
     parseFondosComposition,
   ]);
 
@@ -1259,8 +1288,14 @@ export default function BodegonControlPage() {
       lineas.push(`"3. LIBRO DIARIO DE MOVIMIENTOS Y CAJA CHICA (CUADRO EN VIVO)"`);
       lineas.push(`"#","Hora","Concepto","Categoría","Proveedor","Método","Estado","Entradas (+)","Salidas (-)","Saldo Gaveta"`);
 
+      const currentJornadaId = day.jornada?.id;
       const dayGastos = gastos
-        .filter((g) => g.fecha_hora.slice(0, 10) === selectedDate)
+        .filter((g) => {
+          if (currentJornadaId && g.jornada_id) {
+            return g.jornada_id === currentJornadaId;
+          }
+          return getGastoFecha(g) === selectedDate;
+        })
         .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));
 
       let runningBal = Number(day.jornada?.fondo_inicial || 0);
@@ -1328,8 +1363,14 @@ export default function BodegonControlPage() {
         hour12: true,
       });
 
+      const currentJornadaId = selectedDayData.jornada?.id;
       const dayGastos = gastos
-        .filter((g) => g.fecha_hora.slice(0, 10) === selectedDate)
+        .filter((g) => {
+          if (currentJornadaId && g.jornada_id) {
+            return g.jornada_id === currentJornadaId;
+          }
+          return getGastoFecha(g) === selectedDate;
+        })
         .sort((a, b) => a.fecha_hora.localeCompare(b.fecha_hora));
 
       const sales = selectedDayData.sales;
