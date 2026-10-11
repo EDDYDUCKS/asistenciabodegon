@@ -183,8 +183,26 @@ export async function consultarHorasKiosco(qrToken: string): Promise<{
 
 
 // ── REGISTROS DE ASISTENCIA ───────────────────────────────────────────────
-export async function fetchAsistencias(): Promise<RegistroAsistencia[]> {
-  const data = await apiRequest<RegistroAsistencia[] | { results: RegistroAsistencia[] }>('/asistencia/');
+export interface FetchAsistenciasParams {
+  fecha_desde?: string;
+  fecha_hasta?: string;
+  dias?: number;
+  empleado?: number;
+  todos?: boolean;
+}
+
+export async function fetchAsistencias(params?: FetchAsistenciasParams): Promise<RegistroAsistencia[]> {
+  const query = new URLSearchParams();
+  if (params?.fecha_desde) query.append('fecha_desde', params.fecha_desde);
+  if (params?.fecha_hasta) query.append('fecha_hasta', params.fecha_hasta);
+  if (params?.dias) query.append('dias', String(params.dias));
+  if (params?.empleado) query.append('empleado', String(params.empleado));
+  if (params?.todos) query.append('todos', 'true');
+
+  const queryString = query.toString();
+  const path = queryString ? `/asistencia/?${queryString}` : '/asistencia/';
+
+  const data = await apiRequest<RegistroAsistencia[] | { results: RegistroAsistencia[] }>(path);
   if (Array.isArray(data)) return data;
   if (data && Array.isArray((data as { results: RegistroAsistencia[] }).results)) {
     return (data as { results: RegistroAsistencia[] }).results;

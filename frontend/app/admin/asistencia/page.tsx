@@ -232,6 +232,7 @@ export default function AsistenciaLogPage() {
   const [filterText, setFilterText] = useState('');
   const deferredFilterText = useDeferredValue(filterText);
   const [filterFecha, setFilterFecha] = useState('');
+  const [periodoFiltro, setPeriodoFiltro] = useState<'15dias' | 'mes' | 'fecha' | 'todos'>('15dias');
   const [separarPorDia, setSepararPorDia] = useState(true);
   const [cargarFotosDirectas, setCargarFotosDirectas] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
@@ -240,11 +241,28 @@ export default function AsistenciaLogPage() {
   // Estado para Modal de Marcaje Manual
   const [showManualModal, setShowManualModal] = useState(false);
 
-  const loadData = async () => {
+  const loadData = async (
+    modo: '15dias' | 'mes' | 'fecha' | 'todos' = periodoFiltro,
+    fechaExacta: string = filterFecha
+  ) => {
     setLoading(true);
     try {
+      const hoyNi = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+      const primerDiaMes = hoyNi.slice(0, 8) + '01';
+
+      let asistenciasPromise;
+      if (modo === 'fecha' && fechaExacta) {
+        asistenciasPromise = fetchAsistencias({ fecha_desde: fechaExacta, fecha_hasta: fechaExacta });
+      } else if (modo === 'mes') {
+        asistenciasPromise = fetchAsistencias({ fecha_desde: primerDiaMes, fecha_hasta: hoyNi });
+      } else if (modo === 'todos') {
+        asistenciasPromise = fetchAsistencias({ todos: true });
+      } else {
+        asistenciasPromise = fetchAsistencias({ dias: 15 });
+      }
+
       const [data, empList] = await Promise.all([
-        fetchAsistencias(),
+        asistenciasPromise,
         (await import('@/lib/api-client')).fetchEmpleados(),
       ]);
       setAsistencias(data);
@@ -257,7 +275,7 @@ export default function AsistenciaLogPage() {
   };
 
   useEffect(() => {
-    loadData();
+    loadData('15dias', '');
   }, []);
 
   const handleCreateManualSubmit = async (data: {
@@ -790,7 +808,7 @@ export default function AsistenciaLogPage() {
             Depuración Semestral
           </button>
           <button
-            onClick={loadData}
+            onClick={() => loadData()}
             disabled={loading}
             className="bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 shadow-sm"
           >
@@ -798,6 +816,64 @@ export default function AsistenciaLogPage() {
             Actualizar Historial
           </button>
         </div>
+      </div>
+
+      {/* Selector Rápido de Período (Últimos 15 días, Mes, Todo) */}
+      <div className="flex flex-wrap items-center gap-2 bg-stone-100/80 p-1.5 rounded-2xl border border-stone-200/80 w-fit">
+        <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider px-2">Período:</span>
+        <button
+          type="button"
+          onClick={() => {
+            setPeriodoFiltro('15dias');
+            setFilterFecha('');
+            loadData('15dias', '');
+          }}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            periodoFiltro === '15dias' && !filterFecha
+              ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
+              : 'bg-white text-stone-700 hover:bg-stone-50 border border-stone-200/60'
+          }`}
+          title="Carga ultrarrápida: últimos 15 días de marcajes"
+        >
+          <span>⚡ Últimos 15 Días</span>
+          {periodoFiltro === '15dias' && !filterFecha && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setPeriodoFiltro('mes');
+            setFilterFecha('');
+            loadData('mes', '');
+          }}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            periodoFiltro === 'mes' && !filterFecha
+              ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
+              : 'bg-white text-stone-700 hover:bg-stone-50 border border-stone-200/60'
+          }`}
+          title="Marcajes del mes actual en curso"
+        >
+          <span>📅 Mes Actual</span>
+          {periodoFiltro === 'mes' && !filterFecha && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setPeriodoFiltro('todos');
+            setFilterFecha('');
+            loadData('todos', '');
+          }}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            periodoFiltro === 'todos' && !filterFecha
+              ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
+              : 'bg-white text-stone-700 hover:bg-stone-50 border border-stone-200/60'
+          }`}
+          title="Cargar todo el histórico desde el inicio"
+        >
+          <span>📜 Todo el Historial</span>
+          {periodoFiltro === 'todos' && !filterFecha && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+        </button>
       </div>
 
       {/* Barra de Filtros: Buscador + Selector de Día + Toggle de Separadores */}
@@ -822,16 +898,30 @@ export default function AsistenciaLogPage() {
             <input
               type="date"
               value={filterFecha}
-              onChange={(e) => setFilterFecha(e.target.value)}
+              onChange={(e) => {
+                const f = e.target.value;
+                setFilterFecha(f);
+                if (f) {
+                  setPeriodoFiltro('fecha');
+                  loadData('fecha', f);
+                } else {
+                  setPeriodoFiltro('15dias');
+                  loadData('15dias', '');
+                }
+              }}
               className="text-xs font-mono text-stone-800 bg-transparent focus:outline-none cursor-pointer"
             />
             {filterFecha && (
               <button
-                onClick={() => setFilterFecha('')}
-                className="text-[11px] text-stone-500 hover:text-stone-800 font-bold ml-1 px-1.5 py-0.5 rounded-md hover:bg-stone-100 transition-colors"
-                title="Ver todos los días"
+                onClick={() => {
+                  setFilterFecha('');
+                  setPeriodoFiltro('15dias');
+                  loadData('15dias', '');
+                }}
+                className="text-[11px] text-stone-500 hover:text-stone-800 font-bold ml-1 px-1.5 py-0.5 rounded-md hover:bg-stone-100 transition-colors cursor-pointer"
+                title="Volver a los últimos 15 días"
               >
-                ✕ Todos
+                ✕ Limpiar
               </button>
             )}
           </div>

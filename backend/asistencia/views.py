@@ -790,6 +790,65 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
+    def get_queryset(self):
+        qs = RegistroAsistencia.objects.all().select_related('empleado').defer('foto_base64').order_by('-fecha_hora', '-id')
+        if not hasattr(self, 'request') or self.request is None:
+            return qs
+
+        params = getattr(self.request, 'query_params', None) or getattr(self.request, 'GET', {})
+
+        # Si se solicita explícitamente todo el histórico:
+        if params.get('todos', '').lower() in ('true', '1'):
+            return qs
+
+        fecha_desde = params.get('fecha_desde')
+        fecha_hasta = params.get('fecha_hasta')
+        dias = params.get('dias')
+        empleado = params.get('empleado')
+
+        if empleado:
+            try:
+                qs = qs.filter(empleado_id=int(empleado))
+            except (ValueError, TypeError):
+                pass
+
+        tz = timezone.get_current_timezone()
+
+        if fecha_desde:
+            try:
+                dt_desde = timezone.make_aware(
+                    datetime.datetime.strptime(str(fecha_desde).strip()[:10], '%Y-%m-%d'),
+                    tz
+                )
+                qs = qs.filter(fecha_hora__gte=dt_desde)
+            except Exception:
+                pass
+
+        if fecha_hasta:
+            try:
+                dt_hasta_base = datetime.datetime.strptime(str(fecha_hasta).strip()[:10], '%Y-%m-%d')
+                dt_hasta = timezone.make_aware(
+                    datetime.datetime.combine(dt_hasta_base.date(), datetime.time.max),
+                    tz
+                )
+                qs = qs.filter(fecha_hora__lte=dt_hasta)
+            except Exception:
+                pass
+
+        if dias and not fecha_desde and not fecha_hasta:
+            try:
+                dias_num = int(dias)
+                fecha_limite = timezone.now() - datetime.timedelta(days=dias_num)
+                qs = qs.filter(fecha_hora__gte=fecha_limite)
+            except (ValueError, TypeError):
+                pass
+        elif not fecha_desde and not fecha_hasta and not dias:
+            # Por defecto: últimos 15 días para máxima velocidad y eficiencia
+            fecha_limite = timezone.now() - datetime.timedelta(days=15)
+            qs = qs.filter(fecha_hora__gte=fecha_limite)
+
+        return qs
+
     @action(detail=True, methods=['get'], url_path='foto')
     def foto(self, request, pk=None):
         """
@@ -956,6 +1015,20 @@ class BitacoraViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = BitacoraAccion.objects.all()
     serializer_class = BitacoraAccionSerializer
     permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        qs = BitacoraAccion.objects.all().order_by('-fecha_hora', '-id')
+        if not hasattr(self, 'request') or self.request is None:
+            return qs[:150]
+        params = getattr(self.request, 'query_params', None) or getattr(self.request, 'GET', {})
+        limit = params.get('limit')
+        if limit:
+            try:
+                return qs[:int(limit)]
+            except (ValueError, TypeError):
+                pass
+        # Por defecto los últimos 150 eventos para velocidad óptima
+        return qs[:150]
 
 
 class DiaFeriadoViewSet(viewsets.ModelViewSet):

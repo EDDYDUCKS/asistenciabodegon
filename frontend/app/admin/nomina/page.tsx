@@ -183,6 +183,14 @@ export default function NominaAdminPage() {
 
   // State para Auditoría y Ajuste de Vacaciones
   const [selectedVacacionesEmp, setSelectedVacacionesEmp] = useState<Empleado | null>(null);
+
+  const handleOpenVacacionesEmp = (emp: Empleado) => {
+    setSelectedVacacionesEmp(emp);
+    if (bitacora.length === 0) {
+      fetchBitacora().then((b) => setBitacora(b)).catch((err) => console.warn('Bitacora lazy fetch:', err));
+    }
+  };
+
   const [ajustandoEmp, setAjustandoEmp] = useState<Empleado | null>(null);
   const [modoAjusteVac, setModoAjusteVac] = useState<'SUMAR' | 'FIJAR'>('SUMAR');
   const [diasASumar, setDiasASumar] = useState<string>('5');
@@ -201,12 +209,41 @@ export default function NominaAdminPage() {
   const tempComentarioRef = useRef('');
   const [savingExtra, setSavingExtra] = useState(false);
 
+  const isInitialMount = useRef(true);
+
+  const recargarAsistenciasRango = useCallback(async (fIni: string, fFin: string) => {
+    try {
+      const dInicio = new Date(fIni + 'T12:00:00');
+      dInicio.setDate(dInicio.getDate() - 1);
+      const fechaDesdeMargen = dInicio.toISOString().slice(0, 10);
+
+      const dFin = new Date(fFin + 'T12:00:00');
+      dFin.setDate(dFin.getDate() + 1);
+      const fechaHastaMargen = dFin.toISOString().slice(0, 10);
+
+      const asis = await fetchAsistencias({ fecha_desde: fechaDesdeMargen, fecha_hasta: fechaHastaMargen });
+      setAsistencias(asis);
+      return asis;
+    } catch (e) {
+      console.error('Error recargando asistencias del período:', e);
+      return [];
+    }
+  }, []);
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const [empList, asisList, feriadosList, extrasList, permisosList, compList, compFeriadosList, pagosVacList, pagosHEList, bitacoraList] = await Promise.all([
+      const dInicio = new Date(fechaInicio + 'T12:00:00');
+      dInicio.setDate(dInicio.getDate() - 1);
+      const fechaDesdeMargen = dInicio.toISOString().slice(0, 10);
+
+      const dFin = new Date(fechaFin + 'T12:00:00');
+      dFin.setDate(dFin.getDate() + 1);
+      const fechaHastaMargen = dFin.toISOString().slice(0, 10);
+
+      const [empList, asisList, feriadosList, extrasList, permisosList, compList, compFeriadosList, pagosVacList, pagosHEList] = await Promise.all([
         fetchEmpleados(),
-        fetchAsistencias(),
+        fetchAsistencias({ fecha_desde: fechaDesdeMargen, fecha_hasta: fechaHastaMargen }),
         fetchFeriados(),
         fetchHorasExtra(),
         fetchPermisos(),
@@ -214,7 +251,6 @@ export default function NominaAdminPage() {
         fetchCompensacionesFeriados(),
         fetchPagosVacaciones(),
         fetchPagosHorasExtra(),
-        fetchBitacora(),
       ]);
       setEmpleados(empList);
       setAsistencias(asisList);
@@ -225,7 +261,6 @@ export default function NominaAdminPage() {
       setCompensacionesFeriados(compFeriadosList);
       setPagosVacaciones(pagosVacList);
       setPagosHorasExtra(pagosHEList);
-      setBitacora(bitacoraList);
       if (empList.length > 0 && nuevoPermisoEmp === 0) {
         setNuevoPermisoEmp(empList[0].id);
       }
@@ -235,6 +270,14 @@ export default function NominaAdminPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    recargarAsistenciasRango(fechaInicio, fechaFin);
+  }, [fechaInicio, fechaFin, recargarAsistenciasRango]);
 
   const handleAbrirPagoHE = (emp: Empleado, extras: AutorizacionHorasExtra[]) => {
     setEmpleadoParaPagoHE(emp);
@@ -388,8 +431,7 @@ export default function NominaAdminPage() {
       const updated = await fetchFeriados();
       setFeriados(updated);
       // Recargar asistencias por si afecta cálculos en pantalla
-      const updatedAsis = await fetchAsistencias();
-      setAsistencias(updatedAsis);
+      await recargarAsistenciasRango(fechaInicio, fechaFin);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al crear feriado');
     } finally {
@@ -403,8 +445,7 @@ export default function NominaAdminPage() {
       await deleteFeriado(id);
       const updated = await fetchFeriados();
       setFeriados(updated);
-      const updatedAsis = await fetchAsistencias();
-      setAsistencias(updatedAsis);
+      await recargarAsistenciasRango(fechaInicio, fechaFin);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al eliminar feriado');
     }
@@ -2718,7 +2759,7 @@ export default function NominaAdminPage() {
                           <td className="px-6 py-4 text-right bg-emerald-50/20 border-b border-stone-100 whitespace-nowrap">
                             <button
                               type="button"
-                              onClick={() => setSelectedVacacionesEmp(item.emp)}
+                              onClick={() => handleOpenVacacionesEmp(item.emp)}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all hover:scale-105 active:scale-95 cursor-pointer group"
                               title="Haga clic para ver el desglose legal auditado de días acumulados, tomados y saldo disponible"
                             >
@@ -2948,7 +2989,7 @@ export default function NominaAdminPage() {
                         <span className="text-xs text-stone-500 font-medium">Saldo Vacaciones:</span>
                         <button
                           type="button"
-                          onClick={() => setSelectedVacacionesEmp(item.emp)}
+                          onClick={() => handleOpenVacacionesEmp(item.emp)}
                           className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors cursor-pointer"
                         >
                           <span className={item.vacRestantes < 0 ? 'text-rose-600' : 'text-emerald-800'}>
@@ -4626,7 +4667,7 @@ export default function NominaAdminPage() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setSelectedVacacionesEmp(emp)}
+                                onClick={() => handleOpenVacacionesEmp(emp)}
                                 className="bg-stone-50 hover:bg-[#1c6856] hover:text-white border border-stone-200 text-stone-700 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
                                 title="Ver auditoría y estado de cuenta de vacaciones"
                               >
