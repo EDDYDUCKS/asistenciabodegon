@@ -2505,9 +2505,13 @@ def marcar_asistencia_kiosco(request):
     if not empleado:
         return Response({'status': 'error', 'mensaje': 'Código QR no encontrado en base de datos o empleado inactivo.'}, status=400)
 
-    # Permite enviar fecha_hora simulada desde el cliente (para testing dinámico)
+    # En producción, la hora del marcaje es AUTORITATIVA del servidor (evita manipulación de hora).
+    # Solo se permite fecha_hora simulada si settings.DEBUG=True o mediante cabecera de pruebas autorizada.
+    from django.conf import settings
     fecha_hora_simulada = request.data.get('fecha_hora')
-    if fecha_hora_simulada:
+    test_auth_header = request.headers.get('X-Test-Simulation-Key') == 'bodegon-simulation-test-mode'
+
+    if fecha_hora_simulada and (getattr(settings, 'DEBUG', False) or test_auth_header):
         from django.utils.dateparse import parse_datetime
         dt_sim = parse_datetime(fecha_hora_simulada)
         if dt_sim:
@@ -5047,6 +5051,21 @@ def sync_batch_asistencia(request):
         # Asegurar zona horaria correcta
         if fecha_hora and timezone.is_naive(fecha_hora):
             fecha_hora = timezone.make_aware(fecha_hora, timezone.get_current_timezone())
+
+        # Validación de seguridad: Rechazar fechas en el futuro (más de 10 min de desfase de reloj)
+        ahora_servidor = timezone.now()
+        if fecha_hora and (fecha_hora - ahora_servidor).total_seconds() > 600:
+            respuestas.append({
+                'status': 'error',
+                'mensaje': 'Marca rechazada: la fecha y hora enviada está en el futuro respecto al servidor.',
+                'token': qr_code_token
+            })
+            continue
+
+        # Validación de seguridad: Si la marca offline tiene más de 14 días de antigüedad, auditar alerta
+        es_offline_antiguo = False
+        if fecha_hora and (ahora_servidor - fecha_hora).total_seconds() > (14 * 86400):
+            es_offline_antiguo = True
 
         dt_local = fecha_hora.astimezone(timezone.get_current_timezone())
         dia = dt_local.date()

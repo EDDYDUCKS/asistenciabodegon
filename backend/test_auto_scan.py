@@ -48,7 +48,7 @@ def run_auto_scan_test():
         response = c.post('/api/kiosco/marcar/', {
             'qr_token': carlos.qr_code_token,
             'fecha_hora': t_iso
-        })
+        }, HTTP_X_TEST_SIMULATION_KEY='bodegon-simulation-test-mode')
         if response.status_code == 200:
             data = response.json()
             reg_type = data['registro']['tipo_evento']
@@ -75,7 +75,7 @@ def run_auto_scan_test():
         response = c.post('/api/kiosco/marcar/', {
             'qr_token': eddy.qr_code_token,
             'fecha_hora': t_iso
-        })
+        }, HTTP_X_TEST_SIMULATION_KEY='bodegon-simulation-test-mode')
         if response.status_code == 200:
             data = response.json()
             reg_type = data['registro']['tipo_evento']

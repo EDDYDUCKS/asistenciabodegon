@@ -42,7 +42,7 @@ def run_extreme_late_test():
     res_ent = c.post('/api/kiosco/marcar/', {
         'qr_token': eddy.qr_code_token,
         'fecha_hora': t_entrada_iso
-    })
+    }, HTTP_X_TEST_SIMULATION_KEY='bodegon-simulation-test-mode')
     
     # 2. Escaneo de salida a tiempo (8:00 PM)
     t_salida = datetime.datetime.combine(hoy, datetime.time(20, 0, 0)) # 8:00 PM
@@ -51,7 +51,7 @@ def run_extreme_late_test():
     res_sal = c.post('/api/kiosco/marcar/', {
         'qr_token': eddy.qr_code_token,
         'fecha_hora': t_salida_iso
-    })
+    }, HTTP_X_TEST_SIMULATION_KEY='bodegon-simulation-test-mode')
 
     # Verificar Alertas generadas
     alertas_a = AlertaAsistencia.objects.filter(empleado=eddy)
@@ -87,7 +87,7 @@ def run_extreme_late_test():
     c.post('/api/kiosco/marcar/', {
         'qr_token': eddy.qr_code_token,
         'fecha_hora': t_entrada_b_iso
-    })
+    }, HTTP_X_TEST_SIMULATION_KEY='bodegon-simulation-test-mode')
     
     # 2. Escaneo de salida 1.5 horas antes (6:30 PM)
     t_salida_b = datetime.datetime.combine(hoy, datetime.time(18, 30, 0)) # 6:30 PM
@@ -95,7 +95,7 @@ def run_extreme_late_test():
     res_sal_b = c.post('/api/kiosco/marcar/', {
         'qr_token': eddy.qr_code_token,
         'fecha_hora': t_salida_b_iso
-    })
+    }, HTTP_X_TEST_SIMULATION_KEY='bodegon-simulation-test-mode')
 
     # Verificar Alertas generadas
     alertas_b = AlertaAsistencia.objects.filter(empleado=eddy)
