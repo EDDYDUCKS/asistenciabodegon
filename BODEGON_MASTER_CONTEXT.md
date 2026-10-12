@@ -27,9 +27,9 @@
 
 ## 2. Códigos de Seguridad y PINs
 
-- **PIN de Gerencia Kiosco:** `4512`  
+- **PIN de Gerencia Kiosco:** Configurable vía variable de entorno (`SUPERVISOR_PIN`, por defecto definido en entorno local para terminal).  
   *Función:* Permite salir del modo Kiosco pantalla completa e ingresar al panel `/admin` sin cerrar el navegador.
-- **PIN de Nómina / Aprobación Horas Extra:** `2322`  
+- **PIN de Nómina / Aprobación Horas Extra:** Configurable vía variable de entorno (`PAYROLL_APPROVAL_PIN`, por defecto definido en entorno administrativo).  
   *Función:* Requerido para autorizar horas extras de la jornada y aplicar la amortización a la Bolsa de Horas. Nunca se muestra en pantalla.
 
 ---

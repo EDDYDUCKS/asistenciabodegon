@@ -1,6 +1,9 @@
+import os
 import psycopg2
 
-db_url = 'postgresql://postgres.kwkyvdoacselhbrnvney:epFvM4aRpRsTrlmL@aws-0-us-east-1.pooler.supabase.com:6543/postgres'
+db_url = os.getenv('DATABASE_URL')
+if not db_url:
+    raise ValueError("La variable de entorno DATABASE_URL no está configurada.")
 
 sql_grants = """
 -- Conceder permisos de tabla a los roles de Supabase (anon, authenticated, service_role)
