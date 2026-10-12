@@ -186,6 +186,7 @@ export default function ModalEmitirPagoHorasExtra({
         metodo_pago: metodoPago,
         fecha_pago: fechaPago,
         observaciones: observaciones.trim() || `Pago de ${totalHorasSeleccionadas.toFixed(1)} hrs extra vía ${metodoPago}`,
+        pin: pin.trim(),
       });
 
       onPagoCompletado(nuevoPago);
@@ -457,7 +458,7 @@ export default function ModalEmitirPagoHorasExtra({
                 <span>Autorización Gerencial</span>
               </div>
               <p className="text-[11px] text-stone-500 mt-0.5">
-                Ingrese el PIN de administración (2322) para autorizar el desembolso
+                Ingrese el PIN de administración gerencial para autorizar el desembolso
               </p>
             </div>
 

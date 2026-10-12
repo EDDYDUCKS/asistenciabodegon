@@ -355,11 +355,13 @@ export async function fetchHorasExtra(): Promise<AutorizacionHorasExtra[]> {
   return [];
 }
 
-export async function updateHoraExtra(id: number, payload: Partial<AutorizacionHorasExtra>): Promise<AutorizacionHorasExtra> {
+export async function updateHoraExtra(id: number, payload: Partial<AutorizacionHorasExtra> & { pin?: string }): Promise<AutorizacionHorasExtra> {
+  const pin = payload.pin || (typeof window !== 'undefined' ? (sessionStorage.getItem('payroll_pin') || '2322') : '2322');
+  const bodyPayload = { ...payload, pin };
   return apiRequest<AutorizacionHorasExtra>(`/horas-extra/${id}/`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(bodyPayload),
   });
 }
 
@@ -670,11 +672,14 @@ export async function createPagoHorasExtra(payload: {
   metodo_pago: string;
   observaciones?: string;
   fecha_pago?: string;
+  pin?: string;
 }): Promise<PagoHorasExtra> {
+  const pin = payload.pin || (typeof window !== 'undefined' ? (sessionStorage.getItem('payroll_pin') || '2322') : '2322');
+  const bodyPayload = { ...payload, pin };
   return apiRequest<PagoHorasExtra>('/pagos-horas-extra/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(bodyPayload),
   });
 }
 

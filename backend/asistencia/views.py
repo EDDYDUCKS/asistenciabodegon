@@ -1350,6 +1350,24 @@ class PagoHorasExtraViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         from decimal import Decimal
+        import os
+        pin = str(request.data.get('pin', '')).strip()
+        expected_pin = os.getenv('ADMIN_PAYROLL_PIN', '2322')
+        if not pin or pin != expected_pin:
+            try:
+                BitacoraAccion.objects.create(
+                    usuario=request.user if (request.user and request.user.is_authenticated) else None,
+                    accion='SANCION_DISCIPLINARIA',
+                    descripcion="ALERTA DE SEGURIDAD: Intento de emisión de pago de horas extra sin PIN de administración válido bloqueado en servidor.",
+                    ip_address=_get_clean_ip(request)
+                )
+            except Exception:
+                pass
+            return Response(
+                {'detail': 'PIN de administración no proporcionado o inválido. Acción rechazada por el servidor.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         empleado_id = request.data.get('empleado')
         horas_extra_ids = request.data.get('horas_extra_ids', [])
         total_horas_pagadas = Decimal(str(request.data.get('total_horas_pagadas', '0')))
@@ -1461,6 +1479,26 @@ class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
     queryset = AutorizacionHorasExtra.objects.all().select_related('empleado')
     serializer_class = AutorizacionHorasExtraSerializer
     permission_classes = [permissions.AllowAny]
+
+    def update(self, request, *args, **kwargs):
+        import os
+        pin = str(request.data.get('pin', '')).strip()
+        expected_pin = os.getenv('ADMIN_PAYROLL_PIN', '2322')
+        if not pin or pin != expected_pin:
+            try:
+                BitacoraAccion.objects.create(
+                    usuario=request.user if (request.user and request.user.is_authenticated) else None,
+                    accion='SANCION_DISCIPLINARIA',
+                    descripcion="ALERTA DE SEGURIDAD: Intento no autorizado de resolución de horas extra sin PIN de administración bloqueado en servidor.",
+                    ip_address=_get_clean_ip(request)
+                )
+            except Exception:
+                pass
+            return Response(
+                {'detail': 'PIN de administración no proporcionado o inválido. Acción rechazada por el servidor.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().update(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         # Las horas extra aprobadas son intocables y no se amortizan contra déficit de horas

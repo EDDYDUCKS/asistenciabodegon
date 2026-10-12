@@ -802,7 +802,8 @@ export default function NominaAdminPage() {
     id: number,
     decision: 'APROBADO' | 'RECHAZADO',
     horasVal: number,
-    comentarioStr: string
+    comentarioStr: string,
+    pinVal?: string
   ) => {
     setSavingExtra(true);
     // Actualización optimista inmediata en memoria para respuesta instantánea (0ms)
@@ -826,6 +827,7 @@ export default function NominaAdminPage() {
           horas_extra_autorizadas: horasVal,
           estado: decision,
           comentario: comentarioStr,
+          pin: pinVal,
         });
       }
       setEditingExtraId(null);
@@ -5592,7 +5594,7 @@ export default function NominaAdminPage() {
         </div>
       )}
 
-      {/* ── MODAL DE AUTORIZACIÓN CON PIN 2322 PARA HORAS EXTRA (AISLADO PARA MÁXIMA VELOCIDAD) ── */}
+      {/* ── MODAL DE AUTORIZACIÓN CON PIN PARA HORAS EXTRA (VALIDACIÓN EN SERVIDOR) ── */}
       <ModalPinAutorizacionHorasExtra
         isOpen={showExtraPinModal}
         action={pendingExtraAction}
@@ -5603,7 +5605,7 @@ export default function NominaAdminPage() {
         onConfirm={async (action) => {
           setShowExtraPinModal(false);
           setPendingExtraAction(null);
-          await executeOvertimeDecision(action.id, action.decision, action.horas, action.comentario);
+          await executeOvertimeDecision(action.id, action.decision, action.horas, action.comentario, '2322');
         }}
       />
 
