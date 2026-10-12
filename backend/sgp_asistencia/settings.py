@@ -114,11 +114,34 @@ REST_FRAMEWORK = {
     ],
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    'https://asistenciabodegon.vercel.app',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-admin-backup-key',
+    'x-kiosk-api-key',
+]
+
 CSRF_TRUSTED_ORIGINS = [
     'https://*.onrender.com',
     'https://*.vercel.app',
+    'https://asistenciabodegon.vercel.app',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 ]

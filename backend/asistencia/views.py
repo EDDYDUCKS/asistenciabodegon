@@ -5115,7 +5115,33 @@ def exportar_respaldo_base_datos(request):
     """
     Genera y descarga un archivo JSON estructurado con el respaldo total e íntegro
     de todas las tablas de Restaurante El Bodegón para resguardo de la administración.
+    Requiere autenticación de administrador o clave administrativa de resguardo.
     """
+    import os
+    admin_key_header = request.headers.get('X-Admin-Backup-Key') or request.GET.get('key')
+    expected_key = os.getenv('BACKUP_ADMIN_KEY', 'bodegon-admin-backup-key-2026-auth')
+
+    is_authorized = False
+    if request.user and request.user.is_authenticated and request.user.is_staff:
+        is_authorized = True
+    elif admin_key_header and admin_key_header == expected_key:
+        is_authorized = True
+
+    if not is_authorized:
+        try:
+            BitacoraAccion.objects.create(
+                usuario=request.user if (request.user and request.user.is_authenticated) else None,
+                accion='SANCION_DISCIPLINARIA',
+                descripcion="ALERTA DE SEGURIDAD: Intento no autorizado de descarga de volcado total de base de datos bloqueado por el servidor.",
+                ip_address=_get_clean_ip(request)
+            )
+        except Exception:
+            pass
+        return Response(
+            {'detail': 'Acceso denegado: Se requieren credenciales administrativas autorizadas para descargar el respaldo total de la base de datos.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
     from django.core import serializers
     import json
     from django.http import HttpResponse

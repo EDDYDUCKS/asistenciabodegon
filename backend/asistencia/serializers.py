@@ -20,9 +20,6 @@ class EmpleadoSimpleSerializer(serializers.ModelSerializer):
             'cargo_display',
             'tipo_turno',
             'tipo_turno_display',
-            'cedula_carnet',
-            'telefono',
-            'qr_code_token',
             'activo',
             'horas_pendientes',
         ]

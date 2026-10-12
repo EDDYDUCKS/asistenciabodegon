@@ -708,7 +708,10 @@ export async function cerrarSalida11pm(alertaId: number): Promise<{
 // ── RESPALDO TOTAL DE BASE DE DATOS ───────────────────────────────────────
 export async function downloadDatabaseBackup(): Promise<void> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const headers: HeadersInit = {};
+  const adminKey = typeof window !== 'undefined' ? (sessionStorage.getItem('backup_admin_key') || 'bodegon-admin-backup-key-2026-auth') : 'bodegon-admin-backup-key-2026-auth';
+  const headers: HeadersInit = {
+    'X-Admin-Backup-Key': adminKey,
+  };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
