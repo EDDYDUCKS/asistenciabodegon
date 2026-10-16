@@ -404,7 +404,7 @@ export default function BoletaVacacionesMensualLoteModal({
               </div>
               <span className="text-[7.5px] text-stone-600 font-medium block leading-tight">
                 {diasGozadosMes > 0 || diasInasistenciaMes > 0 || diasPagadosMes > 0
-                  ? `${diasGozadosMes + diasPagadosMes}d vac. / ${diasInasistenciaMes}d faltas`
+                  ? `${diasGozadosMes}d vac.${diasPagadosMes > 0 ? ` + ${diasPagadosMes}d pagados` : ''}${diasInasistenciaMes > 0 ? ` / ${diasInasistenciaMes}d faltas` : ''}`
                   : '0 días descontados en el mes'}
               </span>
             </div>
@@ -462,18 +462,25 @@ export default function BoletaVacacionesMensualLoteModal({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {movimientosMes.slice(0, 5).map((m) => (
+                  {movimientosMes.slice(0, 8).map((m) => (
                     <tr key={m.id}>
-                      <td className="py-0.5 px-1 font-mono font-bold text-stone-900">{m.fecha}</td>
-                      <td className="py-0.5 px-1 font-bold text-stone-800">{m.concepto}</td>
-                      <td className="py-0.5 px-1 text-center font-mono font-black">
+                      <td className="py-0.5 px-1 font-mono font-bold text-stone-900 whitespace-nowrap">{m.fecha}</td>
+                      <td className="py-0.5 px-1 font-bold text-stone-800 whitespace-nowrap">{m.concepto}</td>
+                      <td className="py-0.5 px-1 text-center font-mono font-black whitespace-nowrap">
                         {m.impacto}
                       </td>
-                      <td className="py-0.5 px-1 text-stone-600 truncate max-w-[75mm]">
+                      <td className="py-0.5 px-1 text-stone-600 truncate max-w-[80mm]">
                         {m.detalle}
                       </td>
                     </tr>
                   ))}
+                  {movimientosMes.length > 8 && (
+                    <tr>
+                      <td colSpan={4} className="py-0.5 px-1 text-center font-bold text-stone-500 italic text-[7.5px]">
+                        (+ {movimientosMes.length - 8} movimiento(s) adicionales en el sistema)
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             )}
