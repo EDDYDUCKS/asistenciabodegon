@@ -15,8 +15,12 @@ export type CategoriaGastoType =
   | 'MERCADO'
   | 'LACTEOS'
   | 'PAGOS_PERSONAL'
+  | 'GASTOS_COCINA'
+  | 'MUSICA_Y_EVENTOS'
+  | 'SERVICIOS/REPARACIONES'
   | 'OTROS'
-  | 'FONDEO';
+  | 'FONDEO'
+  | string;
 
 export interface CategoriaConfig {
   id: CategoriaGastoType;
@@ -38,6 +42,9 @@ export const CATEGORIAS_GASTO: CategoriaConfig[] = [
   { id: 'MERCADO', label: 'Mercado', emoji: '🏪', color: '#0d9488', badgeClass: 'bg-teal-50 text-teal-700 border-teal-200' },
   { id: 'LACTEOS', label: 'Lácteos', emoji: '🧀', color: '#ca8a04', badgeClass: 'bg-yellow-50 text-yellow-800 border-yellow-200' },
   { id: 'PAGOS_PERSONAL', label: 'Pagos personal', emoji: '👥', color: '#4f46e5', badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  { id: 'GASTOS_COCINA', label: 'Gastos de Cocina', emoji: '🍳', color: '#f97316', badgeClass: 'bg-orange-50 text-orange-700 border-orange-200' },
+  { id: 'MUSICA_Y_EVENTOS', label: 'Música y Eventos', emoji: '🎵', color: '#8b5cf6', badgeClass: 'bg-violet-50 text-violet-700 border-violet-200' },
+  { id: 'SERVICIOS/REPARACIONES', label: 'Servicios / Reparaciones', emoji: '🔧', color: '#64748b', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' },
   { id: 'OTROS', label: 'Otros', emoji: '📝', color: '#57534e', badgeClass: 'bg-stone-100 text-stone-700 border-stone-200' },
   { id: 'FONDEO', label: 'Depósito / Fondeo', emoji: '💵', color: '#059669', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 ];

@@ -55,6 +55,9 @@ import {
   Edit3,
 } from 'lucide-react';
 import PinSecurityGate from '@/components/PinSecurityGate';
+import DailyEarningsSection from '@/components/control/DailyEarningsSection';
+import ExpenseAnalyticsSection from '@/components/control/ExpenseAnalyticsSection';
+import ExecutiveSummaryBanner from '@/components/control/ExecutiveSummaryBanner';
 
 export interface ParsedSalesData {
   salesCash: number;
@@ -97,7 +100,7 @@ export interface ParsedPettyClosing {
   closedAt?: string;
 }
 
-type TabType = 'VENTAS' | 'GASTOS' | 'CONSOLIDADO';
+type TabType = 'VENTAS' | 'GASTOS' | 'ANALITICA' | 'CONSOLIDADO';
 type DetailModalType =
   | 'CASH'
   | 'CARDS'
@@ -209,8 +212,8 @@ export default function BodegonControlPage() {
     setLoading(true);
     try {
       const [{ data: jData, error: jError }, { data: gData, error: gError }] = await Promise.all([
-        supabase.from('jornadas_diarias').select('*').order('fecha', { ascending: false }).limit(60),
-        supabase.from('compras_gastos').select('*').order('fecha_hora', { ascending: false }).limit(350),
+        supabase.from('jornadas_diarias').select('*').order('fecha', { ascending: false }).limit(90),
+        supabase.from('compras_gastos').select('*').order('fecha_hora', { ascending: false }).limit(1500),
       ]);
 
       if (jError) console.warn('Aviso jornadas:', jError.message);
@@ -2144,9 +2147,17 @@ export default function BodegonControlPage() {
             </div>
           )}
 
+          {/* ── COMMAND CENTER EJECUTIVO (EL SEMÁFORO FINANCIERO DEL JEFE) ── */}
+          <ExecutiveSummaryBanner
+            jornadaActiva={jornadaActiva}
+            jornadas={jornadas}
+            gastos={gastos}
+            selectedDate={selectedDate}
+          />
+
           {/* ── NAVEGACIÓN POR PESTAÑAS ── */}
           <div className="flex items-center justify-between gap-3 border-b border-stone-200/90 pb-2">
-            <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-2xl border border-stone-200/80">
+            <div className="flex flex-wrap items-center gap-1.5 bg-stone-100 p-1 rounded-2xl border border-stone-200/80">
               <button
                 onClick={() => setActiveTab('VENTAS')}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
@@ -2157,6 +2168,18 @@ export default function BodegonControlPage() {
               >
                 <BarChart3 className="w-3.5 h-3.5 text-amber-600" />
                 <span>🏛️ Caja General & Ventas</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('ANALITICA')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  activeTab === 'ANALITICA'
+                    ? 'bg-white text-stone-900 shadow-xs'
+                    : 'text-stone-500 hover:text-stone-900'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-purple-600" />
+                <span>📈 Analítica & Proveedores</span>
               </button>
 
               <button
@@ -2185,571 +2208,119 @@ export default function BodegonControlPage() {
             </div>
           </div>
 
-          {/* ── BARRA MAESTRA DE CONTROL DE FECHA (GRANDE, VISIBLE Y FÁCIL DE CAPACITAR) ── */}
-          <div className="bg-white border-2 border-stone-200/90 rounded-3xl p-3.5 sm:p-4.5 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5">
-            {/* Botón Día Anterior */}
-            <button
-              onClick={() => cambiarDia(-1)}
-              className="flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer active:scale-95 border border-stone-300 shadow-2xs shrink-0"
-              title="Ir al día anterior"
-            >
-              <ChevronLeft className="w-5 h-5 text-stone-700" />
-              <span>◀ DÍA ANTERIOR</span>
-            </button>
+          {/* ── BARRA MAESTRA DE CONTROL DE FECHA (PARA GASTOS Y CONSOLIDADO) ── */}
+          {(activeTab === 'GASTOS' || activeTab === 'CONSOLIDADO') && (
+            <div className="bg-white border-2 border-stone-200/90 rounded-3xl p-3.5 sm:p-4.5 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5">
+              {/* Botón Día Anterior */}
+              <button
+                onClick={() => cambiarDia(-1)}
+                className="flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer active:scale-95 border border-stone-300 shadow-2xs shrink-0"
+                title="Ir al día anterior"
+              >
+                <ChevronLeft className="w-5 h-5 text-stone-700" />
+                <span>◀ DÍA ANTERIOR</span>
+              </button>
 
-            {/* Display Central Grande con Fecha Completa */}
-            <div className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-3.5 py-1.5 px-4 bg-amber-50/70 rounded-2xl border border-amber-200">
-              <div className="text-center sm:text-left">
-                <div className="flex items-center justify-center sm:justify-start gap-2">
-                  <span className="text-[11px] font-black uppercase text-amber-900 tracking-wider">
-                    Viendo fecha:
-                  </span>
-                  {selectedDate === hoyStr ? (
-                    <span className="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
-                      <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                      HOY (EN VIVO)
+              {/* Display Central Grande con Fecha Completa */}
+              <div className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-3.5 py-1.5 px-4 bg-amber-50/70 rounded-2xl border border-amber-200">
+                <div className="text-center sm:text-left">
+                  <div className="flex items-center justify-center sm:justify-start gap-2">
+                    <span className="text-[11px] font-black uppercase text-amber-900 tracking-wider">
+                      Viendo fecha:
                     </span>
-                  ) : (
-                    <span className="bg-stone-300 text-stone-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      DÍA ANTERIOR
-                    </span>
-                  )}
+                    {selectedDate === hoyStr ? (
+                      <span className="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                        <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                        HOY (EN VIVO)
+                      </span>
+                    ) : (
+                      <span className="bg-stone-300 text-stone-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        DÍA ANTERIOR
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-base sm:text-xl font-black text-stone-900 capitalize tracking-tight mt-0.5">
+                    {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-NI', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
+                  </div>
                 </div>
-                <div className="text-base sm:text-xl font-black text-stone-900 capitalize tracking-tight mt-0.5">
-                  {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-NI', {
-                    weekday: 'long',
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
+
+                {/* Selector de calendario grande */}
+                <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-stone-300 shadow-2xs hover:border-amber-500 transition">
+                  <Calendar className="w-5 h-5 text-amber-700 shrink-0" />
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="text-xs sm:text-sm font-mono font-black text-stone-900 bg-transparent outline-none cursor-pointer"
+                    title="Toca para cambiar a cualquier fecha"
+                  />
                 </div>
               </div>
 
-              {/* Selector de calendario grande */}
-              <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-stone-300 shadow-2xs hover:border-amber-500 transition">
-                <Calendar className="w-5 h-5 text-amber-700 shrink-0" />
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="text-xs sm:text-sm font-mono font-black text-stone-900 bg-transparent outline-none cursor-pointer"
-                  title="Toca para cambiar a cualquier fecha"
-                />
+              {/* Controles Derecha: Día Siguiente, Botón de Volver a Hoy e Imprimir */}
+              <div className="flex items-center gap-2 justify-stretch shrink-0 flex-wrap sm:flex-nowrap">
+                <button
+                  onClick={() => cambiarDia(1)}
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer active:scale-95 border border-stone-300 shadow-2xs"
+                  title="Ir al día siguiente"
+                >
+                  <span>DÍA SIGUIENTE ▶</span>
+                  <ChevronRight className="w-5 h-5 text-stone-700" />
+                </button>
+
+                <button
+                  onClick={() => setSelectedDate(hoyStr)}
+                  className={`px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center gap-1.5 ${
+                    selectedDate === hoyStr
+                      ? 'bg-amber-500 text-stone-950 border border-amber-600 shadow-md ring-2 ring-amber-300'
+                      : 'bg-[#1c6856] hover:bg-[#154f42] text-white'
+                  }`}
+                  title="Regresar a la fecha de hoy"
+                >
+                  <span>⚡ VER HOY</span>
+                </button>
+
+                <button
+                  onClick={() => setShowModalPrint(true)}
+                  className="px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center gap-2 bg-stone-900 hover:bg-black text-white border border-stone-800"
+                  title="Imprimir Acta Oficial en Blanco y Negro de este día"
+                >
+                  <Printer className="w-4.5 h-4.5 text-amber-400" />
+                  <span>🖨️ IMPRIMIR DÍA</span>
+                </button>
               </div>
             </div>
-
-            {/* Controles Derecha: Día Siguiente, Botón de Volver a Hoy e Imprimir */}
-            <div className="flex items-center gap-2 justify-stretch shrink-0 flex-wrap sm:flex-nowrap">
-              <button
-                onClick={() => cambiarDia(1)}
-                className="flex-1 md:flex-initial flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer active:scale-95 border border-stone-300 shadow-2xs"
-                title="Ir al día siguiente"
-              >
-                <span>DÍA SIGUIENTE ▶</span>
-                <ChevronRight className="w-5 h-5 text-stone-700" />
-              </button>
-
-              <button
-                onClick={() => setSelectedDate(hoyStr)}
-                className={`px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center gap-1.5 ${
-                  selectedDate === hoyStr
-                    ? 'bg-amber-500 text-stone-950 border border-amber-600 shadow-md ring-2 ring-amber-300'
-                    : 'bg-[#1c6856] hover:bg-[#154f42] text-white'
-                }`}
-                title="Regresar a la fecha de hoy"
-              >
-                <span>⚡ VER HOY</span>
-              </button>
-
-              <button
-                onClick={() => setShowModalPrint(true)}
-                className="px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center gap-2 bg-stone-900 hover:bg-black text-white border border-stone-800"
-                title="Imprimir Acta Oficial en Blanco y Negro de este día"
-              >
-                <Printer className="w-4.5 h-4.5 text-amber-400" />
-                <span>🖨️ IMPRIMIR DÍA</span>
-              </button>
-            </div>
-          </div>
+          )}
 
           {/* ══════════════════════════════════════════════════════════════════ */}
           {/* ── TAB 1: GANANCIAS & VENTAS DIARIAS (AL NIVEL DEL EJECUTABLE) ── */}
           {/* ══════════════════════════════════════════════════════════════════ */}
           {activeTab === 'VENTAS' && (
             <div className="space-y-5 animate-in fade-in duration-150">
-              {/* Resumen del Día Seleccionado */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-black text-stone-900 flex items-center gap-2">
-                    <span>Ventas del Día:</span>
-                    <span className="text-amber-700 font-mono">
-                      {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-NI', {
-                        weekday: 'long',
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                      })}
-                    </span>
-                    {selectedDate === hoyStr && (
-                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        En Curso
-                      </span>
-                    )}
-                  </h2>
-                  <p className="text-xs text-stone-500">
-                    Haz clic en cualquier tarjeta para ver su desglose interactivo detallado.
-                  </p>
-                </div>
+              <DailyEarningsSection
+                jornadas={jornadas}
+                gastos={gastos}
+                selectedDate={selectedDate}
+                setSelectedDate={setSelectedDate}
+                onOpenEditSales={handleOpenEditSales}
+              />
+            </div>
+          )}
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleOpenEditSales}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 border border-stone-300 px-3 py-1.5 rounded-xl transition cursor-pointer active:scale-95"
-                    title="Ajuste administrativo de ventas del día"
-                  >
-                    <Edit3 className="w-3.5 h-3.5 text-stone-500" />
-                    <span>Ajuste Ventas</span>
-                  </button>
-
-                  <button
-                    onClick={handleExportarReporteCSV}
-                    className="hidden md:flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3.5 py-2 rounded-xl shadow-2xs transition cursor-pointer"
-                    title="Exportar reporte contable a Excel / CSV"
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-                    <span>📥 Exportar Excel</span>
-                  </button>
-
-                  <button
-                    onClick={() => setShowModalPrint(true)}
-                    className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-stone-700 hover:text-stone-950 bg-white border border-stone-300 hover:bg-stone-50 px-3.5 py-2 rounded-xl shadow-2xs transition cursor-pointer"
-                    title="Imprimir Acta Oficial en Blanco y Negro"
-                  >
-                    <Printer className="w-4 h-4 text-stone-700" />
-                    <span>🖨️ Imprimir Acta (B/N)</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* ── CARD AUDITORÍA & ARQUEO DE CAJA GENERAL (APERTURA Y CIERRE) ── */}
-              {selectedDayData.closingAudit ? (
-                <div className="bg-gradient-to-br from-stone-900 via-stone-900 to-stone-950 text-white rounded-3xl p-5 border border-stone-800 shadow-sm space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-800 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold shrink-0">
-                        <ShieldCheck className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-black text-sm text-white">
-                            Arqueo & Cierre Oficial de Caja General
-                          </h3>
-                          <span
-                            className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
-                              selectedDayData.closingAudit.auditStatus === 'SQUARED'
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                : selectedDayData.closingAudit.auditStatus === 'SURPLUS'
-                                ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                                : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                            }`}
-                          >
-                            {selectedDayData.closingAudit.auditStatus === 'SQUARED' && '✅ CUADRADO EXACTO'}
-                            {selectedDayData.closingAudit.auditStatus === 'SURPLUS' &&
-                              `🔵 SOBRANTE (+C$ ${selectedDayData.closingAudit.differenceNIO.toLocaleString('es-NI', { minimumFractionDigits: 2 })})`}
-                            {selectedDayData.closingAudit.auditStatus === 'SHORTAGE' &&
-                              `🔴 FALTANTE (-C$ ${Math.abs(selectedDayData.closingAudit.differenceNIO).toLocaleString('es-NI', { minimumFractionDigits: 2 })})`}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-stone-400 mt-0.5">
-                          Turno cerrado por: <strong className="text-stone-200">{selectedDayData.closingAudit.closedBy || selectedDayData.jornada?.responsable || 'Cajero'}</strong>
-                          {selectedDayData.closingAudit.closedAt && ` a las ${selectedDayData.closingAudit.closedAt}`}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="text-left sm:text-right text-[11px] text-stone-400">
-                      Tasa de Cambio Oficial: <strong className="text-white font-mono">1 USD = C$ {(selectedDayData.opening?.exchangeRate || 36.0).toFixed(2)}</strong>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                    <div className="bg-stone-900/90 p-3.5 rounded-2xl border border-stone-800">
-                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Fondo Apertura</span>
-                      <span className="font-mono font-black text-sm text-stone-100 block mt-1">
-                        C$ {(selectedDayData.opening?.totalOpeningNIO || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                      </span>
-                      {(selectedDayData.opening?.totalOpeningUSD || 0) > 0 && (
-                        <span className="text-[10px] text-amber-400 font-mono">
-                          + ${(selectedDayData.opening?.totalOpeningUSD || 0).toFixed(2)} USD
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="bg-stone-900/90 p-3.5 rounded-2xl border border-stone-800">
-                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Físico Contado Gaveta</span>
-                      <span className="font-mono font-black text-sm text-emerald-400 block mt-1">
-                        C$ {selectedDayData.closingAudit.actualCashNIO.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-
-                    <div className="bg-stone-900/90 p-3.5 rounded-2xl border border-stone-800">
-                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Efectivo Teórico Esperado</span>
-                      <span className="font-mono font-black text-sm text-stone-200 block mt-1">
-                        C$ {selectedDayData.closingAudit.expectedCashNIO.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                      </span>
-                      <span className="text-[10px] text-stone-500">
-                        (Apertura + Ventas Efectivo)
-                      </span>
-                    </div>
-
-                    <div className="bg-stone-900/90 p-3.5 rounded-2xl border border-stone-800">
-                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Propinas Recaudadas</span>
-                      <span className="font-mono font-black text-sm text-amber-300 block mt-1">
-                        C$ {(selectedDayData.sales.tips || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : selectedDayData.jornada?.estado === 'ABIERTA' ? (
-                <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-3xl p-4.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-stone-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold shrink-0">
-                      <Clock className="w-5 h-5 animate-pulse" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-xs sm:text-sm text-emerald-300">
-                          Turno de Caja General en Curso (Abierto en Restaurante)
-                        </span>
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                      </div>
-                      <p className="text-[11px] text-stone-400 mt-0.5">
-                        Fondo Inicial: <strong className="text-white font-mono">C$ {(selectedDayData.opening?.totalOpeningNIO || Number(selectedDayData.jornada?.fondo_inicial) || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong>
-                        {selectedDayData.opening?.totalOpeningUSD ? ` (+ $${selectedDayData.opening.totalOpeningUSD} USD)` : ''} • Aperturado por: <strong className="text-white">{selectedDayData.jornada?.responsable || 'Cajero'}</strong>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right text-[11px] text-emerald-300/80 shrink-0 bg-emerald-900/30 px-3 py-1.5 rounded-xl border border-emerald-700/40">
-                    <span>Efectivo Gaveta Teórico: </span>
-                    <strong className="text-white font-mono">C$ {((selectedDayData.opening?.totalOpeningNIO || Number(selectedDayData.jornada?.fondo_inicial) || 0) + selectedDayData.sales.salesCash).toLocaleString('es-NI', { minimumFractionDigits: 2 })}</strong>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* ── GRID DE TARJETAS PRINCIPALES DE VENTAS ── */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* 1. VENTAS EN EFECTIVO */}
-                <div
-                  onClick={() => setActiveDetailModal('CASH')}
-                  className="bg-white rounded-3xl p-5 border border-emerald-200/80 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-                      <Banknote className="w-4 h-4 text-emerald-600" />
-                      <span>Ventas Efectivo</span>
-                    </span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 group-hover:bg-emerald-100 transition">
-                      Ver detalle ➜
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <span className="text-3xl font-black font-mono text-emerald-700 tracking-tight">
-                      C$ {selectedDayData.sales.salesCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-stone-500 mt-1.5 flex items-center justify-between">
-                    <span>Cobrado directamente en caja</span>
-                    <span className="font-bold text-emerald-700 font-mono">
-                      {selectedDayData.sales.totalGrossSales > 0
-                        ? `${((selectedDayData.sales.salesCash / selectedDayData.sales.totalGrossSales) * 100).toFixed(1)}% del total`
-                        : '0%'}
-                    </span>
-                  </p>
-                </div>
-
-                {/* 2. VENTAS EN TARJETAS (CON DESGLOSE DE BANCOS) */}
-                <div
-                  onClick={() => setActiveDetailModal('CARDS')}
-                  className="bg-white rounded-3xl p-5 border border-indigo-200/80 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
-                      <CreditCard className="w-4 h-4 text-indigo-600" />
-                      <span>Tarjetas POS (Datafast)</span>
-                    </span>
-                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 group-hover:bg-indigo-100 transition">
-                      Ver desglose ➜
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <span className="text-3xl font-black font-mono text-indigo-900 tracking-tight">
-                      C$ {selectedDayData.sales.totalCards.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-
-                  {/* Chips de Bancos BAC, Ficohsa, Banpro, Lafise */}
-                  <div className="mt-3 pt-3 border-t border-indigo-50 grid grid-cols-2 gap-1.5 text-[10px]">
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveDetailModal('BAC');
-                      }}
-                      className="bg-rose-50 hover:bg-rose-100 p-1.5 rounded-xl border border-rose-200/80 flex items-center justify-between font-bold text-rose-900 transition"
-                    >
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
-                        BAC
-                      </span>
-                      <span className="font-mono font-black">
-                        C$ {selectedDayData.sales.cardsBAC.toLocaleString('es-NI')}
-                      </span>
-                    </div>
-
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveDetailModal('FICOHSA');
-                      }}
-                      className="bg-sky-50 hover:bg-sky-100 p-1.5 rounded-xl border border-sky-200/80 flex items-center justify-between font-bold text-sky-900 transition"
-                    >
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-sky-600" />
-                        Ficohsa
-                      </span>
-                      <span className="font-mono font-black">
-                        C$ {selectedDayData.sales.cardsFicohsa.toLocaleString('es-NI')}
-                      </span>
-                    </div>
-
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveDetailModal('BANPRO');
-                      }}
-                      className="bg-emerald-50 hover:bg-emerald-100 p-1.5 rounded-xl border border-emerald-200/80 flex items-center justify-between font-bold text-emerald-900 transition"
-                    >
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                        Banpro
-                      </span>
-                      <span className="font-mono font-black">
-                        C$ {selectedDayData.sales.cardsBanpro.toLocaleString('es-NI')}
-                      </span>
-                    </div>
-
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveDetailModal('LAFISE');
-                      }}
-                      className="bg-amber-50 hover:bg-amber-100 p-1.5 rounded-xl border border-amber-200/80 flex items-center justify-between font-bold text-amber-900 transition"
-                    >
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
-                        LAFISE
-                      </span>
-                      <span className="font-mono font-black">
-                        C$ {selectedDayData.sales.cardsLafise.toLocaleString('es-NI')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. DELIVERY / PEDIDOSYA */}
-                <div
-                  onClick={() => setActiveDetailModal('DELIVERY')}
-                  className="bg-white rounded-3xl p-5 border border-amber-200/80 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative overflow-hidden"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                      <Truck className="w-4 h-4 text-amber-600" />
-                      <span>Delivery / PedidosYa</span>
-                    </span>
-                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 group-hover:bg-amber-100 transition">
-                      Ver detalle ➜
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <span className="text-3xl font-black font-mono text-amber-700 tracking-tight">
-                      C$ {selectedDayData.sales.salesPedidosYa.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-stone-500 mt-1.5 flex items-center justify-between">
-                    <span>Pedidos por app externa</span>
-                    <span className="font-bold text-amber-700 font-mono">
-                      {selectedDayData.sales.totalGrossSales > 0
-                        ? `${((selectedDayData.sales.salesPedidosYa / selectedDayData.sales.totalGrossSales) * 100).toFixed(1)}% del total`
-                        : '0%'}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              {/* ── FILA INFERIOR DE TOTALES: VENTAS BRUTAS, GASTOS & GANANCIA NETA ── */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* VENTAS BRUTAS TOTALES */}
-                <div
-                  onClick={() => setActiveDetailModal('GROSS')}
-                  className="bg-white rounded-3xl p-5 border border-stone-200 shadow-2xs hover:shadow-md transition cursor-pointer"
-                >
-                  <div className="flex items-center justify-between text-stone-500 text-xs font-extrabold uppercase tracking-wider">
-                    <span>Ventas Brutas Totales</span>
-                    <TrendingUp className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  <div className="mt-2.5">
-                    <span className="text-3xl font-black font-mono text-stone-900">
-                      C$ {selectedDayData.sales.totalGrossSales.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-stone-400 mt-1">Efectivo + Tarjetas + Delivery</p>
-                </div>
-
-                {/* GASTOS DE CAJA CHICA DEL DÍA */}
-                <div
-                  onClick={() => setActiveTab('GASTOS')}
-                  className="bg-white rounded-3xl p-5 border border-rose-200 shadow-2xs hover:shadow-md transition cursor-pointer"
-                >
-                  <div className="flex items-center justify-between text-rose-800 text-xs font-extrabold uppercase tracking-wider">
-                    <span>Gastos del Día</span>
-                    <TrendingDown className="w-4 h-4 text-rose-600" />
-                  </div>
-                  <div className="mt-2.5">
-                    <span className="text-3xl font-black font-mono text-rose-700">
-                      C$ {selectedDayData.expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-rose-600 mt-1">
-                    C$ {selectedDayData.expensesCash.toLocaleString('es-NI')} efectivo • C$ {selectedDayData.expensesTransf.toLocaleString('es-NI')} transf.
-                  </p>
-                </div>
-
-                {/* GANANCIA NETA */}
-                <div
-                  onClick={() => setActiveDetailModal('NET')}
-                  className={`rounded-3xl p-5 border shadow-2xs hover:shadow-md transition cursor-pointer ${
-                    selectedDayData.netProfit >= 0
-                      ? 'bg-gradient-to-br from-emerald-950 via-stone-900 to-stone-950 text-white border-emerald-600/40'
-                      : 'bg-gradient-to-br from-rose-950 via-stone-900 to-stone-950 text-white border-rose-600/40'
-                  }`}
-                >
-                  <div className="flex items-center justify-between text-emerald-400 text-xs font-extrabold uppercase tracking-wider">
-                    <span className="flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-amber-400" />
-                      <span>Ganancia Neta Real</span>
-                    </span>
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-white/10 text-stone-200">
-                      {selectedDayData.marginPercent.toFixed(1)}% Margen
-                    </span>
-                  </div>
-                  <div className="mt-2.5">
-                    <span
-                      className={`text-3xl font-black font-mono ${
-                        selectedDayData.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                      }`}
-                    >
-                      C$ {selectedDayData.netProfit.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-stone-400 mt-1">Ventas Brutas - Total Egresos del Día</p>
-                </div>
-              </div>
-
-              {/* ── GRÁFICA DE EVOLUCIÓN HISTÓRICA DE VENTAS VS GASTOS ── */}
-              <div className="bg-white rounded-3xl p-5 border border-stone-200/90 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-[#1c6856]" />
-                    <h3 className="font-black text-sm text-stone-900">
-                      Comparativa Temporal: Ventas Brutas vs Egresos
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl text-xs font-bold">
-                    <button
-                      onClick={() => setTimeFilterDays(7)}
-                      className={`px-2.5 py-1 rounded-lg transition ${
-                        timeFilterDays === 7 ? 'bg-white shadow-xs text-stone-900' : 'text-stone-500'
-                      }`}
-                    >
-                      7 Días
-                    </button>
-                    <button
-                      onClick={() => setTimeFilterDays(14)}
-                      className={`px-2.5 py-1 rounded-lg transition ${
-                        timeFilterDays === 14 ? 'bg-white shadow-xs text-stone-900' : 'text-stone-500'
-                      }`}
-                    >
-                      14 Días
-                    </button>
-                    <button
-                      onClick={() => setTimeFilterDays(30)}
-                      className={`px-2.5 py-1 rounded-lg transition ${
-                        timeFilterDays === 30 ? 'bg-white shadow-xs text-stone-900' : 'text-stone-500'
-                      }`}
-                    >
-                      30 Días
-                    </button>
-                  </div>
-                </div>
-
-                {/* Contenedor de barras */}
-                <div className="h-44 w-full flex items-end gap-2 sm:gap-4 pt-6 pb-2 px-2 border-b border-stone-100">
-                  {chartDaysList.map((c) => {
-                    const salesHeight = maxChartValue > 0 ? (c.grossSales / maxChartValue) * 100 : 0;
-                    const expHeight = maxChartValue > 0 ? (c.expenses / maxChartValue) * 100 : 0;
-                    const isSelected = c.dateStr === selectedDate;
-
-                    return (
-                      <div
-                        key={c.dateStr}
-                        onClick={() => setSelectedDate(c.dateStr)}
-                        className={`flex-1 flex flex-col items-center justify-end h-full group cursor-pointer transition-all ${
-                          isSelected ? 'scale-105' : 'opacity-85 hover:opacity-100'
-                        }`}
-                        title={`${c.label}: Ventas C$ ${c.grossSales.toLocaleString('es-NI')} | Gastos C$ ${c.expenses.toLocaleString('es-NI')}`}
-                      >
-                        <div className="w-full flex items-end justify-center gap-1 h-32">
-                          {/* Barra Ventas */}
-                          <div
-                            style={{ height: `${Math.max(salesHeight, 4)}%` }}
-                            className={`w-1/2 rounded-t-md transition-all ${
-                              isSelected
-                                ? 'bg-emerald-600 shadow-sm'
-                                : 'bg-emerald-500/80 group-hover:bg-emerald-600'
-                            }`}
-                          />
-                          {/* Barra Gastos */}
-                          <div
-                            style={{ height: `${Math.max(expHeight, 4)}%` }}
-                            className={`w-1/2 rounded-t-md transition-all ${
-                              isSelected
-                                ? 'bg-rose-600 shadow-sm'
-                                : 'bg-rose-400/80 group-hover:bg-rose-500'
-                            }`}
-                          />
-                        </div>
-                        <span
-                          className={`text-[9px] sm:text-[10px] font-bold mt-2 truncate w-full text-center ${
-                            isSelected ? 'text-[#1c6856] font-black' : 'text-stone-500'
-                          }`}
-                        >
-                          {c.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center justify-center gap-6 text-xs text-stone-500 pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-emerald-500" />
-                    <span>Ventas Brutas</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-rose-500" />
-                    <span>Gastos / Egresos</span>
-                  </div>
-                </div>
-              </div>
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          {/* ── TAB 2: ANALÍTICA AVANZADA DE GASTOS & PROVEEDORES ──────────── */}
+          {/* ══════════════════════════════════════════════════════════════════ */}
+          {activeTab === 'ANALITICA' && (
+            <div className="space-y-5 animate-in fade-in duration-150">
+              <ExpenseAnalyticsSection
+                gastos={gastos}
+                onRefreshExpenses={cargarDatos}
+              />
             </div>
           )}
 
