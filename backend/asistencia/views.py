@@ -904,6 +904,52 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
 
         return Response({'detail': 'No hay fotografía asociada a este marcaje'}, status=404)
 
+    @action(detail=False, methods=['get'], url_path='dias-laborados-mes')
+    def dias_laborados_mes(self, request):
+        """
+        Retorna de forma ultrarrápida (en milisegundos) los días únicos laborados
+        por cada colaborador dentro del mes y año solicitados, sin sobrecargar la red
+        ni transferir fotos o modelos pesados.
+        """
+        import calendar
+        try:
+            mes = int(request.query_params.get('mes', timezone.localdate().month))
+            anio = int(request.query_params.get('anio', timezone.localdate().year))
+        except (ValueError, TypeError):
+            mes = timezone.localdate().month
+            anio = timezone.localdate().year
+
+        primer_dia = datetime.date(anio, mes, 1)
+        ultimo_dia_num = calendar.monthrange(anio, mes)[1]
+        ultimo_dia = datetime.date(anio, mes, ultimo_dia_num)
+
+        tz = timezone.get_current_timezone()
+        dt_inicio = timezone.make_aware(datetime.datetime.combine(primer_dia, datetime.time.min), tz)
+        dt_fin = timezone.make_aware(datetime.datetime.combine(ultimo_dia, datetime.time.max), tz)
+
+        # Solo campos necesarios: empleado_id y fecha_hora
+        registros = RegistroAsistencia.objects.filter(
+            fecha_hora__gte=dt_inicio,
+            fecha_hora__lte=dt_fin
+        ).values('empleado_id', 'fecha_hora')
+
+        fechas_set_por_emp = {}
+        for r in registros:
+            emp_id = r['empleado_id']
+            fecha_local_str = r['fecha_hora'].astimezone(tz).strftime('%Y-%m-%d')
+            if emp_id not in fechas_set_por_emp:
+                fechas_set_por_emp[emp_id] = set()
+            fechas_set_por_emp[emp_id].add(fecha_local_str)
+
+        dias_por_empleado = {str(emp_id): len(s) for emp_id, s in fechas_set_por_emp.items()}
+
+        return Response({
+            'status': 'ok',
+            'mes': mes,
+            'anio': anio,
+            'dias_por_empleado': dias_por_empleado
+        })
+
     def perform_destroy(self, instance):
         empleado = instance.empleado
         fecha_instancia = instance.fecha_hora.astimezone(timezone.get_current_timezone()).date()

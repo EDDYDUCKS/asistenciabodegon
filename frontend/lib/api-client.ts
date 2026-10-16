@@ -210,6 +210,18 @@ export async function fetchAsistencias(params?: FetchAsistenciasParams): Promise
   return [];
 }
 
+export async function fetchDiasLaboradosMes(mes: number, anio: number): Promise<Record<string, number>> {
+  try {
+    const data = await apiRequest<{ status: string; dias_por_empleado: Record<string, number> }>(
+      `/asistencia/dias-laborados-mes/?mes=${mes}&anio=${anio}`
+    );
+    return data?.dias_por_empleado || {};
+  } catch (e) {
+    console.warn('Error al cargar dias-laborados-mes:', e);
+    return {};
+  }
+}
+
 export async function createAsistenciaManual(payload: {
   empleado: number;
   tipo_evento: string;

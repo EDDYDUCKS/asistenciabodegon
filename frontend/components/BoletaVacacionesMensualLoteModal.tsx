@@ -9,7 +9,7 @@ import {
   PagoVacaciones,
   RegistroAsistencia,
 } from '@/lib/types';
-import { fetchAsistencias } from '@/lib/api-client';
+import { fetchAsistencias, fetchDiasLaboradosMes } from '@/lib/api-client';
 import {
   Printer,
   X,
@@ -66,7 +66,7 @@ export default function BoletaVacacionesMensualLoteModal({
   const hoy = useMemo(() => new Date(), []);
   const [mes, setMes] = useState<number>(initialMes || hoy.getMonth() + 1);
   const [anio, setAnio] = useState<number>(initialAnio || hoy.getFullYear());
-  const [asistenciasMes, setAsistenciasMes] = useState<RegistroAsistencia[]>([]);
+  const [diasLaboradosMap, setDiasLaboradosMap] = useState<Record<string, number>>({});
   const [loadingAsis, setLoadingAsis] = useState(false);
 
   const empleadosActivos = useMemo(
@@ -94,30 +94,24 @@ export default function BoletaVacacionesMensualLoteModal({
     }
   }, [isOpen, initialEmpleadoId, empleadosActivos]);
 
-  // Cargar asistencias del mes seleccionado para contar exactamente los días laborados del mes
+  // Cargar días laborados del mes seleccionado de forma ultrarrápida
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
-    const cargarAsistenciasDelMes = async () => {
+    const cargarDiasLaborados = async () => {
       setLoadingAsis(true);
       try {
-        const primerDia = `${anio}-${String(mes).padStart(2, '0')}-01`;
-        const ultimoDiaNum = new Date(anio, mes, 0).getDate();
-        const ultimoDia = `${anio}-${String(mes).padStart(2, '0')}-${String(ultimoDiaNum).padStart(2, '0')}`;
-        const data = await fetchAsistencias({
-          fecha_desde: primerDia,
-          fecha_hasta: ultimoDia,
-        });
+        const mapa = await fetchDiasLaboradosMes(mes, anio);
         if (!cancelled) {
-          setAsistenciasMes(data);
+          setDiasLaboradosMap(mapa);
         }
       } catch (e) {
-        console.warn('Error cargando asistencias para reporte mensual de vacaciones:', e);
+        console.warn('Error cargando días laborados para reporte mensual de vacaciones:', e);
       } finally {
         if (!cancelled) setLoadingAsis(false);
       }
     };
-    cargarAsistenciasDelMes();
+    cargarDiasLaborados();
     return () => {
       cancelled = true;
     };
@@ -173,19 +167,11 @@ export default function BoletaVacacionesMensualLoteModal({
     const cargoColaborador = emp.cargo_display || 'Colaborador';
     const idCarnet = emp.qr_code_token ? emp.qr_code_token.slice(0, 12) : `ID-${emp.id}`;
 
-    // Días físicamente laborados en el mes seleccionado (fechas únicas en zona horaria Nicaragua)
-    const fechasTrabajadasSet = new Set<string>();
-    for (const reg of asistenciasMes) {
-      if (reg.empleado === emp.id && reg.fecha_hora) {
-        const fechaLocal = new Date(reg.fecha_hora).toLocaleDateString('en-CA', {
-          timeZone: 'America/Managua',
-        });
-        if (fechaLocal.startsWith(prefijoMes)) {
-          fechasTrabajadasSet.add(fechaLocal);
-        }
-      }
-    }
-    const diasLaboradosMes = fechasTrabajadasSet.size;
+    const primerDiaMes = `${anio}-${String(mes).padStart(2, '0')}-01`;
+    const ultimoDiaMes = `${anio}-${String(mes).padStart(2, '0')}-${String(ultimoDiaMesNum).padStart(2, '0')}`;
+
+    // Días físicamente laborados en el mes seleccionado (consultados de forma ultrarrápida)
+    const diasLaboradosMes = diasLaboradosMap[String(emp.id)] ?? diasLaboradosMap[emp.id] ?? 0;
     const vacGanadasLeyMes = Number(((diasLaboradosMes * 2.5) / 30).toFixed(2));
 
     // Feriados acreditados en el mes seleccionado
@@ -237,12 +223,50 @@ export default function BoletaVacacionesMensualLoteModal({
 
     const totalDescontadoMes = Number((diasInasistenciaMes + diasGozadosMes + diasPagadosMes).toFixed(2));
 
-    // Totales acumulados y disponibles actuales al cierre
-    const vacAcumTotal = parseFloat(String(emp.dias_vacaciones_acumuladas || 0));
-    const vacTomTotal = permisosVacTotal.reduce((acc, p) => acc + (p.total_dias || 0), 0);
-    const vacDispActual = Number((vacAcumTotal - vacTomTotal).toFixed(2));
+    // CÁLCULO HISTÓRICO AL CIERRE DEL MES EVALUADO:
+    // Saldo disponible actual hoy en el sistema:
+    const saldoDispActual = Number(
+      emp.dias_vacaciones_disponibles ??
+        (parseFloat(String(emp.dias_vacaciones_acumuladas || 0)) -
+          permisosVacTotal.reduce((acc, p) => acc + (p.total_dias || 0), 0))
+    );
 
-    // Movimientos del mes para tabla compacta
+    // Eventos ocurridos con fecha POSTERIOR a este mes evaluado (para retroceder al saldo de cierre de este mes)
+    const permisosPosteriores = permisosVacTotal.filter((p) => (p.fecha_inicio || '') > ultimoDiaMes);
+    const diasPermisosPosteriores = permisosPosteriores.reduce((acc, p) => acc + (p.total_dias || 0), 0);
+
+    const pagosPosteriores = (pagosVacaciones || []).filter(
+      (pv) => pv.empleado === emp.id && (pv.fecha_pago || '') > ultimoDiaMes
+    );
+    const diasPagosPosteriores = pagosPosteriores.reduce((acc, pv) => acc + Number(pv.dias_pagados || 0), 0);
+
+    const feriadosPosteriores = (compensacionesFeriados || []).filter(
+      (cf) =>
+        cf.empleado === emp.id &&
+        (cf.fecha_feriado || '') > ultimoDiaMes &&
+        (cf.estado === 'VACACIONES' || Number(cf.dias_acreditados_vacaciones) > 0)
+    );
+    const diasFeriadosPosteriores = feriadosPosteriores.reduce(
+      (acc, cf) => acc + Number(cf.dias_acreditados_vacaciones || 2.0),
+      0
+    );
+
+    // Saldo disponible real que tenía el colaborador al cierre del mes evaluado:
+    const saldoDisponibleCierre = Number(
+      (
+        saldoDispActual +
+        diasPermisosPosteriores +
+        diasPagosPosteriores -
+        diasFeriadosPosteriores
+      ).toFixed(2)
+    );
+
+    // Saldo con el que inició el 01 del mes evaluado:
+    const saldoAnteriorInicial = Number(
+      (saldoDisponibleCierre - totalGanadoMes + totalDescontadoMes).toFixed(2)
+    );
+
+    // Movimientos del mes para tabla compacta ordenados cronológicamente
     const movimientosMes: Array<{
       id: string;
       fecha: string;
@@ -285,9 +309,9 @@ export default function BoletaVacacionesMensualLoteModal({
         concepto: 'Vacaciones Pagadas',
         impacto: `-${Number(pv.dias_pagados || 0).toFixed(2)} d`,
         signo: 'MINUS' as const,
-        detalle: `Recibo ${pv.numero_recibo} (C$ ${Number(pv.monto_pagado || 0).toLocaleString('es-NI')})`,
+        detalle: `Recibo ${pv.numero_recibo} (C$ ${Number(pv.monto_pagado || 0).toLocaleString('es-NI')})${pv.motivo ? ` — ${pv.motivo}` : ''}`,
       })),
-    ];
+    ].sort((a, b) => (a.fecha > b.fecha ? 1 : a.fecha < b.fecha ? -1 : 0));
 
     return (
       <div className="print-colilla-half bg-white border-2 border-stone-800 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between text-stone-900">
@@ -354,7 +378,7 @@ export default function BoletaVacacionesMensualLoteModal({
             </div>
           </div>
 
-          {/* 4 Tarjetas de Resumen Matemático del Mes y Saldo Actual */}
+          {/* 4 Tarjetas de Resumen Matemático del Mes y Saldo al Cierre */}
           <div className="grid grid-cols-4 gap-2">
             {/* 1. Ganado en el Mes */}
             <div className="border border-stone-300 rounded-lg p-1.5 bg-stone-50/70">
@@ -379,35 +403,35 @@ export default function BoletaVacacionesMensualLoteModal({
                 -{totalDescontadoMes.toFixed(2)} d
               </div>
               <span className="text-[7.5px] text-stone-600 font-medium block leading-tight">
-                {diasGozadosMes > 0 || diasInasistenciaMes > 0
-                  ? `${diasGozadosMes}d vac. / ${diasInasistenciaMes}d faltas`
+                {diasGozadosMes > 0 || diasInasistenciaMes > 0 || diasPagadosMes > 0
+                  ? `${diasGozadosMes + diasPagadosMes}d vac. / ${diasInasistenciaMes}d faltas`
                   : '0 días descontados en el mes'}
               </span>
             </div>
 
-            {/* 3. Balance Histórico Acumulado */}
+            {/* 3. Saldo Inicial del Período */}
             <div className="border border-stone-300 rounded-lg p-1.5 bg-stone-50/70">
               <span className="text-[7.5px] font-black uppercase text-stone-500 block leading-tight">
-                3. Histórico Total
+                3. Saldo Inicial
               </span>
-              <div className="text-[11px] font-mono font-black text-stone-900 leading-tight mt-0.5">
-                +{vacAcumTotal.toFixed(2)}d / -{vacTomTotal.toFixed(2)}d
+              <div className="text-xs sm:text-sm font-mono font-black text-stone-900 leading-tight mt-0.5">
+                {saldoAnteriorInicial.toFixed(2)} d
               </div>
               <span className="text-[7.5px] text-stone-600 font-medium block leading-tight">
-                Total Acumulado vs Tomado
+                Al 01 de {nombreMes} {anio}
               </span>
             </div>
 
-            {/* 4. Saldo Disponible Actual (Destacado) */}
+            {/* 4. Saldo Disponible al Cierre (Destacado) */}
             <div className="border-2 border-stone-900 rounded-lg p-1.5 bg-stone-100 text-center">
               <span className="text-[7.5px] font-black uppercase text-stone-900 block leading-tight">
                 SALDO DISPONIBLE
               </span>
               <div className="text-sm sm:text-base font-mono font-black text-stone-950 leading-tight mt-0.5">
-                {vacDispActual.toFixed(2)} DÍAS
+                {saldoDisponibleCierre.toFixed(2)} DÍAS
               </div>
               <span className="text-[7px] font-bold text-stone-700 block leading-tight">
-                Disponibles al cierre
+                Al cierre de {nombreMes}
               </span>
             </div>
           </div>
@@ -480,7 +504,7 @@ export default function BoletaVacacionesMensualLoteModal({
               📋 Copia de Archivo para Administración (Sin Firma) — Expediente Laboral BodegónPass
             </span>
             <span className="font-mono font-black text-stone-900">
-              Saldo Auditado al Cierre: {vacDispActual.toFixed(2)} días disponibles
+              Saldo Auditado al Cierre: {saldoDisponibleCierre.toFixed(2)} días disponibles
             </span>
           </div>
         )}
