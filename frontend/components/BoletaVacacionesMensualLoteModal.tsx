@@ -263,13 +263,20 @@ export default function BoletaVacacionesMensualLoteModal({
         const esFalta =
           (p.motivo || '').toLowerCase().includes('inasistencia') ||
           (p.motivo || '').toLowerCase().includes('falta');
+        const descSemanal = p.dias_descanso_semanal || 0;
+        const diasTot = p.total_dias || 1;
+        const diasCorr = p.dias_calendario || (diasTot + descSemanal);
+        let detalleTexto = p.motivo || (esFalta ? 'Falta deducida de vacaciones' : 'Descanso remunerado');
+        if (descSemanal > 0) {
+          detalleTexto += ` (${diasCorr} d corridos con ${descSemanal} d libre semanal)`;
+        }
         return {
           id: `p-${p.id}`,
           fecha: p.fecha_inicio === p.fecha_fin ? p.fecha_inicio : `${p.fecha_inicio} a ${p.fecha_fin}`,
           concepto: esFalta ? 'Deducción Inasistencia' : 'Vacaciones Tomadas',
           impacto: `-${Number(p.total_dias || 1).toFixed(2)} d`,
           signo: 'MINUS' as const,
-          detalle: p.motivo || (esFalta ? 'Falta deducida de vacaciones' : 'Descanso remunerado'),
+          detalle: detalleTexto,
         };
       }),
       ...pagosMes.map((pv) => ({
@@ -493,6 +500,11 @@ export default function BoletaVacacionesMensualLoteModal({
             margin: 6mm 10mm 6mm 10mm;
           }
 
+          /* Ocultar absolutamente todo lo que está fuera de la ventana de colillas */
+          body > *:not(.print-vac-lote-backdrop) {
+            display: none !important;
+          }
+
           html, body {
             background: white !important;
             color: black !important;
@@ -502,7 +514,7 @@ export default function BoletaVacacionesMensualLoteModal({
             height: auto !important;
           }
 
-          .print-hide, header, nav, aside, footer, button, input, select, a {
+          .print-hide, header, nav, aside, footer, main, form, button, input, select, a, table:not(.print-table) {
             display: none !important;
           }
 

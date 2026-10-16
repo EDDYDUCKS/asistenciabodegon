@@ -177,6 +177,7 @@ class AlertaAsistenciaSerializer(serializers.ModelSerializer):
 class PermisoAusenciaSerializer(serializers.ModelSerializer):
     empleado_detalle = EmpleadoSimpleSerializer(source='empleado', read_only=True)
     tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
+    dias_calendario = serializers.ReadOnlyField()
     total_dias = serializers.ReadOnlyField()
 
     class Meta:
@@ -189,6 +190,8 @@ class PermisoAusenciaSerializer(serializers.ModelSerializer):
             'tipo_display',
             'fecha_inicio',
             'fecha_fin',
+            'dias_descanso_semanal',
+            'dias_calendario',
             'motivo',
             'total_dias',
             'created_at',

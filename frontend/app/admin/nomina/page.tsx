@@ -173,8 +173,40 @@ export default function NominaAdminPage() {
   const [nuevoPermisoTipo, setNuevoPermisoTipo] = useState<TipoPermisoType>('VACACIONES');
   const [nuevoPermisoInicio, setNuevoPermisoInicio] = useState(hoyStr);
   const [nuevoPermisoFin, setNuevoPermisoFin] = useState(hoyStr);
+  const [nuevoPermisoDescanso, setNuevoPermisoDescanso] = useState<number>(0);
   const nuevoPermisoMotivoRef = useRef('');
   const [addingPermiso, setAddingPermiso] = useState(false);
+
+  // Cálculo automático del descanso semanal (séptimo día según Art. 64 C.T.) y días netos
+  useEffect(() => {
+    if (nuevoPermisoTipo === 'VACACIONES' && nuevoPermisoInicio && nuevoPermisoFin) {
+      const d1 = new Date(nuevoPermisoInicio + 'T00:00:00');
+      const d2 = new Date(nuevoPermisoFin + 'T00:00:00');
+      const diff = d2.getTime() - d1.getTime();
+      if (diff >= 0) {
+        const dias = Math.round(diff / 86400000) + 1;
+        setNuevoPermisoDescanso(Math.floor(dias / 7));
+      } else {
+        setNuevoPermisoDescanso(0);
+      }
+    } else {
+      setNuevoPermisoDescanso(0);
+    }
+  }, [nuevoPermisoTipo, nuevoPermisoInicio, nuevoPermisoFin]);
+
+  const nuevoPermisoDiasCalendario = useMemo(() => {
+    if (!nuevoPermisoInicio || !nuevoPermisoFin) return 0;
+    const d1 = new Date(nuevoPermisoInicio + 'T00:00:00');
+    const d2 = new Date(nuevoPermisoFin + 'T00:00:00');
+    const diff = d2.getTime() - d1.getTime();
+    return diff >= 0 ? Math.round(diff / 86400000) + 1 : 0;
+  }, [nuevoPermisoInicio, nuevoPermisoFin]);
+
+  const nuevoPermisoDiasEfectivos = useMemo(() => {
+    if (nuevoPermisoDiasCalendario <= 0) return 0;
+    if (nuevoPermisoTipo !== 'VACACIONES') return nuevoPermisoDiasCalendario;
+    return Math.max(1, nuevoPermisoDiasCalendario - (nuevoPermisoDescanso || 0));
+  }, [nuevoPermisoDiasCalendario, nuevoPermisoTipo, nuevoPermisoDescanso]);
 
   // State para Reporte Mensual de Vacaciones en Excel e Impresión de Colillas
   const hoyFechaObj = new Date();
@@ -573,11 +605,13 @@ export default function NominaAdminPage() {
         tipo: nuevoPermisoTipo,
         fecha_inicio: nuevoPermisoInicio,
         fecha_fin: nuevoPermisoFin,
+        dias_descanso_semanal: nuevoPermisoTipo === 'VACACIONES' ? Number(nuevoPermisoDescanso || 0) : 0,
         motivo: nuevoPermisoMotivoRef.current.trim(),
       });
       nuevoPermisoMotivoRef.current = '';
       const updated = await fetchPermisos();
       setPermisos(updated);
+      await loadData();
       alert('¡Período registrado con éxito!');
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al registrar');
@@ -592,6 +626,7 @@ export default function NominaAdminPage() {
       await deletePermiso(id);
       const updated = await fetchPermisos();
       setPermisos(updated);
+      await loadData();
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al eliminar');
     }
@@ -4821,6 +4856,43 @@ export default function NominaAdminPage() {
                 />
               </div>
 
+              {/* Desglose de descanso semanal y días netos para Vacaciones */}
+              {nuevoPermisoTipo === 'VACACIONES' && nuevoPermisoDiasCalendario > 0 && (
+                <div className="bg-[#1c6856]/5 border border-[#1c6856]/20 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-stone-600 font-medium">Período Calendario:</span>
+                    <span className="font-bold text-stone-900 font-mono">
+                      {nuevoPermisoDiasCalendario} {nuevoPermisoDiasCalendario === 1 ? 'día corrido' : 'días corridos'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <label className="text-stone-700 font-medium">
+                      Descanso Semanal (Séptimo día):
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="0"
+                        max={Math.max(0, nuevoPermisoDiasCalendario - 1)}
+                        value={nuevoPermisoDescanso}
+                        onChange={(e) => setNuevoPermisoDescanso(Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-14 bg-white border border-stone-300 rounded-lg px-2 py-1 text-center font-bold text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                      />
+                      <span className="text-stone-500 text-[11px] font-medium">días</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1.5 border-t border-[#1c6856]/15">
+                    <span className="font-bold text-stone-800">Días a deducir de saldo:</span>
+                    <span className="font-black text-[#1c6856] text-sm font-mono">
+                      {nuevoPermisoDiasEfectivos} {nuevoPermisoDiasEfectivos === 1 ? 'día' : 'días'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-stone-500 leading-tight">
+                    ⚖️ <strong>Art. 64 C.T. Nicaragua:</strong> 1 día de descanso por cada 6 días trabajados. Los descansos semanales dentro del período no se deducen del saldo vacacional.
+                  </p>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={addingPermiso || !nuevoPermisoEmp || !nuevoPermisoInicio || !nuevoPermisoFin}
@@ -4860,8 +4932,13 @@ export default function NominaAdminPage() {
                         <div className="flex items-center gap-3">
                           <div className="bg-white px-3 py-1.5 border border-stone-200 rounded-xl text-center shadow-inner shrink-0 min-w-[75px]">
                             <span className="text-[10px] text-stone-400 block font-bold uppercase tracking-wider leading-none">
-                              {p.total_dias || 1} {p.total_dias === 1 ? 'Día' : 'Días'}
+                              {p.total_dias || 1} {p.total_dias === 1 ? 'Día Vac.' : 'Días Vac.'}
                             </span>
+                            {(p.dias_descanso_semanal || 0) > 0 && (
+                              <span className="text-[9px] text-[#1c6856] font-bold block mt-0.5 leading-none">
+                                +{p.dias_descanso_semanal} desc.
+                              </span>
+                            )}
                             <strong className="text-[11px] text-[#1c6856] font-mono block mt-1 leading-none">
                               {new Date(p.fecha_inicio + 'T00:00:00').toLocaleDateString('es-NI', {
                                 day: '2-digit',
@@ -4882,6 +4959,11 @@ export default function NominaAdminPage() {
                               </span>
                               <span className="text-[10px] text-stone-400 font-mono">
                                 Del {p.fecha_inicio} al {p.fecha_fin}
+                                {(p.dias_descanso_semanal || 0) > 0 && (
+                                  <span className="text-stone-500 font-sans ml-1">
+                                    ({(p.dias_calendario || ((p.total_dias || 0) + (p.dias_descanso_semanal || 0)))} corr. - {p.dias_descanso_semanal} desc.)
+                                  </span>
+                                )}
                               </span>
                             </div>
                             {p.motivo && (
@@ -5070,6 +5152,11 @@ export default function NominaAdminPage() {
                             </td>
                             <td className="py-2.5 px-3 text-center font-bold text-stone-900">
                               {p.total_dias} {p.total_dias === 1 ? 'día' : 'días'}
+                              {(p.dias_descanso_semanal || 0) > 0 && (
+                                <span className="block text-[10px] text-[#1c6856] font-normal">
+                                  (+{p.dias_descanso_semanal} desc.)
+                                </span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3 text-stone-600 italic">
                               {p.motivo ? p.motivo : <span className="text-stone-400 not-italic">-</span>}

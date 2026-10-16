@@ -583,6 +583,14 @@ export async function createPermiso(payload: Partial<PermisoAusencia>): Promise<
   });
 }
 
+export async function updatePermiso(id: number, payload: Partial<PermisoAusencia>): Promise<PermisoAusencia> {
+  return apiRequest<PermisoAusencia>(`/permisos/${id}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function deletePermiso(id: number): Promise<void> {
   await apiRequest(`/permisos/${id}/`, { method: 'DELETE' });
 }

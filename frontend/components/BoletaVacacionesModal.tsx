@@ -231,7 +231,7 @@ export default function BoletaVacacionesModal({
         diasSign: 'MINUS' as const,
         descripcion: esInasistencia
           ? `Deducción por inasistencia no justificada (${p.fecha_inicio})${p.motivo ? `: ${p.motivo}` : ''}`
-          : `Período del ${p.fecha_inicio} al ${p.fecha_fin}${p.motivo ? ` — ${p.motivo}` : ''}`,
+          : `Período del ${p.fecha_inicio} al ${p.fecha_fin}${p.motivo ? ` — ${p.motivo}` : ''}${(p.dias_descanso_semanal || 0) > 0 ? ` (${(p.dias_calendario || ((p.total_dias || 0) + (p.dias_descanso_semanal || 0)))} d corridos con ${p.dias_descanso_semanal} d libre semanal)` : ''}`,
         fechaReg: p.created_at ? new Date(p.created_at).toLocaleDateString('es-NI') : p.fecha_inicio,
       };
     }),

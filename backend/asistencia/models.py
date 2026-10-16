@@ -215,6 +215,10 @@ class PermisoAusencia(models.Model):
     tipo = models.CharField(max_length=30, choices=TIPOS, default='VACACIONES')
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()
+    dias_descanso_semanal = models.IntegerField(
+        default=0,
+        help_text="Días de descanso semanal que caen dentro del período de vacaciones (no se deducen del saldo)"
+    )
     motivo = models.CharField(max_length=255, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -225,10 +229,20 @@ class PermisoAusencia(models.Model):
         return f"{self.empleado.nombre} {self.empleado.apellido} - {self.get_tipo_display()} ({self.fecha_inicio} a {self.fecha_fin})"
 
     @property
-    def total_dias(self):
+    def dias_calendario(self):
         if self.fecha_inicio and self.fecha_fin:
             return (self.fecha_fin - self.fecha_inicio).days + 1
         return 0
+
+    @property
+    def total_dias(self):
+        """
+        Días netos que efectivamente se descuentan del saldo de vacaciones:
+        total_dias = dias_calendario - dias_descanso_semanal.
+        """
+        brutos = self.dias_calendario
+        descansos = self.dias_descanso_semanal or 0
+        return max(1 if brutos > 0 else 0, brutos - descansos)
 
 
 class CompensacionHoras(models.Model):
