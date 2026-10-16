@@ -1573,7 +1573,76 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             import logging
             logging.getLogger(__name__).error(f"Error verificando mantenimiento semestral: {e}")
 
+        # 4. Alerta de Impresión Mensual de Vacaciones el Día 1 de cada mes (mes anterior cerrado)
+        try:
+            self._verificar_alerta_reporte_vacaciones_mensual()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error verificando alerta mensual de vacaciones: {e}")
+
         return super().list(request, *args, **kwargs)
+
+    def _verificar_alerta_reporte_vacaciones_mensual(self):
+        """
+        El día 1 de cada mes (o en la primera consulta a partir del día 1 cuando ya cerró
+        por completo el mes anterior), asegura que todas las vacaciones hasta el último día
+        del mes anterior estén acreditadas y emite automáticamente una alerta notificando
+        que ya está disponible la Impresión Mensual de Vacaciones (Colilla Colaborador / Admin).
+        """
+        import datetime
+        tz = timezone.get_current_timezone()
+        hoy = timezone.now().astimezone(tz).date()
+
+        # Activo a partir del cierre de Octubre 2026 (1 de Noviembre 2026 en adelante)
+        if hoy < datetime.date(2026, 11, 1):
+            return
+
+        # Asegurar que el acumulado por día laborado hasta ayer (incluyendo fin del mes anterior) esté al día
+        try:
+            _verificar_acreditacion_vacaciones_todos()
+        except Exception:
+            pass
+
+        ultimo_dia_mes_ant = hoy.replace(day=1) - datetime.timedelta(days=1)
+        mes_ant = ultimo_dia_mes_ant.month
+        anio_ant = ultimo_dia_mes_ant.year
+
+        meses_es = {
+            1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+            5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+            9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+        }
+        nombre_mes = meses_es.get(mes_ant, str(mes_ant))
+        periodo_tag = f"{anio_ant}-{mes_ant:02d}"
+        marca_bitacora = f"Alerta mensual vacaciones emitida ({periodo_tag})"
+        titulo_alerta = f"🖨️ Impresión de Vacaciones Disponible — {nombre_mes} {anio_ant}"
+
+        ya_emitida = (
+            AlertaAsistencia.objects.filter(tipo='REPORTE_VACACIONES', titulo=titulo_alerta).exists()
+            or BitacoraAccion.objects.filter(descripcion__icontains=marca_bitacora).exists()
+        )
+        if ya_emitida:
+            return
+
+        total_activos = Empleado.objects.filter(activo=True).count()
+        AlertaAsistencia.objects.create(
+            tipo='REPORTE_VACACIONES',
+            empleado=None,
+            titulo=titulo_alerta,
+            mensaje=(
+                f"El cierre mensual de {nombre_mes} {anio_ant} ({periodo_tag}) ha concluido con todos los "
+                f"días laborados contabilizados. Ya está disponible para imprimir el Reporte Mensual de "
+                f"Vacaciones de los {total_activos} colaboradores activos (1 hoja por trabajador con "
+                f"línea de corte: colilla para el Colaborador con espacio de firma y colilla para Administración)."
+            ),
+            leida=False
+        )
+        BitacoraAccion.objects.create(
+            usuario=None,
+            accion='EXPORTAR_NOMINA',
+            descripcion=f"{marca_bitacora}: Notificación automática de cierre de vacaciones de {nombre_mes} {anio_ant} generada el {hoy.strftime('%d/%m/%Y')}.",
+            ip_address='127.0.0.1'
+        )
 
     def _procesar_resolucion_automatica_inasistencias(self):
         """

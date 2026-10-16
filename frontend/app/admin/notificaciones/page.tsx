@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import { AlertaAsistencia, Empleado } from '@/lib/types';
 import {
   fetchAlertas,
@@ -212,6 +213,12 @@ export default function NotificacionesDetalladasPage() {
       };
     }
     switch (tipo) {
+      case 'REPORTE_VACACIONES':
+        return {
+          badge: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-black',
+          border: 'border-emerald-300 bg-emerald-50/30 shadow-xs',
+          label: 'Impresión Mensual de Vacaciones',
+        };
       case 'INASISTENCIA':
         return {
           badge: 'bg-red-100 text-red-900 border-red-300 font-black',
@@ -504,14 +511,24 @@ export default function NotificacionesDetalladasPage() {
 
                   {/* Acciones y Botones */}
                   <div className="flex flex-col sm:items-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-100">
-                    <button
-                      onClick={() => setSelectedAlerta(al)}
-                      className="bg-white hover:bg-stone-50 border border-stone-300 text-stone-800 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:border-[#1c6856] hover:text-[#1c6856] active:scale-95"
-                      title="Imprimir Acta Oficial para el Expediente Físico"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-[#1c6856]" />
-                      Imprimir Boleta Oficial
-                    </button>
+                    {al.tipo === 'REPORTE_VACACIONES' ? (
+                      <Link
+                        href="/admin/nomina?tab=permisos&imprimirVacacionesMes=1"
+                        className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-emerald-200" />
+                        Imprimir Vacaciones del Mes
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={() => setSelectedAlerta(al)}
+                        className="bg-white hover:bg-stone-50 border border-stone-300 text-stone-800 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:border-[#1c6856] hover:text-[#1c6856] active:scale-95"
+                        title="Imprimir Acta Oficial para el Expediente Físico"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-[#1c6856]" />
+                        Imprimir Boleta Oficial
+                      </button>
+                    )}
 
                     {/* Acciones interactivas para Ausencias e Inasistencias */}
                     {!al.leida && (al.tipo === 'SEGUNDA_AUSENCIA' || al.tipo === 'INASISTENCIA') && (

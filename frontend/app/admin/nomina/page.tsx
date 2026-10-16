@@ -34,6 +34,7 @@ import {
 import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras, CompensacionFeriado, PagoVacaciones, PagoHorasExtra, BitacoraAccion } from '@/lib/types';
 import BoletaCompensacionModal from '@/components/BoletaCompensacionModal';
 import BoletaVacacionesModal from '@/components/BoletaVacacionesModal';
+import BoletaVacacionesMensualLoteModal from '@/components/BoletaVacacionesMensualLoteModal';
 import ModalLiquidarFeriado from '@/components/ModalLiquidarFeriado';
 import BoletaPagoVacacionesModal from '@/components/BoletaPagoVacacionesModal';
 import ModalEmitirPagoVacaciones from '@/components/ModalEmitirPagoVacaciones';
@@ -175,11 +176,36 @@ export default function NominaAdminPage() {
   const nuevoPermisoMotivoRef = useRef('');
   const [addingPermiso, setAddingPermiso] = useState(false);
 
-  // State para Reporte Mensual de Vacaciones en Excel
+  // State para Reporte Mensual de Vacaciones en Excel e Impresión de Colillas
   const hoyFechaObj = new Date();
   const [reporteMes, setReporteMes] = useState<number>(hoyFechaObj.getMonth() + 1);
   const [reporteAnio, setReporteAnio] = useState<number>(hoyFechaObj.getFullYear());
   const [downloadingVacaciones, setDownloadingVacaciones] = useState(false);
+  const [showModalImprimirVacacionesMes, setShowModalImprimirVacacionesMes] = useState(false);
+  const [empIdImprimirVacacionesMes, setEmpIdImprimirVacacionesMes] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    const imprimirMesParam = params.get('imprimirVacacionesMes');
+    if (tabParam === 'permisos' || imprimirMesParam) {
+      setActiveTab('permisos');
+    }
+    if (imprimirMesParam) {
+      const parts = imprimirMesParam.split('-');
+      if (parts.length === 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12) {
+          setReporteAnio(y);
+          setReporteMes(m);
+        }
+      }
+      setEmpIdImprimirVacacionesMes(null);
+      setShowModalImprimirVacacionesMes(true);
+    }
+  }, []);
 
   // State para Auditoría y Ajuste de Vacaciones
   const [selectedVacacionesEmp, setSelectedVacacionesEmp] = useState<Empleado | null>(null);
@@ -4570,23 +4596,38 @@ export default function NominaAdminPage() {
                 </div>
               </div>
 
-              <div className="relative w-full sm:w-64">
-                <input
-                  type="text"
-                  placeholder="Buscar colaborador..."
-                  value={searchVacacionesColab}
-                  onChange={(e) => setSearchVacacionesColab(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-7 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
-                />
-                <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                {searchVacacionesColab && (
-                  <button
-                    onClick={() => setSearchVacacionesColab('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                  >
-                    <XCircle className="w-3.5 h-3.5" />
-                  </button>
-                )}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmpIdImprimirVacacionesMes(null);
+                    setShowModalImprimirVacacionesMes(true);
+                  }}
+                  className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 text-white px-4 py-2 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                  title="Imprimir reporte de vacaciones del mes en formato doble colilla (Colaborador con firma / Administración sin firma)"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Imprimir Colillas del Mes</span>
+                </button>
+
+                <div className="relative w-full sm:w-60">
+                  <input
+                    type="text"
+                    placeholder="Buscar colaborador..."
+                    value={searchVacacionesColab}
+                    onChange={(e) => setSearchVacacionesColab(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-7 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                  />
+                  <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  {searchVacacionesColab && (
+                    <button
+                      onClick={() => setSearchVacacionesColab('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -4658,6 +4699,18 @@ export default function NominaAdminPage() {
                           </td>
                           <td className="px-5 py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEmpIdImprimirVacacionesMes(emp.id);
+                                  setShowModalImprimirVacacionesMes(true);
+                                }}
+                                className="bg-stone-800 hover:bg-stone-900 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                                title="Imprimir colilla mensual de vacaciones (Colaborador + Administración)"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                                <span>Colilla Mes</span>
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleOpenAcreditar(emp)}
@@ -4871,19 +4924,33 @@ export default function NominaAdminPage() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleDownloadVacacionesExcel}
-                disabled={downloadingVacaciones}
-                className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm self-start sm:self-auto shrink-0"
-              >
-                {downloadingVacaciones ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                <span>Descargar Excel Mensual (.xlsx)</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmpIdImprimirVacacionesMes(null);
+                    setShowModalImprimirVacacionesMes(true);
+                  }}
+                  className="bg-stone-800 hover:bg-stone-900 active:scale-95 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Imprimir Colillas de {MESES_NOMBRES[reporteMes]}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadVacacionesExcel}
+                  disabled={downloadingVacaciones}
+                  className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                >
+                  {downloadingVacaciones ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  <span>Descargar Excel Mensual (.xlsx)</span>
+                </button>
+              </div>
             </div>
 
             {/* Controles del Reporte Mensual */}
@@ -6007,6 +6074,22 @@ export default function NominaAdminPage() {
           </div>
         </div>
       )}
+
+      {/* ── MODAL 10: REPORTE MENSUAL DE VACACIONES (DOBLE COLILLA: COLABORADOR / ADMIN) ── */}
+      <BoletaVacacionesMensualLoteModal
+        isOpen={showModalImprimirVacacionesMes}
+        onClose={() => {
+          setShowModalImprimirVacacionesMes(false);
+          setEmpIdImprimirVacacionesMes(null);
+        }}
+        empleados={empleados}
+        permisos={permisos}
+        compensacionesFeriados={compensacionesFeriados}
+        pagosVacaciones={pagosVacaciones}
+        initialMes={reporteMes}
+        initialAnio={reporteAnio}
+        initialEmpleadoId={empIdImprimirVacacionesMes}
+      />
     </div>
   );
 }

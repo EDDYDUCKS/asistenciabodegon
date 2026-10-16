@@ -436,7 +436,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         >
                           <div className="flex items-start gap-2.5">
                             <div className={`p-1.5 rounded-lg shrink-0 self-start ${
-                              al.tipo === 'SEGUNDA_AUSENCIA'
+                              al.tipo === 'REPORTE_VACACIONES'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : al.tipo === 'SEGUNDA_AUSENCIA'
                                 ? 'bg-purple-100 text-purple-700'
                                 : al.tipo === 'REGISTRO_INCOMPLETO'
                                 ? 'bg-orange-100 text-orange-700'
@@ -444,7 +446,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                 ? 'bg-rose-100 text-rose-600'
                                 : 'bg-amber-100 text-amber-600'
                             }`}>
-                              <AlertTriangle className="w-4 h-4" />
+                              {al.tipo === 'REPORTE_VACACIONES' ? (
+                                <Printer className="w-4 h-4 text-emerald-700" />
+                              ) : (
+                                <AlertTriangle className="w-4 h-4" />
+                              )}
                             </div>
                             
                             <div className="flex-1 min-w-0 pr-4">
@@ -454,20 +460,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                               <p className="text-[11px] text-stone-600 mt-1 leading-relaxed">
                                 {al.mensaje}
                               </p>
-                              <div className="flex items-center justify-between mt-1">
+                              <div className="flex items-center justify-between mt-1.5">
                                 <span className="text-[9px] font-mono text-stone-400 block">
                                   {al.created_at ? new Date(al.created_at).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' }) : ''}
                                 </span>
-                                <button
-                                  onClick={() => {
-                                    setSelectedBoletaAlerta(al);
-                                    setShowAlertsDropdown(false);
-                                  }}
-                                  className="text-[9px] font-bold text-[#1c6856] hover:underline flex items-center gap-1"
-                                >
-                                  <Printer className="w-2.5 h-2.5" />
-                                  Boleta
-                                </button>
+                                {al.tipo === 'REPORTE_VACACIONES' ? (
+                                  <Link
+                                    href="/admin/nomina?tab=permisos&imprimirVacacionesMes=1"
+                                    onClick={() => setShowAlertsDropdown(false)}
+                                    className="bg-emerald-700 hover:bg-emerald-800 text-white text-[9.5px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs"
+                                  >
+                                    <Printer className="w-2.5 h-2.5" />
+                                    Imprimir Vacaciones
+                                  </Link>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedBoletaAlerta(al);
+                                      setShowAlertsDropdown(false);
+                                    }}
+                                    className="text-[9px] font-bold text-[#1c6856] hover:underline flex items-center gap-1"
+                                  >
+                                    <Printer className="w-2.5 h-2.5" />
+                                    Boleta
+                                  </button>
+                                )}
                               </div>
                             </div>
 

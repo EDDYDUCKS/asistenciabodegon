@@ -187,6 +187,7 @@ class AlertaAsistencia(models.Model):
         ('COMPENSACION_HORAS', 'Compensación de Horas (Bolsa de Horas)'),
         ('SANCION_DISCIPLINARIA', 'Sanción y Amonestación Disciplinaria'),
         ('INASISTENCIA', 'Inasistencia / Falta a Laborar'),
+        ('REPORTE_VACACIONES', 'Impresión Mensual de Vacaciones Disponible'),
     ]
     tipo = models.CharField(max_length=30, choices=TIPOS)
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='alertas', null=True, blank=True)
