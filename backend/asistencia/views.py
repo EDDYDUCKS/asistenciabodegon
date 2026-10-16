@@ -47,28 +47,46 @@ def _get_clean_ip(request):
     return ip[:45]
 
 
+def _obtener_dias_vacaciones_disponibles(emp):
+    """
+    Calcula el saldo real disponible de vacaciones:
+    Disponibles = Acumuladas - Tomadas (PermisoAusencia de tipo VACACIONES / VACACIONES_PAGADAS).
+    """
+    acumuladas = Decimal(str(emp.dias_vacaciones_acumuladas or '0.00'))
+    permisos = PermisoAusencia.objects.filter(empleado=emp)
+    tomadas = sum(
+        Decimal(str(p.total_dias or 0))
+        for p in permisos
+        if p.tipo in ('VACACIONES', 'VACACIONES_PAGADAS')
+        or (p.tipo == 'PERMISO_AUTORIZADO' and 'vacaciones' in (p.motivo or '').lower())
+    )
+    return max(Decimal('0.00'), round(acumuladas - tomadas, 2))
+
+
 def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
     """
-    Acredita las vacaciones conforme a la Ley Laboral de Nicaragua (Art. 76 Código del Trabajo):
-    - Factor diario base = 2.5 días / 30 días comerciales = ~0.0833 días/día.
-    - REGLA DE ORO ESTRICTA: Solo devengan vacaciones los días efectivamente laborados,
-      días con permiso/incapacidad justificada o descansos semanales ganados (séptimo día).
-    - Si el trabajador no vino a laborar y no tiene permiso justificado ni descanso ganado:
-      NO se acredita la fracción diaria (se congela la acumulación).
+    Acredita las vacaciones estrictamente por DÍA LABORADO:
+    - Factor por día laborado = 2.5 días / 30 = ~0.08333... días por cada día con asistencia registrada.
+    - CORTE A DÍA VENCIDO (AYER): Nunca evalúa ni bloquea el día en curso ('hoy') a las 12:01 AM
+      antes de que inicien los turnos; solo evalúa días ya concluidos (hasta 'ayer').
+    - Si el colaborador NO registró asistencia en esa fecha (faltó, descansó o estuvo de vacaciones):
+      NO acumula fracción en ese día (0.00).
     """
     if not emp.activo:
         return False
 
-    # Maverick Calderón culminó su plazo de 15 días de vacaciones previo a su renuncia (19/09/2026).
-    # Su saldo de vacaciones queda congelado; a partir de que acabaron esos 15 días, no se le suman ni restan.
+    tz = timezone.get_current_timezone()
+    hoy = timezone.now().astimezone(tz).date()
+    ayer = hoy - datetime.timedelta(days=1)
+
+    if not fecha_referencia or fecha_referencia >= hoy:
+        fecha_referencia = ayer
+
     if 'maverick' in emp.nombre.lower() or emp.id == 40:
         if emp.ultimo_corte_vacaciones != fecha_referencia:
             emp.ultimo_corte_vacaciones = fecha_referencia
             emp.save(update_fields=['ultimo_corte_vacaciones'])
         return False
-
-    if not fecha_referencia:
-        fecha_referencia = timezone.now().astimezone(timezone.get_current_timezone()).date()
 
     if not emp.ultimo_corte_vacaciones:
         emp.ultimo_corte_vacaciones = datetime.date(fecha_referencia.year, fecha_referencia.month, 1) - datetime.timedelta(days=1)
@@ -79,56 +97,29 @@ def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
         return False
 
     curr = corte + datetime.timedelta(days=1)
-    total_incremento = Decimal('0.00')
     dias_laborados_acreditados = 0
     dias_no_laborados = 0
 
     while curr <= fecha_referencia:
-        day_num = curr.day
-        if day_num <= 30:
-            val_curr = round(Decimal(str(day_num)) * Decimal('2.5') / Decimal('30'), 2)
-            val_prev = round(Decimal(str(day_num - 1)) * Decimal('2.5') / Decimal('30'), 2) if day_num > 1 else Decimal('0.00')
-            inc = val_curr - val_prev
-        else:
-            inc = Decimal('0.00')
-
-        # 1. Comprobar si el trabajador asistió a laborar en esta fecha
+        # Comprobar en zona horaria de Nicaragua si el trabajador registró asistencia en esta fecha
+        start_dt = timezone.make_aware(datetime.datetime.combine(curr, datetime.time.min), tz)
+        end_dt = timezone.make_aware(datetime.datetime.combine(curr, datetime.time.max), tz)
         asistio = RegistroAsistencia.objects.filter(
             empleado=emp,
-            fecha_hora__date=curr
+            fecha_hora__range=(start_dt, end_dt)
         ).exists()
 
-        # 2. Comprobar si tiene permiso justificado, incapacidad médica o vacaciones
-        tiene_permiso = PermisoAusencia.objects.filter(
-            empleado=emp,
-            fecha_inicio__lte=curr,
-            fecha_fin__gte=curr
-        ).exists()
-
-        # 3. Comprobar si es descanso semanal ganado (séptimo día):
-        # Se gana el derecho al descanso semanal remunerado si laboró al menos 5 días en la semana respectiva.
-        es_descanso_ganado = False
-        if not asistio and not tiene_permiso:
-            lunes_semana = curr - datetime.timedelta(days=curr.weekday())
-            domingo_semana = lunes_semana + datetime.timedelta(days=6)
-            dias_asistidos_semana = RegistroAsistencia.objects.filter(
-                empleado=emp,
-                fecha_hora__date__gte=lunes_semana,
-                fecha_hora__date__lte=domingo_semana
-            ).values('fecha_hora__date').distinct().count()
-
-            if dias_asistidos_semana >= 5:
-                es_descanso_ganado = True
-
-        # Si asistió, tiene permiso legal o es descanso ganado: SÍ acumula
-        if asistio or tiene_permiso or es_descanso_ganado:
-            total_incremento += inc
+        if asistio:
             dias_laborados_acreditados += 1
         else:
-            # Día no laborado sin justificación: CERO acreditación
             dias_no_laborados += 1
 
         curr += datetime.timedelta(days=1)
+
+    total_incremento = round(
+        Decimal(str(dias_laborados_acreditados)) * Decimal('2.5') / Decimal('30'),
+        2
+    )
 
     emp.ultimo_corte_vacaciones = fecha_referencia
     if total_incremento > Decimal('0.00'):
@@ -139,126 +130,159 @@ def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
             usuario=None,
             accion='EDITAR_EMPLEADO',
             descripcion=(
-                f"Acreditación vacaciones por días laborados (Art. 76 C.T.): +{total_incremento:.2f} d "
-                f"para {emp.nombre} {emp.apellido} ({dias_laborados_acreditados} d laborados/ganados, "
-                f"{dias_no_laborados} d no laborados sin acumulación hasta {fecha_referencia})."
+                f"Acreditación vacaciones por día laborado (+0.0833/día): +{total_incremento:.2f} d "
+                f"para {emp.nombre} {emp.apellido} ({dias_laborados_acreditados} d laborados con asistencia, "
+                f"{dias_no_laborados} d sin asistencia hasta {fecha_referencia})."
             ),
             ip_address='127.0.0.1'
         )
         return True
     else:
         emp.save(update_fields=['ultimo_corte_vacaciones'])
-        if dias_no_laborados > 0:
-            BitacoraAccion.objects.create(
-                usuario=None,
-                accion='EDITAR_EMPLEADO',
-                descripcion=(
-                    f"Corte vacaciones {fecha_referencia}: {emp.nombre} {emp.apellido} no acumuló vacaciones "
-                    f"({dias_no_laborados} día(s) no laborado(s) sin asistencia ni justificación)."
-                ),
-                ip_address='127.0.0.1'
-            )
         return False
 
 
 def _ejecutar_correccion_vacaciones_no_laboradas():
     """
-    Audita y deduce de una sola vez los días de vacaciones (+0.33 o proporcional)
-    que fueron acumulados automáticamente a colaboradores que no asistieron a laborar
-    en el corte reciente (septiembre - octubre).
-    Garantiza idempotencia: solo corre una vez si no existe el registro en BitacoraAccion.
+    Desactivado: la acreditación ya opera estrictamente por día laborado a día vencido (ayer).
+    """
+    return
+
+
+def _ejecutar_regularizacion_octubre_2026():
+    """
+    Regularización integral de Octubre 2026 (Idempotente - se ejecuta una única vez):
+    1. Pasa a Inactivo (activo=False) a Maverick Calderón (#40), Melvin Ojeda (#47), Zenon López (#48) y Carlos Eduardo (#50).
+    2. Deja en 0.00 días el saldo de vacaciones de Carlos Eduardo (#50) por superar en faltas su acumulado.
+    3. Repara el acumulado del 01 al 15 de octubre de los 11 colaboradores activos a razón estricta de
+       0.0833 (2.5/30) por día efectivamente laborado con marcaje, corrigiendo el bloqueo de las 12:01 AM.
+    4. Registra los días de vacaciones / inasistencias del 02 al 15 de octubre en PermisoAusencia(tipo='VACACIONES')
+       sin doble resta.
     """
     try:
-        ya_corregido = BitacoraAccion.objects.filter(
-            descripcion__icontains="Ajuste Auditoría: Deducción de"
-        ).exists()
-        if ya_corregido:
+        marca_idempotencia = "Regularización Oficial Vacaciones Octubre 2026 (Día Laborado + Cierre Quincena 15 Oct)"
+        if BitacoraAccion.objects.filter(descripcion__icontains=marca_idempotencia).exists():
             return
 
-        hoy = timezone.now().astimezone(timezone.get_current_timezone()).date()
-        inicio_eval = max(
-            datetime.date(hoy.year, hoy.month, 1) - datetime.timedelta(days=7),
-            datetime.date(2026, 9, 20)
-        )
+        tz = timezone.get_current_timezone()
+        ayer_corte = datetime.date(2026, 10, 15)
+        hoy_local = timezone.now().astimezone(tz).date()
+        fecha_corte_final = max(ayer_corte, hoy_local - datetime.timedelta(days=1))
 
         with transaction.atomic():
-            for emp in Empleado.objects.filter(activo=True):
-                curr = inicio_eval
-                dias_no_laborados = 0
+            # 1. Dar de baja a los 4 ex-colaboradores
+            inactivos_ids = [40, 47, 48, 50]
+            Empleado.objects.filter(id__in=inactivos_ids).update(activo=False)
 
-                while curr <= hoy:
-                    asistio = RegistroAsistencia.objects.filter(
-                        empleado=emp,
-                        fecha_hora__date=curr
-                    ).exists()
-                    tiene_permiso = PermisoAusencia.objects.filter(
-                        empleado=emp,
-                        fecha_inicio__lte=curr,
-                        fecha_fin__gte=curr
-                    ).exists()
+            # 2. Carlos Eduardo (#50): dejar vacaciones en 0.00 por faltas superiores a su acumulado
+            carlos = Empleado.objects.filter(id=50).first()
+            if carlos:
+                carlos.dias_vacaciones_acumuladas = Decimal('0.00')
+                carlos.ultimo_corte_vacaciones = fecha_corte_final
+                carlos.save(update_fields=['dias_vacaciones_acumuladas', 'ultimo_corte_vacaciones'])
 
-                    es_descanso = False
-                    if not asistio and not tiene_permiso:
-                        lunes_w = curr - datetime.timedelta(days=curr.weekday())
-                        domingo_w = lunes_w + datetime.timedelta(days=6)
-                        dias_asistidos = RegistroAsistencia.objects.filter(
+            # 3. Reparar acumulado exacto al 15/10/2026 de los 11 colaboradores activos
+            # Base fin de septiembre (incluyendo feriado 24 Sep y pagos BVP) + (Días laborados 01-15 Oct * 2.5 / 30)
+            bases_fin_septiembre = {
+                41: Decimal('21.84'),  # Eddy Martínez
+                39: Decimal('24.01'),  # Estefani Padilla
+                35: Decimal('30.42'),  # Lucero Ramírez
+                37: Decimal('16.71'),  # Marlon Narváez
+                36: Decimal('43.42'),  # Martha Meléndez
+                51: Decimal('5.51'),   # Nelly Delgado
+                43: Decimal('13.42'),  # Oscar Vásquez
+                38: Decimal('17.51'),  # Uriel Zamora
+                44: Decimal('9.51'),   # Xiomara Castillo
+                42: Decimal('19.92'),  # Yhaira Rivas
+                46: Decimal('12.71'),  # Yunieth Carmona
+            }
+
+            for emp_id, base_sep in bases_fin_septiembre.items():
+                emp = Empleado.objects.filter(id=emp_id).first()
+                if not emp:
+                    continue
+                dias_trab = 0
+                d_curr = datetime.date(2026, 10, 1)
+                while d_curr <= fecha_corte_final:
+                    s_dt = timezone.make_aware(datetime.datetime.combine(d_curr, datetime.time.min), tz)
+                    e_dt = timezone.make_aware(datetime.datetime.combine(d_curr, datetime.time.max), tz)
+                    if RegistroAsistencia.objects.filter(empleado=emp, fecha_hora__range=(s_dt, e_dt)).exists():
+                        dias_trab += 1
+                    d_curr += datetime.timedelta(days=1)
+
+                inc_oct = round(Decimal(str(dias_trab)) * Decimal('2.5') / Decimal('30'), 2)
+                emp.dias_vacaciones_acumuladas = base_sep + inc_oct
+                emp.ultimo_corte_vacaciones = fecha_corte_final
+                emp.save(update_fields=['dias_vacaciones_acumuladas', 'ultimo_corte_vacaciones'])
+
+            # 4. Registrar deducciones de vacaciones / faltas del 02 al 15 de octubre (sin doble resta)
+            deducciones_octubre = [
+                (41, [datetime.date(2026, 10, 2), datetime.date(2026, 10, 3), datetime.date(2026, 10, 4),
+                      datetime.date(2026, 10, 10), datetime.date(2026, 10, 11)], "Vacaciones tomadas (Octubre 2026)"),
+                (36, [datetime.date(2026, 10, 2), datetime.date(2026, 10, 3), datetime.date(2026, 10, 4)],
+                      "Vacaciones tomadas (02 al 04 de Octubre 2026)"),
+                (39, [datetime.date(2026, 10, 8), datetime.date(2026, 10, 15)],
+                      "Deducción por inasistencia injustificada"),
+                (46, [datetime.date(2026, 10, 8), datetime.date(2026, 10, 9)],
+                      "Deducción por inasistencia injustificada"),
+                (37, [datetime.date(2026, 10, 14)],
+                      "Deducción por inasistencia injustificada"),
+                (35, [datetime.date(2026, 10, 2)],
+                      "Deducción por inasistencia injustificada"),
+            ]
+
+            for emp_id, fechas_lista, motivo_base in deducciones_octubre:
+                emp = Empleado.objects.filter(id=emp_id).first()
+                if not emp:
+                    continue
+                for f_date in fechas_lista:
+                    ya_tiene = PermisoAusencia.objects.filter(
+                        empleado=emp,
+                        fecha_inicio__lte=f_date,
+                        fecha_fin__gte=f_date
+                    ).exists()
+                    if not ya_tiene:
+                        PermisoAusencia.objects.create(
                             empleado=emp,
-                            fecha_hora__date__gte=lunes_w,
-                            fecha_hora__date__lte=domingo_w
-                        ).values('fecha_hora__date').distinct().count()
-                        if dias_asistidos >= 5:
-                            es_descanso = True
-
-                    if not asistio and not tiene_permiso and not es_descanso:
-                        dias_no_laborados += 1
-
-                    curr += datetime.timedelta(days=1)
-
-                if dias_no_laborados > 0:
-                    factor = Decimal('2.5') / Decimal('30')
-                    dias_a_deducir = min(Decimal('0.33'), round(Decimal(str(dias_no_laborados)) * factor, 2))
-                    if dias_a_deducir > Decimal('0.00'):
-                        saldo_anterior = emp.dias_vacaciones_acumuladas or Decimal('0.00')
-                        nuevo_saldo = max(Decimal('0.00'), saldo_anterior - dias_a_deducir)
-                        emp.dias_vacaciones_acumuladas = nuevo_saldo
-                        emp.ultimo_corte_vacaciones = hoy
-                        emp.save(update_fields=['dias_vacaciones_acumuladas', 'ultimo_corte_vacaciones'])
-
-                        BitacoraAccion.objects.create(
-                            usuario=None,
-                            accion='EDITAR_EMPLEADO',
-                            descripcion=(
-                                f"Ajuste Auditoría: Deducción de -{dias_a_deducir:.2f} d de vacaciones a "
-                                f"{emp.nombre} {emp.apellido} por {dias_no_laborados} día(s) no laborado(s) "
-                                f"sin asistencia ni justificación. Saldo previo: {saldo_anterior:.2f} d -> Nuevo saldo: {nuevo_saldo:.2f} d."
-                            ),
-                            ip_address='127.0.0.1'
+                            fecha_inicio=f_date,
+                            fecha_fin=f_date,
+                            tipo='VACACIONES',
+                            motivo=f"{motivo_base} ({f_date.strftime('%d/%m/%Y')})"
                         )
+
+            BitacoraAccion.objects.create(
+                usuario=None,
+                accion='EDITAR_EMPLEADO',
+                descripcion=f"{marca_idempotencia}: 4 bajas inactivadas, Carlos Eduardo en 0.00d, acumulados por día laborado reparados y faltas 02-15 Oct deducidas.",
+                ip_address='127.0.0.1'
+            )
     except Exception as e:
-        print(f"Error en _ejecutar_correccion_vacaciones_no_laboradas: {e}")
+        print(f"Error en _ejecutar_regularizacion_octubre_2026: {e}")
 
 
 def _verificar_acreditacion_vacaciones_todos():
     """
-    Verifica y devenga las vacaciones de todos los colaboradores activos diariamente.
+    Verifica y devenga las vacaciones de todos los colaboradores activos diariamente
+    evaluando únicamente hasta el día vencido ('ayer').
     """
-    _ejecutar_correccion_vacaciones_no_laboradas()
+    _ejecutar_regularizacion_octubre_2026()
     try:
         _evaluar_y_autoacreditar_feriados_pendientes()
     except Exception as e:
         print(f"Error evaluando feriados pendientes en verificación general: {e}")
-    hoy = timezone.now().astimezone(timezone.get_current_timezone()).date()
+    ayer = timezone.now().astimezone(timezone.get_current_timezone()).date() - datetime.timedelta(days=1)
     candidatos = list(Empleado.objects.filter(activo=True).filter(
-        Q(ultimo_corte_vacaciones__isnull=True) | Q(ultimo_corte_vacaciones__lt=hoy)
+        Q(ultimo_corte_vacaciones__isnull=True) | Q(ultimo_corte_vacaciones__lt=ayer)
     ))
     if not candidatos:
         return
 
     for emp in candidatos:
         try:
-            _verificar_acreditacion_vacaciones_empleado(emp, hoy)
+            _verificar_acreditacion_vacaciones_empleado(emp, ayer)
         except Exception:
             pass
+
 
 
 class EmpleadoViewSet(viewsets.ModelViewSet):
@@ -1588,11 +1612,9 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                 alerta.save(update_fields=['leida'])
                 continue
 
-            saldo_vac = float(emp.dias_vacaciones_acumuladas or 0.0)
-            if saldo_vac >= 1.0:
-                nuevo_saldo = round(saldo_vac - 1.0, 2)
-                emp.dias_vacaciones_acumuladas = Decimal(str(nuevo_saldo))
-                emp.save(update_fields=['dias_vacaciones_acumuladas'])
+            saldo_disp = float(_obtener_dias_vacaciones_disponibles(emp))
+            if saldo_disp >= 1.0:
+                nuevo_disp = round(saldo_disp - 1.0, 2)
 
                 PermisoAusencia.objects.create(
                     empleado=emp,
@@ -1608,11 +1630,11 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                     descripcion=(
                         f"Resolución automática (vencidas 24h): Se descontó 1.0 día de vacaciones a "
                         f"{emp.nombre} {emp.apellido} por inasistencia del {fecha_alerta}. "
-                        f"Saldo previo: {saldo_vac:.2f} d -> Nuevo saldo: {nuevo_saldo:.2f} d."
+                        f"Disponible previo: {saldo_disp:.2f} d -> Nuevo disponible: {nuevo_disp:.2f} d."
                     ),
                     ip_address='127.0.0.1'
                 )
-                alerta.mensaje += f"\n\n[RESUELTA AUTOMÁTICAMENTE]: Vencidas las 24h sin justificar, se dedujo 1.0 día de vacaciones. Nuevo saldo: {nuevo_saldo:.2f} d."
+                alerta.mensaje += f"\n\n[RESUELTA AUTOMÁTICAMENTE]: Vencidas las 24h sin justificar, se dedujo 1.0 día de vacaciones. Nuevo disponible: {nuevo_disp:.2f} d."
             else:
                 hoy = timezone.localdate()
                 emp.periodo_horas_pendientes = hoy.replace(day=1)
@@ -1632,7 +1654,7 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                     accion='REGISTRO_MANUAL',
                     descripcion=(
                         f"Resolución automática (vencidas 24h): Se sumaron +8.0 hrs de deuda a "
-                        f"{emp.nombre} {emp.apellido} por inasistencia del {fecha_alerta} (saldo vacaciones insuficiente: {saldo_vac:.2f} d)."
+                        f"{emp.nombre} {emp.apellido} por inasistencia del {fecha_alerta} (saldo vacaciones insuficiente: {saldo_disp:.2f} d)."
                     ),
                     ip_address='127.0.0.1'
                 )
@@ -1668,100 +1690,104 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
 
     def _verificar_ausencias_semanales(self):
         """
-        Revisa la semana en curso (Lunes a hoy). Si un empleado tiene días sin marcaje
-        y no es feriado, genera la alerta con ventana de 24 horas para justificación o auto-compensación.
+        Revisa tanto la semana anterior cerrada como la semana en curso (Lunes a ayer).
+        Si un empleado activo tiene 2 o más días sin marcaje en la misma semana (el 1ero es libre, del 2do en adelante falta)
+        y no es feriado ni tiene permiso registrado, genera la alerta con ventana de 24 horas para justificación o auto-compensación.
         """
         import datetime
         tz = timezone.get_current_timezone()
         hoy = timezone.localdate()
-        inicio_semana = hoy - datetime.timedelta(days=hoy.weekday())
-        inicio_dt = timezone.make_aware(datetime.datetime.combine(inicio_semana, datetime.time.min), tz)
-        hoy_fin_dt = timezone.make_aware(datetime.datetime.combine(hoy, datetime.time.max), tz)
+        inicio_semana_actual = hoy - datetime.timedelta(days=hoy.weekday())
+        inicio_semana_anterior = inicio_semana_actual - datetime.timedelta(days=7)
 
-        feriados = set(DiaFeriado.objects.filter(
-            fecha__gte=inicio_semana,
-            fecha__lte=hoy
-        ).values_list('fecha', flat=True))
+        semanas_a_evaluar = [
+            (inicio_semana_anterior, inicio_semana_actual - datetime.timedelta(days=1)),
+            (inicio_semana_actual, hoy - datetime.timedelta(days=1)),
+        ]
 
-        if not RegistroAsistencia.objects.filter(fecha_hora__gte=inicio_dt).exists():
-            return
-
-        empleados = Empleado.objects.filter(activo=True)
-        for emp in empleados:
-            primer_registro = RegistroAsistencia.objects.filter(empleado=emp).order_by('fecha_hora').first()
-            if not primer_registro:
+        empleados = list(Empleado.objects.filter(activo=True))
+        for sem_inicio, sem_fin in semanas_a_evaluar:
+            if sem_inicio > sem_fin:
                 continue
 
-            dias_con_marcaje = {
-                fh.astimezone(tz).date()
-                for fh in RegistroAsistencia.objects.filter(
-                    empleado=emp,
-                    fecha_hora__gte=inicio_dt,
-                    fecha_hora__lte=hoy_fin_dt
-                ).values_list('fecha_hora', flat=True)
-            }
+            inicio_dt = timezone.make_aware(datetime.datetime.combine(sem_inicio, datetime.time.min), tz)
+            fin_dt = timezone.make_aware(datetime.datetime.combine(sem_fin, datetime.time.max), tz)
 
-            permisos_emp = PermisoAusencia.objects.filter(
-                empleado=emp,
-                fecha_inicio__lte=hoy,
-                fecha_fin__gte=inicio_semana
-            )
-            dias_permiso = set()
-            for p in permisos_emp:
-                d_curr = max(p.fecha_inicio, inicio_semana)
-                d_fin = min(p.fecha_fin, hoy)
-                while d_curr <= d_fin:
-                    dias_permiso.add(d_curr)
-                    d_curr += datetime.timedelta(days=1)
+            feriados = set(DiaFeriado.objects.filter(
+                fecha__gte=sem_inicio,
+                fecha__lte=sem_fin
+            ).values_list('fecha', flat=True))
 
-            dias_sin_marcaje = []
-            fecha_inicio_eval = max(inicio_semana, primer_registro.fecha_hora.astimezone(tz).date())
-            curr = fecha_inicio_eval
-            while curr < hoy:
-                if curr not in feriados and curr not in dias_con_marcaje and curr not in dias_permiso:
-                    dias_sin_marcaje.append(curr)
-                curr += datetime.timedelta(days=1)
+            if not RegistroAsistencia.objects.filter(fecha_hora__range=(inicio_dt, fin_dt)).exists():
+                continue
 
-            if len(dias_sin_marcaje) >= 2:
-                titulo_busqueda = f"Inasistencia pendiente de justificar: {emp.nombre} {emp.apellido}"
-                alerta_existente = AlertaAsistencia.objects.filter(
-                    empleado=emp,
-                    tipo__in=['SEGUNDA_AUSENCIA', 'INASISTENCIA'],
-                    created_at__gte=inicio_dt
-                ).exists()
+            for emp in empleados:
+                primer_registro = RegistroAsistencia.objects.filter(empleado=emp).order_by('fecha_hora').first()
+                if not primer_registro:
+                    continue
 
-                ya_gestionada = BitacoraAccion.objects.filter(
-                    created_at__gte=inicio_dt,
-                    descripcion__icontains=f"{emp.nombre} {emp.apellido}"
-                ).filter(
-                    Q(descripcion__icontains="justificó") |
-                    Q(descripcion__icontains="deuda") |
-                    Q(descripcion__icontains="descontó") |
-                    Q(descripcion__icontains="ausencia")
-                ).exists()
-
-                if not alerta_existente and not ya_gestionada:
-                    fechas_str = ", ".join(d.strftime('%d/%m') for d in dias_sin_marcaje)
-                    saldo_actual = float(emp.dias_vacaciones_acumuladas or 0.0)
-                    consecuencia = "se deducirá automáticamente 1.0 día de vacaciones" if saldo_actual >= 1.0 else "se cargarán automáticamente 8.0 horas de deuda a su bolsa"
-                    AlertaAsistencia.objects.create(
-                        tipo='INASISTENCIA',
+                dias_con_marcaje = {
+                    fh.astimezone(tz).date()
+                    for fh in RegistroAsistencia.objects.filter(
                         empleado=emp,
-                        titulo=titulo_busqueda,
-                        mensaje=(
-                            f"El colaborador {emp.nombre} {emp.apellido} no registró asistencia en fecha(s): {fechas_str}. "
-                            f"Cuenta con una ventana de gracia de 24 horas para justificar (motivo médico, fuerza mayor, situación imprevista o permiso). "
-                            f"De no justificarse en 24h, {consecuencia}."
-                        ),
-                        leida=False
-                    )
+                        fecha_hora__gte=inicio_dt,
+                        fecha_hora__lte=fin_dt
+                    ).values_list('fecha_hora', flat=True)
+                }
+
+                permisos_emp = PermisoAusencia.objects.filter(
+                    empleado=emp,
+                    fecha_inicio__lte=sem_fin,
+                    fecha_fin__gte=sem_inicio
+                )
+                dias_permiso = set()
+                for p in permisos_emp:
+                    d_curr = max(p.fecha_inicio, sem_inicio)
+                    d_fin = min(p.fecha_fin, sem_fin)
+                    while d_curr <= d_fin:
+                        dias_permiso.add(d_curr)
+                        d_curr += datetime.timedelta(days=1)
+
+                dias_sin_marcaje = []
+                fecha_inicio_eval = max(sem_inicio, primer_registro.fecha_hora.astimezone(tz).date())
+                curr = fecha_inicio_eval
+                while curr <= sem_fin:
+                    if curr not in feriados and curr not in dias_con_marcaje and curr not in dias_permiso:
+                        dias_sin_marcaje.append(curr)
+                    curr += datetime.timedelta(days=1)
+
+                if len(dias_sin_marcaje) >= 2:
+                    faltas_reales = dias_sin_marcaje[1:]
+                    fechas_str = ", ".join(d.strftime('%d/%m') for d in faltas_reales)
+                    titulo_busqueda = f"Inasistencia pendiente de justificar: {emp.nombre} {emp.apellido}"
+                    alerta_existente = AlertaAsistencia.objects.filter(
+                        empleado=emp,
+                        tipo__in=['SEGUNDA_AUSENCIA', 'INASISTENCIA'],
+                        mensaje__icontains=fechas_str
+                    ).exists()
+
+                    if not alerta_existente:
+                        saldo_disp = float(_obtener_dias_vacaciones_disponibles(emp))
+                        consecuencia = "se deducirá automáticamente 1.0 día de vacaciones" if saldo_disp >= 1.0 else "se cargarán automáticamente 8.0 horas de deuda a su bolsa"
+                        AlertaAsistencia.objects.create(
+                            tipo='INASISTENCIA',
+                            empleado=emp,
+                            titulo=titulo_busqueda,
+                            mensaje=(
+                                f"El colaborador {emp.nombre} {emp.apellido} registró falta sin justificar en fecha(s): {fechas_str} "
+                                f"(adicional a su día libre semanal del {dias_sin_marcaje[0].strftime('%d/%m')}). "
+                                f"Cuenta con una ventana de gracia de 24 horas para justificar (motivo médico, fuerza mayor, situación imprevista o permiso). "
+                                f"De no justificarse en 24h, {consecuencia}."
+                            ),
+                            leida=False
+                        )
 
     @action(detail=True, methods=['post'], url_path='resolver')
     def resolver_alerta(self, request, pk=None):
         """
         Resuelve una alerta de inasistencia:
         - decision='JUSTIFICAR': Autoriza la falta por cualquier motivo libre (médica, fuerza mayor, imprevisto, etc.) sin recargos.
-        - decision='RESTAR_VACACIONES': Deduce de inmediato 1.0 día de vacaciones.
+        - decision='RESTAR_VACACIONES': Deduce de inmediato 1.0 día de vacaciones (creando PermisoAusencia tipo VACACIONES, sin doble resta).
         - decision='SUMAR_DEUDA': Carga 8.0 horas de deuda a su bolsa de horas.
         """
         alerta = self.get_object()
@@ -1924,13 +1950,11 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                         ip_address=_get_clean_ip(request)
                     )
             elif decision == 'RESTAR_VACACIONES':
-                dias_antes = float(empleado.dias_vacaciones_acumuladas or 0.0)
-                empleado.dias_vacaciones_acumuladas = max(Decimal('0.00'), (empleado.dias_vacaciones_acumuladas or Decimal('0.00')) - Decimal('1.00'))
-                empleado.save(update_fields=['dias_vacaciones_acumuladas'])
-
+                disp_antes = float(_obtener_dias_vacaciones_disponibles(empleado))
                 motivo_desc = motivo or f"Inasistencia deducida de saldo de vacaciones (Alerta #{alerta.id})"
+                dias_creados = 0
                 for dia_ausente in dias_a_registrar:
-                    PermisoAusencia.objects.get_or_create(
+                    _, created = PermisoAusencia.objects.get_or_create(
                         empleado=empleado,
                         fecha_inicio=dia_ausente,
                         fecha_fin=dia_ausente,
@@ -1939,13 +1963,17 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                             'motivo': motivo_desc
                         }
                     )
+                    if created:
+                        dias_creados += 1
+
+                disp_despues = float(_obtener_dias_vacaciones_disponibles(empleado))
 
                 BitacoraAccion.objects.create(
                     usuario=request.user if request.user.is_authenticated else None,
                     accion='REGISTRO_MANUAL',
                     descripcion=(
-                        f"Se descontó 1.0 día de vacaciones a {empleado.nombre} {empleado.apellido} por inasistencia. "
-                        f"Saldo previo: {dias_antes:.2f} d -> Nuevo saldo: {empleado.dias_vacaciones_acumuladas} d. Motivo: {motivo_desc}"
+                        f"Se descontó {max(1, dias_creados):.1f} día(s) de vacaciones a {empleado.nombre} {empleado.apellido} por inasistencia. "
+                        f"Disponible previo: {disp_antes:.2f} d -> Nuevo disponible: {disp_despues:.2f} d. Motivo: {motivo_desc}"
                     ),
                     ip_address=_get_clean_ip(request)
                 )
@@ -1979,7 +2007,7 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             'status': 'ok',
             'mensaje': 'Alerta resuelta exitosamente',
             'empleado_horas_pendientes': float(empleado.horas_pendientes) if empleado else 0.0,
-            'empleado_vacaciones_acumuladas': float(empleado.dias_vacaciones_acumuladas) if (empleado and empleado.dias_vacaciones_acumuladas is not None) else 0.0
+            'empleado_vacaciones_acumuladas': float(_obtener_dias_vacaciones_disponibles(empleado)) if empleado else 0.0
         })
 
     @action(detail=True, methods=['post'], url_path='cerrar-salida-11pm')
@@ -2087,8 +2115,11 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='marcar-todas-leidas')
     def marcar_todas_leidas(self, request):
-        AlertaAsistencia.objects.filter(leida=False).update(leida=True)
-        return Response({'status': 'ok', 'mensaje': 'Todas las alertas han sido marcadas como leídas.'})
+        # Proteger alertas de inasistencia pendientes para que solo se cierren al tomar una decisión o vencer las 24h
+        AlertaAsistencia.objects.filter(leida=False).exclude(
+            tipo__in=['SEGUNDA_AUSENCIA', 'INASISTENCIA']
+        ).update(leida=True)
+        return Response({'status': 'ok', 'mensaje': 'Notificaciones informativas marcadas como leídas (las alertas de inasistencia requieren resolución o ventana de 24h).'})
 
     @action(detail=False, methods=['post'], url_path='limpiar-leidas')
     def limpiar_leidas(self, request):
