@@ -537,8 +537,8 @@ export default function BoletaVacacionesMensualLoteModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-start justify-center p-2 sm:p-5 overflow-y-auto print-vac-lote-backdrop">
-      {/* Estilos de Impresión: 1 Hoja Carta por Trabajador con 2 Colillas Simétricas y Línea de Corte en el Centro */}
+    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-start justify-center p-2 sm:p-5 overflow-y-auto print-vac-lote-backdrop print:!block print:!static print:!inset-auto print:!p-0 print:!m-0 print:!overflow-visible print:!bg-transparent print:!backdrop-blur-none">
+      {/* Estilos de Impresión: Paginación real de 1 Hoja Carta por Trabajador con 2 Colillas Simétricas */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -548,76 +548,126 @@ export default function BoletaVacacionesMensualLoteModal({
             margin: 6mm 10mm 6mm 10mm;
           }
 
-          /* Ocultar absolutamente todo lo que está fuera de la ventana de colillas */
+          /* Ocultar absolutamente todo lo que no sea el contenido a imprimir */
           body > *:not(.print-vac-lote-backdrop) {
             display: none !important;
-          }
-
-          html, body {
-            background: white !important;
-            color: black !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            height: auto !important;
           }
 
           .print-hide, header, nav, aside, footer, main, form, button, input, select, a, table:not(.print-table) {
             display: none !important;
           }
 
-          .print-vac-lote-backdrop {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
+          /* Reset estricto de html y body a bloques normales sin alturas forzadas ni flexbox */
+          html {
             background: white !important;
-            display: block !important;
-            padding: 0 !important;
+            color: black !important;
             margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
           }
 
-          .print-vac-lote-container {
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
+          body {
+            background: white !important;
+            color: black !important;
             margin: 0 !important;
-            max-width: 100% !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            display: block !important;
+            overflow: visible !important;
+          }
+
+          /* El backdrop deja de ser un modal fijado y se convierte en flujo de documento normal */
+          .print-vac-lote-backdrop {
+            display: block !important;
+            position: static !important;
+            inset: auto !important;
+            top: auto !important;
+            left: auto !important;
+            right: auto !important;
+            bottom: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
             overflow: visible !important;
             background: white !important;
-          }
-
-          .print-vac-lote-scroll {
             padding: 0 !important;
             margin: 0 !important;
-            overflow: visible !important;
-            height: auto !important;
-            display: block !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
           }
 
-          /* Cada trabajador ocupa exactamente 1 hoja Carta Vertical (264mm útiles) */
-          .print-vac-mensual-page {
+          /* El contenedor modal pierde sombras, bordes y límites de altura */
+          .print-vac-lote-container {
+            display: block !important;
+            position: static !important;
             width: 100% !important;
-            height: 263mm !important;
-            min-height: 263mm !important;
-            max-height: 264mm !important;
-            margin: 0 auto !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
             padding: 0 !important;
+            margin: 0 !important;
+            background: white !important;
+          }
+
+          /* El área de scroll se expande completamente para permitir que el navegador pagine naturalmente */
+          .print-vac-lote-scroll {
+            display: block !important;
+            position: static !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: white !important;
+          }
+
+          .print-vac-lote-scroll > * {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+          }
+
+          /* Cada trabajador ocupa exactamente 1 hoja Carta Vertical con salto de página físico */
+          .print-vac-mensual-page {
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: 260mm !important;
+            min-height: 260mm !important;
+            max-height: 262mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            background: #ffffff !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             page-break-after: always !important;
             break-after: page !important;
-            background: white !important;
           }
 
           .print-vac-mensual-page:last-child {
-            page-break-after: avoid !important;
-            break-after: avoid !important;
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
 
           /* Cada mitad (Colaborador arriba / Administración abajo) mide exactamente 125mm */
@@ -700,7 +750,7 @@ export default function BoletaVacacionesMensualLoteModal({
         }}
       />
 
-      <div className="print-vac-lote-container bg-stone-100 border border-stone-200 w-full max-w-4xl max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+      <div className="print-vac-lote-container bg-stone-100 border border-stone-200 w-full max-w-4xl max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden print:!block print:!static print:!w-full print:!max-w-none print:!max-h-none print:!border-none print:!rounded-none print:!shadow-none print:!p-0 print:!m-0 print:!overflow-visible print:!bg-transparent">
         {/* Barra Superior de Configuración (Oculta al imprimir) */}
         <div className="bg-white px-5 py-4 border-b border-stone-200 flex flex-col gap-3 shrink-0 print-hide">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -818,7 +868,7 @@ export default function BoletaVacacionesMensualLoteModal({
         </div>
 
         {/* Área de Vista Previa e Impresión */}
-        <div className="print-vac-lote-scroll flex-1 overflow-y-auto p-3 sm:p-6 space-y-8">
+        <div className="print-vac-lote-scroll flex-1 overflow-y-auto p-3 sm:p-6 space-y-8 print:!block print:!static print:!w-full print:!p-0 print:!m-0 print:!space-y-0 print:!overflow-visible">
           {empleadosAImprimir.length === 0 ? (
             <div className="bg-white rounded-2xl p-12 text-center text-stone-400 font-medium print-hide">
               Seleccione al menos un colaborador activo arriba para generar su hoja mensual de vacaciones.
@@ -827,7 +877,7 @@ export default function BoletaVacacionesMensualLoteModal({
             empleadosAImprimir.map((emp) => (
               <div
                 key={`page-${emp.id}`}
-                className="print-vac-mensual-page bg-white rounded-2xl p-4 sm:p-6 shadow-md border border-stone-300 mx-auto max-w-[200mm] flex flex-col justify-between gap-2"
+                className="print-vac-mensual-page bg-white rounded-2xl p-4 sm:p-6 shadow-md border border-stone-300 mx-auto max-w-[200mm] flex flex-col justify-between gap-2 print:!rounded-none print:!shadow-none print:!border-none print:!p-0 print:!m-0 print:!max-w-none print:!gap-0 print:!w-full"
               >
                 {/* MITAD SUPERIOR: COPIA COLABORADOR (CON ESPACIO DE FIRMA) */}
                 {renderColilla(emp, 'COLABORADOR')}
