@@ -392,9 +392,9 @@ export default function BoletaVacacionesMensualLoteModal({
             </div>
 
             {/* 4. Saldo Disponible Actual (Destacado) */}
-            <div className="border-2 border-stone-900 rounded-lg p-1.5 bg-emerald-50/80 text-center">
-              <span className="text-[7.5px] font-black uppercase text-stone-800 block leading-tight">
-                ⭐ SALDO DISPONIBLE
+            <div className="border-2 border-stone-900 rounded-lg p-1.5 bg-stone-100 text-center">
+              <span className="text-[7.5px] font-black uppercase text-stone-900 block leading-tight">
+                SALDO DISPONIBLE
               </span>
               <div className="text-sm sm:text-base font-mono font-black text-stone-950 leading-tight mt-0.5">
                 {vacDispActual.toFixed(2)} DÍAS
@@ -417,8 +417,8 @@ export default function BoletaVacacionesMensualLoteModal({
             </div>
 
             {movimientosMes.length === 0 ? (
-              <div className="py-1 text-center text-[8.5px] text-stone-600 font-medium">
-                ✅ Sin días descontados ni inasistencias en {nombreMes} {anio} — Acumulación íntegra de +{totalGanadoMes.toFixed(2)} días en el mes.
+              <div className="py-1 text-center text-[8.5px] text-stone-800 font-medium">
+                Sin días descontados ni inasistencias en {nombreMes} {anio} — Acumulación íntegra de +{totalGanadoMes.toFixed(2)} días en el mes.
               </div>
             ) : (
               <table className="w-full text-left text-[8.5px] border-collapse print-table">
@@ -565,15 +565,17 @@ export default function BoletaVacacionesMensualLoteModal({
             height: 125mm !important;
             min-height: 125mm !important;
             max-height: 125mm !important;
-            border: 1.5pt solid #000000 !important;
-            border-radius: 6px !important;
+            border: 2pt solid #000000 !important;
+            border-radius: 4px !important;
             padding: 4mm 5.5mm !important;
             box-sizing: border-box !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
-            background: white !important;
+            background: #ffffff !important;
             overflow: hidden !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
 
           /* Área de corte central (11mm) */
@@ -584,25 +586,52 @@ export default function BoletaVacacionesMensualLoteModal({
             justify-content: center !important;
             margin: 0 !important;
             padding: 0 !important;
+            color: #000000 !important;
           }
 
+          /* ── MAXIMO RENDIMIENTO BLANCO Y NEGRO PURO ── */
+          .print-colilla-half,
           .print-colilla-half * {
             color: #000000 !important;
             text-shadow: none !important;
             box-shadow: none !important;
+            font-family: Arial, Helvetica, sans-serif !important;
           }
 
+          /* Forzar fondos blancos y bordes negros definidos para impresoras de bajo contraste */
           .print-colilla-half [class*="bg-"] {
             background-color: #ffffff !important;
           }
 
-          .print-colilla-half img {
-            filter: grayscale(100%) contrast(130%) !important;
+          .print-colilla-half div,
+          .print-colilla-half table,
+          .print-colilla-half th,
+          .print-colilla-half td {
+            border-color: #000000 !important;
           }
 
+          .print-colilla-half .border-stone-300,
+          .print-colilla-half .border-stone-200,
+          .print-colilla-half .border-stone-100 {
+            border-color: #000000 !important;
+            border-width: 1pt !important;
+          }
+
+          /* Logo en alto contraste monocromático */
+          .print-colilla-half img {
+            filter: grayscale(100%) contrast(150%) brightness(95%) !important;
+          }
+
+          /* Tablas impresas con líneas firmes y claras */
           .print-table {
             display: table !important;
             width: 100% !important;
+            border-collapse: collapse !important;
+          }
+
+          .print-table th,
+          .print-table td {
+            border-bottom: 0.75pt solid #000000 !important;
           }
         }
       `,
