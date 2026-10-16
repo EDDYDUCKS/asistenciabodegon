@@ -313,10 +313,30 @@ export default function BoletaVacacionesMensualLoteModal({
       })),
     ].sort((a, b) => (a.fecha > b.fecha ? 1 : a.fecha < b.fecha ? -1 : 0));
 
+    const totalMovs = movimientosMes.length;
+    // Escala dinámica del tamaño de letra y espaciado según la cantidad de movimientos
+    const tableTextSize =
+      totalMovs <= 4
+        ? 'text-[8.5px]'
+        : totalMovs <= 7
+        ? 'text-[8px]'
+        : totalMovs <= 10
+        ? 'text-[7.5px]'
+        : 'text-[7px]';
+
+    const cellPadding =
+      totalMovs <= 4
+        ? 'py-1 px-1.5'
+        : totalMovs <= 7
+        ? 'py-0.5 px-1'
+        : totalMovs <= 10
+        ? 'py-[2px] px-0.75'
+        : 'py-[1px] px-0.5';
+
     return (
-      <div className="print-colilla-half bg-white border-2 border-stone-800 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between text-stone-900">
+      <div className="print-colilla-half bg-white border-2 border-stone-800 rounded-xl p-3 sm:p-3.5 flex flex-col justify-between text-stone-900">
         {/* Bloque Superior: Encabezado + Datos + Resumen */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {/* Header Institucional */}
           <div className="flex items-center justify-between border-b-2 border-[#1c6856] pb-1.5 gap-2">
             <div className="flex items-center gap-2">
@@ -351,7 +371,7 @@ export default function BoletaVacacionesMensualLoteModal({
           </div>
 
           {/* Barra Datos del Colaborador */}
-          <div className="grid grid-cols-3 gap-2 bg-stone-50 border border-stone-300 rounded-lg px-2.5 py-1.5 text-[10px]">
+          <div className="grid grid-cols-3 gap-2 bg-stone-50 border border-stone-300 rounded-lg px-2.5 py-1 text-[10px]">
             <div>
               <span className="text-[7.5px] font-bold uppercase text-stone-400 block leading-none">
                 Colaborador:
@@ -436,11 +456,11 @@ export default function BoletaVacacionesMensualLoteModal({
             </div>
           </div>
 
-          {/* Detalle de Movimientos del Mes */}
+          {/* Detalle Dinámico de TODOS los Movimientos del Mes */}
           <div className="border border-stone-300 rounded-lg p-1.5">
             <div className="flex items-center justify-between border-b border-stone-200 pb-0.5 mb-1">
               <span className="text-[8px] font-black uppercase text-stone-700 tracking-wide">
-                Detalle de Movimientos Registrados en {nombreMes} {anio}
+                Detalle de Movimientos Registrados en {nombreMes} {anio} ({totalMovs} {totalMovs === 1 ? 'registro' : 'registros'})
               </span>
               <span className="text-[7.5px] font-mono text-stone-500">
                 +{vacGanadasLeyMes.toFixed(2)} d por {diasLaboradosMes} días trabajados en {nombreMes}
@@ -452,35 +472,32 @@ export default function BoletaVacacionesMensualLoteModal({
                 Sin días descontados ni inasistencias en {nombreMes} {anio} — Acumulación íntegra de +{totalGanadoMes.toFixed(2)} días en el mes.
               </div>
             ) : (
-              <table className="w-full text-left text-[8.5px] border-collapse print-table">
+              <table className={`w-full text-left ${tableTextSize} border-collapse print-table`}>
                 <thead>
-                  <tr className="border-b border-stone-200 text-[7.5px] uppercase text-stone-500 font-bold">
-                    <th className="py-0.5 px-1">Fecha</th>
-                    <th className="py-0.5 px-1">Concepto</th>
-                    <th className="py-0.5 px-1 text-center">Días</th>
-                    <th className="py-0.5 px-1">Observación / Motivo</th>
+                  <tr className="border-b border-stone-200 uppercase text-stone-500 font-bold">
+                    <th className={cellPadding}>Fecha</th>
+                    <th className={cellPadding}>Concepto</th>
+                    <th className={`${cellPadding} text-center`}>Días</th>
+                    <th className={cellPadding}>Observación / Motivo</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
-                  {movimientosMes.slice(0, 8).map((m) => (
+                  {movimientosMes.map((m) => (
                     <tr key={m.id}>
-                      <td className="py-0.5 px-1 font-mono font-bold text-stone-900 whitespace-nowrap">{m.fecha}</td>
-                      <td className="py-0.5 px-1 font-bold text-stone-800 whitespace-nowrap">{m.concepto}</td>
-                      <td className="py-0.5 px-1 text-center font-mono font-black whitespace-nowrap">
+                      <td className={`${cellPadding} font-mono font-bold text-stone-900 whitespace-nowrap`}>
+                        {m.fecha}
+                      </td>
+                      <td className={`${cellPadding} font-bold text-stone-800 whitespace-nowrap`}>
+                        {m.concepto}
+                      </td>
+                      <td className={`${cellPadding} text-center font-mono font-black whitespace-nowrap`}>
                         {m.impacto}
                       </td>
-                      <td className="py-0.5 px-1 text-stone-600 truncate max-w-[80mm]">
+                      <td className={`${cellPadding} text-stone-600 break-words leading-tight`}>
                         {m.detalle}
                       </td>
                     </tr>
                   ))}
-                  {movimientosMes.length > 8 && (
-                    <tr>
-                      <td colSpan={4} className="py-0.5 px-1 text-center font-bold text-stone-500 italic text-[7.5px]">
-                        (+ {movimientosMes.length - 8} movimiento(s) adicionales en el sistema)
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             )}
@@ -508,7 +525,7 @@ export default function BoletaVacacionesMensualLoteModal({
         ) : (
           <div className="pt-1.5 border-t border-stone-300 flex items-center justify-between text-[8px] text-stone-600">
             <span className="font-bold uppercase tracking-wide text-stone-700">
-              📋 Copia de Archivo para Administración (Sin Firma) — Expediente Laboral BodegónPass
+              Copia de Archivo para Administración (Sin Firma) — Expediente Laboral BodegónPass
             </span>
             <span className="font-mono font-black text-stone-900">
               Saldo Auditado al Cierre: {saldoDisponibleCierre.toFixed(2)} días disponibles
@@ -606,11 +623,11 @@ export default function BoletaVacacionesMensualLoteModal({
           /* Cada mitad (Colaborador arriba / Administración abajo) mide exactamente 125mm */
           .print-colilla-half {
             height: 125mm !important;
-            min-height: 125mm !important;
-            max-height: 125mm !important;
+            min-height: 124mm !important;
+            max-height: 126mm !important;
             border: 2pt solid #000000 !important;
             border-radius: 4px !important;
-            padding: 4mm 5.5mm !important;
+            padding: 3.5mm 5mm !important;
             box-sizing: border-box !important;
             display: flex !important;
             flex-direction: column !important;
@@ -621,9 +638,11 @@ export default function BoletaVacacionesMensualLoteModal({
             print-color-adjust: exact !important;
           }
 
-          /* Área de corte central (11mm) */
+          /* Área de corte central (8mm) */
           .print-cut-line {
-            height: 11mm !important;
+            height: 8mm !important;
+            min-height: 8mm !important;
+            max-height: 9mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
