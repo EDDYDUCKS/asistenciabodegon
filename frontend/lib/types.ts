@@ -70,6 +70,10 @@ export interface MarcajeKioscoResponse {
   horas_restantes_hoy?: number;
   cumplio_meta_8h?: boolean;
   advertencia_quiebre?: boolean;
+  es_tardanza?: boolean;
+  minutos_tardanza?: number;
+  turno_esperado?: string;
+  tipo_tardanza?: string;
   detail?: string;
 }
 

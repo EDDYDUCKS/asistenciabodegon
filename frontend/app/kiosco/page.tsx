@@ -32,6 +32,8 @@ interface RecentScan {
   tipo: string;
   hora: string;
   exitoso: boolean;
+  es_tardanza?: boolean;
+  minutos_tardanza?: number;
 }
 
 export default function KioscoPage() {
@@ -156,6 +158,7 @@ export default function KioscoPage() {
       | 'success'
       | 'error'
       | 'cooldown'
+      | 'tardanza'
       | 'ENTRADA'
       | 'SALIDA_QUEBRADA'
       | 'ENTRADA_QUEBRADA'
@@ -220,6 +223,15 @@ export default function KioscoPage() {
         gain.gain.setValueAtTime(0.12, ctx.currentTime);
         osc.start();
         osc.stop(ctx.currentTime + 0.3);
+      } else if (type === 'tardanza') {
+        // Tono firme de advertencia por tardanza (A4 -> F4)
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+        osc.frequency.setValueAtTime(349.23, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.38);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.38);
       } else {
         // Tono grave de alerta / error
         osc.frequency.setValueAtTime(220, ctx.currentTime); // A3
@@ -536,6 +548,8 @@ export default function KioscoPage() {
 
           if (res.status === 'cooldown' || res.advertencia_quiebre) {
             playAudioFeedback('cooldown');
+          } else if (res.es_tardanza) {
+            playAudioFeedback('tardanza');
           } else {
             const ev = res.registro?.tipo_evento;
             if (ev && ['ENTRADA', 'SALIDA_QUEBRADA', 'ENTRADA_QUEBRADA', 'SALIDA_DEFINITIVA'].includes(ev)) {
@@ -545,7 +559,7 @@ export default function KioscoPage() {
             }
           }
           setFeedback(res);
-          setFeedbackTimer(res.advertencia_quiebre ? 8 : 6);
+          setFeedbackTimer(res.advertencia_quiebre ? 8 : (res.es_tardanza ? 7 : 6));
           setEmpleadoDetectado(null);
 
           // Agregar al feed de actividad del Kiosco
@@ -560,9 +574,13 @@ export default function KioscoPage() {
               {
                 id: String(res.registro?.id || Math.random()),
                 nombre: `${res.registro?.empleado_detalle.nombre} ${res.registro?.empleado_detalle.apellido}`,
-                tipo: res.registro?.tipo_evento_display || 'Asistencia',
+                tipo: res.es_tardanza
+                  ? `⚠️ Tardanza (+${res.minutos_tardanza}m)`
+                  : (res.registro?.tipo_evento_display || 'Asistencia'),
                 hora: localTimeFormatted,
                 exitoso: true,
+                es_tardanza: res.es_tardanza,
+                minutos_tardanza: res.minutos_tardanza,
               },
               ...prev.slice(0, 3),
             ]);
@@ -923,6 +941,44 @@ export default function KioscoPage() {
                       : '';
 
                     if (tipo === 'ENTRADA') {
+                      if (feedback.es_tardanza) {
+                        return (
+                          <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
+                            <div className="w-14 h-14 rounded-2xl bg-rose-600 border-2 border-rose-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-rose-950/50 animate-bounce">
+                              <AlertTriangle className="w-8 h-8" />
+                            </div>
+                            <div>
+                              <span className="inline-block px-3 py-0.5 rounded-full bg-rose-500/25 border border-rose-400 text-rose-300 text-[11px] sm:text-xs font-black uppercase tracking-wider mb-1">
+                                🚨 TARDANZA REGISTRADA (+{feedback.minutos_tardanza} MIN)
+                              </span>
+                              <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight">
+                                ¡Atención, {empNombre}!
+                              </h2>
+                              <p className="text-xs sm:text-sm font-medium text-rose-200 mt-0.5">
+                                Marcaje: <strong>{horaMarcada}</strong> • Turno: <strong>{feedback.turno_esperado}</strong>
+                              </p>
+                            </div>
+                            <div className="bg-rose-500/20 border border-rose-400/40 rounded-2xl p-3 text-left space-y-1.5">
+                              <div className="flex items-center gap-2 text-rose-200 text-xs font-black uppercase">
+                                <AlertCircle className="w-4 h-4 shrink-0 text-rose-300" />
+                                <span>Tolerancia de 11 minutos superada</span>
+                              </div>
+                              <p className="text-[11px] text-rose-100 font-medium leading-relaxed">
+                                {feedback.mensaje}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+                              <span className="bg-rose-600 text-white font-mono text-xs px-3 py-1 rounded-xl border border-rose-400/50 font-bold">
+                                ⚠️ +{feedback.minutos_tardanza} min tarde
+                              </span>
+                              <span className="bg-stone-900 text-white text-xs font-bold px-3 py-1 rounded-xl border border-stone-700">
+                                Notificado a Administración
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
                           <div className="w-14 h-14 rounded-2xl bg-emerald-500 border-2 border-emerald-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-emerald-950/50">
@@ -993,6 +1049,44 @@ export default function KioscoPage() {
                     }
 
                     if (tipo === 'ENTRADA_QUEBRADA') {
+                      if (feedback.es_tardanza) {
+                        return (
+                          <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
+                            <div className="w-14 h-14 rounded-2xl bg-rose-600 border-2 border-rose-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-rose-950/50 animate-bounce">
+                              <AlertTriangle className="w-8 h-8" />
+                            </div>
+                            <div>
+                              <span className="inline-block px-3 py-0.5 rounded-full bg-rose-500/25 border border-rose-400 text-rose-300 text-[11px] sm:text-xs font-black uppercase tracking-wider mb-1">
+                                🚨 RETORNO TARDÍO DE PAUSA (+{feedback.minutos_tardanza} MIN)
+                              </span>
+                              <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight">
+                                ¡Atención, {empNombre}!
+                              </h2>
+                              <p className="text-xs sm:text-sm font-medium text-rose-200 mt-0.5">
+                                Retorno: <strong>{horaMarcada}</strong> • Horario esperado: <strong>{feedback.turno_esperado}</strong>
+                              </p>
+                            </div>
+                            <div className="bg-rose-500/20 border border-rose-400/40 rounded-2xl p-3 text-left space-y-1.5">
+                              <div className="flex items-center gap-2 text-rose-200 text-xs font-black uppercase">
+                                <AlertCircle className="w-4 h-4 shrink-0 text-rose-300" />
+                                <span>Tolerancia de 11 minutos superada</span>
+                              </div>
+                              <p className="text-[11px] text-rose-100 font-medium leading-relaxed">
+                                {feedback.mensaje}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-center gap-2 pt-0.5">
+                              <span className="bg-rose-600 text-white font-mono text-xs px-3 py-1 rounded-xl border border-rose-400/50 font-bold">
+                                ⚠️ +{feedback.minutos_tardanza} min tarde
+                              </span>
+                              <span className="bg-stone-900 text-white text-xs font-bold px-3 py-1 rounded-xl border border-stone-700">
+                                Notificado a Administración
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
                           <div className="w-14 h-14 rounded-2xl bg-blue-500 border-2 border-blue-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-blue-950/50">
@@ -1234,6 +1328,38 @@ export default function KioscoPage() {
                       </div>
                     </div>
                   </>
+                ) : feedback.es_tardanza ? (
+                  <>
+                    <div className="w-11 h-11 rounded-2xl bg-rose-600 flex items-center justify-center text-white mx-auto shadow-md shadow-rose-600/30 animate-pulse">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      {feedback.registro?.empleado_detalle && (
+                        <h3 className="font-display font-black text-base text-stone-900 mb-0.5">
+                          {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
+                        </h3>
+                      )}
+                      <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 font-black text-[11px] uppercase tracking-wide my-1">
+                        <span>🚨 TARDANZA REGISTRADA (+{feedback.minutos_tardanza} MIN)</span>
+                      </div>
+                      <p className="text-xs font-semibold text-rose-950 mt-1 max-w-md mx-auto bg-rose-50/80 p-2 rounded-xl border border-rose-100">
+                        {feedback.mensaje}
+                      </p>
+                      <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
+                        {feedback.turno_esperado && (
+                          <span className="inline-block bg-stone-100 text-stone-800 text-[11px] font-bold px-3 py-1 rounded-lg">
+                            ⏰ Turno: {feedback.turno_esperado}
+                          </span>
+                        )}
+                        <span className="inline-block bg-rose-200/80 text-rose-900 text-[11px] font-bold px-3 py-1 rounded-lg border border-rose-300">
+                          ⚠️ Tolerancia superada (11 min)
+                        </span>
+                        <span className="inline-block bg-stone-900 text-white text-[11px] font-bold px-3 py-1 rounded-lg">
+                          Aviso a Administración
+                        </span>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <>
                     <div className="w-11 h-11 rounded-2xl bg-emerald-500 flex items-center justify-center text-white mx-auto shadow-md shadow-emerald-500/20">
@@ -1370,7 +1496,9 @@ export default function KioscoPage() {
                   <div
                     key={scan.id}
                     className={`p-3 rounded-2xl border flex items-center justify-between transition-all ${
-                      scan.exitoso
+                      scan.es_tardanza
+                        ? 'bg-rose-50/70 border-rose-200/90 shadow-sm'
+                        : scan.exitoso
                         ? 'bg-white border-stone-200/80 shadow-sm'
                         : 'bg-rose-50/50 border-rose-100'
                     }`}
@@ -1380,7 +1508,9 @@ export default function KioscoPage() {
                         {scan.nombre}
                       </h4>
                       <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-full mt-1.5 border ${
-                        scan.exitoso
+                        scan.es_tardanza
+                          ? 'bg-rose-100 text-rose-800 border-rose-300 font-black'
+                          : scan.exitoso
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                           : 'bg-rose-50 text-rose-700 border-rose-100'
                       }`}>

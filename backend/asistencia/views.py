@@ -2459,11 +2459,19 @@ def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro, empleado=None)
 def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=False):
     """
     Evalúa puntualidad con las reglas de El Bodegón:
-    - 4 Franjas Base de Entrada: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900).
-    - Margen de cortesía/retraso menor: hasta 19 minutos (informativo, NO satura con notificación al admin).
-    - Tardanza severa: >= 20 minutos (genera alerta oficial en campanita y acta imprimible para expediente).
+    - Franjas Base de Entrada: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900), etc.
+    - Margen de cortesía/tolerancia: hasta 10 minutos inclusive.
+    - Tardanza severa / grave: >= 11 minutos (alerta inmediata en Kiosco, notificación en campanita y registro oficial).
     - Salida definitiva: alerta si déficit > 10 minutos de la jornada (horas_netas_hoy < 7.83).
     """
+    res_info = {
+        'alerta_creada': False,
+        'alerta_tipo': '',
+        'es_tardanza': False,
+        'minutos_tardanza': 0,
+        'turno_esperado': '',
+        'tipo_tardanza': '',
+    }
     try:
         hora_actual = registro.fecha_hora.astimezone(timezone.get_current_timezone())
         mins_marcados = hora_actual.hour * 60 + hora_actual.minute
@@ -2474,6 +2482,8 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
         alerta_tipo = ''
         alerta_titulo = ''
         alerta_mensaje = ''
+        diff_tardanza = 0
+        turno_esperado_str = ''
 
         if tipo == 'ENTRADA':
             # Franjas Base: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900)
@@ -2513,14 +2523,16 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                 1020: '5:00 PM',
                 1080: '6:00 PM',
             }
+            turno_esperado_str = HORA_LABELS.get(franja_base, f"{franja_base // 60}:{franja_base % 60:02d}")
             
-            # Solo alertar si la tardanza es grave (20 minutos o más de retraso respecto a su turno)
-            if diff >= 20:
+            # Tolerancia es de 10 minutos. A partir de 11 minutos es tardanza grave
+            if diff >= 11:
                 alerta_creada = True
                 alerta_tipo = 'TARDANZA'
+                diff_tardanza = diff
                 alerta_titulo = f"Tardanza severa{tag_offline}: {empleado.nombre} {empleado.apellido}"
                 alerta_mensaje = (
-                    f"Llegó {diff} min tarde respecto a su turno ({HORA_LABELS[franja_base]}). "
+                    f"Llegó {diff} min tarde respecto a su turno ({turno_esperado_str}). "
                     f"Marcaje a las {hora_actual.strftime('%I:%M %p')}."
                 )
 
@@ -2543,14 +2555,15 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
 
             diff_ret = mins_marcados - hora_esperada
             ret_labels = {1140: '7:00 PM', 1110: '6:30 PM', 1080: '6:00 PM'}
-            ret_label = ret_labels.get(hora_esperada, '6:00 PM')
-            # Solo alertar si la tardanza de retorno es grave (20 minutos o más)
-            if diff_ret >= 20:
+            turno_esperado_str = ret_labels.get(hora_esperada, '6:00 PM')
+            # Tolerancia es de 10 minutos. A partir de 11 minutos es tardanza grave de retorno
+            if diff_ret >= 11:
                 alerta_creada = True
                 alerta_tipo = 'TARDANZA'
+                diff_tardanza = diff_ret
                 alerta_titulo = f"Tardanza Retorno de Pausa{tag_offline}: {empleado.nombre} {empleado.apellido}"
                 alerta_mensaje = (
-                    f"Regresó de la pausa {diff_ret} min tarde respecto a su horario ({ret_label}). "
+                    f"Regresó de la pausa {diff_ret} min tarde respecto a su horario ({turno_esperado_str}). "
                     f"Marcaje a las {hora_actual.strftime('%I:%M %p')}."
                 )
 
@@ -2620,8 +2633,19 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                 titulo=alerta_titulo,
                 mensaje=alerta_mensaje
             )
+
+        res_info = {
+            'alerta_creada': alerta_creada,
+            'alerta_tipo': alerta_tipo,
+            'es_tardanza': (alerta_tipo == 'TARDANZA' and alerta_creada),
+            'minutos_tardanza': diff_tardanza,
+            'turno_esperado': turno_esperado_str,
+            'tipo_tardanza': tipo if (alerta_tipo == 'TARDANZA' and alerta_creada) else '',
+        }
+        return res_info
     except Exception as ex:
         print(f"Error evaluando alertas: {ex}")
+        return res_info
 
 
 # ==========================================
@@ -2817,7 +2841,10 @@ def marcar_asistencia_kiosco(request):
         _verificar_septimo_dia(empleado, dia_operativo_cierre, horas_netas_hoy)
 
     # ── DETECCIÓN DE PUNTUALIDAD Y CREACIÓN DE ALERTAS INTERNAS ─────────────
-    _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=False)
+    info_alerta = _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, horas_netas_hoy, es_offline=False) or {}
+    es_tardanza_kiosco = bool(info_alerta.get('es_tardanza'))
+    minutos_tardanza_kiosco = int(info_alerta.get('minutos_tardanza', 0))
+    turno_esperado_kiosco = str(info_alerta.get('turno_esperado', ''))
 
     horas_restantes_hoy = max(0.0, round(8.0 - horas_netas_hoy, 1))
     cumplio_meta = horas_netas_hoy >= 7.95
@@ -2832,11 +2859,17 @@ def marcar_asistencia_kiosco(request):
             es_turno_5pm_kiosco = True
 
     if tipo_evento == 'ENTRADA':
-        mensaje_kiosco = f"¡Hola {empleado.nombre}! Entrada registrada. Jornada iniciada."
+        if es_tardanza_kiosco:
+            mensaje_kiosco = f"⚠️ TARDANZA: Llegaste {minutos_tardanza_kiosco} min tarde respecto a tu turno ({turno_esperado_kiosco}). Se notificó a Administración."
+        else:
+            mensaje_kiosco = f"¡Hola {empleado.nombre}! Entrada registrada. Jornada iniciada."
     elif tipo_evento == 'SALIDA_QUEBRADA':
         mensaje_kiosco = f"¡Buen descanso, {empleado.nombre}! Llevas {round(horas_netas_hoy, 1)} hrs acumuladas. Te faltan {round(horas_restantes_hoy, 1)} hrs para tus 8h."
     elif tipo_evento == 'ENTRADA_QUEBRADA':
-        mensaje_kiosco = f"¡Bienvenido de vuelta, {empleado.nombre}! Llevas {round(horas_netas_hoy, 1)} hrs del primer turno. Te restan {round(horas_restantes_hoy, 1)} hrs para tus 8h."
+        if es_tardanza_kiosco:
+            mensaje_kiosco = f"⚠️ TARDANZA EN PAUSA: Regresaste {minutos_tardanza_kiosco} min tarde de tu descanso (Horario esperado: {turno_esperado_kiosco})."
+        else:
+            mensaje_kiosco = f"¡Bienvenido de vuelta, {empleado.nombre}! Llevas {round(horas_netas_hoy, 1)} hrs del primer turno. Te restan {round(horas_restantes_hoy, 1)} hrs para tus 8h."
     elif tipo_evento == 'SALIDA_DEFINITIVA':
         pausas_kiosco = [r for r in registros_actualizados if r.tipo_evento == 'SALIDA_QUEBRADA']
         retornos_kiosco = [r for r in registros_actualizados if r.tipo_evento == 'ENTRADA_QUEBRADA']
@@ -2921,6 +2954,10 @@ def marcar_asistencia_kiosco(request):
     return Response({
         'status': 'ok',
         'mensaje': mensaje_kiosco,
+        'es_tardanza': es_tardanza_kiosco,
+        'minutos_tardanza': minutos_tardanza_kiosco,
+        'turno_esperado': turno_esperado_kiosco,
+        'tipo_tardanza': info_alerta.get('tipo_tardanza', ''),
         'advertencia_quiebre': (tipo_evento == 'SALIDA_DEFINITIVA' and omision_retorno_kiosco),
         'registro': RegistroAsistenciaSerializer(registro, context={'request': request}).data,
         'horas_trabajadas_hoy': round(horas_netas_hoy, 1),
