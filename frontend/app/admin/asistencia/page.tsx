@@ -22,9 +22,22 @@ import {
 
 interface AnalisisPuntualidad {
   turno: string;
+  turnoOficial?: string;
+  esManualAdmin?: boolean;
   estado: 'A Tiempo' | 'Retraso Leve' | 'Tardanza' | 'Salida Anticipada' | 'Jornada Cumplida 8h' | 'Horas Extra' | 'N/A';
   desviacionMinutos: number;
 }
+
+// 7 Turnos Oficiales de El Bodegón
+const TURNOS_OFICIALES_CONFIG: Record<string, number> = {
+  '9:00 AM': 540,
+  '10:00 AM': 600,
+  '11:00 AM': 660,
+  '12:00 PM': 720,
+  '3:00 PM': 900,
+  '5:00 PM': 1020,
+  '6:00 PM': 1080,
+};
 
 // Lógica de cálculo de puntualidad inteligente y flexible para El Bodegón
 function calcularPuntualidadRecord(
@@ -43,35 +56,14 @@ function calcularPuntualidadRecord(
   const [hStr, mStr] = nicaraguaTimeStr.split(':');
   const minsMarcados = parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
 
-  // 1. Identificar franja según la primera entrada del día
-  const primeraEntrada = marcajesDelDia.find((m) => m.tipo_evento === 'ENTRADA');
-  let minsPrimeraEntrada = minsMarcados;
-  if (primeraEntrada) {
-    const niEntStr = new Date(primeraEntrada.fecha_hora).toLocaleTimeString('en-US', {
-      timeZone: 'America/Managua',
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    const [hE, mE] = niEntStr.split(':');
-    minsPrimeraEntrada = parseInt(hE, 10) * 60 + parseInt(mE, 10);
-  }
-
-  // 5 Franjas Base: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900), 5:00 PM (1020)
-  const FRANJAS = [540, 660, 720, 900, 1020];
-  const franjaBaseEntrada = FRANJAS.reduce((prev, curr) =>
-    Math.abs(curr - minsPrimeraEntrada) < Math.abs(prev - minsPrimeraEntrada) ? curr : prev
-  );
-
   const tieneQuebrado = marcajesDelDia.some(
     (m) => m.tipo_evento === 'SALIDA_QUEBRADA' || m.tipo_evento === 'ENTRADA_QUEBRADA'
   );
 
-  // En el cuadro visual solo debe existir "Quebrado" o "Corrido"
+  // En el cuadro visual de modalidad: "Quebrado" o "Corrido"
   const turno = tieneQuebrado ? 'Quebrado' : 'Corrido';
 
-  // Detección inteligente de horario (Mecanismo 1):
-  // Si hay retorno de quebrado en el día, verificar si fue a las 6 PM o a las 7 PM
+  // Detección inteligente de horario para retorno de quebrado:
   const retornoPausa = marcajesDelDia.find((m) => m.tipo_evento === 'ENTRADA_QUEBRADA');
   let esQuebrado11AM = false;
   if (retornoPausa) {
@@ -91,27 +83,57 @@ function calcularPuntualidadRecord(
 
   // ── ENTRADA INICIAL ──
   if (tipo === 'ENTRADA') {
-    let franjaBaseEsta = 720; // 12:00 PM por defecto
-    if (esQuebrado11AM) {
-      franjaBaseEsta = 660; // 11:00 AM
-    } else if (minsMarcados >= 675 && minsMarcados <= 735) {
-      // Entre 11:15 AM y 12:15 PM -> Turno de 12:00 PM (ej. Uriel 11:26 AM o Carlos 11:55 AM)
-      franjaBaseEsta = 720;
+    // 1. Verificar si Administración declaró manualmente el turno oficial en observacion: [TURNO:9:00 AM]
+    let turnoManual: string | null = null;
+    if (asis.observacion) {
+      const matchTurno = asis.observacion.match(/\[TURNO:([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM))\]/i);
+      if (matchTurno && matchTurno[1]) {
+        turnoManual = matchTurno[1].toUpperCase().trim();
+      }
+    }
+
+    let franjaBaseEsta = 720;
+    let turnoOficialNombre = '12:00 PM';
+    let esManual = false;
+
+    if (turnoManual && TURNOS_OFICIALES_CONFIG[turnoManual] !== undefined) {
+      franjaBaseEsta = TURNOS_OFICIALES_CONFIG[turnoManual];
+      turnoOficialNombre = turnoManual;
+      esManual = true;
     } else {
-      const FRANJAS_ENT = [540, 660, 720, 900, 1020];
-      franjaBaseEsta = FRANJAS_ENT.reduce((prev, curr) =>
-        Math.abs(curr - minsMarcados) < Math.abs(prev - minsMarcados) ? curr : prev
-      );
+      // 2. Matriz de Ventanas de Llegada Oficiales de El Bodegón (7 turnos)
+      if (minsMarcados < 576) {
+        franjaBaseEsta = 540;   // 9:00 AM (< 9:36 AM)
+        turnoOficialNombre = '9:00 AM';
+      } else if (minsMarcados < 636) {
+        franjaBaseEsta = 600;   // 10:00 AM (9:36 AM a 10:35 AM)
+        turnoOficialNombre = '10:00 AM';
+      } else if (minsMarcados < 696) {
+        franjaBaseEsta = 660;   // 11:00 AM (10:36 AM a 11:35 AM)
+        turnoOficialNombre = '11:00 AM';
+      } else if (minsMarcados < 810) {
+        franjaBaseEsta = 720;   // 12:00 PM (11:36 AM a 1:30 PM)
+        turnoOficialNombre = '12:00 PM';
+      } else if (minsMarcados < 961) {
+        franjaBaseEsta = 900;   // 3:00 PM (1:31 PM a 4:00 PM)
+        turnoOficialNombre = '3:00 PM';
+      } else if (minsMarcados < 1056) {
+        franjaBaseEsta = 1020;  // 5:00 PM (4:01 PM a 5:35 PM)
+        turnoOficialNombre = '5:00 PM';
+      } else {
+        franjaBaseEsta = 1080;  // 6:00 PM (5:36 PM en adelante)
+        turnoOficialNombre = '6:00 PM';
+      }
     }
 
     const diff = minsMarcados - franjaBaseEsta;
 
     if (diff <= 0) {
-      return { turno, estado: 'A Tiempo', desviacionMinutos: 0 };
+      return { turno, turnoOficial: turnoOficialNombre, esManualAdmin: esManual, estado: 'A Tiempo', desviacionMinutos: 0 };
     } else if (diff <= 10) {
-      return { turno, estado: 'Retraso Leve', desviacionMinutos: diff };
+      return { turno, turnoOficial: turnoOficialNombre, esManualAdmin: esManual, estado: 'Retraso Leve', desviacionMinutos: diff };
     } else {
-      return { turno, estado: 'Tardanza', desviacionMinutos: diff };
+      return { turno, turnoOficial: turnoOficialNombre, esManualAdmin: esManual, estado: 'Tardanza', desviacionMinutos: diff };
     }
   }
 
@@ -119,12 +141,13 @@ function calcularPuntualidadRecord(
   if (tipo === 'ENTRADA_QUEBRADA') {
     const horaEsperadaRetorno = esQuebrado11AM ? 1140 : 1080; // 7:00 PM o 6:00 PM
     const diff = minsMarcados - horaEsperadaRetorno;
+    const turnoRetornoLabel = esQuebrado11AM ? '7:00 PM' : '6:00 PM';
     if (diff <= 0) {
-      return { turno, estado: 'A Tiempo', desviacionMinutos: 0 };
+      return { turno, turnoOficial: turnoRetornoLabel, estado: 'A Tiempo', desviacionMinutos: 0 };
     } else if (diff <= 10) {
-      return { turno, estado: 'Retraso Leve', desviacionMinutos: diff };
+      return { turno, turnoOficial: turnoRetornoLabel, estado: 'Retraso Leve', desviacionMinutos: diff };
     } else {
-      return { turno, estado: 'Tardanza', desviacionMinutos: diff };
+      return { turno, turnoOficial: turnoRetornoLabel, estado: 'Tardanza', desviacionMinutos: diff };
     }
   }
 
@@ -150,15 +173,30 @@ function calcularPuntualidadRecord(
 
       if (m.tipo_evento === 'ENTRADA') {
         let baseMins = 720;
-        if (esQuebrado11AM) {
+        let tMan: string | null = null;
+        if (m.observacion) {
+          const matchTurno = m.observacion.match(/\[TURNO:([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM))\]/i);
+          if (matchTurno && matchTurno[1]) {
+            tMan = matchTurno[1].toUpperCase().trim();
+          }
+        }
+
+        if (tMan && TURNOS_OFICIALES_CONFIG[tMan] !== undefined) {
+          baseMins = TURNOS_OFICIALES_CONFIG[tMan];
+        } else if (minsM < 576) {
+          baseMins = 540;
+        } else if (minsM < 636) {
+          baseMins = 600;
+        } else if (minsM < 696) {
           baseMins = 660;
-        } else if (minsM >= 675 && minsM <= 735) {
+        } else if (minsM < 810) {
           baseMins = 720;
+        } else if (minsM < 961) {
+          baseMins = 900;
+        } else if (minsM < 1056) {
+          baseMins = 1020;
         } else {
-          const FRANJAS_CALC = [540, 660, 720, 900, 1020];
-          baseMins = FRANJAS_CALC.reduce((prev, curr) =>
-            Math.abs(curr - minsM) < Math.abs(prev - minsM) ? curr : prev
-          );
+          baseMins = 1080;
         }
 
         // Opción A: Si llegó antes de la hora oficial (hasta 60 min antes), arranca a la hora oficial
@@ -309,10 +347,11 @@ export default function AsistenciaLogPage() {
   const [recordToDelete, setRecordToDelete] = useState<RegistroAsistencia | null>(null);
   const [deletingRecord, setDeletingRecord] = useState(false);
 
-  // ── ESTADO PARA CORREGIR UN REGISTRO (TIPO DE EVENTO O EMPLEADO) ──────────
+  // ── ESTADO PARA CORREGIR UN REGISTRO (TIPO DE EVENTO O EMPLEADO O TURNO) ──────────
   const [editEventoRecord, setEditEventoRecord] = useState<RegistroAsistencia | null>(null);
   const [editNuevoTipo, setEditNuevoTipo] = useState<string>('ENTRADA');
   const [editEmpleadoId, setEditEmpleadoId] = useState<number | ''>('');
+  const [editTurnoOficial, setEditTurnoOficial] = useState<string>('AUTO');
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Bloquear el desplazamiento de la página de fondo cuando cualquier modal esté abierto
@@ -345,6 +384,12 @@ export default function AsistenciaLogPage() {
     if (!editEventoRecord || !editEmpleadoId) return;
     setSavingEdit(true);
     try {
+      // Manejar la asignación de turno oficial del administrador en observacion
+      let nuevaObservacion = (editEventoRecord.observacion || '').replace(/\[TURNO:[^\]]+\]/gi, '').trim();
+      if (editNuevoTipo === 'ENTRADA' && editTurnoOficial !== 'AUTO') {
+        nuevaObservacion = nuevaObservacion ? `${nuevaObservacion} [TURNO:${editTurnoOficial}]` : `[TURNO:${editTurnoOficial}]`;
+      }
+
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
       const res = await fetch(`${API_BASE_URL}/asistencia/${editEventoRecord.id}/`, {
         method: 'PATCH',
@@ -352,6 +397,7 @@ export default function AsistenciaLogPage() {
         body: JSON.stringify({
           empleado: Number(editEmpleadoId),
           tipo_evento: editNuevoTipo,
+          observacion: nuevaObservacion,
         }),
       });
       if (!res.ok) {
@@ -518,13 +564,27 @@ export default function AsistenciaLogPage() {
         </td>
 
         <td className="px-6 py-4 text-center">
-          <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
-            analisis.turno === 'Quebrado'
-              ? 'bg-amber-50 text-amber-800 border border-amber-200'
-              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-          }`}>
-            {analisis.turno}
-          </span>
+          <div className="flex flex-col items-center gap-1">
+            <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
+              analisis.turno === 'Quebrado'
+                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+            }`}>
+              {analisis.turno}
+            </span>
+            {analisis.turnoOficial && (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                analisis.esManualAdmin
+                  ? 'bg-purple-50 text-purple-800 border border-purple-200'
+                  : 'bg-stone-100 text-stone-600 border border-stone-200'
+              }`}>
+                {analisis.esManualAdmin ? '⚙️' : '⏰'} {analisis.turnoOficial}
+                {analisis.esManualAdmin && (
+                  <span className="text-[9px] font-black text-purple-600 uppercase">Admin</span>
+                )}
+              </span>
+            )}
+          </div>
         </td>
 
         <td className="px-6 py-4 text-center">
@@ -586,9 +646,17 @@ export default function AsistenciaLogPage() {
                 setEditEventoRecord(asis);
                 setEditNuevoTipo(asis.tipo_evento);
                 setEditEmpleadoId(asis.empleado);
+                let initialTurno = 'AUTO';
+                if (asis.observacion) {
+                  const mTurno = asis.observacion.match(/\[TURNO:([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM))\]/i);
+                  if (mTurno && mTurno[1]) {
+                    initialTurno = mTurno[1].toUpperCase().trim();
+                  }
+                }
+                setEditTurnoOficial(initialTurno);
               }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-amber-50 border border-stone-200 hover:border-amber-300 text-stone-600 hover:text-amber-700 transition-all font-bold text-xs active:scale-95 shadow-xs cursor-pointer"
-              title="Corregir el colaborador asignado o el tipo de evento ante confusiones de carnet"
+              title="Corregir el colaborador asignado, turno oficial o tipo de evento"
             >
               <Pencil className="w-3.5 h-3.5 text-stone-400" />
               <span>Corregir</span>
@@ -712,6 +780,19 @@ export default function AsistenciaLogPage() {
             {analisis.turno}
           </span>
 
+          {analisis.turnoOficial && (
+            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+              analisis.esManualAdmin
+                ? 'bg-purple-50 text-purple-800 border-purple-200'
+                : 'bg-stone-100 text-stone-600 border-stone-200'
+            }`}>
+              {analisis.esManualAdmin ? '⚙️' : '⏰'} {analisis.turnoOficial}
+              {analisis.esManualAdmin && (
+                <span className="text-[9px] font-black text-purple-600 uppercase">Admin</span>
+              )}
+            </span>
+          )}
+
           {analisis.estado === 'A Tiempo' ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-250 text-[10px] font-bold text-emerald-700">
               <CheckCircle className="w-2.5 h-2.5" />
@@ -751,9 +832,17 @@ export default function AsistenciaLogPage() {
                 setEditEventoRecord(asis);
                 setEditNuevoTipo(asis.tipo_evento);
                 setEditEmpleadoId(asis.empleado);
+                let initialTurno = 'AUTO';
+                if (asis.observacion) {
+                  const mTurno = asis.observacion.match(/\[TURNO:([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM))\]/i);
+                  if (mTurno && mTurno[1]) {
+                    initialTurno = mTurno[1].toUpperCase().trim();
+                  }
+                }
+                setEditTurnoOficial(initialTurno);
               }}
               className="p-1.5 rounded-lg bg-stone-50 hover:bg-amber-50 border border-stone-200 text-stone-600 hover:text-amber-700 transition-colors cursor-pointer"
-              title="Corregir Marcaje (Colaborador o Tipo)"
+              title="Corregir Marcaje (Colaborador, Turno o Tipo)"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
@@ -1235,10 +1324,37 @@ export default function AsistenciaLogPage() {
                 <option value="ENTRADA_QUEBRADA">🔵 ENTRADA_QUEBRADA — Retorno de Pausa (6:00 PM o 7:00 PM)</option>
                 <option value="SALIDA_DEFINITIVA">🔴 SALIDA_DEFINITIVA — Salida Definitiva (Cierre de Turno)</option>
               </select>
-              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2 mt-2 font-medium">
-                ⚠️ Al cambiar el colaborador o tipo de evento, el sistema recalcula automáticamente las horas y balances de los involucrados.
-              </p>
             </div>
+
+            {/* Selector de Turno Oficial Declarado (Solo para ENTRADA) */}
+            {editNuevoTipo === 'ENTRADA' && (
+              <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 space-y-1.5">
+                <label className="block text-xs font-bold text-amber-900 uppercase tracking-wide">
+                  Turno Oficial Declarado (Solo Administración):
+                </label>
+                <select
+                  value={editTurnoOficial}
+                  onChange={(e) => setEditTurnoOficial(e.target.value)}
+                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+                >
+                  <option value="AUTO">✨ Automático según hora de llegada (Kiosco)</option>
+                  <option value="9:00 AM">⏰ 9:00 AM — Turno Mañana Apertura</option>
+                  <option value="10:00 AM">⏰ 10:00 AM — Turno Mañana Medio</option>
+                  <option value="11:00 AM">⏰ 11:00 AM — Turno Quebrado / Corrido</option>
+                  <option value="12:00 PM">⏰ 12:00 PM — Turno Mediodía Central</option>
+                  <option value="3:00 PM">⏰ 3:00 PM — Turno Tarde</option>
+                  <option value="5:00 PM">⏰ 5:00 PM — Turno Tarde / Cierre</option>
+                  <option value="6:00 PM">⏰ 6:00 PM — Turno Especial Cierre</option>
+                </select>
+                <p className="text-[10px] text-amber-800 leading-tight">
+                  📌 ¿Llegó tarde y el kiosco lo agrupó en otro horario? Fija su turno programado aquí para que el sistema calcule sus minutos exactos de tardanza y deuda.
+                </p>
+              </div>
+            )}
+
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2 font-medium">
+              ⚠️ Al guardar, el sistema recalculará automáticamente la puntualidad, balance de horas y alertas correspondientes.
+            </p>
 
             <div className="flex gap-2.5">
               <button
@@ -1255,7 +1371,9 @@ export default function AsistenciaLogPage() {
                 disabled={
                   savingEdit ||
                   (editNuevoTipo === editEventoRecord.tipo_evento &&
-                    Number(editEmpleadoId) === editEventoRecord.empleado)
+                    Number(editEmpleadoId) === editEventoRecord.empleado &&
+                    ((editEventoRecord.observacion || '').includes(`[TURNO:${editTurnoOficial}]`) ||
+                      (editTurnoOficial === 'AUTO' && !(editEventoRecord.observacion || '').includes('[TURNO:'))))
                 }
                 className="flex-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >

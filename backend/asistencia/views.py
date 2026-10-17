@@ -873,6 +873,24 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
 
         return qs
 
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        try:
+            # Si se actualizó un registro de entrada o su observación de turno manual, recalcular alertas
+            if instance.tipo_evento == 'ENTRADA':
+                tz = timezone.get_current_timezone()
+                dt_local = instance.fecha_hora.astimezone(tz)
+                start_dt = timezone.make_aware(datetime.datetime.combine(dt_local.date(), datetime.time.min), tz)
+                end_dt = timezone.make_aware(datetime.datetime.combine(dt_local.date(), datetime.time.max), tz)
+                regs_dia = list(RegistroAsistencia.objects.filter(
+                    empleado=instance.empleado,
+                    fecha_hora__range=(start_dt, end_dt)
+                ).order_by('fecha_hora'))
+                h_netas = _calcular_horas_netas_dia(regs_dia)
+                _evaluar_alertas_asistencia(instance, instance.empleado, regs_dia, h_netas, es_offline=False)
+        except Exception as ex:
+            print(f"Error al recalcular alertas tras update: {ex}")
+
     @action(detail=True, methods=['get'], url_path='foto')
     def foto(self, request, pk=None):
         """
@@ -2486,43 +2504,45 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
         turno_esperado_str = ''
 
         if tipo == 'ENTRADA':
-            # Franjas Base: 9:00 AM (540), 11:00 AM (660), 12:00 PM (720), 3:00 PM (900)
-            # Detección inteligente de horario (Mecanismo 1):
-            # Si hay retorno de pausa en el día, verificar si fue hacia las 6 PM o 7 PM
-            retorno_q = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA_QUEBRADA'), None)
-            pausa_q = next((r for r in registros_actualizados if r.tipo_evento == 'SALIDA_QUEBRADA'), None)
+            # 1. Verificar si Administración declaró manualmente el turno oficial en observacion: [TURNO:9:00 AM]
+            import re
+            turno_manual = None
+            if registro.observacion:
+                m_t = re.search(r'\[TURNO:([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM))\]', registro.observacion, re.IGNORECASE)
+                if m_t:
+                    turno_manual = m_t.group(1).upper().strip()
 
-            if retorno_q or pausa_q:
-                # Colaborador con horario quebrado
-                if mins_marcados <= 675:
-                    franja_base = 660  # 11:00 AM (ej. Nelly 11:06 AM)
-                elif mins_marcados <= 705:
-                    franja_base = 690  # 11:30 AM (ej. Lucero 11:29 AM)
-                else:
-                    franja_base = 720  # 12:00 PM (ej. Estefani 11:57 AM)
-            elif 675 <= mins_marcados <= 735:
-                # Entre 11:15 AM y 12:15 PM -> Turno de 12:00 PM (ej. Uriel a las 11:26 AM o Carlos a las 11:55 AM)
-                franja_base = 720  # 12:00 PM
-            else:
-                FRANJAS = [480, 540, 600, 630, 660, 690, 720, 780, 840, 900, 960, 1020, 1080]
-                franja_base = min(FRANJAS, key=lambda b: abs(mins_marcados - b))
-
-            diff = mins_marcados - franja_base
             HORA_LABELS = {
-                480: '8:00 AM',
                 540: '9:00 AM',
                 600: '10:00 AM',
-                630: '10:30 AM',
                 660: '11:00 AM',
-                690: '11:30 AM',
                 720: '12:00 PM',
-                780: '1:00 PM',
-                840: '2:00 PM',
                 900: '3:00 PM',
-                960: '4:00 PM',
                 1020: '5:00 PM',
                 1080: '6:00 PM',
             }
+            LABELS_TO_MINS = {v: k for k, v in HORA_LABELS.items()}
+
+            if turno_manual and turno_manual in LABELS_TO_MINS:
+                franja_base = LABELS_TO_MINS[turno_manual]
+            else:
+                # 2. Si no hay turno manual asignado por el admin, usar las 7 Ventanas Oficiales de El Bodegón
+                if mins_marcados < 576:
+                    franja_base = 540   # 9:00 AM (hasta 9:35 AM)
+                elif mins_marcados < 636:
+                    franja_base = 600   # 10:00 AM (9:36 AM a 10:35 AM)
+                elif mins_marcados < 696:
+                    franja_base = 660   # 11:00 AM (10:36 AM a 11:35 AM)
+                elif mins_marcados < 810:
+                    franja_base = 720   # 12:00 PM (11:36 AM a 1:30 PM)
+                elif mins_marcados < 961:
+                    franja_base = 900   # 3:00 PM (1:31 PM a 4:00 PM)
+                elif mins_marcados < 1056:
+                    franja_base = 1020  # 5:00 PM (4:01 PM a 5:35 PM)
+                else:
+                    franja_base = 1080  # 6:00 PM (5:36 PM en adelante)
+
+            diff = mins_marcados - franja_base
             turno_esperado_str = HORA_LABELS.get(franja_base, f"{franja_base // 60}:{franja_base % 60:02d}")
             
             # Tolerancia es de 10 minutos. A partir de 11 minutos es tardanza grave
@@ -2530,7 +2550,8 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                 alerta_creada = True
                 alerta_tipo = 'TARDANZA'
                 diff_tardanza = diff
-                alerta_titulo = f"Tardanza severa{tag_offline}: {empleado.nombre} {empleado.apellido}"
+                tag_manual = " (Turno asignado por Admin)" if turno_manual else ""
+                alerta_titulo = f"Tardanza severa{tag_offline}{tag_manual}: {empleado.nombre} {empleado.apellido}"
                 alerta_mensaje = (
                     f"Llegó {diff} min tarde respecto a su turno ({turno_esperado_str}). "
                     f"Marcaje a las {hora_actual.strftime('%I:%M %p')}."
@@ -3111,15 +3132,29 @@ def _calcular_horas_netas_dia(registros_dia):
                 continue
 
             mins_e = dt_local.hour * 60 + dt_local.minute
-            # Determinar franja base oficial
-            if es_quebrado_11am:
-                base_mins = 660  # 11:00 AM
-            elif 675 <= mins_e <= 735:
-                # Entre 11:15 AM y 12:15 PM -> Turno oficial 12:00 PM (ej. Uriel 11:26 AM o Carlos 11:55 AM)
-                base_mins = 720  # 12:00 PM
-            else:
-                FRANJAS = [480, 540, 600, 630, 660, 690, 720, 780, 840, 900, 960, 1020, 1080]
-                base_mins = min(FRANJAS, key=lambda b: abs(mins_e - b))
+            # Determinar franja base oficial (Manual por Admin o Ventana Automática)
+            import re
+            m_t = re.search(r'\[TURNO:([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM))\]', reg.observacion or '', re.IGNORECASE)
+            t_map = {'9:00 AM': 540, '10:00 AM': 600, '11:00 AM': 660, '12:00 PM': 720, '3:00 PM': 900, '5:00 PM': 1020, '6:00 PM': 1080}
+            base_mins = None
+            if m_t:
+                base_mins = t_map.get(m_t.group(1).upper().strip())
+
+            if not base_mins:
+                if mins_e < 576:
+                    base_mins = 540   # 9:00 AM
+                elif mins_e < 636:
+                    base_mins = 600   # 10:00 AM
+                elif mins_e < 696:
+                    base_mins = 660   # 11:00 AM
+                elif mins_e < 810:
+                    base_mins = 720   # 12:00 PM
+                elif mins_e < 961:
+                    base_mins = 900   # 3:00 PM
+                elif mins_e < 1056:
+                    base_mins = 1020  # 5:00 PM
+                else:
+                    base_mins = 1080  # 6:00 PM
 
             h_b = base_mins // 60
             m_b = base_mins % 60
