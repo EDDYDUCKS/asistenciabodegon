@@ -3360,10 +3360,15 @@ def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
     if fecha_hoy.weekday() == 6:
         return  # En domingo no se acumula deuda por cierre anticipado acordado
 
+    # Tolerancia oficial de salida cumplida: >= 7.83h (7h 50m) se considera jornada completa cumplida.
+    # Si las horas trabajadas son insignificantes (< 0.2h = menos de 12 min), es marcaje duplicado o erróneo.
+    if horas_trabajadas_dia >= 7.83 or horas_trabajadas_dia < 0.2:
+        return  # No hay deuda (jornada cumplida dentro de tolerancia de 10 min o marcaje técnico insignificante)
+
     horas_ordinarias = min(horas_trabajadas_dia, 8.0)
     deficit = max(0.0, 8.0 - horas_ordinarias)
 
-    if deficit <= 0:
+    if deficit <= 0.1:
         return  # No hay deuda que acumular este día
 
     primer_dia_mes = fecha_hoy.replace(day=1)
@@ -3695,7 +3700,23 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'deficit_dia': 0.0,
         }
 
-    if horas_trabajadas_dia < 8.0:
+    # Tolerancia oficial de jornada cumplida:
+    # 7.83 horas = 7 horas y 50 minutos (tolerancia de cortesía de hasta 10 min).
+    # Si acumuló 7.83h o más, la jornada se considera cumplida y no genera déficit ni alerta.
+    if horas_trabajadas_dia < 7.83:
+        # Si las horas trabajadas son insignificantes (< 0.2h = menos de 12 min), se trata de un marcaje
+        # de salida duplicado o error técnico, no de una jornada corta real. Evitar generar alerta absurda de 0.0 hrs.
+        if horas_trabajadas_dia < 0.2:
+            return {
+                'horas_netas': round(horas_trabajadas_dia, 1),
+                'excedente': 0.0,
+                'horas_amortizadas': 0.0,
+                'deuda_restante': round(float(empleado.horas_pendientes or 0.0), 1),
+                'horas_extra_solicitadas': 0.0,
+                'horas_compensadas_de_extra': 0.0,
+                'deficit_dia': 0.0,
+            }
+
         deficit_dia = round(8.0 - horas_trabajadas_dia, 1)
 
         # OPCIÓN B (Control Gerencial):
@@ -3704,18 +3725,29 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
         # emitiendo una notificación para que la administración decida: Exonerar con justificación, Cargar a Deuda o Cruzar con Horas Extra.
         _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia)
 
-        AlertaAsistencia.objects.create(
-            tipo='DEFICIT_JORNADA',
+        # Evitar crear alerta duplicada si ya existe una alerta de déficit o salida anticipada para este día
+        tz = timezone.get_current_timezone()
+        start_dia = timezone.make_aware(datetime.datetime.combine(fecha_hoy, datetime.time.min), tz)
+        end_dia = timezone.make_aware(datetime.datetime.combine(fecha_hoy, datetime.time.max), tz) + datetime.timedelta(hours=5)
+        ya_existe_alerta = AlertaAsistencia.objects.filter(
             empleado=empleado,
-            titulo=f"Jornada Corta / Posible Día Libre: {empleado.nombre} {empleado.apellido}",
-            mensaje=(
-                f"El {fecha_hoy.strftime('%d/%m/%Y')} el colaborador completó una jornada corta de {round(horas_trabajadas_dia, 1)} hrs "
-                f"(déficit calculado de {round(deficit_dia, 1)} hrs). "
-                f"Si este día fue su descanso o apoyo especial, puede resolverla como 'Día Libre Laborado' para anular la deuda "
-                f"y enviar sus {round(horas_trabajadas_dia, 1)} hrs trabajadas como Horas Extra a aprobación."
-            ),
-            leida=False
-        )
+            tipo__in=['DEFICIT_JORNADA', 'SALIDA_ANTICIPADA'],
+            created_at__range=(start_dia, end_dia)
+        ).exists()
+
+        if not ya_existe_alerta and deficit_dia > 0.1:
+            AlertaAsistencia.objects.create(
+                tipo='DEFICIT_JORNADA',
+                empleado=empleado,
+                titulo=f"Jornada Corta / Posible Día Libre: {empleado.nombre} {empleado.apellido}",
+                mensaje=(
+                    f"El {fecha_hoy.strftime('%d/%m/%Y')} el colaborador completó una jornada corta de {round(horas_trabajadas_dia, 1)} hrs "
+                    f"(déficit calculado de {round(deficit_dia, 1)} hrs). "
+                    f"Si este día fue su descanso o apoyo especial, puede resolverla como 'Día Libre Laborado' para anular la deuda "
+                    f"y enviar sus {round(horas_trabajadas_dia, 1)} hrs trabajadas como Horas Extra a aprobación."
+                ),
+                leida=False
+            )
 
         return {
             'horas_netas': round(horas_trabajadas_dia, 1),
