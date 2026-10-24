@@ -98,8 +98,13 @@ Copia los valores de ejemplo de `.env.example` y ajústalos según tu entorno. *
 | `SECRET_KEY` | Clave criptográfica de Django. **Obligatoria**: sin ella el servidor no arranca (salvo con `DEBUG=True`) | Genera una con `python -c "import secrets; print(secrets.token_urlsafe(50))"` |
 | `DEBUG` | Modo depuración | `True` (local) / `False` (producción) |
 | `DATABASE_URL` | Conexión a PostgreSQL (si no se define, usa SQLite) | `postgresql://postgres:clave@host:5432/postgres` |
-| `BACKUP_ADMIN_KEY` | Clave para descargar el respaldo de la DB. **Obligatoria**: sin ella el servidor no arranca (salvo con `DEBUG=True`). El panel la pide al pulsar «Respaldo» | Genera otra con el mismo comando |
-| `ADMIN_PAYROLL_PIN` | PIN para aprobar horas extra y pagos en servidor | `2322` |
+| `BACKUP_ADMIN_KEY` | Clave para descargar el respaldo de la DB. **Obligatoria**: sin ella el servidor no arranca (salvo con `DEBUG=True`). Permite descargar el respaldo sin sesión del panel (cabecera `X-Admin-Backup-Key`); con sesión del panel no hace falta | Genera otra con el mismo comando |
+| `ADMIN_SUPERVISOR_PIN` | PIN de gerencia para entrar al panel (4 dígitos). Sin valor por defecto | definido por gerencia |
+| `ADMIN_PAYROLL_PIN` | PIN de nómina para aprobar horas extra y pagos (4 dígitos). Sin valor por defecto | definido por gerencia |
+| `ADMIN_TOKEN_HOURS` | Horas de validez de la sesión del panel (opcional) | `12` |
+| `KIOSK_SIMULATION_KEY` | Solo pruebas: permite simular la hora de marcaje en el kiosco. No definir en producción | — |
+
+Los PINs nunca se escriben en el frontend ni en el repositorio: el panel los envía al servidor (`POST /api/auth/login/`), que devuelve un token firmado con vencimiento. Tras 5 intentos fallidos desde la misma IP, el servidor bloquea el PIN por 15 minutos.
 
 **Frontend** (archivo `frontend/.env.local` o variables en Vercel):
 
@@ -198,8 +203,10 @@ La matriz de pruebas completa con capturas de evidencia se encuentra en el docum
 
 En la auditoría técnica previa a la entrega se identificaron y mitigaron los siguientes aspectos de seguridad:
 
-- **Validación de PIN Server-Side:** La autorización de horas extra y emisión de pagos ya no depende únicamente de la interfaz; el servidor Django exige el PIN administrativo en el payload (`ADMIN_PAYROLL_PIN`) y deniega con `403 Forbidden` cualquier intento no autorizado.
-- **Protección de Volcado de Datos:** El endpoint `/api/admin/respaldo-datos/` está bloqueado contra accesos anónimos y exige la cabecera `X-Admin-Backup-Key` o credenciales staff, registrando intentos indebidos en la bitácora con IP.
+- **API cerrada por defecto:** Todos los endpoints exigen la sesión del panel (`Authorization: Bearer <token>`). Solo quedan públicos los del kiosco: `kiosco/marcar/`, `kiosco/consultar/`, `kiosco/empleados/` (nombres y huella del QR, sin tokens) y `asistencia/sync-batch/`.
+- **PINs solo en servidor:** El PIN de gerencia (`ADMIN_SUPERVISOR_PIN`) y el de nómina (`ADMIN_PAYROLL_PIN`) se validan únicamente en Django, con comparación en tiempo constante y bloqueo por intentos fallidos. El frontend no contiene ningún PIN.
+- **Fotos de marcaje:** Se sirven con URL firmada que vence en 24 horas.
+- **Protección de Volcado de Datos:** El endpoint `/api/admin/respaldo-datos/` exige la sesión del panel (o la cabecera `X-Admin-Backup-Key` con `BACKUP_ADMIN_KEY`), registrando intentos indebidos en la bitácora con IP.
 - **Sanitización de Datos de Empleados:** Se retiraron los tokens QR y cédulas de los serializadores anidados de asistencia y horas extra para evitar fuga de credenciales.
 - **CORS Restringido:** Se eliminó `CORS_ALLOW_ALL_ORIGINS = True` y se configuró una lista estricta de orígenes permitidos (`asistenciabodegon.vercel.app`, `localhost:3000`).
 - **Política de Retención y Privacidad:** Las fotos de verificación tomadas en el kiosco se restringen al uso exclusivo de auditoría de asistencia interna.

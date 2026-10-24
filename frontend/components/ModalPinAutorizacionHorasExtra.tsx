@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { KeyRound, AlertTriangle, Scale, Loader2, CheckCircle2, Clock } from 'lucide-react';
 import { CompensacionHoras } from '@/lib/types';
 import { playSuccessBeep, playErrorBeep } from '@/lib/sound-feedback';
+import { verificarPinNomina } from '@/lib/api-client';
 
 export interface PendingExtraAction {
   id: number;
@@ -28,7 +29,8 @@ interface ModalPinAutorizacionHorasExtraProps {
   isOpen: boolean;
   action: PendingExtraAction | null;
   onClose: () => void;
-  onConfirm: (action: PendingExtraAction) => Promise<void>;
+  /** Recibe el PIN escrito para que el servidor lo vuelva a validar al guardar. */
+  onConfirm: (action: PendingExtraAction, pin: string) => Promise<void>;
 }
 
 export default function ModalPinAutorizacionHorasExtra({
@@ -54,48 +56,41 @@ export default function ModalPinAutorizacionHorasExtra({
     }
   }, [isOpen, action]);
 
-  const handleDigit = useCallback(
-    async (num: string) => {
-      if (isSubmittingRef.current || !action) return;
-      setPinError(false);
-
-      setPin((prev) => {
-        if (prev.length >= 4) return prev;
-        const nextPin = prev + num;
-
-        if (nextPin === '2322') {
-          isSubmittingRef.current = true;
-          setIsSubmitting(true);
-          setIsSuccess(true);
-          playSuccessBeep();
-
-          // Execute confirmation asynchronously without blocking UI render
-          setTimeout(async () => {
-            try {
-              await onConfirm(action);
-            } catch (err: unknown) {
-              isSubmittingRef.current = false;
-              setIsSubmitting(false);
-              setIsSuccess(false);
-              setPin('');
-              setPinError(true);
-              playErrorBeep();
-            }
-          }, 120);
-
-          return nextPin;
-        } else if (nextPin.length === 4) {
-          setTimeout(() => {
-            setPinError(true);
-            setPin('');
-            playErrorBeep();
-          }, 150);
+  // El PIN de nómina se valida en el servidor; el frontend no lo conoce
+  const submitPin = useCallback(
+    async (candidate: string) => {
+      if (!action) return;
+      isSubmittingRef.current = true;
+      setIsSubmitting(true);
+      try {
+        const res = await verificarPinNomina(candidate);
+        if (!res.valido) {
+          throw new Error(res.detail || 'PIN incorrecto');
         }
-
-        return nextPin;
-      });
+        setIsSuccess(true);
+        playSuccessBeep();
+        await onConfirm(action, candidate);
+      } catch {
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+        setIsSuccess(false);
+        setPin('');
+        setPinError(true);
+        playErrorBeep();
+      }
     },
     [action, onConfirm]
+  );
+
+  const handleDigit = useCallback(
+    (num: string) => {
+      if (isSubmittingRef.current || !action || pin.length >= 4) return;
+      setPinError(false);
+      const nextPin = pin + num;
+      setPin(nextPin);
+      if (nextPin.length === 4) void submitPin(nextPin);
+    },
+    [action, pin, submitPin]
   );
 
   const handleBackspace = useCallback(() => {

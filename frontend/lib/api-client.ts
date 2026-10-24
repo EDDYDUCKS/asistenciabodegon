@@ -17,6 +17,68 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
 
+// ── SESIÓN DEL PANEL ADMINISTRATIVO ───────────────────────────────────────
+// Los PINs se validan solo en el servidor. El frontend guarda únicamente el
+// token firmado que devuelve /auth/login/ y lo envía en cada petición.
+const ADMIN_TOKEN_KEY = 'bodegon_admin_token';
+export const ADMIN_SESSION_EXPIRED_EVENT = 'bodegon-admin-session-expired';
+
+export function getAdminToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem(ADMIN_TOKEN_KEY);
+}
+
+export function clearAdminToken(): void {
+  if (typeof window !== 'undefined') sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+
+export function authHeaders(): Record<string, string> {
+  const token = getAdminToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function handleUnauthorized(status: number) {
+  if (status === 401 && typeof window !== 'undefined' && getAdminToken()) {
+    clearAdminToken();
+    window.dispatchEvent(new Event(ADMIN_SESSION_EXPIRED_EVENT));
+  }
+}
+
+async function readErrorDetail(response: Response, fallback: string): Promise<string> {
+  try {
+    const json = await response.json();
+    return json.detail || json.mensaje || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Valida el PIN de gerencia en el servidor y guarda el token de sesión. */
+export async function loginAdmin(pin: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/auth/login/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ pin }),
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorDetail(response, 'PIN incorrecto.'));
+  }
+  const json = await response.json();
+  sessionStorage.setItem(ADMIN_TOKEN_KEY, json.token);
+}
+
+/** Confirma el PIN de nómina en el servidor (requiere sesión del panel). */
+export async function verificarPinNomina(pin: string): Promise<{ valido: boolean; detail?: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/verificar-pin-nomina/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders() },
+    body: JSON.stringify({ pin }),
+  });
+  handleUnauthorized(response.status);
+  if (response.ok) return { valido: true };
+  return { valido: false, detail: await readErrorDetail(response, 'PIN de nómina incorrecto.') };
+}
+
 async function apiRequest<T = unknown>(
   path: string,
   options: RequestInit = {}
@@ -26,9 +88,12 @@ async function apiRequest<T = unknown>(
     ...options,
     headers: {
       Accept: 'application/json',
+      ...authHeaders(),
       ...(options.headers || {}),
     },
   });
+
+  handleUnauthorized(response.status);
 
   if (!response.ok) {
     let errorDetail = `Error ${response.status}: ${response.statusText}`;
@@ -119,6 +184,22 @@ export async function ajustarVacacionesEmpleado(
 }
 
 // ── KIOSCO DE MARCAJE ──────────────────────────────────────────────────────
+export interface EmpleadoKiosco {
+  id: number;
+  nombre: string;
+  apellido: string;
+  /** SHA-256 del UUID del carnet QR (el token real nunca sale del servidor). */
+  qr_hash: string;
+}
+
+/** Lista mínima y pública de colaboradores activos para saludar en el Kiosco. */
+export async function fetchEmpleadosKiosco(): Promise<EmpleadoKiosco[]> {
+  const response = await fetch(`${API_BASE_URL}/kiosco/empleados/`, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error('No se pudo cargar la lista del Kiosco');
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
+}
+
 export async function marcarAsistenciaKiosco(payload: {
   qr_token: string;
   tipo_evento?: TipoEventoType;
@@ -256,7 +337,8 @@ export async function downloadNominaExcel(fechaInicio?: string, fechaFin?: strin
   if (fechaFin) params.append('fecha_fin', fechaFin);
 
   const url = `${API_BASE_URL}/reportes/nomina-excel/?${params.toString()}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: authHeaders() });
+  handleUnauthorized(response.status);
 
   if (!response.ok) {
     throw new Error('Error generando el reporte Excel de nómina');
@@ -287,7 +369,8 @@ export async function downloadVacacionesExcel(opts?: {
   if (opts?.fechaFin) params.append('fecha_fin', opts.fechaFin);
 
   const url = `${API_BASE_URL}/reportes/vacaciones-excel/?${params.toString()}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: authHeaders() });
+  handleUnauthorized(response.status);
 
   if (!response.ok) {
     throw new Error('Error generando el reporte Excel de vacaciones');
@@ -317,7 +400,8 @@ export async function downloadInasistenciasExcel(opts?: {
   if (opts?.fechaFin) params.append('fecha_fin', opts.fechaFin);
 
   const url = `${API_BASE_URL}/reportes/inasistencias-excel/?${params.toString()}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { headers: authHeaders() });
+  handleUnauthorized(response.status);
 
   if (!response.ok) {
     throw new Error('Error generando el reporte Excel de inasistencias');
@@ -368,8 +452,8 @@ export async function fetchHorasExtra(): Promise<AutorizacionHorasExtra[]> {
 }
 
 export async function updateHoraExtra(id: number, payload: Partial<AutorizacionHorasExtra> & { pin?: string }): Promise<AutorizacionHorasExtra> {
-  const pin = payload.pin || (typeof window !== 'undefined' ? (sessionStorage.getItem('payroll_pin') || '2322') : '2322');
-  const bodyPayload = { ...payload, pin };
+  // El PIN lo escribe la persona y lo valida el servidor; no hay valor por defecto.
+  const bodyPayload = { ...payload, pin: payload.pin || '' };
   return apiRequest<AutorizacionHorasExtra>(`/horas-extra/${id}/`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -694,8 +778,8 @@ export async function createPagoHorasExtra(payload: {
   fecha_pago?: string;
   pin?: string;
 }): Promise<PagoHorasExtra> {
-  const pin = payload.pin || (typeof window !== 'undefined' ? (sessionStorage.getItem('payroll_pin') || '2322') : '2322');
-  const bodyPayload = { ...payload, pin };
+  // El PIN lo escribe la persona y lo valida el servidor; no hay valor por defecto.
+  const bodyPayload = { ...payload, pin: payload.pin || '' };
   return apiRequest<PagoHorasExtra>('/pagos-horas-extra/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -732,28 +816,8 @@ export async function cerrarSalida11pm(alertaId: number): Promise<{
 
 // ── RESPALDO TOTAL DE BASE DE DATOS ───────────────────────────────────────
 export async function downloadDatabaseBackup(): Promise<void> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  let adminKey = typeof window !== 'undefined' ? sessionStorage.getItem('backup_admin_key') : null;
-  if (!adminKey && typeof window !== 'undefined') {
-    adminKey = window.prompt('Ingrese la clave de respaldo de administración:')?.trim() || null;
-  }
-  if (!adminKey && !token) {
-    throw new Error('Se requiere la clave de respaldo de administración.');
-  }
-  const headers: Record<string, string> = {};
-  if (adminKey) {
-    headers['X-Admin-Backup-Key'] = adminKey;
-  }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  const res = await fetch(`${API_BASE_URL}/admin/respaldo-datos/`, { headers });
-  if (res.status === 403 && typeof window !== 'undefined') {
-    sessionStorage.removeItem('backup_admin_key');
-  }
-  if (res.ok && adminKey && typeof window !== 'undefined') {
-    sessionStorage.setItem('backup_admin_key', adminKey);
-  }
+  const res = await fetch(`${API_BASE_URL}/admin/respaldo-datos/`, { headers: authHeaders() });
+  handleUnauthorized(res.status);
   if (!res.ok) {
     throw new Error('Error al generar la copia de seguridad de la base de datos.');
   }

@@ -126,11 +126,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'asistencia.authentication.PanelTokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
+    # Todo requiere login del panel salvo lo que se marque explícitamente como público (kiosco)
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'asistencia.authentication.IsPanelAdmin',
     ],
 }
 

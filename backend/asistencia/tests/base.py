@@ -6,13 +6,17 @@ de referencia es del lunes 12 al domingo 18 de octubre de 2026, posterior al
 corte de déficit del 10/10/2026 que aplica views._acumular_horas_pendientes.
 """
 import datetime
+import os
 
+from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.utils import timezone
 
 from asistencia.models import Empleado, RegistroAsistencia
 
-SIMULATION_HEADER = {'HTTP_X_TEST_SIMULATION_KEY': 'bodegon-simulation-test-mode'}
+# La simulación de hora del kiosco solo se acepta si KIOSK_SIMULATION_KEY está definida
+os.environ.setdefault('KIOSK_SIMULATION_KEY', 'bodegon-simulation-test-mode')
+SIMULATION_HEADER = {'HTTP_X_TEST_SIMULATION_KEY': os.environ['KIOSK_SIMULATION_KEY']}
 
 LUNES = datetime.date(2026, 10, 12)
 MIERCOLES = datetime.date(2026, 10, 14)
@@ -30,6 +34,9 @@ def local_dt(fecha, hora, minuto=0):
 class NominaTestCase(TestCase):
     def setUp(self):
         self.client = Client()
+        # Los endpoints del panel exigen personal administrativo; el kiosco sigue público
+        self.admin = get_user_model().objects.create_user('admin-pruebas', is_staff=True)
+        self.client.force_login(self.admin)
         self.empleado = Empleado.objects.create(
             nombre='Eddy', apellido='Prueba', cargo='ATENCION_CLIENTE', tipo_turno='CORRIDO',
         )

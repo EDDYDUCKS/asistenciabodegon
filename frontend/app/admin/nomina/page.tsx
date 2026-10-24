@@ -144,7 +144,7 @@ export default function NominaAdminPage() {
   const [downloadingQuincenal, setDownloadingQuincenal] = useState(false);
   const [showQuincenaMenu, setShowQuincenaMenu] = useState(false);
 
-  // Form State para Modal PIN de Horas Extra (PIN 2322 - Componente Aislado)
+  // Form State para Modal PIN de Horas Extra (PIN de nómina validado en servidor)
   const [showExtraPinModal, setShowExtraPinModal] = useState(false);
   const [pendingExtraAction, setPendingExtraAction] = useState<PendingExtraAction | null>(null);
 
@@ -847,7 +847,7 @@ export default function NominaAdminPage() {
   return horasEnteras + 1.0;
 }
 
-  // ── HORAS EXTRA ACCIONES CON PIN 2322 ─────────────────────────────────────
+  // ── HORAS EXTRA ACCIONES CON PIN DE NÓMINA ─────────────────────────────────────
   const startDecision = (item: AutorizacionHorasExtra) => {
     setPreviewExtraId(item.id || null);
     setEditingExtraId(item.id || null);
@@ -2018,7 +2018,7 @@ export default function NominaAdminPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
                         <KeyRound className="w-4 h-4 text-[#1c6856]" />
-                        <span>Evaluación Oficial de Horas Extra (Confirmación con PIN 2322)</span>
+                        <span>Evaluación Oficial de Horas Extra (Confirmación con PIN de nómina)</span>
                       </div>
                       <span className="text-[11px] text-stone-500 font-medium">
                         Ajuste las horas aprobadas si difieren de las solicitadas
@@ -2126,7 +2126,7 @@ export default function NominaAdminPage() {
                         disabled={savingExtra}
                         className="bg-[#1c6856] hover:bg-[#154f42] text-white px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-[#1c6856]/20 cursor-pointer active:scale-95"
                       >
-                        <ThumbsUp className="w-3.5 h-3.5" /> Aprobar con PIN 2322
+                        <ThumbsUp className="w-3.5 h-3.5" /> Aprobar con PIN
                       </button>
                     </div>
                   </div>
@@ -5756,10 +5756,10 @@ export default function NominaAdminPage() {
           setShowExtraPinModal(false);
           setPendingExtraAction(null);
         }}
-        onConfirm={async (action) => {
+        onConfirm={async (action, pin) => {
           setShowExtraPinModal(false);
           setPendingExtraAction(null);
-          await executeOvertimeDecision(action.id, action.decision, action.horas, action.comentario, '2322');
+          await executeOvertimeDecision(action.id, action.decision, action.horas, action.comentario, pin);
         }}
       />
 

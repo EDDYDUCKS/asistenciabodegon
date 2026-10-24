@@ -16,6 +16,7 @@ jobs:
     env:
       DEBUG: 'False'
       SECRET_KEY: ci-only-secret-key
+      BACKUP_ADMIN_KEY: ci-only-backup-key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

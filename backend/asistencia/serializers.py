@@ -1,4 +1,6 @@
 from rest_framework import serializers
+
+from .auth import firmar_foto
 from .models import (
     Empleado, RegistroAsistencia, BitacoraAccion, DiaFeriado,
     AutorizacionHorasExtra, AlertaAsistencia, PermisoAusencia,
@@ -104,7 +106,8 @@ class RegistroAsistenciaSerializer(serializers.ModelSerializer):
         if not obj.foto_base64 and not obj.foto_verificacion:
             return None
         request = self.context.get('request')
-        endpoint = f"/api/asistencia/{obj.id}/foto/"
+        # URL firmada: las etiquetas <img> no envían el token del panel
+        endpoint = f"/api/asistencia/{obj.id}/foto/?sig={firmar_foto(obj.id)}"
         if request:
             return request.build_absolute_uri(endpoint)
         return endpoint
