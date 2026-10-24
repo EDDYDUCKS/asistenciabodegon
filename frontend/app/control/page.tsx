@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { TegaPie } from '@/components/TegaFirma';
 import { supabase } from '@/lib/supabaseClient';
 import {
   CompraGasto,
@@ -2810,6 +2811,8 @@ export default function BodegonControlPage() {
             </div>
           )}
         </main>
+
+        <TegaPie producto="Bodegón Control" />
 
         {/* ══════════════════════════════════════════════════════════════════ */}
         {/* ── MODAL ÚNICO DE ESCRITURA: + REGISTRAR COMPRA O DEPÓSITO ────── */}

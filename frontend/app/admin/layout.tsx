@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { TegaPie } from '@/components/TegaFirma';
 import { usePathname } from 'next/navigation';
 import { AlertaAsistencia } from '@/lib/types';
 import {
@@ -736,6 +737,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 print:p-0 print:m-0 print:max-w-none print:w-full">
         {children}
       </main>
+
+      <TegaPie producto="Bodegón Pass" />
 
       {/* Modal de Emisión de Boleta para Expediente Físico */}
       {selectedBoletaAlerta && (

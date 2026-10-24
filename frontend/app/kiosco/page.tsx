@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import TegaFirma from '@/components/TegaFirma';
 import { MarcajeKioscoResponse, TipoEventoType } from '@/lib/types';
 import {
   marcarAsistenciaKiosco,
@@ -1494,6 +1495,7 @@ export default function KioscoPage() {
           </div>
         </div>
 
+        <TegaFirma alto={10} texto="" className="mt-auto self-end opacity-80" />
       </section>
 
       {/* Columna derecha: banda verde con el reloj y las marcas del día */}

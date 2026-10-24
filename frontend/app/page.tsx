@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { QrCode, LayoutDashboard, ShoppingBag, Smartphone } from 'lucide-react';
+import TegaFirma from '@/components/TegaFirma';
 
 export default function LandingPortalPage() {
   return (
@@ -96,8 +97,9 @@ export default function LandingPortalPage() {
       </div>
 
       {/* Footer Portal */}
-      <footer className="text-center text-xs text-stone-400 font-bold uppercase tracking-wide">
-        Restaurante El Bodegón © 2026 — SGP Asistencia
+      <footer className="flex flex-col items-center gap-2 text-center">
+        <span className="text-xs text-stone-400 font-bold uppercase tracking-wide">Restaurante El Bodegón © 2026</span>
+        <TegaFirma alto={13} />
       </footer>
     </main>
   );
