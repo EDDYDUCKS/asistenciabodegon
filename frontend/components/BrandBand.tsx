@@ -17,15 +17,17 @@ interface BrandBandProps {
  */
 export default function BrandBand({ eyebrow, title, actions, children }: BrandBandProps) {
   return (
-    <section className="relative overflow-hidden rounded-3xl bg-bodegon text-crema print:hidden">
-      <Image
-        src="/logo-emblem.png"
-        alt=""
-        aria-hidden
-        width={286}
-        height={368}
-        className="pointer-events-none absolute right-[6%] -top-14 w-44 sm:w-56 opacity-[0.12]"
-      />
+    <section className="relative rounded-3xl bg-bodegon text-crema print:hidden">
+      {/* La máscara se recorta en su propia capa para que los menús de las acciones puedan salir de la banda. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
+        <Image
+          src="/logo-emblem.png"
+          alt=""
+          width={286}
+          height={368}
+          className="absolute right-[6%] -top-14 w-44 sm:w-56 opacity-[0.12]"
+        />
+      </div>
       <div className="relative p-5 sm:p-7 flex flex-col gap-6">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
           <div className="space-y-2 min-w-0">

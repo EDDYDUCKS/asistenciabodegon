@@ -31,6 +31,7 @@ import {
   ajustarHorasPendientes,
 } from '@/lib/api-client';
 import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras, CompensacionFeriado, PagoVacaciones, PagoHorasExtra, BitacoraAccion } from '@/lib/types';
+import BrandBand, { BandStat, bandButtonGhost, bandButtonPrimary } from '@/components/BrandBand';
 import BoletaCompensacionModal from '@/components/BoletaCompensacionModal';
 import BoletaVacacionesModal from '@/components/BoletaVacacionesModal';
 import BoletaVacacionesMensualLoteModal from '@/components/BoletaVacacionesMensualLoteModal';
@@ -118,8 +119,24 @@ const MESES_NOMBRES: Record<number, string> = {
   7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
 };
 
+type NominaTab = 'reporte' | 'extras' | 'feriados' | 'permisos' | 'vacaciones_pagadas';
+
+const NOMINA_TABS: { id: NominaTab; label: string; Icon: typeof Clock }[] = [
+  { id: 'reporte', label: 'Reporte de horas', Icon: FileSpreadsheet },
+  { id: 'extras', label: 'Horas extra', Icon: Clock },
+  { id: 'permisos', label: 'Permisos y vacaciones', Icon: Palmtree },
+  { id: 'feriados', label: 'Feriados', Icon: Calendar },
+  { id: 'vacaciones_pagadas', label: 'Vacaciones pagadas', Icon: Banknote },
+];
+
+/** "2026-10-01" -> "1 oct" para el encabezado del período. */
+const fechaCorta = (iso: string) => {
+  const d = new Date(`${iso}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('es-NI', { day: 'numeric', month: 'short' }).replace('.', '');
+};
+
 export default function NominaAdminPage() {
-  const [activeTab, setActiveTab] = useState<'reporte' | 'extras' | 'feriados' | 'permisos' | 'vacaciones_pagadas'>('reporte');
+  const [activeTab, setActiveTab] = useState<NominaTab>('reporte');
   
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
   const [asistencias, setAsistencias] = useState<RegistroAsistencia[]>([]);
@@ -380,7 +397,7 @@ export default function NominaAdminPage() {
     if (!confirm(`¿Declarar la fecha ${fechaStr} como Día Libre Laborado para este colaborador?\n\nSe anulará el déficit generado en esa fecha y las horas trabajadas pasarán a la cola de Horas Extra.`)) return;
     try {
       const res = await declararDiaLibreLaborado(empId, fechaStr);
-      alert(`✅ ${res.mensaje}`);
+      alert(`${res.mensaje}`);
       await loadData();
     } catch (err: any) {
       alert(`Error: ${err.message || ''}`);
@@ -719,8 +736,8 @@ export default function NominaAdminPage() {
       setAjustandoEmp(null);
       alert(
         modoAjusteVac === 'SUMAR'
-          ? `✅ ¡Acreditación registrada exitosamente!\n\nSe han agregado +${diasASumar} días a ${ajustandoEmp.nombre} ${ajustandoEmp.apellido || ''} por concepto de:\n${motivoFinal}.\n\nNuevo saldo acumulado: ${diasVal.toFixed(2)} días.`
-          : `✅ Saldo de vacaciones actualizado a ${diasVal.toFixed(2)} días para ${ajustandoEmp.nombre}.`
+          ? `¡Acreditación registrada exitosamente!\n\nSe han agregado +${diasASumar} días a ${ajustandoEmp.nombre} ${ajustandoEmp.apellido || ''} por concepto de:\n${motivoFinal}.\n\nNuevo saldo acumulado: ${diasVal.toFixed(2)} días.`
+          : `Saldo de vacaciones actualizado a ${diasVal.toFixed(2)} días para ${ajustandoEmp.nombre}.`
       );
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Error al ajustar vacaciones');
@@ -1556,7 +1573,7 @@ export default function NominaAdminPage() {
 
     return (
       <React.Fragment key={item.id}>
-        <tr className={`transition-colors ${isExpanded ? 'bg-emerald-50/25' : 'hover:bg-stone-50/50'}`}>
+        <tr className={`transition-colors ${isExpanded ? 'bg-bodegon/2' : 'hover:bg-stone-50/50'}`}>
           <td className="px-6 py-4 font-mono font-bold text-stone-600">
             {new Date(item.fecha + 'T00:00:00').toLocaleDateString('es-NI', {
               day: '2-digit',
@@ -1574,7 +1591,7 @@ export default function NominaAdminPage() {
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               {totalPendienteEmp > 0 && (
                 <span
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-bodegon bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs"
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-bodegon bg-bodegon/5 border border-bodegon/35 px-2 py-0.5 rounded-md shadow-2xs"
                   title="Suma total acumulada de horas extra que este colaborador tiene pendientes de aprobación"
                 >
                   <Clock className="w-3 h-3 text-bodegon shrink-0" />
@@ -1583,30 +1600,30 @@ export default function NominaAdminPage() {
               )}
               {compDia && Number(compDia.horas_deducidas) > 0 && (
                 <span
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs"
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-cafe bg-dorado/18 border border-dorado/60 px-2 py-0.5 rounded-md shadow-2xs"
                   title={`Este colaborador generó ${Number(compDia.horas_extra_generadas).toFixed(1)}h extra brutas hoy. Se amortizaron automáticamente ${Number(compDia.horas_deducidas).toFixed(1)}h para cubrir salidas tempranas de: ${fechasSaldadasStr || 'días anteriores'}.`}
                 >
-                  <Scale className="w-3 h-3 text-amber-700 shrink-0" />
+                  <Scale className="w-3 h-3 text-dorado-tinta shrink-0" />
                   Déficit cubierto: -{Number(compDia.horas_deducidas).toFixed(1)}h
                   {fechasSaldadasStr && (
-                    <span className="font-mono font-medium text-amber-800 bg-amber-200/60 px-1 rounded text-[9px]">
+                    <span className="font-mono font-medium text-dorado-tinta bg-dorado/18 px-1 rounded text-[9px]">
                       ({fechasSaldadasStr})
                     </span>
                   )}
                 </span>
               )}
               {deuda > 0 && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-dorado-tinta bg-dorado/10 border border-dorado/40 px-2 py-0.5 rounded-md">
+                  <AlertTriangle className="w-3 h-3 text-dorado-tinta shrink-0" />
                   Debe {deuda.toFixed(1)} hrs
                 </span>
               )}
               {excedeLimiteSemanal && (
                 <span
-                  className="inline-flex items-center gap-1 text-[10px] font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs"
+                  className="inline-flex items-center gap-1 text-[10px] font-black text-cafe bg-dorado/20 border border-dorado/60 px-2 py-0.5 rounded-md shadow-2xs"
                   title={`Límite Semanal Superado: Acumula ${extrasSemana.toFixed(1)} hrs autorizadas en esta semana (Art. 58 Código del Trabajo: máx 9h semanales)`}
                 >
-                  ⚠️ &gt;9h sem (Art. 58 CT)
+                  &gt;9h sem (Art. 58 CT)
                 </span>
               )}
             </div>
@@ -1614,14 +1631,14 @@ export default function NominaAdminPage() {
           <td className="px-6 py-4 text-right">
             {compDia && Number(compDia.horas_deducidas) > 0 ? (
               <div className="flex flex-col items-end space-y-1">
-                <span className="font-mono font-black text-emerald-700 text-sm block">
+                <span className="font-mono font-black text-bodegon text-sm block">
                   +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs netas
                 </span>
                 <span
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs text-right"
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-cafe bg-dorado/20 border border-dorado/60 px-2 py-0.5 rounded-md shadow-2xs text-right"
                   title={`Generó +${Number(compDia.horas_extra_generadas).toFixed(1)}h brutas en su jornada. Se aplicaron automáticamente -${Number(compDia.horas_deducidas).toFixed(1)}h para cubrir salidas tempranas de: ${fechasSaldadasStr || 'días anteriores'}.`}
                 >
-                  <Scale className="w-3 h-3 text-amber-700 shrink-0" />
+                  <Scale className="w-3 h-3 text-dorado-tinta shrink-0" />
                   <span>Saldó -{Number(compDia.horas_deducidas).toFixed(1)}h {fechasSaldadasStr ? `del: ${fechasSaldadasStr}` : ''}</span>
                 </span>
                 <span className="text-[9px] text-stone-500 font-mono">
@@ -1630,20 +1647,20 @@ export default function NominaAdminPage() {
               </div>
             ) : item.comentario && (item.comentario.includes('compensaron') || item.comentario.includes('amortizaron')) ? (
               <div className="flex flex-col items-end space-y-1">
-                <span className="font-mono font-black text-emerald-700 text-sm block">
+                <span className="font-mono font-black text-bodegon text-sm block">
                   +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs netas
                 </span>
                 <span
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md shadow-2xs text-right max-w-[210px] truncate"
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-cafe bg-dorado/20 border border-dorado/60 px-2 py-0.5 rounded-md shadow-2xs text-right max-w-[210px] truncate"
                   title={item.comentario}
                 >
-                  <Scale className="w-3 h-3 text-amber-700 shrink-0" />
+                  <Scale className="w-3 h-3 text-dorado-tinta shrink-0" />
                   <span>Compensó déficit previo</span>
                 </span>
               </div>
             ) : (
               <div>
-                <span className="font-mono font-bold text-emerald-700 text-sm block">
+                <span className="font-mono font-bold text-bodegon text-sm block">
                   +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs
                 </span>
                 <span className="text-[10px] text-stone-400 font-medium block">
@@ -1674,10 +1691,10 @@ export default function NominaAdminPage() {
             <span
               className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                 item.estado === 'APROBADO'
-                  ? 'bg-emerald-50 border-emerald-250 text-emerald-700'
+                  ? 'bg-bodegon/5 border-bodegon text-bodegon'
                   : item.estado === 'RECHAZADO'
-                  ? 'bg-rose-50 border-rose-250 text-rose-700'
-                  : 'bg-amber-50 border-amber-250 text-amber-700 animate-pulse'
+                  ? 'bg-barro/5 border-barro text-barro'
+                  : 'bg-dorado/10 border-dorado text-dorado-tinta animate-pulse'
               }`}
             >
               {item.estado}
@@ -1686,7 +1703,7 @@ export default function NominaAdminPage() {
           <td className="px-6 py-4 text-right">
             {isEditing ? (
               <div className="flex items-center justify-end gap-2">
-                <span className="text-[11px] font-bold text-bodegon bg-emerald-50 border border-emerald-250 px-2.5 py-1 rounded-xl">
+                <span className="text-[11px] font-bold text-bodegon bg-bodegon/5 border border-bodegon px-2.5 py-1 rounded-xl">
                   Evaluando abajo ↓
                 </span>
                 <button
@@ -1731,7 +1748,7 @@ export default function NominaAdminPage() {
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
                     previewExtraId === item.id
                       ? 'bg-bodegon text-white border-bodegon'
-                      : 'bg-emerald-50/90 hover:bg-emerald-100 text-bodegon border-emerald-300'
+                      : 'bg-bodegon/4 hover:bg-bodegon/10 text-bodegon border-bodegon/35'
                   }`}
                   title="Previsualizar marcajes biométricos y análisis de horas del día antes de evaluar"
                 >
@@ -1757,7 +1774,7 @@ export default function NominaAdminPage() {
                 {/* Cabecera de la Previsualización */}
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-3.5">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-bodegon border border-emerald-250 flex items-center justify-center font-bold shadow-2xs">
+                    <div className="w-10 h-10 rounded-xl bg-bodegon/5 text-bodegon border border-bodegon flex items-center justify-center font-bold shadow-2xs">
                       <Eye className="w-5 h-5" />
                     </div>
                     <div>
@@ -1773,7 +1790,7 @@ export default function NominaAdminPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-xs text-bodegon bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-xl">
+                    <span className="font-mono font-black text-xs text-bodegon bg-bodegon/5 border border-bodegon/35 px-3 py-1 rounded-xl">
                       Solicitud: +{hSolicitadasNum.toFixed(1)} hrs extra
                     </span>
                     <button
@@ -1815,8 +1832,8 @@ export default function NominaAdminPage() {
                               <div
                                 className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold shrink-0 ${
                                   ev.tipo.includes('ENTRADA')
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-amber-100 text-amber-800'
+                                    ? 'bg-bodegon/10 text-bodegon'
+                                    : 'bg-dorado/20 text-dorado-tinta'
                                 }`}
                               >
                                 {ev.tipo.includes('ENTRADA') ? (
@@ -1866,9 +1883,9 @@ export default function NominaAdminPage() {
                         ))}
                       </div>
                     ) : (
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 space-y-1">
+                      <div className="bg-dorado/10 border border-dorado/40 rounded-xl p-3 text-xs text-cafe space-y-1">
                         <span className="font-bold block">Sin marcajes biométricos vinculados</span>
-                        <p className="text-[11px] text-amber-800">
+                        <p className="text-[11px] text-dorado-tinta">
                           No se hallaron registros en kiosco para la fecha {item.fecha}. Es posible que la solicitud se haya generado de forma manual o administrativa.
                         </p>
                       </div>
@@ -1898,7 +1915,7 @@ export default function NominaAdminPage() {
                         {detalleDia && detalleDia.tiempoAlmuerzoMinutos > 0 && (
                           <div className="flex justify-between items-center text-[11px]">
                             <span className="text-stone-500 font-medium">Almuerzo / Quiebre:</span>
-                            <span className="font-mono font-bold text-amber-800">
+                            <span className="font-mono font-bold text-dorado-tinta">
                               {detalleDia.tiempoAlmuerzoMinutos} min tomados
                             </span>
                           </div>
@@ -1912,19 +1929,19 @@ export default function NominaAdminPage() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 text-center">
-                        <div className="bg-blue-50 border border-blue-200 p-2.5 rounded-xl">
-                          <span className="text-[10px] uppercase font-bold text-blue-700 block">Jornada Ordinaria</span>
-                          <strong className="font-mono font-black text-blue-900 text-sm">
+                        <div className="bg-stone-50 border border-stone-200 p-2.5 rounded-xl">
+                          <span className="text-[10px] uppercase font-bold text-stone-700 block">Jornada Ordinaria</span>
+                          <strong className="font-mono font-black text-stone-900 text-sm">
                             {detalleDia ? `${detalleDia.horasOrdinarias.toFixed(2)} hrs` : '8.00 hrs'}
                           </strong>
-                          <span className="text-[9px] text-blue-600 block mt-0.5">Meta diaria de 8h</span>
+                          <span className="text-[9px] text-stone-600 block mt-0.5">Meta diaria de 8h</span>
                         </div>
-                        <div className="bg-emerald-50 border border-emerald-250 p-2.5 rounded-xl">
-                          <span className="text-[10px] uppercase font-bold text-emerald-700 block">Excedente Bruto</span>
-                          <strong className="font-mono font-black text-emerald-900 text-sm">
+                        <div className="bg-bodegon/5 border border-bodegon p-2.5 rounded-xl">
+                          <span className="text-[10px] uppercase font-bold text-bodegon block">Excedente Bruto</span>
+                          <strong className="font-mono font-black text-bodegon-noche text-sm">
                             {detalleDia ? `+${detalleDia.horasExcedente.toFixed(2)} hrs` : `+${item.horas_extra_solicitadas} hrs`}
                           </strong>
-                          <span className="text-[9px] text-emerald-700 block mt-0.5 font-bold">
+                          <span className="text-[9px] text-bodegon block mt-0.5 font-bold">
                             {horasSugeridasCalculadas > 0 ? `Sugerido: +${horasSugeridasCalculadas.toFixed(1)} hrs` : 'Tiempo adicional'}
                           </span>
                         </div>
@@ -1932,8 +1949,8 @@ export default function NominaAdminPage() {
 
                       <div className="flex justify-between items-center text-[11px] bg-white p-2.5 rounded-xl border border-stone-200">
                         <span className="text-stone-600 font-medium">Acumulado Semanal:</span>
-                        <span className={`font-mono font-bold ${excedeLimiteSemanal ? 'text-amber-800 font-black' : 'text-stone-800'}`}>
-                          {extrasSemana.toFixed(1)} / 9.0 hrs {excedeLimiteSemanal ? '⚠️ (Excede Art. 58)' : '✅'}
+                        <span className={`font-mono font-bold ${excedeLimiteSemanal ? 'text-dorado-tinta font-black' : 'text-stone-800'}`}>
+                          {extrasSemana.toFixed(1)} / 9.0 hrs {excedeLimiteSemanal ? '(excede Art. 58)' : ''}
                         </span>
                       </div>
                     </div>
@@ -1953,39 +1970,39 @@ export default function NominaAdminPage() {
 
                     <div className="space-y-2 text-xs">
                       {compDia && Number(compDia.horas_deducidas) > 0 ? (
-                        <div className="bg-amber-50 border border-amber-300 rounded-xl p-2.5 space-y-1.5 shadow-2xs">
-                          <div className="flex items-center justify-between text-amber-900 font-bold text-[11px]">
+                        <div className="bg-dorado/10 border border-dorado/60 rounded-xl p-2.5 space-y-1.5 shadow-2xs">
+                          <div className="flex items-center justify-between text-cafe font-bold text-[11px]">
                             <span className="flex items-center gap-1">
-                              <Scale className="w-3.5 h-3.5 text-amber-700" /> Amortización de Deuda
+                              <Scale className="w-3.5 h-3.5 text-dorado-tinta" /> Amortización de Deuda
                             </span>
-                            <span className="font-mono bg-amber-200/80 px-1.5 py-0.5 rounded text-[10px]">Bolsa de Horas</span>
+                            <span className="font-mono bg-dorado/24 px-1.5 py-0.5 rounded text-[10px]">Bolsa de Horas</span>
                           </div>
-                          <div className="grid grid-cols-3 gap-1 bg-white p-2 rounded-lg border border-amber-200 text-center font-mono text-[10px]">
+                          <div className="grid grid-cols-3 gap-1 bg-white p-2 rounded-lg border border-dorado/40 text-center font-mono text-[10px]">
                             <div>
                               <span className="text-stone-400 block text-[8px] uppercase">Bruto</span>
                               <strong className="text-stone-800">+{Number(compDia.horas_extra_generadas).toFixed(1)}h</strong>
                             </div>
                             <div>
-                              <span className="text-amber-700 block text-[8px] uppercase">Deducido</span>
-                              <strong className="text-amber-700">-{Number(compDia.horas_deducidas).toFixed(1)}h</strong>
+                              <span className="text-dorado-tinta block text-[8px] uppercase">Deducido</span>
+                              <strong className="text-dorado-tinta">-{Number(compDia.horas_deducidas).toFixed(1)}h</strong>
                             </div>
                             <div>
-                              <span className="text-emerald-700 block text-[8px] uppercase">A Pago</span>
-                              <strong className="text-emerald-800">+{Number(compDia.remanente_extra).toFixed(1)}h</strong>
+                              <span className="text-bodegon block text-[8px] uppercase">A Pago</span>
+                              <strong className="text-bodegon">+{Number(compDia.remanente_extra).toFixed(1)}h</strong>
                             </div>
                           </div>
                           {fechasSaldadasStr && (
-                            <span className="text-[10px] text-amber-800 block">
+                            <span className="text-[10px] text-dorado-tinta block">
                               Saldó salidas tempranas de: <strong>{fechasSaldadasStr}</strong>
                             </span>
                           )}
                         </div>
                       ) : (
-                        <div className="bg-emerald-50/70 border border-emerald-250 rounded-xl p-2.5 text-[11px] text-emerald-900 space-y-1 shadow-2xs">
+                        <div className="bg-bodegon/4 border border-bodegon rounded-xl p-2.5 text-[11px] text-bodegon-noche space-y-1 shadow-2xs">
                           <span className="font-bold flex items-center gap-1">
-                            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Sin deducciones previas
+                            <CheckCircle className="w-3.5 h-3.5 text-bodegon" /> Sin deducciones previas
                           </span>
-                          <p className="text-[10px] text-emerald-700">
+                          <p className="text-[10px] text-bodegon">
                             El colaborador no registra salidas tempranas anteriores pendientes en su Bolsa de Horas.
                           </p>
                         </div>
@@ -1999,11 +2016,11 @@ export default function NominaAdminPage() {
                         </div>
                         <div className="flex justify-between items-center text-stone-600">
                           <span>Tarifa Extra Legal (2x):</span>
-                          <span className="font-mono font-bold text-emerald-800">C$ {tarifaHE.toFixed(2)}/hr</span>
+                          <span className="font-mono font-bold text-bodegon">C$ {tarifaHE.toFixed(2)}/hr</span>
                         </div>
                         <div className="flex justify-between items-center pt-1.5 border-t border-stone-100 font-bold text-stone-900">
                           <span>Monto Estimado a Pagar:</span>
-                          <span className="font-mono font-black text-emerald-700 text-sm">
+                          <span className="font-mono font-black text-bodegon text-sm">
                             C$ {montoEstimadoHE.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </div>
@@ -2014,7 +2031,7 @@ export default function NominaAdminPage() {
 
                 {/* Footer de Decisión y Formulario de Aprobación */}
                 {isEditing ? (
-                  <div className="bg-gradient-to-r from-emerald-50/80 via-white to-emerald-50/80 border-2 border-bodegon/40 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
+                  <div className="bg-gradient-to-r from-bodegon/4 via-white to-bodegon/4 border-2 border-bodegon/40 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
                         <KeyRound className="w-4 h-4 text-bodegon" />
@@ -2032,7 +2049,7 @@ export default function NominaAdminPage() {
                             Horas a Autorizar (hrs) *
                           </label>
                           {horasSugeridasCalculadas > 0 && (
-                            <span className="text-[10px] font-bold text-bodegon bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
+                            <span className="text-[10px] font-bold text-bodegon bg-bodegon/5 border border-bodegon/20 px-1.5 py-0.5 rounded-md">
                               Sugerido: {horasSugeridasCalculadas.toFixed(1)}h
                             </span>
                           )}
@@ -2065,7 +2082,7 @@ export default function NominaAdminPage() {
                               const nextVal = Math.round((curr + 0.5) * 2) / 2;
                               setTempAutorizadas(String(nextVal.toFixed(1)));
                             }}
-                            className="w-11 h-9 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-bodegon font-bold text-xs flex items-center justify-center border border-emerald-300 transition cursor-pointer select-none shrink-0"
+                            className="w-11 h-9 rounded-xl bg-bodegon/5 hover:bg-bodegon/10 text-bodegon font-bold text-xs flex items-center justify-center border border-bodegon/35 transition cursor-pointer select-none shrink-0"
                             title="Sumar 0.5 horas"
                           >
                             +0.5h
@@ -2116,7 +2133,7 @@ export default function NominaAdminPage() {
                         type="button"
                         onClick={() => initiateDecision(item, 'RECHAZADO')}
                         disabled={savingExtra}
-                        className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                        className="bg-barro hover:bg-barro text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                       >
                         <ThumbsDown className="w-3.5 h-3.5" /> Rechazar Solicitud
                       </button>
@@ -2166,230 +2183,217 @@ export default function NominaAdminPage() {
 
   return (
     <div className="space-y-6 select-none font-sans">
-      {/* Pestañas de Navegación de Nómina con Alto Contraste (Segmented Pill Dock) */}
-      <div className="bg-stone-200/80 p-1.5 rounded-2xl border border-stone-300 shadow-2xs inline-flex flex-wrap sm:flex-nowrap gap-1.5 overflow-x-auto no-scrollbar print-hide max-w-full">
-        <button
-          onClick={() => setActiveTab('reporte')}
-          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeTab === 'reporte'
-              ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
-              : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
-          }`}
-        >
-          <FileSpreadsheet className={`w-4 h-4 ${activeTab === 'reporte' ? 'text-emerald-200' : 'text-bodegon'}`} />
-          <span>Reporte de Horas</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('extras')}
-          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeTab === 'extras'
-              ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
-              : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
-          }`}
-        >
-          <Clock className={`w-4 h-4 ${activeTab === 'extras' ? 'text-emerald-200' : 'text-bodegon'}`} />
-          <span>Horas Extra</span>
-          {horasExtra.filter((h) => h.estado === 'PENDIENTE').length > 0 && (
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-              activeTab === 'extras' ? 'bg-amber-400 text-stone-950' : 'bg-amber-500 text-white'
-            }`}>
-              {horasExtra.filter((h) => h.estado === 'PENDIENTE').length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('permisos')}
-          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeTab === 'permisos'
-              ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
-              : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
-          }`}
-        >
-          <Palmtree className={`w-4 h-4 ${activeTab === 'permisos' ? 'text-emerald-200' : 'text-bodegon'}`} />
-          <span>Vacaciones & Permisos</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('feriados')}
-          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeTab === 'feriados'
-              ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
-              : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
-          }`}
-        >
-          <Calendar className={`w-4 h-4 ${activeTab === 'feriados' ? 'text-emerald-200' : 'text-bodegon'}`} />
-          <span>Feriados</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('vacaciones_pagadas')}
-          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-            activeTab === 'vacaciones_pagadas'
-              ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
-              : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
-          }`}
-        >
-          <Banknote className={`w-4 h-4 ${activeTab === 'vacaciones_pagadas' ? 'text-emerald-200' : 'text-bodegon'}`} />
-          <span>Vacaciones Pagadas</span>
-        </button>
-      </div>
+      <BrandBand
+        eyebrow={`Período del ${fechaCorta(fechaInicio)} al ${fechaCorta(fechaFin)}`}
+        title="Nómina"
+        actions={
+          <>
+          {/* Botón 1: Planilla Quincenal con Selector Rápido */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowQuincenaMenu(!showQuincenaMenu)}
+              disabled={downloadingQuincenal}
+              className={`${bandButtonPrimary} disabled:opacity-50`}
+              title="Descargar Planilla Quincenal Oficial (1ra o 2da Quincena)"
+            >
+              {downloadingQuincenal ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="w-4 h-4" />
+              )}
+              <span>Planilla quincenal</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showQuincenaMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showQuincenaMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowQuincenaMenu(false)}
+                />
+                <div className="absolute left-0 lg:right-0 lg:left-auto top-full mt-2 w-72 bg-white text-tinta border border-stone-200 rounded-2xl shadow-2xl p-2 z-50 space-y-1.5 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3 py-1.5 border-b border-stone-100 flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase text-stone-400 tracking-wider">
+                      Opciones de Quincena
+                    </span>
+                  </div>
+                  
+                  {/* Sección 1: Visualizar en Pantalla */}
+                  <div className="space-y-0.5">
+                    <div className="px-2 pt-1 pb-0.5 text-[9px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
+                      <Eye className="w-3 h-3 text-bodegon" />
+                      Visualizar en Pantalla
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        aplicarFiltroQuincena('1ra');
+                        setShowQuincenaMenu(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                        quincenaActiva === '1ra' ? 'bg-bodegon/15 text-bodegon' : 'text-stone-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold">1ra Quincena (01-15)</div>
+                        <div className="text-[10px] text-stone-400 font-normal">Días 01 al 15 del mes</div>
+                      </div>
+                      <Eye className="w-3.5 h-3.5 text-bodegon" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        aplicarFiltroQuincena('2da');
+                        setShowQuincenaMenu(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                        quincenaActiva === '2da' ? 'bg-bodegon/15 text-bodegon' : 'text-stone-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold">2da Quincena (16-Fin)</div>
+                        <div className="text-[10px] text-stone-400 font-normal">Días 16 al cierre de mes</div>
+                      </div>
+                      <Eye className="w-3.5 h-3.5 text-bodegon" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        aplicarFiltroQuincena('anterior');
+                        setShowQuincenaMenu(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                        quincenaActiva === 'anterior' ? 'bg-bodegon/15 text-bodegon' : 'text-stone-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold">Quincena Anterior</div>
+                        <div className="text-[10px] text-stone-400 font-normal">Última quincena cerrada</div>
+                      </div>
+                      <Eye className="w-3.5 h-3.5 text-bodegon" />
+                    </button>
+                  </div>
+
+                  {/* Sección 2: Descargar Planilla Excel */}
+                  <div className="border-t border-stone-100 pt-1 space-y-0.5">
+                    <div className="px-2 pt-1 pb-0.5 text-[9px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
+                      <Download className="w-3 h-3 text-bodegon" />
+                      Descargar Excel (.xlsx)
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDescargarQuincena('1ra')}
+                      className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-bodegon/10 hover:text-bodegon transition-colors flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="font-medium text-stone-700">Excel 1ra Quincena</span>
+                      <Download className="w-3.5 h-3.5 text-bodegon" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDescargarQuincena('2da')}
+                      className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-bodegon/10 hover:text-bodegon transition-colors flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="font-medium text-stone-700">Excel 2da Quincena</span>
+                      <Download className="w-3.5 h-3.5 text-bodegon" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDescargarQuincena('anterior')}
+                      className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-stone-100 transition-colors flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="font-medium text-stone-700">Excel Quincena Anterior</span>
+                      <Download className="w-3.5 h-3.5 opacity-60" />
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Botón 2: Descargar Excel (.xlsx) del rango libre seleccionado */}
+          <button
+            type="button"
+            onClick={handleDownloadExcel}
+            disabled={downloading}
+            className={`${bandButtonGhost} disabled:opacity-50`}
+            title="Descargar reporte Excel del rango de fechas personalizado seleccionado en los filtros"
+          >
+            {downloading ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            <span>Excel del rango</span>
+          </button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <BandStat
+            featured
+            className="col-span-2 lg:col-span-1"
+            label="Horas ordinarias"
+            value={totalOrdinariasPeriodo.toFixed(1)}
+            hint={`${resumenFiltrado.length} colaboradores`}
+          />
+          <BandStat
+            label="Horas extra"
+            value={totalExtrasPeriodo.toFixed(1)}
+            hint={totalExtrasPendientesPeriodo > 0 ? `+${totalExtrasPendientesPeriodo.toFixed(1)} por aprobar` : 'Aprobadas'}
+            onClick={() => setActiveTab('extras')}
+            title="Ver horas extra"
+          />
+          <BandStat label="Horas debidas" value={totalDebidasPeriodo.toFixed(1)} hint="Se reinician cada mes" />
+          <BandStat
+            label="Feriados trabajados"
+            value={totalFeriadasPeriodo}
+            hint={totalFeriadasPeriodo === 1 ? 'día' : 'días'}
+            onClick={() => setActiveTab('feriados')}
+            title="Ver feriados"
+          />
+          <BandStat
+            label="Vacaciones"
+            value={totalVacacionesPeriodo.toFixed(1)}
+            hint="días disponibles"
+            onClick={() => setActiveTab('permisos')}
+            title="Ver vacaciones y permisos"
+          />
+        </div>
+      </BrandBand>
+
+      {/* Módulos de Nómina */}
+      <nav className="border-b border-stone-200 flex gap-1 overflow-x-auto no-scrollbar print-hide" aria-label="Módulos de nómina">
+        {NOMINA_TABS.map(({ id, label, Icon }) => {
+          const activo = activeTab === id;
+          const pendientes = id === 'extras' ? horasExtra.filter((h) => h.estado === 'PENDIENTE').length : 0;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
+              aria-current={activo ? 'page' : undefined}
+              className={`-mb-px px-4 py-3 border-b-[3px] text-sm whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                activo
+                  ? 'border-dorado text-bodegon font-bold'
+                  : 'border-transparent text-stone-600 font-semibold hover:text-tinta hover:border-stone-300'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{label}</span>
+              {pendientes > 0 && (
+                <span className="min-w-5 h-5 px-1.5 rounded-full bg-dorado-tinta text-white text-[11px] font-bold flex items-center justify-center">
+                  {pendientes}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
 
       {/* ── TAB 1: REPORTE DE HORAS (7 COLUMNAS EJECUTIVAS) ─────────────────── */}
       {activeTab === 'reporte' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-5">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-display font-black text-stone-900 tracking-tight flex items-center gap-2">
-                <FileSpreadsheet className="w-6 h-6 text-bodegon" />
-                Balance de Jornadas
-              </h1>
-              <p className="text-xs text-stone-500 font-medium mt-1">
-                Visualice el balance ejecutivo de horas ordinarias normales, feriados físicos, extras y horas debidas.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto relative">
-              {/* Botón 1: Planilla Quincenal con Selector Rápido */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowQuincenaMenu(!showQuincenaMenu)}
-                  disabled={downloadingQuincenal}
-                  className="bg-stone-900 hover:bg-black disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer border border-stone-800"
-                  title="Descargar Planilla Quincenal Oficial (1ra o 2da Quincena)"
-                >
-                  {downloadingQuincenal ? (
-                    <RefreshCw className="w-4 h-4 animate-spin text-emerald-400" />
-                  ) : (
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                  )}
-                  <span>📋 Planilla Quincenal</span>
-                  <ChevronDown className={`w-3.5 h-3.5 text-stone-400 transition-transform ${showQuincenaMenu ? 'rotate-180' : ''}`} />
-                </button>
-
-                {showQuincenaMenu && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setShowQuincenaMenu(false)}
-                    />
-                    <div className="absolute left-0 sm:right-0 sm:left-auto top-full mt-2 w-72 bg-white border border-stone-200 rounded-2xl shadow-2xl p-2 z-50 space-y-1.5 animate-in fade-in zoom-in-95 duration-150">
-                      <div className="px-3 py-1.5 border-b border-stone-100 flex items-center justify-between">
-                        <span className="text-[10px] font-black uppercase text-stone-400 tracking-wider">
-                          Opciones de Quincena
-                        </span>
-                      </div>
-                      
-                      {/* Sección 1: Visualizar en Pantalla */}
-                      <div className="space-y-0.5">
-                        <div className="px-2 pt-1 pb-0.5 text-[9px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
-                          <Eye className="w-3 h-3 text-bodegon" />
-                          Visualizar en Pantalla
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            aplicarFiltroQuincena('1ra');
-                            setShowQuincenaMenu(false);
-                          }}
-                          className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
-                            quincenaActiva === '1ra' ? 'bg-bodegon/15 text-bodegon' : 'text-stone-700 hover:bg-stone-100'
-                          }`}
-                        >
-                          <div>
-                            <div className="font-bold">1ra Quincena (01-15)</div>
-                            <div className="text-[10px] text-stone-400 font-normal">Días 01 al 15 del mes</div>
-                          </div>
-                          <Eye className="w-3.5 h-3.5 text-bodegon" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            aplicarFiltroQuincena('2da');
-                            setShowQuincenaMenu(false);
-                          }}
-                          className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
-                            quincenaActiva === '2da' ? 'bg-bodegon/15 text-bodegon' : 'text-stone-700 hover:bg-stone-100'
-                          }`}
-                        >
-                          <div>
-                            <div className="font-bold">2da Quincena (16-Fin)</div>
-                            <div className="text-[10px] text-stone-400 font-normal">Días 16 al cierre de mes</div>
-                          </div>
-                          <Eye className="w-3.5 h-3.5 text-bodegon" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            aplicarFiltroQuincena('anterior');
-                            setShowQuincenaMenu(false);
-                          }}
-                          className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
-                            quincenaActiva === 'anterior' ? 'bg-bodegon/15 text-bodegon' : 'text-stone-700 hover:bg-stone-100'
-                          }`}
-                        >
-                          <div>
-                            <div className="font-bold">Quincena Anterior</div>
-                            <div className="text-[10px] text-stone-400 font-normal">Última quincena cerrada</div>
-                          </div>
-                          <Eye className="w-3.5 h-3.5 text-bodegon" />
-                        </button>
-                      </div>
-
-                      {/* Sección 2: Descargar Planilla Excel */}
-                      <div className="border-t border-stone-100 pt-1 space-y-0.5">
-                        <div className="px-2 pt-1 pb-0.5 text-[9px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
-                          <Download className="w-3 h-3 text-bodegon" />
-                          Descargar Excel (.xlsx)
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDescargarQuincena('1ra')}
-                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-bodegon/10 hover:text-bodegon transition-colors flex items-center justify-between cursor-pointer"
-                        >
-                          <span className="font-medium text-stone-700">Excel 1ra Quincena</span>
-                          <Download className="w-3.5 h-3.5 text-bodegon" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDescargarQuincena('2da')}
-                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-bodegon/10 hover:text-bodegon transition-colors flex items-center justify-between cursor-pointer"
-                        >
-                          <span className="font-medium text-stone-700">Excel 2da Quincena</span>
-                          <Download className="w-3.5 h-3.5 text-bodegon" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDescargarQuincena('anterior')}
-                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-stone-100 transition-colors flex items-center justify-between cursor-pointer"
-                        >
-                          <span className="font-medium text-stone-700">Excel Quincena Anterior</span>
-                          <Download className="w-3.5 h-3.5 opacity-60" />
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Botón 2: Descargar Excel (.xlsx) del rango libre seleccionado */}
-              <button
-                type="button"
-                onClick={handleDownloadExcel}
-                disabled={downloading}
-                className="bg-bodegon hover:bg-bodegon-noche disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
-                title="Descargar reporte Excel del rango de fechas personalizado seleccionado en los filtros"
-              >
-                {downloading ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                <span>Descargar Excel (.xlsx)</span>
-              </button>
-
-
-            </div>
-          </div>
-
           {/* Filtros Rango Fechas y Buscador con Selector Rápido de Quincenas */}
           <div className="glass-panel border border-white rounded-3xl p-5 shadow-premium space-y-4 print-hide">
             {/* Barra de Píldoras de Selección Rápida de Quincena para Visualización en Pantalla */}
@@ -2410,7 +2414,7 @@ export default function NominaAdminPage() {
                   title="Visualizar en pantalla la 1ra quincena de este mes (días 01 al 15)"
                 >
                   <span>1ra Quincena (01-15)</span>
-                  {quincenaActiva === '1ra' && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+                  {quincenaActiva === '1ra' && <CheckCircle className="w-3.5 h-3.5 text-[#CFE3DC]" />}
                 </button>
                 <button
                   type="button"
@@ -2423,7 +2427,7 @@ export default function NominaAdminPage() {
                   title="Visualizar en pantalla la 2da quincena de este mes (días 16 al cierre)"
                 >
                   <span>2da Quincena (16-Fin)</span>
-                  {quincenaActiva === '2da' && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+                  {quincenaActiva === '2da' && <CheckCircle className="w-3.5 h-3.5 text-[#CFE3DC]" />}
                 </button>
                 <button
                   type="button"
@@ -2436,7 +2440,7 @@ export default function NominaAdminPage() {
                   title="Visualizar en pantalla la última quincena cerrada anterior"
                 >
                   <span>Quincena Anterior</span>
-                  {quincenaActiva === 'anterior' && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+                  {quincenaActiva === 'anterior' && <CheckCircle className="w-3.5 h-3.5 text-[#CFE3DC]" />}
                 </button>
                 <button
                   type="button"
@@ -2449,12 +2453,12 @@ export default function NominaAdminPage() {
                   title="Visualizar en pantalla el mes completo"
                 >
                   <span>Mes Completo</span>
-                  {quincenaActiva === 'mes_completo' && <CheckCircle className="w-3.5 h-3.5 text-emerald-300" />}
+                  {quincenaActiva === 'mes_completo' && <CheckCircle className="w-3.5 h-3.5 text-[#CFE3DC]" />}
                 </button>
               </div>
 
               {quincenaActiva !== 'personalizado' ? (
-                <span className="text-[11px] font-semibold text-bodegon bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 hidden sm:inline-block">
+                <span className="text-[11px] font-semibold text-bodegon bg-bodegon/5 px-2.5 py-1 rounded-lg border border-bodegon/12 hidden sm:inline-block">
                   Viendo: <strong className="font-mono">{fechaInicio}</strong> al <strong className="font-mono">{fechaFin}</strong>
                 </span>
               ) : (
@@ -2541,8 +2545,8 @@ export default function NominaAdminPage() {
           )}
 
           {fechaInicio > fechaFin && (
-            <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3.5 rounded-xl text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top-1 duration-200">
-              <AlertTriangle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+            <div className="bg-barro/5 border border-barro/25 text-barro px-4 py-3.5 rounded-xl text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top-1 duration-200">
+              <AlertTriangle className="w-4 h-4 text-barro flex-shrink-0" />
               <span>Advertencia: La fecha de inicio ({fechaInicio}) es posterior a la fecha de finalización ({fechaFin}). Ajuste el rango de fechas.</span>
             </div>
           )}
@@ -2568,55 +2572,55 @@ export default function NominaAdminPage() {
                 onClick={() => setAreaFiltro('COCINA')}
                 className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                   areaFiltro === 'COCINA'
-                    ? 'bg-amber-700 text-white shadow-2xs'
+                    ? 'bg-bodegon text-white shadow-2xs'
                     : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
                 }`}
               >
-                <span>🍳</span> Cocina & Parrilla ({conteoPorArea.COCINA})
+                Cocina & Parrilla ({conteoPorArea.COCINA})
               </button>
               <button
                 type="button"
                 onClick={() => setAreaFiltro('SALON')}
                 className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                   areaFiltro === 'SALON'
-                    ? 'bg-blue-700 text-white shadow-2xs'
+                    ? 'bg-bodegon text-white shadow-2xs'
                     : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
                 }`}
               >
-                <span>🍽️</span> Salón & Servicio ({conteoPorArea.SALON})
+                Salón & Servicio ({conteoPorArea.SALON})
               </button>
               <button
                 type="button"
                 onClick={() => setAreaFiltro('BARRA_CAJA')}
                 className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                   areaFiltro === 'BARRA_CAJA'
-                    ? 'bg-purple-700 text-white shadow-2xs'
+                    ? 'bg-bodegon text-white shadow-2xs'
                     : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
                 }`}
               >
-                <span>🍸</span> Caja & Barra ({conteoPorArea.BARRA_CAJA})
+                Caja & Barra ({conteoPorArea.BARRA_CAJA})
               </button>
               <button
                 type="button"
                 onClick={() => setAreaFiltro('OPERACIONES')}
                 className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                   areaFiltro === 'OPERACIONES'
-                    ? 'bg-teal-700 text-white shadow-2xs'
+                    ? 'bg-bodegon text-white shadow-2xs'
                     : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
                 }`}
               >
-                <span>🧹</span> Operaciones ({conteoPorArea.OPERACIONES})
+                Operaciones ({conteoPorArea.OPERACIONES})
               </button>
               <button
                 type="button"
                 onClick={() => setAreaFiltro('ADMIN')}
                 className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                   areaFiltro === 'ADMIN'
-                    ? 'bg-stone-800 text-white shadow-2xs'
+                    ? 'bg-bodegon text-white shadow-2xs'
                     : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
                 }`}
               >
-                <span>⭐</span> Gerencia ({conteoPorArea.ADMIN})
+                Gerencia ({conteoPorArea.ADMIN})
               </button>
             </div>
 
@@ -2663,11 +2667,11 @@ export default function NominaAdminPage() {
                       <th className="px-6 py-4 text-center border-b border-stone-200 whitespace-nowrap">Días Libres (Tomados)</th>
                       <th className="px-6 py-4 text-right border-b border-stone-200 whitespace-nowrap">Horas Ordinarias</th>
                       <th className="px-6 py-4 text-right border-b border-stone-200 whitespace-nowrap">Feriados Trabajados (Días)</th>
-                      <th className="px-6 py-4 text-right text-amber-900 bg-amber-50/60 border-b border-stone-200 border-x border-amber-100/60 whitespace-nowrap">Vacaciones Pagadas</th>
+                      <th className="px-6 py-4 text-right text-cafe bg-dorado/6 border-b border-stone-200 border-x border-dorado/18 whitespace-nowrap">Vacaciones Pagadas</th>
                       <th className="px-6 py-4 text-right border-b border-stone-200 whitespace-nowrap">Horas Extra Aprobadas</th>
-                      <th className="px-6 py-4 text-right text-amber-800 bg-amber-50/70 border-b border-stone-200 whitespace-nowrap">H. Extra por Aprobar</th>
-                      <th className="px-6 py-4 text-right text-rose-700 bg-rose-50/60 border-b border-stone-200 whitespace-nowrap">Horas Debidas (Déficit)</th>
-                      <th className="px-6 py-4 text-right text-emerald-800 bg-emerald-50/70 border-b border-stone-200 whitespace-nowrap">Vacaciones Restantes</th>
+                      <th className="px-6 py-4 text-right text-dorado-tinta bg-dorado/7 border-b border-stone-200 whitespace-nowrap">H. Extra por Aprobar</th>
+                      <th className="px-6 py-4 text-right text-barro bg-barro/3 border-b border-stone-200 whitespace-nowrap">Horas Debidas (Déficit)</th>
+                      <th className="px-6 py-4 text-right text-bodegon bg-bodegon/4 border-b border-stone-200 whitespace-nowrap">Vacaciones Restantes</th>
                     </tr>
                   </thead>
                   <tbody className="text-stone-800 font-medium">
@@ -2702,7 +2706,7 @@ export default function NominaAdminPage() {
                               </span>
                               {item.permisosInfo.length > 0 && (
                                 <span
-                                  className="inline-block px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700"
+                                  className="inline-block px-2 py-0.5 rounded-full bg-bodegon/5 border border-bodegon/20 text-[10px] font-bold text-bodegon"
                                   title={item.permisosInfo.join('\n')}
                                 >
                                   {item.permisosInfo[0]}
@@ -2713,7 +2717,7 @@ export default function NominaAdminPage() {
                           <td className="px-6 py-4 text-center font-bold text-stone-700 border-b border-stone-100 whitespace-nowrap">
                             {item.diasUnicos} {item.diasUnicos === 1 ? 'día' : 'días'}
                           </td>
-                          <td className="px-6 py-4 text-center font-bold text-emerald-700 bg-emerald-50/30 border-b border-stone-100 whitespace-nowrap">
+                          <td className="px-6 py-4 text-center font-bold text-bodegon bg-bodegon/2 border-b border-stone-100 whitespace-nowrap">
                             {item.diasLibres} {item.diasLibres === 1 ? 'libre' : 'libres'}
                           </td>
                           <td className="px-6 py-4 text-right font-mono font-bold text-stone-900 border-b border-stone-100 whitespace-nowrap">
@@ -2723,16 +2727,16 @@ export default function NominaAdminPage() {
                             <div className="flex flex-col items-end">
                               <span>{item.feriadosTrabajadosDias} {item.feriadosTrabajadosDias === 1 ? 'feriado' : 'feriados'}</span>
                               {item.feriadosTrabajadosDias > 0 && (
-                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded mt-0.5 font-sans">
+                                <span className="text-[10px] font-bold text-bodegon bg-bodegon/5 border border-bodegon/20 px-1.5 py-0.5 rounded mt-0.5 font-sans">
                                   +{item.feriadosTrabajadosDias * 2}d vac.
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right font-mono font-bold bg-amber-50/20 border-b border-stone-100 border-x border-amber-100/30 whitespace-nowrap">
+                          <td className="px-6 py-4 text-right font-mono font-bold bg-dorado/2 border-b border-stone-100 border-x border-dorado/9 whitespace-nowrap">
                             <div className="flex flex-col items-end gap-1">
                               <div className="flex items-center justify-end gap-1.5">
-                                <span className={item.vacacionesPagadasDias > 0 ? "text-emerald-800 font-bold font-mono text-xs sm:text-sm" : "text-stone-400 font-normal text-xs sm:text-sm"}>
+                                <span className={item.vacacionesPagadasDias > 0 ? "text-bodegon font-bold font-mono text-xs sm:text-sm" : "text-stone-400 font-normal text-xs sm:text-sm"}>
                                   {item.vacacionesPagadasDias} {item.vacacionesPagadasDias === 1 ? 'día' : 'días'}
                                 </span>
                                 <button
@@ -2741,7 +2745,7 @@ export default function NominaAdminPage() {
                                     setEmpleadoParaPagoVac(item.emp);
                                     setShowModalEmitirPagoVac(true);
                                   }}
-                                  className="inline-flex items-center p-1 rounded-lg text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition-colors shadow-2xs cursor-pointer"
+                                  className="inline-flex items-center p-1 rounded-lg text-cafe bg-dorado/20 hover:bg-dorado/30 border border-dorado/60 transition-colors shadow-2xs cursor-pointer"
                                   title={`Emitir pago de vacaciones en dinero para ${item.emp.nombre}`}
                                 >
                                   <Plus className="w-3 h-3" />
@@ -2765,20 +2769,20 @@ export default function NominaAdminPage() {
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right font-mono font-bold text-emerald-700 border-b border-stone-100 whitespace-nowrap">
+                          <td className="px-6 py-4 text-right font-mono font-bold text-bodegon border-b border-stone-100 whitespace-nowrap">
                             <div className="flex flex-col items-end gap-0.5">
                               <span>{item.horasExtraAprobadas.toFixed(1)} hrs</span>
                               {item.excedeLimiteArt58 && (
                                 <span
-                                  className="inline-flex items-center gap-1 text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.5 rounded shadow-2xs"
+                                  className="inline-flex items-center gap-1 text-[9px] font-black bg-dorado/20 text-cafe border border-dorado/60 px-1.5 py-0.5 rounded shadow-2xs"
                                   title={`Atención: Excede el límite de 9h semanales (${item.maxHorasExtraSemana.toFixed(1)} hrs en una sola semana - Art. 58 Código del Trabajo)`}
                                 >
-                                  <span>⚠️ &gt;9h sem (Art. 58)</span>
+                                  <span>&gt;9h sem (Art. 58)</span>
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right font-mono font-bold bg-amber-50/20 border-b border-stone-100 whitespace-nowrap">
+                          <td className="px-6 py-4 text-right font-mono font-bold bg-dorado/2 border-b border-stone-100 whitespace-nowrap">
                             {item.horasExtraPendientes > 0 ? (
                               <button
                                 type="button"
@@ -2786,22 +2790,22 @@ export default function NominaAdminPage() {
                                   setActiveTab('extras');
                                   setSubTabExtras('pendientes');
                                 }}
-                                className="inline-flex items-center gap-1.5 text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-xl transition-all cursor-pointer text-xs font-bold"
+                                className="inline-flex items-center gap-1.5 text-dorado-tinta hover:text-cafe bg-dorado/20 hover:bg-dorado/30 border border-dorado/60 px-2.5 py-1 rounded-xl transition-all cursor-pointer text-xs font-bold"
                                 title="Haga clic para ir a revisar y autorizar estas horas extra pendientes"
                               >
                                 <span>+{item.horasExtraPendientes.toFixed(1)} hrs</span>
-                                <span className="text-[9px] bg-amber-200/90 text-amber-950 px-1 py-0.2 rounded font-black uppercase">Pendiente</span>
+                                <span className="text-[9px] bg-dorado/27 text-cafe px-1 py-0.2 rounded font-black uppercase">Pendiente</span>
                               </button>
                             ) : (
                               <span className="text-stone-400 font-normal">0.0 hrs</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-right font-mono font-bold text-rose-700 bg-rose-50/20 border-b border-stone-100 whitespace-nowrap">
+                          <td className="px-6 py-4 text-right font-mono font-bold text-barro bg-barro/2 border-b border-stone-100 whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
                               <span>{item.horasDebidas.toFixed(1)} hrs</span>
                               {Number(item.emp.horas_pendientes || 0) > 0 && (
                                 <span
-                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs"
+                                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-dorado/20 text-cafe border border-dorado/60 shadow-2xs"
                                   title={`Saldo activo en Bolsa de Horas: ${Number(item.emp.horas_pendientes).toFixed(1)} hrs a reponer`}
                                 >
                                   Bolsa
@@ -2809,17 +2813,17 @@ export default function NominaAdminPage() {
                               )}
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right bg-emerald-50/20 border-b border-stone-100 whitespace-nowrap">
+                          <td className="px-6 py-4 text-right bg-bodegon/2 border-b border-stone-100 whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => handleOpenVacacionesEmp(item.emp)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all cursor-pointer group"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white hover:bg-bodegon/5 text-bodegon border border-bodegon/35 hover:border-bodegon shadow-2xs transition-all cursor-pointer group"
                               title="Haga clic para ver el desglose legal auditado de días acumulados, tomados y saldo disponible"
                             >
-                              <span className={item.vacRestantes < 0 ? 'text-rose-600' : 'text-emerald-800'}>
+                              <span className={item.vacRestantes < 0 ? 'text-barro' : 'text-bodegon'}>
                                 {item.vacRestantes.toFixed(1)} {Math.abs(item.vacRestantes) === 1 ? 'día' : 'días'}
                               </span>
-                              <Info className="w-3 h-3 text-emerald-600 opacity-60 group-hover:opacity-100" />
+                              <Info className="w-3 h-3 text-bodegon opacity-60 group-hover:opacity-100" />
                             </button>
                           </td>
                         </tr>
@@ -2834,7 +2838,7 @@ export default function NominaAdminPage() {
                       <td className="px-6 py-4 text-center border-t-2 border-stone-300 font-mono text-xs font-bold text-stone-700 whitespace-nowrap">
                         {resumenFiltrado.reduce((acc, c) => acc + c.diasUnicos, 0)} d
                       </td>
-                      <td className="px-6 py-4 text-center border-t-2 border-stone-300 font-mono text-xs font-bold text-emerald-700 bg-emerald-50/30 whitespace-nowrap">
+                      <td className="px-6 py-4 text-center border-t-2 border-stone-300 font-mono text-xs font-bold text-bodegon bg-bodegon/2 whitespace-nowrap">
                         {resumenFiltrado.reduce((acc, c) => acc + c.diasLibres, 0)} d
                       </td>
                       <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-stone-950 text-base font-mono font-black whitespace-nowrap">
@@ -2843,19 +2847,19 @@ export default function NominaAdminPage() {
                       <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-bodegon text-base font-mono font-black whitespace-nowrap">
                         {totalFeriadasPeriodo} {totalFeriadasPeriodo === 1 ? 'día' : 'días'}
                       </td>
-                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-amber-900 bg-amber-50/50 text-base font-mono font-black border-x border-amber-100/50 whitespace-nowrap">
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-cafe bg-dorado/5 text-base font-mono font-black border-x border-dorado/15 whitespace-nowrap">
                         {totalVacacionesPagadasPeriodo.toFixed(1)} {totalVacacionesPagadasPeriodo === 1 ? 'día' : 'días'}
                       </td>
-                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-emerald-700 text-base font-mono font-black whitespace-nowrap">
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-bodegon text-base font-mono font-black whitespace-nowrap">
                         {totalExtrasPeriodo.toFixed(1)} hrs
                       </td>
-                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-amber-700 bg-amber-50/50 text-base font-mono font-black whitespace-nowrap">
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-dorado-tinta bg-dorado/5 text-base font-mono font-black whitespace-nowrap">
                         {totalExtrasPendientesPeriodo > 0 ? `+${totalExtrasPendientesPeriodo.toFixed(1)} hrs` : '0.0 hrs'}
                       </td>
-                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-rose-700 bg-rose-50/50 text-base font-mono font-black whitespace-nowrap">
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-barro bg-barro/2 text-base font-mono font-black whitespace-nowrap">
                         {totalDebidasPeriodo.toFixed(1)} hrs
                       </td>
-                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-emerald-800 bg-emerald-50/50 text-base font-mono font-black whitespace-nowrap">
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-bodegon bg-bodegon/2 text-base font-mono font-black whitespace-nowrap">
                         {totalVacacionesPeriodo.toFixed(1)} días
                       </td>
                     </tr>
@@ -2904,16 +2908,16 @@ export default function NominaAdminPage() {
                                   {item.emp.cargo_display}
                                 </span>
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                  area === 'COCINA' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                                  area === 'SALON' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
-                                  area === 'BARRA_CAJA' ? 'bg-purple-50 text-purple-800 border border-purple-200' :
-                                  area === 'OPERACIONES' ? 'bg-teal-50 text-teal-800 border border-teal-200' :
+                                  area === 'COCINA' ? 'bg-dorado/10 text-dorado-tinta border border-dorado/40' :
+                                  area === 'SALON' ? 'bg-stone-50 text-stone-800 border border-stone-200' :
+                                  area === 'BARRA_CAJA' ? 'bg-stone-50 text-stone-800 border border-stone-200' :
+                                  area === 'OPERACIONES' ? 'bg-bodegon/5 text-bodegon border border-bodegon/20' :
                                   'bg-stone-100 text-stone-700 border border-stone-200'
                                 }`}>
-                                  {area === 'COCINA' ? '🍳 Cocina' :
-                                   area === 'SALON' ? '🍽️ Salón' :
-                                   area === 'BARRA_CAJA' ? '🍸 Barra/Caja' :
-                                   area === 'OPERACIONES' ? '🧹 Operaciones' : '⭐ Gerencia'}
+                                  {area === 'COCINA' ? 'Cocina' :
+                                   area === 'SALON' ? 'Salón' :
+                                   area === 'BARRA_CAJA' ? 'Barra/Caja' :
+                                   area === 'OPERACIONES' ? 'Operaciones' : 'Gerencia'}
                                 </span>
                               </div>
                             </div>
@@ -2923,7 +2927,7 @@ export default function NominaAdminPage() {
                         {/* Permisos */}
                         {item.permisosInfo.length > 0 && (
                           <div className="mt-2.5">
-                            <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
+                            <span className="inline-block px-2 py-0.5 rounded-md bg-bodegon/5 border border-bodegon/20 text-[10px] font-bold text-bodegon">
                               {item.permisosInfo[0]}
                             </span>
                           </div>
@@ -2936,8 +2940,8 @@ export default function NominaAdminPage() {
                             <span className="font-extrabold text-stone-800 font-mono">{item.diasUnicos} {item.diasUnicos === 1 ? 'día' : 'días'}</span>
                           </div>
                           <div className="text-center border-l border-stone-200">
-                            <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider block">Libres</span>
-                            <span className="font-extrabold text-emerald-700 font-mono">{item.diasLibres} {item.diasLibres === 1 ? 'libre' : 'libres'}</span>
+                            <span className="text-[10px] text-bodegon font-bold uppercase tracking-wider block">Libres</span>
+                            <span className="font-extrabold text-bodegon font-mono">{item.diasLibres} {item.diasLibres === 1 ? 'libre' : 'libres'}</span>
                           </div>
                         </div>
 
@@ -2953,29 +2957,29 @@ export default function NominaAdminPage() {
                             <div className="flex items-baseline gap-1">
                               <span className="font-mono font-bold text-bodegon text-sm">{item.feriadosTrabajadosDias}</span>
                               {item.feriadosTrabajadosDias > 0 && (
-                                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">
+                                <span className="text-[9px] font-bold text-bodegon bg-bodegon/10 px-1 rounded">
                                   +{item.feriadosTrabajadosDias * 2}d vac
                                 </span>
                               )}
                             </div>
                           </div>
 
-                          <div className="p-2.5 rounded-xl bg-amber-50/40 border border-amber-100/60">
+                          <div className="p-2.5 rounded-xl bg-dorado/4 border border-dorado/18">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-amber-800 font-bold uppercase">Vac. Pagadas</span>
+                              <span className="text-[10px] text-dorado-tinta font-bold uppercase">Vac. Pagadas</span>
                               <button
                                 type="button"
                                 onClick={() => {
                                   setEmpleadoParaPagoVac(item.emp);
                                   setShowModalEmitirPagoVac(true);
                                 }}
-                                className="p-1 rounded bg-amber-200/60 hover:bg-amber-300 text-amber-950 transition-colors cursor-pointer"
+                                className="p-1 rounded bg-dorado/18 hover:bg-dorado/50 text-cafe transition-colors cursor-pointer"
                                 title={`Emitir pago de vacaciones para ${item.emp.nombre}`}
                               >
                                 <Plus className="w-2.5 h-2.5" />
                               </button>
                             </div>
-                            <span className={item.vacacionesPagadasDias > 0 ? "font-mono font-bold text-amber-900 text-sm" : "font-mono text-stone-400 text-sm"}>
+                            <span className={item.vacacionesPagadasDias > 0 ? "font-mono font-bold text-cafe text-sm" : "font-mono text-stone-400 text-sm"}>
                               {item.vacacionesPagadasDias} d
                             </span>
                             {item.pagosVacEmp.length > 0 && (
@@ -2995,18 +2999,18 @@ export default function NominaAdminPage() {
                             )}
                           </div>
 
-                          <div className="p-2.5 rounded-xl bg-emerald-50/40 border border-emerald-100/60">
-                            <span className="text-[10px] text-emerald-800 font-bold uppercase block">H. Extra Aprob.</span>
+                          <div className="p-2.5 rounded-xl bg-bodegon/2 border border-bodegon/9">
+                            <span className="text-[10px] text-bodegon font-bold uppercase block">H. Extra Aprob.</span>
                             <div className="flex items-center gap-1">
-                              <span className="font-mono font-bold text-emerald-700 text-sm">{item.horasExtraAprobadas.toFixed(1)} hrs</span>
+                              <span className="font-mono font-bold text-bodegon text-sm">{item.horasExtraAprobadas.toFixed(1)} hrs</span>
                               {item.excedeLimiteArt58 && (
-                                <span className="text-[9px] font-black bg-amber-100 text-amber-900 px-1 rounded" title="Excede 9h semanales (Art. 58)">⚠️</span>
+                                <span className="text-[9px] font-black bg-dorado/20 text-cafe px-1 rounded" title="Excede 9h semanales (Art. 58)">+9h</span>
                               )}
                             </div>
                           </div>
 
-                          <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/70">
-                            <span className="text-[10px] text-amber-900 font-bold uppercase block">H. Extra Pend.</span>
+                          <div className="p-2.5 rounded-xl bg-dorado/6 border border-dorado/28">
+                            <span className="text-[10px] text-cafe font-bold uppercase block">H. Extra Pend.</span>
                             {item.horasExtraPendientes > 0 ? (
                               <button
                                 type="button"
@@ -3014,7 +3018,7 @@ export default function NominaAdminPage() {
                                   setActiveTab('extras');
                                   setSubTabExtras('pendientes');
                                 }}
-                                className="inline-flex items-center gap-1 font-mono font-bold text-xs text-amber-900 bg-amber-200/80 hover:bg-amber-300 px-1.5 py-0.5 rounded-lg mt-0.5 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1 font-mono font-bold text-xs text-cafe bg-dorado/24 hover:bg-dorado/50 px-1.5 py-0.5 rounded-lg mt-0.5 transition-colors cursor-pointer"
                               >
                                 +{item.horasExtraPendientes.toFixed(1)} hrs
                               </button>
@@ -3023,12 +3027,12 @@ export default function NominaAdminPage() {
                             )}
                           </div>
 
-                          <div className="p-2.5 rounded-xl bg-rose-50/40 border border-rose-100/60">
-                            <span className="text-[10px] text-rose-800 font-bold uppercase block">H. Debidas</span>
+                          <div className="p-2.5 rounded-xl bg-barro/2 border border-barro/12">
+                            <span className="text-[10px] text-barro font-bold uppercase block">H. Debidas</span>
                             <div className="flex items-center gap-1">
-                              <span className="font-mono font-bold text-rose-700 text-sm">{item.horasDebidas.toFixed(1)} hrs</span>
+                              <span className="font-mono font-bold text-barro text-sm">{item.horasDebidas.toFixed(1)} hrs</span>
                               {Number(item.emp.horas_pendientes || 0) > 0 && (
-                                <span className="text-[9px] font-black bg-amber-100 text-amber-900 px-1 rounded border border-amber-200" title={`Bolsa: ${Number(item.emp.horas_pendientes).toFixed(1)}h`}>
+                                <span className="text-[9px] font-black bg-dorado/20 text-cafe px-1 rounded border border-dorado/40" title={`Bolsa: ${Number(item.emp.horas_pendientes).toFixed(1)}h`}>
                                   Bolsa
                                 </span>
                               )}
@@ -3043,12 +3047,12 @@ export default function NominaAdminPage() {
                         <button
                           type="button"
                           onClick={() => handleOpenVacacionesEmp(item.emp)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-mono font-bold bg-bodegon/5 hover:bg-bodegon/10 text-bodegon border border-bodegon/20 transition-colors cursor-pointer"
                         >
-                          <span className={item.vacRestantes < 0 ? 'text-rose-600' : 'text-emerald-800'}>
+                          <span className={item.vacRestantes < 0 ? 'text-barro' : 'text-bodegon'}>
                             {item.vacRestantes.toFixed(1)} {Math.abs(item.vacRestantes) === 1 ? 'día' : 'días'}
                           </span>
-                          <Info className="w-3 h-3 text-emerald-600" />
+                          <Info className="w-3 h-3 text-bodegon" />
                         </button>
                       </div>
                     </div>
@@ -3083,11 +3087,11 @@ export default function NominaAdminPage() {
                   : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
               }`}
             >
-              <Clock className={`w-4 h-4 ${subTabExtras === 'pendientes' ? 'text-emerald-200' : 'text-bodegon'}`} />
+              <Clock className={`w-4 h-4 ${subTabExtras === 'pendientes' ? 'text-[#CFE3DC]' : 'text-bodegon'}`} />
               <span>Solicitudes Pendientes</span>
               {horasExtra.filter((h) => h.estado === 'PENDIENTE').length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
-                  subTabExtras === 'pendientes' ? 'bg-amber-400 text-stone-950' : 'bg-amber-500 text-white'
+                  subTabExtras === 'pendientes' ? 'bg-dorado-vivo text-stone-950' : 'bg-dorado-tinta text-white'
                 }`}>
                   {horasExtra.filter((h) => h.estado === 'PENDIENTE').length}
                 </span>
@@ -3102,11 +3106,11 @@ export default function NominaAdminPage() {
                   : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
               }`}
             >
-              <Banknote className={`w-4 h-4 ${subTabExtras === 'por_pagar' ? 'text-emerald-200' : 'text-bodegon'}`} />
+              <Banknote className={`w-4 h-4 ${subTabExtras === 'por_pagar' ? 'text-[#CFE3DC]' : 'text-bodegon'}`} />
               <span>Por Pagar (Aprobadas)</span>
               {horasExtra.filter((h) => h.estado === 'APROBADO' && h.estado_pago !== 'PAGADO' && Number(h.horas_extra_autorizadas) > 0).length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
-                  subTabExtras === 'por_pagar' ? 'bg-emerald-400 text-stone-950' : 'bg-emerald-600 text-white'
+                  subTabExtras === 'por_pagar' ? 'bg-bodegon/70 text-stone-950' : 'bg-bodegon text-white'
                 }`}>
                   {horasExtra.filter((h) => h.estado === 'APROBADO' && h.estado_pago !== 'PAGADO' && Number(h.horas_extra_autorizadas) > 0).length}
                 </span>
@@ -3121,7 +3125,7 @@ export default function NominaAdminPage() {
                   : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
               }`}
             >
-              <Receipt className={`w-4 h-4 ${subTabExtras === 'pagadas' ? 'text-emerald-200' : 'text-bodegon'}`} />
+              <Receipt className={`w-4 h-4 ${subTabExtras === 'pagadas' ? 'text-[#CFE3DC]' : 'text-bodegon'}`} />
               <span>Historial de Pagos</span>
               {pagosHorasExtra.length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
@@ -3140,7 +3144,7 @@ export default function NominaAdminPage() {
                   : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
               }`}
             >
-              <FileCheck className={`w-4 h-4 ${subTabExtras === 'historial' ? 'text-emerald-200' : 'text-bodegon'}`} />
+              <FileCheck className={`w-4 h-4 ${subTabExtras === 'historial' ? 'text-[#CFE3DC]' : 'text-bodegon'}`} />
               <span>Todas las Resoluciones</span>
               {horasExtra.filter((h) => h.estado !== 'PENDIENTE').length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
@@ -3159,7 +3163,7 @@ export default function NominaAdminPage() {
                   : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
               }`}
             >
-              <Scale className={`w-4 h-4 ${subTabExtras === 'compensaciones' ? 'text-emerald-200' : 'text-bodegon'}`} />
+              <Scale className={`w-4 h-4 ${subTabExtras === 'compensaciones' ? 'text-[#CFE3DC]' : 'text-bodegon'}`} />
               <span>Bolsa de Horas</span>
               {compensaciones.length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
@@ -3175,31 +3179,31 @@ export default function NominaAdminPage() {
             <div className="space-y-4 animate-in fade-in duration-150">
               {/* Tarjetas Resumen Métrico de Horas Extra */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                <div className="bg-gradient-to-br from-amber-50/80 to-amber-100/40 border border-amber-250 rounded-2xl p-4 shadow-xs">
+                <div className="bg-gradient-to-br from-dorado/8 to-dorado/8 border border-dorado rounded-2xl p-4 shadow-xs">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                    <span className="text-[11px] font-bold text-cafe uppercase tracking-wider">
                       Pendiente por Aprobar
                     </span>
-                    <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                    <div className="w-8 h-8 rounded-xl bg-dorado-tinta text-white flex items-center justify-center font-bold shadow-xs">
                       <Clock className="w-4 h-4" />
                     </div>
                   </div>
                   <div className="mt-2 flex items-baseline gap-2">
-                    <span className="text-2xl font-black font-mono text-amber-900">
+                    <span className="text-2xl font-black font-mono text-cafe">
                       +{totalHorasExtraPendientes.toFixed(1)} hrs
                     </span>
-                    <span className="text-[10px] font-bold text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-dorado-tinta bg-dorado/18 px-2 py-0.5 rounded-full">
                       {horasExtra.filter((h) => h.estado === 'PENDIENTE').length} en cola
                     </span>
                   </div>
-                  <p className="text-[11px] text-amber-700 font-medium mt-1">
+                  <p className="text-[11px] text-dorado-tinta font-medium mt-1">
                     Suma total acumulada en espera de validación gerencial
                   </p>
                 </div>
 
-                <div className="bg-gradient-to-br from-emerald-50/80 to-emerald-100/40 border border-emerald-250 rounded-2xl p-4 shadow-xs">
+                <div className="bg-gradient-to-br from-bodegon/4 to-bodegon/4 border border-bodegon rounded-2xl p-4 shadow-xs">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                    <span className="text-[11px] font-bold text-bodegon-noche uppercase tracking-wider">
                       Horas Extra Aprobadas
                     </span>
                     <div className="w-8 h-8 rounded-xl bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
@@ -3207,14 +3211,14 @@ export default function NominaAdminPage() {
                     </div>
                   </div>
                   <div className="mt-2 flex items-baseline gap-2">
-                    <span className="text-2xl font-black font-mono text-emerald-900">
+                    <span className="text-2xl font-black font-mono text-bodegon-noche">
                       +{totalHorasExtraAprobadasGlobal.toFixed(1)} hrs
                     </span>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/60 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-bodegon bg-bodegon/12 px-2 py-0.5 rounded-full">
                       {horasExtra.filter((h) => h.estado === 'APROBADO').length} aprobadas
                     </span>
                   </div>
-                  <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                  <p className="text-[11px] text-bodegon font-medium mt-1">
                     Autorizadas para pago directo en nómina
                   </p>
                 </div>
@@ -3307,7 +3311,7 @@ export default function NominaAdminPage() {
                         <tr>
                           <td colSpan={6} className="px-6 py-12 text-center text-stone-400 font-normal">
                             <div className="flex flex-col items-center justify-center gap-2">
-                              <CheckCircle className="w-10 h-10 text-emerald-500" />
+                              <CheckCircle className="w-10 h-10 text-bodegon" />
                               <span className="font-bold text-stone-700 text-sm">¡Al día! No hay solicitudes de horas extra pendientes.</span>
                               <span className="text-xs text-stone-500">Todas las solicitudes han sido resueltas. Puedes ver las aprobadas en la pestaña &quot;Por Pagar (Aprobadas)&quot;.</span>
                             </div>
@@ -3328,7 +3332,7 @@ export default function NominaAdminPage() {
                                       {grupo.fechaLabel}
                                     </span>
                                     {grupo.esHoy && (
-                                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-300">
+                                      <span className="bg-bodegon/10 text-bodegon text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-bodegon/35">
                                         Hoy
                                       </span>
                                     )}
@@ -3358,7 +3362,7 @@ export default function NominaAdminPage() {
                           <td colSpan={2} className="px-6 py-3.5 text-right font-bold uppercase text-xs tracking-wider text-stone-600">
                             Total Pendiente por Evaluar:
                           </td>
-                          <td className="px-6 py-3.5 text-right font-mono font-black text-emerald-700 text-sm">
+                          <td className="px-6 py-3.5 text-right font-mono font-black text-bodegon text-sm">
                             +{horasExtraFiltradas.reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_solicitadas)) || 0), 0).toFixed(1)} hrs
                           </td>
                           <td className="px-6 py-3.5 text-right font-mono text-stone-400 text-xs">
@@ -3401,9 +3405,9 @@ export default function NominaAdminPage() {
 
                 return (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                    <div className="bg-gradient-to-br from-emerald-50/90 to-emerald-100/40 border border-emerald-250 rounded-2xl p-4 shadow-xs">
+                    <div className="bg-gradient-to-br from-bodegon/4 to-bodegon/4 border border-bodegon rounded-2xl p-4 shadow-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                        <span className="text-[11px] font-bold text-bodegon-noche uppercase tracking-wider">
                           Horas Autorizadas Pendientes
                         </span>
                         <div className="w-8 h-8 rounded-xl bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
@@ -3411,52 +3415,52 @@ export default function NominaAdminPage() {
                         </div>
                       </div>
                       <div className="mt-2 flex items-baseline gap-2">
-                        <span className="text-2xl font-black font-mono text-emerald-900">
+                        <span className="text-2xl font-black font-mono text-bodegon-noche">
                           {totHoras.toFixed(1)} hrs
                         </span>
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/60 px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold text-bodegon bg-bodegon/12 px-2 py-0.5 rounded-full">
                           {extrasPorPagar.length} fecha{extrasPorPagar.length !== 1 ? 's' : ''}
                         </span>
                       </div>
-                      <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                      <p className="text-[11px] text-bodegon font-medium mt-1">
                         Aprobadas formalmente, listas para liquidar y emitir recibo RPHE
                       </p>
                     </div>
 
-                    <div className="bg-gradient-to-br from-amber-50/90 to-amber-100/40 border border-amber-250 rounded-2xl p-4 shadow-xs">
+                    <div className="bg-gradient-to-br from-dorado/9 to-dorado/8 border border-dorado rounded-2xl p-4 shadow-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                        <span className="text-[11px] font-bold text-cafe uppercase tracking-wider">
                           Monto Total Estimado (C$)
                         </span>
-                        <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                        <div className="w-8 h-8 rounded-xl bg-dorado-tinta text-white flex items-center justify-center font-bold shadow-xs">
                           <Banknote className="w-4 h-4" />
                         </div>
                       </div>
                       <div className="mt-2 flex items-baseline gap-2">
-                        <span className="text-2xl font-black font-mono text-amber-950">
+                        <span className="text-2xl font-black font-mono text-cafe">
                           C$ {totMontoEst.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
-                      <p className="text-[11px] text-amber-800 font-medium mt-1">
+                      <p className="text-[11px] text-dorado-tinta font-medium mt-1">
                         Cálculo legal Art. 62 CT (Tarifa ordinaria x 2 con recargo del 100%)
                       </p>
                     </div>
 
-                    <div className="bg-gradient-to-br from-blue-50/90 to-blue-100/40 border border-blue-250 rounded-2xl p-4 shadow-xs">
+                    <div className="bg-gradient-to-br from-stone-50/90 to-stone-100/40 border border-stone-250 rounded-2xl p-4 shadow-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider">
+                        <span className="text-[11px] font-bold text-stone-900 uppercase tracking-wider">
                           Colaboradores Pendientes
                         </span>
-                        <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs">
+                        <div className="w-8 h-8 rounded-xl bg-stone-600 text-white flex items-center justify-center font-bold shadow-xs">
                           <Coins className="w-4 h-4" />
                         </div>
                       </div>
                       <div className="mt-2 flex items-baseline gap-2">
-                        <span className="text-2xl font-black font-mono text-blue-950">
+                        <span className="text-2xl font-black font-mono text-stone-950">
                           {empsConExtras.size} persona{empsConExtras.size !== 1 ? 's' : ''}
                         </span>
                       </div>
-                      <p className="text-[11px] text-blue-700 font-medium mt-1">
+                      <p className="text-[11px] text-stone-700 font-medium mt-1">
                         Permite liquidación individual por fecha o consolidado en lote
                       </p>
                     </div>
@@ -3519,7 +3523,7 @@ export default function NominaAdminPage() {
                 if (filtradas.length === 0) {
                   return (
                     <div className="bg-white border border-stone-200 rounded-2xl p-12 text-center text-stone-400 text-xs shadow-xs">
-                      <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                      <CheckCircle className="w-12 h-12 text-bodegon mx-auto mb-3" />
                       <p className="font-bold text-stone-700 text-sm">¡Al día! No hay horas extra pendientes de pago.</p>
                       <p className="text-stone-400 text-xs mt-1">Todas las horas autorizadas ya han sido liquidadas formalmente o no hay solicitudes aprobadas pendientes.</p>
                     </div>
@@ -3553,11 +3557,11 @@ export default function NominaAdminPage() {
                       });
 
                       return (
-                        <div key={`grupo-pagar-${empId}`} className="bg-white border border-stone-200/90 rounded-2xl shadow-xs overflow-hidden transition-all hover:border-emerald-300">
+                        <div key={`grupo-pagar-${empId}`} className="bg-white border border-stone-200/90 rounded-2xl shadow-xs overflow-hidden transition-all hover:border-bodegon/35">
                           {/* Cabecera del Colaborador */}
                           <div className="p-4 sm:p-5 bg-gradient-to-r from-stone-50 via-white to-stone-50/50 border-b border-stone-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3.5">
-                              <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center font-bold text-base shadow-2xs">
+                              <div className="w-11 h-11 rounded-xl bg-bodegon/5 text-bodegon border border-bodegon/20 flex items-center justify-center font-bold text-base shadow-2xs">
                                 {emp?.nombre ? emp.nombre[0] : '#'}
                               </div>
                               <div>
@@ -3572,7 +3576,7 @@ export default function NominaAdminPage() {
                                 <div className="flex items-center gap-3 text-xs text-stone-500 mt-1">
                                   <span>Tarifa Ordinaria: <strong className="font-mono text-stone-700">C$ {tarifaBase.toFixed(2)}/hr</strong></span>
                                   <span>•</span>
-                                  <span>Tarifa HE (2x): <strong className="font-mono text-emerald-700 font-bold">C$ {tarifaHE.toFixed(2)}/hr</strong></span>
+                                  <span>Tarifa HE (2x): <strong className="font-mono text-bodegon font-bold">C$ {tarifaHE.toFixed(2)}/hr</strong></span>
                                 </div>
                               </div>
                             </div>
@@ -3583,7 +3587,7 @@ export default function NominaAdminPage() {
                                 <div className="flex items-center gap-1.5 font-mono">
                                   <span className="font-bold text-sm text-stone-800">{totalHorasColab.toFixed(1)} hrs</span>
                                   <span className="text-stone-300">•</span>
-                                  <span className="font-black text-emerald-700 text-base">C$ {totalMontoColab.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                  <span className="font-black text-bodegon text-base">C$ {totalMontoColab.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                 </div>
                               </div>
 
@@ -3632,8 +3636,8 @@ export default function NominaAdminPage() {
                                       <td className="py-3 px-4 text-center font-mono text-stone-500">
                                         {Number(it.horas_extra_solicitadas || 0).toFixed(1)} hrs
                                       </td>
-                                      <td className="py-3 px-4 text-center font-mono font-bold text-emerald-700">
-                                        <span className="bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                      <td className="py-3 px-4 text-center font-mono font-bold text-bodegon">
+                                        <span className="bg-bodegon/5 border border-bodegon/20 px-2 py-0.5 rounded-md">
                                           +{hrsAut.toFixed(1)} hrs
                                         </span>
                                       </td>
@@ -3659,9 +3663,9 @@ export default function NominaAdminPage() {
                                           </button>
                                           <button
                                             onClick={() => emp && handleAbrirPagoHE(emp, [it])}
-                                            className="bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-400 px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                            className="bg-white hover:bg-bodegon/5 text-bodegon border border-bodegon/35 hover:border-bodegon/60 px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                           >
-                                            <Coins className="w-3 h-3 text-emerald-600" />
+                                            <Coins className="w-3 h-3 text-bodegon" />
                                             <span>Pagar Fecha</span>
                                           </button>
                                         </div>
@@ -3691,9 +3695,9 @@ export default function NominaAdminPage() {
 
                 return (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                    <div className="bg-gradient-to-br from-emerald-50/90 to-emerald-100/40 border border-emerald-250 rounded-2xl p-4 shadow-xs">
+                    <div className="bg-gradient-to-br from-bodegon/4 to-bodegon/4 border border-bodegon rounded-2xl p-4 shadow-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                        <span className="text-[11px] font-bold text-bodegon-noche uppercase tracking-wider">
                           Recibos Oficiales Emitidos
                         </span>
                         <div className="w-8 h-8 rounded-xl bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
@@ -3701,49 +3705,49 @@ export default function NominaAdminPage() {
                         </div>
                       </div>
                       <div className="mt-2 flex items-baseline gap-2">
-                        <span className="text-2xl font-black font-mono text-emerald-900">
+                        <span className="text-2xl font-black font-mono text-bodegon-noche">
                           {totPagos} recibo{totPagos !== 1 ? 's' : ''}
                         </span>
                       </div>
-                      <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                      <p className="text-[11px] text-bodegon font-medium mt-1">
                         Comprobantes emitidos formalmente con correlativo RPHE
                       </p>
                     </div>
 
-                    <div className="bg-gradient-to-br from-blue-50/90 to-blue-100/40 border border-blue-250 rounded-2xl p-4 shadow-xs">
+                    <div className="bg-gradient-to-br from-stone-50/90 to-stone-100/40 border border-stone-250 rounded-2xl p-4 shadow-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider">
+                        <span className="text-[11px] font-bold text-stone-900 uppercase tracking-wider">
                           Total Horas Liquidadas
                         </span>
-                        <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs">
+                        <div className="w-8 h-8 rounded-xl bg-stone-600 text-white flex items-center justify-center font-bold shadow-xs">
                           <Clock className="w-4 h-4" />
                         </div>
                       </div>
                       <div className="mt-2 flex items-baseline gap-2">
-                        <span className="text-2xl font-black font-mono text-blue-950">
+                        <span className="text-2xl font-black font-mono text-stone-950">
                           {totHoras.toFixed(1)} hrs
                         </span>
                       </div>
-                      <p className="text-[11px] text-blue-700 font-medium mt-1">
+                      <p className="text-[11px] text-stone-700 font-medium mt-1">
                         Horas extra autorizadas que ya han sido canceladas
                       </p>
                     </div>
 
-                    <div className="bg-gradient-to-br from-amber-50/90 to-amber-100/40 border border-amber-250 rounded-2xl p-4 shadow-xs">
+                    <div className="bg-gradient-to-br from-dorado/9 to-dorado/8 border border-dorado rounded-2xl p-4 shadow-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
+                        <span className="text-[11px] font-bold text-cafe uppercase tracking-wider">
                           Total Desembolsado (C$)
                         </span>
-                        <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                        <div className="w-8 h-8 rounded-xl bg-dorado-tinta text-white flex items-center justify-center font-bold shadow-xs">
                           <Banknote className="w-4 h-4" />
                         </div>
                       </div>
                       <div className="mt-2 flex items-baseline gap-2">
-                        <span className="text-2xl font-black font-mono text-amber-950">
+                        <span className="text-2xl font-black font-mono text-cafe">
                           C$ {totMonto.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
-                      <p className="text-[11px] text-amber-800 font-medium mt-1">
+                      <p className="text-[11px] text-dorado-tinta font-medium mt-1">
                         Suma cancelada mediante Efectivo, Transferencia o Nómina
                       </p>
                     </div>
@@ -3837,7 +3841,7 @@ export default function NominaAdminPage() {
                             return (
                               <tr key={`pago-row-${pago.id}`} className="hover:bg-stone-50/60 transition-colors">
                                 <td className="py-3 px-4">
-                                  <span className="font-mono font-bold text-bodegon bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1.5">
+                                  <span className="font-mono font-bold text-bodegon bg-bodegon/5 border border-bodegon/20 px-2 py-0.5 rounded-md inline-flex items-center gap-1.5">
                                     <Receipt className="w-3.5 h-3.5" />
                                     {pago.numero_recibo}
                                   </span>
@@ -3854,19 +3858,19 @@ export default function NominaAdminPage() {
                                     {cantFechas} fecha{cantFechas !== 1 ? 's' : ''}
                                   </span>
                                 </td>
-                                <td className="py-3 px-4 text-center font-mono font-bold text-emerald-800">
+                                <td className="py-3 px-4 text-center font-mono font-bold text-bodegon">
                                   {Number(pago.total_horas_pagadas).toFixed(1)} hrs
                                 </td>
-                                <td className="py-3 px-4 text-right font-mono font-black text-emerald-700 text-sm">
+                                <td className="py-3 px-4 text-right font-mono font-black text-bodegon text-sm">
                                   C$ {Number(pago.monto_total).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
                                 <td className="py-3 px-4">
                                   <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                                     pago.metodo_pago === 'EFECTIVO'
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      ? 'bg-bodegon/5 text-bodegon border-bodegon/20'
                                       : pago.metodo_pago === 'TRANSFERENCIA'
-                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                                      ? 'bg-stone-50 text-stone-700 border-stone-200'
+                                      : 'bg-dorado/10 text-dorado-tinta border-dorado/40'
                                   }`}>
                                     {pago.metodo_pago_display || pago.metodo_pago}
                                   </span>
@@ -3878,16 +3882,16 @@ export default function NominaAdminPage() {
                                   <div className="flex items-center justify-end gap-1.5">
                                     <button
                                       onClick={() => setSelectedPagoHEParaBoleta(pago)}
-                                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                                      className="bg-bodegon/5 hover:bg-bodegon/10 text-bodegon border border-bodegon/35 px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
                                       title="Imprimir o Ver Recibo Oficial"
                                     >
-                                      <Printer className="w-3.5 h-3.5 text-emerald-700" />
+                                      <Printer className="w-3.5 h-3.5 text-bodegon" />
                                       <span>Ver Recibo</span>
                                     </button>
 
                                     <button
                                       onClick={() => handleDeletePagoHE(pago)}
-                                      className="bg-stone-50 hover:bg-rose-50 text-stone-400 hover:text-rose-600 border border-stone-200 hover:border-rose-300 p-1 rounded-lg text-xs transition-all cursor-pointer shadow-2xs"
+                                      className="bg-stone-50 hover:bg-barro/5 text-stone-400 hover:text-barro border border-stone-200 hover:border-barro/40 p-1 rounded-lg text-xs transition-all cursor-pointer shadow-2xs"
                                       title="Anular Recibo de Pago"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -3911,9 +3915,9 @@ export default function NominaAdminPage() {
             <div className="space-y-4 animate-in fade-in duration-150">
               {/* Tarjetas Resumen de Resoluciones */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                <div className="bg-gradient-to-br from-emerald-50/90 to-emerald-100/40 border border-emerald-250 rounded-2xl p-4 shadow-xs">
+                <div className="bg-gradient-to-br from-bodegon/4 to-bodegon/4 border border-bodegon rounded-2xl p-4 shadow-xs">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
+                    <span className="text-[11px] font-bold text-bodegon-noche uppercase tracking-wider">
                       Horas Extra Aprobadas
                     </span>
                     <div className="w-8 h-8 rounded-xl bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
@@ -3921,36 +3925,36 @@ export default function NominaAdminPage() {
                     </div>
                   </div>
                   <div className="mt-2 flex items-baseline gap-2">
-                    <span className="text-2xl font-black font-mono text-emerald-900">
+                    <span className="text-2xl font-black font-mono text-bodegon-noche">
                       +{horasExtra.filter((h) => h.estado === 'APROBADO').reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_autorizadas)) || 0), 0).toFixed(1)} hrs
                     </span>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/60 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-bodegon bg-bodegon/12 px-2 py-0.5 rounded-full">
                       {horasExtra.filter((h) => h.estado === 'APROBADO').length} autorizadas
                     </span>
                   </div>
-                  <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                  <p className="text-[11px] text-bodegon font-medium mt-1">
                     Autorizadas formalmente para pago o nómina
                   </p>
                 </div>
 
-                <div className="bg-gradient-to-br from-teal-50/90 to-teal-100/40 border border-teal-250 rounded-2xl p-4 shadow-xs">
+                <div className="bg-gradient-to-br from-bodegon/4 to-bodegon/4 border border-bodegon rounded-2xl p-4 shadow-xs">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-teal-900 uppercase tracking-wider">
+                    <span className="text-[11px] font-bold text-bodegon-noche uppercase tracking-wider">
                       Boletas para Impresión
                     </span>
-                    <div className="w-8 h-8 rounded-xl bg-teal-700 text-white flex items-center justify-center font-bold shadow-xs">
+                    <div className="w-8 h-8 rounded-xl bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
                       <FileText className="w-4 h-4" />
                     </div>
                   </div>
                   <div className="mt-2 flex items-baseline gap-2">
-                    <span className="text-2xl font-black font-mono text-teal-900">
+                    <span className="text-2xl font-black font-mono text-bodegon-noche">
                       {horasExtra.filter((h) => h.estado === 'APROBADO').length}
                     </span>
-                    <span className="text-[10px] font-bold text-teal-800 bg-teal-200/60 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-bodegon bg-bodegon/12 px-2 py-0.5 rounded-full">
                       100% Limpias
                     </span>
                   </div>
-                  <p className="text-[11px] text-teal-700 font-medium mt-1">
+                  <p className="text-[11px] text-bodegon font-medium mt-1">
                     Listas para emitir e imprimir boleta individual
                   </p>
                 </div>
@@ -4102,10 +4106,10 @@ export default function NominaAdminPage() {
                                         +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs netas
                                       </span>
                                       <span
-                                        className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded shadow-2xs"
+                                        className="inline-flex items-center gap-1 text-[9px] font-bold text-cafe bg-dorado/20 border border-dorado/60 px-1.5 py-0.5 rounded shadow-2xs"
                                         title={`Generó +${Number(compHist.horas_extra_generadas).toFixed(1)}h brutas. Se dedujeron -${Number(compHist.horas_deducidas).toFixed(1)}h para saldar salidas tempranas de: ${fechasHistStr || 'días anteriores'}.`}
                                       >
-                                        <Scale className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                                        <Scale className="w-2.5 h-2.5 text-dorado-tinta shrink-0" />
                                         Saldó -{Number(compHist.horas_deducidas).toFixed(1)}h {fechasHistStr ? `(${fechasHistStr})` : ''}
                                       </span>
                                       <span className="text-[9px] text-stone-400 font-mono">
@@ -4118,10 +4122,10 @@ export default function NominaAdminPage() {
                                         +{parseFloat(String(item.horas_extra_solicitadas)).toFixed(1)} hrs netas
                                       </span>
                                       <span
-                                        className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded shadow-2xs max-w-[190px] truncate"
+                                        className="inline-flex items-center gap-1 text-[9px] font-bold text-cafe bg-dorado/20 border border-dorado/60 px-1.5 py-0.5 rounded shadow-2xs max-w-[190px] truncate"
                                         title={item.comentario}
                                       >
-                                        <Scale className="w-2.5 h-2.5 text-amber-700 shrink-0" />
+                                        <Scale className="w-2.5 h-2.5 text-dorado-tinta shrink-0" />
                                         Compensó déficit previo
                                       </span>
                                     </div>
@@ -4130,7 +4134,7 @@ export default function NominaAdminPage() {
                                   )}
                                 </td>
                                 <td className="px-4 py-3.5 text-right font-mono font-black whitespace-nowrap">
-                                  <span className={esAprob ? 'text-emerald-800' : 'text-stone-400'}>
+                                  <span className={esAprob ? 'text-bodegon' : 'text-stone-400'}>
                                     {esAprob ? `+${parseFloat(String(item.horas_extra_autorizadas)).toFixed(1)} hrs` : '0.0 hrs'}
                                   </span>
                                 </td>
@@ -4138,11 +4142,11 @@ export default function NominaAdminPage() {
                                   <span
                                     className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide border ${
                                       esAprob
-                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                                        : 'bg-rose-50 text-rose-800 border-rose-300'
+                                        ? 'bg-bodegon/5 text-bodegon border-bodegon/35'
+                                        : 'bg-barro/5 text-barro border-barro/40'
                                     }`}
                                   >
-                                    {esAprob ? <CheckCircle className="w-3 h-3 text-emerald-600" /> : <XCircle className="w-3 h-3 text-rose-600" />}
+                                    {esAprob ? <CheckCircle className="w-3 h-3 text-bodegon" /> : <XCircle className="w-3 h-3 text-barro" />}
                                     <span>{item.estado}</span>
                                   </span>
                                 </td>
@@ -4182,7 +4186,7 @@ export default function NominaAdminPage() {
                             <td className="px-4 py-3 text-right font-mono font-black text-stone-700">
                               +{itemsHistorial.reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_solicitadas)) || 0), 0).toFixed(1)} hrs
                             </td>
-                            <td className="px-4 py-3 text-right font-mono font-black text-emerald-800">
+                            <td className="px-4 py-3 text-right font-mono font-black text-bodegon">
                               +{itemsHistorial.filter((h) => h.estado === 'APROBADO').reduce((acc, h) => acc + (parseFloat(String(h.horas_extra_autorizadas)) || 0), 0).toFixed(1)} hrs
                             </td>
                             <td colSpan={3} className="px-4 py-3 text-stone-500 font-medium">
@@ -4243,12 +4247,12 @@ export default function NominaAdminPage() {
                     return (
                       <div
                         key={comp.id}
-                        className="bg-white border border-stone-200/90 rounded-2xl p-5 shadow-sm space-y-4 hover:border-emerald-300/80 transition-colors"
+                        className="bg-white border border-stone-200/90 rounded-2xl p-5 shadow-sm space-y-4 hover:border-bodegon/28 transition-colors"
                       >
                         {/* Header de la Tarjeta */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-bold shadow-2xs">
+                            <div className="w-10 h-10 rounded-xl bg-bodegon/5 text-bodegon border border-bodegon/20 flex items-center justify-center font-bold shadow-2xs">
                               <Scale className="w-5 h-5" />
                             </div>
                             <div>
@@ -4265,29 +4269,29 @@ export default function NominaAdminPage() {
                             <span
                               className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border shadow-2xs ${
                                 esSaldada
-                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                                  : 'bg-amber-50 text-amber-800 border-amber-300'
+                                  ? 'bg-bodegon/5 text-bodegon border-bodegon/35'
+                                  : 'bg-dorado/10 text-dorado-tinta border-dorado/60'
                               }`}
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
                               {esSaldada
-                                 ? 'Deuda Liquidada al 100% ✅'
-                                 : `Saldo Pendiente: ${Number(comp.saldo_restante).toFixed(1)} hrs ⚠️`}
+                                 ? 'Deuda liquidada al 100%'
+                                 : `Saldo Pendiente: ${Number(comp.saldo_restante).toFixed(1)} hrs`}
                             </span>
 
                             <button
                               onClick={() => setSelectedCompensacion(comp)}
-                              className="bg-white hover:bg-emerald-50 border border-stone-300 hover:border-emerald-500 text-stone-700 hover:text-emerald-800 px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                              className="bg-white hover:bg-bodegon/5 border border-stone-300 hover:border-bodegon text-stone-700 hover:text-bodegon px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
                               title="Descargar Boleta de Compensación en PDF"
                             >
-                              <Printer className="w-3.5 h-3.5 text-emerald-700" />
+                              <Printer className="w-3.5 h-3.5 text-bodegon" />
                               <span className="hidden sm:inline">Descargar Boleta PDF</span>
                               <span className="sm:hidden">Boleta PDF</span>
                             </button>
 
                             <button
                               onClick={() => handleDeleteCompensacion(comp.id)}
-                              className="p-1.5 hover:bg-rose-50 text-stone-400 hover:text-rose-600 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
+                              className="p-1.5 hover:bg-barro/5 text-stone-400 hover:text-barro rounded-lg transition-colors border border-transparent hover:border-barro/25 cursor-pointer"
                               title="Eliminar este registro de compensación"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -4297,10 +4301,10 @@ export default function NominaAdminPage() {
 
                         {/* Bloque Identificador: Salida Anticipada vs Día de Horas Extra */}
                         {Number(comp.horas_trabajadas_hoy) < 7.95 ? (
-                          <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3.5 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="bg-dorado/7 border border-dorado/32 rounded-xl p-3.5 text-xs text-cafe flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
-                              <span className="font-bold uppercase tracking-wider text-[10px] text-amber-800 flex items-center gap-1.5">
-                                <span>🟠</span>
+                              <span className="font-bold uppercase tracking-wider text-[10px] text-dorado-tinta flex items-center gap-1.5">
+                                
                                 <span>DÍA CON SALIDA ANTICIPADA (DÉFICIT COMPENSADO):</span>
                               </span>
                               <span className="font-bold text-stone-900 text-sm mt-0.5 block font-mono">
@@ -4323,29 +4327,29 @@ export default function NominaAdminPage() {
                                 <span className="text-[9px] text-stone-400 block">(base 8.0 hrs)</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-rose-600 block uppercase font-bold">
+                                <span className="text-[10px] text-barro block uppercase font-bold">
                                   Déficit Generado
                                 </span>
-                                <span className="font-mono font-black text-rose-700">
+                                <span className="font-mono font-black text-barro">
                                   -{Number(comp.deuda_previa).toFixed(1)} hrs
                                 </span>
-                                <span className="text-[9px] text-rose-400 block">Salida temprana</span>
+                                <span className="text-[9px] text-barro block">Salida temprana</span>
                               </div>
-                              <div className="bg-white px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs">
-                                <span className="text-[10px] text-amber-800 block uppercase font-bold">
+                              <div className="bg-white px-3 py-1.5 rounded-xl border border-dorado/60 shadow-2xs">
+                                <span className="text-[10px] text-dorado-tinta block uppercase font-bold">
                                   Cubierto con Horas Extra
                                 </span>
-                                <span className="font-mono font-black text-emerald-800 text-sm">
+                                <span className="font-mono font-black text-bodegon text-sm">
                                   +{Number(comp.horas_deducidas).toFixed(1)} hrs
                                 </span>
                               </div>
                             </div>
                           </div>
                         ) : (
-                          <div className="bg-emerald-50/60 border border-emerald-200/70 rounded-xl p-3.5 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="bg-bodegon/3 border border-bodegon/14 rounded-xl p-3.5 text-xs text-bodegon-noche flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
-                              <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 block">
-                                🟢 DÍA QUE HIZO LAS HORAS EXTRA (PAGO):
+                              <span className="font-bold uppercase tracking-wider text-[10px] text-bodegon block">
+                                DÍA QUE HIZO LAS HORAS EXTRA (PAGO):
                               </span>
                               <span className="font-bold text-stone-900 text-sm mt-0.5 block font-mono">
                                 {new Date(comp.fecha_compensacion + 'T00:00:00').toLocaleDateString('es-NI', {
@@ -4365,11 +4369,11 @@ export default function NominaAdminPage() {
                                   {Number(comp.horas_trabajadas_hoy).toFixed(1)} hrs
                                 </span>
                               </div>
-                              <div className="bg-white px-3 py-1.5 rounded-xl border border-emerald-300 shadow-2xs">
-                                <span className="text-[10px] text-emerald-800 block uppercase font-bold">
+                              <div className="bg-white px-3 py-1.5 rounded-xl border border-bodegon/35 shadow-2xs">
+                                <span className="text-[10px] text-bodegon block uppercase font-bold">
                                   Horas Extra Generadas
                                 </span>
-                                <span className="font-mono font-black text-emerald-900 text-sm">
+                                <span className="font-mono font-black text-bodegon-noche text-sm">
                                   +{Number(comp.horas_extra_generadas).toFixed(1)} hrs
                                 </span>
                               </div>
@@ -4381,9 +4385,9 @@ export default function NominaAdminPage() {
                         <div className="space-y-2">
                           <span className="font-bold uppercase tracking-wider text-[11px] text-stone-700 flex items-center gap-1.5">
                             {Number(comp.horas_trabajadas_hoy) < 7.95 ? (
-                              <span>📋 HORAS EXTRA PREVIAS UTILIZADAS PARA CUBRIR LA SALIDA TEMPRANA:</span>
+                              <span>HORAS EXTRA PREVIAS UTILIZADAS PARA CUBRIR LA SALIDA TEMPRANA:</span>
                             ) : (
-                              <span>📋 DESGLOSE DETALLADO DE CADA DÍA ADEUDADO:</span>
+                              <span>DESGLOSE DETALLADO DE CADA DÍA ADEUDADO:</span>
                             )}
                           </span>
 
@@ -4411,7 +4415,7 @@ export default function NominaAdminPage() {
                                   >
                                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/60 pb-1.5">
                                       <span className="font-bold text-stone-900 flex items-center gap-1.5">
-                                        <span>📅</span>
+                                        
                                         <span>{item.fecha_display || item.fecha}</span>
                                         {esSalidaAnt && (
                                           <span className="text-[10px] text-stone-500 font-normal">
@@ -4419,7 +4423,7 @@ export default function NominaAdminPage() {
                                           </span>
                                         )}
                                       </span>
-                                      <span className="bg-white border border-stone-200 px-2 py-0.5 rounded-md text-[10px] font-bold text-emerald-800 shadow-2xs">
+                                      <span className="bg-white border border-stone-200 px-2 py-0.5 rounded-md text-[10px] font-bold text-bodegon shadow-2xs">
                                         {estado}
                                       </span>
                                     </div>
@@ -4440,23 +4444,23 @@ export default function NominaAdminPage() {
                                       <div className="bg-white p-2 rounded-lg border border-stone-200/60">
                                         {esSalidaAnt ? (
                                           <>
-                                            <span className="text-emerald-700 block text-[10px] uppercase font-bold">
+                                            <span className="text-bodegon block text-[10px] uppercase font-bold">
                                               Horas Extra Acumuladas
                                             </span>
-                                            <span className="font-mono font-bold text-emerald-800">
+                                            <span className="font-mono font-bold text-bodegon">
                                               +{horasExtraOrigen.toFixed(1)} hrs
                                             </span>
-                                            <span className="text-[10px] text-emerald-600 block">Fondo a su favor</span>
+                                            <span className="text-[10px] text-bodegon block">Fondo a su favor</span>
                                           </>
                                         ) : (
                                           <>
-                                            <span className="text-rose-500 block text-[10px] uppercase font-bold">
+                                            <span className="text-barro block text-[10px] uppercase font-bold">
                                               Horas Faltaron (Déficit)
                                             </span>
-                                            <span className="font-mono font-bold text-rose-700">
+                                            <span className="font-mono font-bold text-barro">
                                               -{horasFaltaron.toFixed(1)} hrs
                                             </span>
-                                            <span className="text-[10px] text-rose-400 block">Deuda del día</span>
+                                            <span className="text-[10px] text-barro block">Deuda del día</span>
                                           </>
                                         )}
                                       </div>
@@ -4509,9 +4513,9 @@ export default function NominaAdminPage() {
                               <div className="flex items-center gap-1.5 text-xs font-mono">
                                 {Number(comp.horas_trabajadas_hoy) < 7.95 ? (
                                   <>
-                                    <span className="text-rose-700 font-bold" title="Déficit de hoy">-{Number(comp.deuda_previa).toFixed(1)}h déficit</span>
+                                    <span className="text-barro font-bold" title="Déficit de hoy">-{Number(comp.deuda_previa).toFixed(1)}h déficit</span>
                                     <span className="text-stone-400 font-normal">|</span>
-                                    <span className="text-emerald-700 font-bold" title="Horas extra aplicadas">+{Number(comp.horas_deducidas).toFixed(1)}h extra</span>
+                                    <span className="text-bodegon font-bold" title="Horas extra aplicadas">+{Number(comp.horas_deducidas).toFixed(1)}h extra</span>
                                     <span className="text-stone-400 font-normal">|</span>
                                     <span className="text-stone-700 font-medium" title="Remanente extra de nómina">
                                       {Number(comp.remanente_extra) > 0 ? `+${Number(comp.remanente_extra).toFixed(1)}h extra nómina` : '0.0h extra nómina'}
@@ -4523,7 +4527,7 @@ export default function NominaAdminPage() {
                                     <span className="text-stone-400 font-normal">|</span>
                                     <span className="text-bodegon font-bold" title="Aplicadas a Deuda">-{Number(comp.horas_deducidas).toFixed(1)}h</span>
                                     <span className="text-stone-400 font-normal">|</span>
-                                    <span className="text-emerald-700 font-black bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="A Pagar en Nómina">
+                                    <span className="text-bodegon font-black bg-bodegon/5 px-1.5 py-0.5 rounded border border-bodegon/20" title="A Pagar en Nómina">
                                       {Number(comp.remanente_extra) > 0 ? `+${Number(comp.remanente_extra).toFixed(1)}h pagar` : '0.0h'}
                                     </span>
                                   </>
@@ -4542,10 +4546,10 @@ export default function NominaAdminPage() {
                                     <span className="text-stone-600 font-bold" title="Déficit no cubierto">Déficit pendiente:</span>
                                     <span className={`font-black px-1.5 py-0.5 rounded border ${
                                       Number(comp.saldo_restante) <= 0
-                                        ? 'text-emerald-800 bg-emerald-50 border-emerald-300'
-                                        : 'text-amber-800 bg-amber-50 border-amber-300'
+                                        ? 'text-bodegon bg-bodegon/5 border-bodegon/35'
+                                        : 'text-dorado-tinta bg-dorado/10 border-dorado/60'
                                     }`} title="Saldo Deudor en Bolsa">
-                                      {Number(comp.saldo_restante) <= 0 ? '0.0h (Al Día ✅)' : `${Number(comp.saldo_restante).toFixed(1)}h a reponer`}
+                                      {Number(comp.saldo_restante) <= 0 ? '0.0h (al día)' : `${Number(comp.saldo_restante).toFixed(1)}h a reponer`}
                                     </span>
                                   </>
                                 ) : (
@@ -4554,10 +4558,10 @@ export default function NominaAdminPage() {
                                     <span className="text-stone-400 font-normal">➔</span>
                                     <span className={`font-black px-1.5 py-0.5 rounded border ${
                                       Number(comp.saldo_restante) <= 0
-                                        ? 'text-emerald-800 bg-emerald-50 border-emerald-300'
-                                        : 'text-rose-700 bg-rose-50 border-rose-300'
+                                        ? 'text-bodegon bg-bodegon/5 border-bodegon/35'
+                                        : 'text-barro bg-barro/5 border-barro/40'
                                     }`} title="Saldo Pendiente Actual">
-                                      {Number(comp.saldo_restante) <= 0 ? '0.0h (Al Día ✅)' : `${Number(comp.saldo_restante).toFixed(1)}h pendiente`}
+                                      {Number(comp.saldo_restante) <= 0 ? '0.0h (al día)' : `${Number(comp.saldo_restante).toFixed(1)}h pendiente`}
                                     </span>
                                   </>
                                 )}
@@ -4611,7 +4615,7 @@ export default function NominaAdminPage() {
                 <div>
                   <h3 className="font-bold text-base text-stone-900 tracking-tight flex items-center gap-2">
                     Saldos de Vacaciones por Colaborador
-                    <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    <span className="text-[11px] font-bold text-bodegon bg-bodegon/5 px-2 py-0.5 rounded-full border border-bodegon/20">
                       Ley Nic. Art. 76: +2.5 días/mes
                     </span>
                   </h3>
@@ -4664,7 +4668,7 @@ export default function NominaAdminPage() {
                     <th className="px-5 py-3">Colaborador</th>
                     <th className="px-4 py-3 text-right">Acumuladas Totales</th>
                     <th className="px-4 py-3 text-right">Días Tomados</th>
-                    <th className="px-4 py-3 text-right text-emerald-800 bg-emerald-50/50">Saldo Disponible</th>
+                    <th className="px-4 py-3 text-right text-bodegon bg-bodegon/2">Saldo Disponible</th>
                     <th className="px-4 py-3 text-center">Último Corte</th>
                     <th className="px-5 py-3 text-right">Acciones</th>
                   </tr>
@@ -4705,15 +4709,15 @@ export default function NominaAdminPage() {
                           <td className="px-4 py-3 text-right font-mono font-bold text-stone-700">
                             +{vacAcum.toFixed(2)} días
                           </td>
-                          <td className="px-4 py-3 text-right font-mono font-bold text-amber-700">
+                          <td className="px-4 py-3 text-right font-mono font-bold text-dorado-tinta">
                             {vacTom > 0 ? `-${vacTom.toFixed(2)} días` : '0.00 días'}
                           </td>
-                          <td className="px-4 py-3 text-right bg-emerald-50/20">
+                          <td className="px-4 py-3 text-right bg-bodegon/2">
                             <span
                               className={`inline-block font-mono font-black text-xs px-2.5 py-1 rounded-lg border shadow-2xs ${
                                 vacDisp < 0
-                                  ? 'bg-rose-50 text-rose-700 border-rose-300'
-                                  : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  ? 'bg-barro/5 text-barro border-barro/40'
+                                  : 'bg-bodegon/5 text-bodegon border-bodegon/35'
                               }`}
                             >
                               {vacDisp.toFixed(2)} {Math.abs(vacDisp) === 1 ? 'día' : 'días'}
@@ -4739,7 +4743,7 @@ export default function NominaAdminPage() {
                               <button
                                 type="button"
                                 onClick={() => handleOpenAcreditar(emp)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                                className="bg-bodegon hover:bg-bodegon text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
                                 title="Acreditar / Sumar días de vacaciones extraordinarias por ley o bonificación (matrimonio, etc.)"
                               >
                                 <PlusCircle className="w-3.5 h-3.5" />
@@ -4803,10 +4807,10 @@ export default function NominaAdminPage() {
                   onChange={(e) => setNuevoPermisoTipo(e.target.value as TipoPermisoType)}
                   className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon font-medium"
                 >
-                  <option value="VACACIONES">🏖️ Vacaciones</option>
-                  <option value="VACACIONES_PAGADAS">💰 Vacaciones Pagadas</option>
-                  <option value="INCAPACIDAD_MEDICA">🏥 Incapacidad Médica</option>
-                  <option value="PERMISO_AUTORIZADO">📋 Permiso Autorizado</option>
+                  <option value="VACACIONES">Vacaciones</option>
+                  <option value="VACACIONES_PAGADAS">Vacaciones pagadas</option>
+                  <option value="INCAPACIDAD_MEDICA">Incapacidad médica</option>
+                  <option value="PERMISO_AUTORIZADO">Permiso autorizado</option>
                 </select>
               </div>
 
@@ -4878,7 +4882,7 @@ export default function NominaAdminPage() {
                     </span>
                   </div>
                   <p className="text-[10px] text-stone-500 leading-tight">
-                    ⚖️ <strong>Art. 64 C.T. Nicaragua:</strong> 1 día de descanso por cada 6 días trabajados. Los descansos semanales dentro del período no se deducen del saldo vacacional.
+                    <strong>Art. 64 C.T. Nicaragua:</strong> 1 día de descanso por cada 6 días trabajados. Los descansos semanales dentro del período no se deducen del saldo vacacional.
                   </p>
                 </div>
               )}
@@ -4958,7 +4962,7 @@ export default function NominaAdminPage() {
                             </div>
                             {p.motivo && (
                               <p className="text-[11px] text-stone-600 italic mt-1 font-medium bg-white/70 px-2 py-0.5 rounded border border-stone-200/50 inline-block">
-                                📝 Motivo: {p.motivo}
+                                Motivo: {p.motivo}
                               </p>
                             )}
                           </div>
@@ -4966,7 +4970,7 @@ export default function NominaAdminPage() {
 
                         <button
                           onClick={() => handleDeletePermiso(p.id)}
-                          className="p-2 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl text-rose-600 transition-colors"
+                          className="p-2 hover:bg-barro/5 border border-transparent hover:border-barro/25 rounded-xl text-barro transition-colors"
                           title="Eliminar Permiso"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -5256,7 +5260,7 @@ export default function NominaAdminPage() {
 
                       <button
                         onClick={() => handleDeleteFeriado(f.id!)}
-                        className="p-2 hover:bg-rose-50 border border-transparent hover:border-rose-250 rounded-xl text-rose-600 transition-colors"
+                        className="p-2 hover:bg-barro/5 border border-transparent hover:border-barro rounded-xl text-barro transition-colors"
                         title="Eliminar Feriado"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -5332,22 +5336,22 @@ export default function NominaAdminPage() {
                             </td>
                             <td className="py-3 px-3 text-center">
                               {comp.estado === 'PENDIENTE' && (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-dorado/20 text-cafe border border-dorado/60">
                                   Pendiente
                                 </span>
                               )}
                               {comp.estado === 'DINERO' && (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-bodegon/10 text-bodegon-noche border border-bodegon/35">
                                   Pagado Dinero ({comp.dias_pagados_dinero}d)
                                 </span>
                               )}
                               {comp.estado === 'VACACIONES' && (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-stone-100 text-stone-900 border border-stone-300">
                                   Acred. Vacaciones (+{comp.dias_acreditados_vacaciones}d)
                                 </span>
                               )}
                               {comp.estado === 'MIXTO' && (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-stone-100 text-stone-900 border border-stone-300">
                                   Mixto ({comp.dias_pagados_dinero}d / {comp.dias_acreditados_vacaciones}d)
                                 </span>
                               )}
@@ -5395,10 +5399,10 @@ export default function NominaAdminPage() {
                 type="button"
                 onClick={handleSincronizarDescansos}
                 disabled={syncingDescansos}
-                className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                className="bg-dorado/10 hover:bg-dorado/20 text-cafe border border-dorado/60 px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
                 title="Escanear semanas completas trabajadas (7 días) y acreditar +1 día a vacaciones por descanso laborado"
               >
-                <Sparkles className={`w-3.5 h-3.5 text-amber-600 ${syncingDescansos ? 'animate-spin' : ''}`} />
+                <Sparkles className={`w-3.5 h-3.5 text-dorado-tinta ${syncingDescansos ? 'animate-spin' : ''}`} />
                 <span>Sincronizar Días Libres (+1d)</span>
               </button>
 
@@ -5427,7 +5431,7 @@ export default function NominaAdminPage() {
                 <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Días Pagados Totales</span>
-                    <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-bodegon">
+                    <div className="w-8 h-8 rounded-xl bg-bodegon/5 border border-bodegon/20 flex items-center justify-center text-bodegon">
                       <Palmtree className="w-4 h-4" />
                     </div>
                   </div>
@@ -5442,13 +5446,13 @@ export default function NominaAdminPage() {
                 <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Monto Desembolsado</span>
-                    <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800">
+                    <div className="w-8 h-8 rounded-xl bg-dorado/10 border border-dorado/40 flex items-center justify-center text-dorado-tinta">
                       <Coins className="w-4 h-4" />
                     </div>
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
                     <span className="text-xs font-bold text-stone-400 font-mono">C$</span>
-                    <span className="text-2xl font-black font-mono text-emerald-800">
+                    <span className="text-2xl font-black font-mono text-bodegon">
                       {totMonto.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
@@ -5457,7 +5461,7 @@ export default function NominaAdminPage() {
                 <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Tarifa Promedio</span>
-                    <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700">
+                    <div className="w-8 h-8 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-700">
                       <Scale className="w-4 h-4" />
                     </div>
                   </div>
@@ -5473,7 +5477,7 @@ export default function NominaAdminPage() {
                 <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Boletas Oficiales</span>
-                    <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
+                    <div className="w-8 h-8 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-700">
                       <FileText className="w-4 h-4" />
                     </div>
                   </div>
@@ -5577,7 +5581,7 @@ export default function NominaAdminPage() {
                         return (
                           <tr key={p.id} className="hover:bg-stone-50/60 transition-colors">
                             <td className="px-4 py-3.5 font-mono font-bold text-bodegon">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-50 text-bodegon border border-emerald-200 font-black text-xs">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-bodegon/5 text-bodegon border border-bodegon/20 font-black text-xs">
                                 {p.numero_recibo}
                               </span>
                             </td>
@@ -5604,7 +5608,7 @@ export default function NominaAdminPage() {
                               </div>
                             </td>
                             <td className="px-4 py-3.5 text-right font-mono whitespace-nowrap">
-                              <span className="font-black text-emerald-800 text-sm block">
+                              <span className="font-black text-bodegon text-sm block">
                                 {diasP.toFixed(1)} d
                               </span>
                               <span className="text-[10px] text-stone-400 block font-mono">
@@ -5614,16 +5618,16 @@ export default function NominaAdminPage() {
                             <td className="px-4 py-3.5 text-right font-mono font-bold text-stone-700 whitespace-nowrap">
                               {tarifaDia > 0 ? `C$ ${tarifaDia.toFixed(2)}` : 'Convenio'}
                             </td>
-                            <td className="px-4 py-3.5 text-right font-mono font-black text-emerald-800 whitespace-nowrap">
+                            <td className="px-4 py-3.5 text-right font-mono font-black text-bodegon whitespace-nowrap">
                               C$ {montoP.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
                             <td className="px-4 py-3.5 text-center font-mono text-xs whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1">
                                 <span className="text-stone-500">{parseFloat(String(p.dias_saldo_anterior)).toFixed(1)}d</span>
                                 <span className="text-stone-400">&rarr;</span>
-                                <strong className="text-emerald-700 font-black">{parseFloat(String(p.dias_saldo_nuevo)).toFixed(1)}d</strong>
+                                <strong className="text-bodegon font-black">{parseFloat(String(p.dias_saldo_nuevo)).toFixed(1)}d</strong>
                               </div>
-                              <span className="text-[10px] text-rose-600 font-bold block">
+                              <span className="text-[10px] text-barro font-bold block">
                                 (-{diasP.toFixed(1)}d deducidos)
                               </span>
                             </td>
@@ -5651,7 +5655,7 @@ export default function NominaAdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleDeletePagoVacaciones(p.id)}
-                                  className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 text-stone-400 hover:text-barro hover:bg-barro/5 rounded-lg transition-colors cursor-pointer"
                                   title="Anular este pago y reintegrar saldo al colaborador"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -5701,7 +5705,7 @@ export default function NominaAdminPage() {
                   return (
                     <div
                       key={emp.id}
-                      className="bg-stone-50/70 border border-stone-200/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 hover:border-emerald-300 transition-colors"
+                      className="bg-stone-50/70 border border-stone-200/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 hover:border-bodegon/35 transition-colors"
                     >
                       <div>
                         <h4 className="font-bold text-stone-900 text-xs leading-tight">
@@ -5712,7 +5716,7 @@ export default function NominaAdminPage() {
                         </span>
                         <div className="mt-1.5 flex items-center gap-2 font-mono text-[11px]">
                           <span className="text-stone-400">Disp:</span>
-                          <strong className={disp > 0 ? 'text-emerald-700 font-black' : 'text-stone-500'}>
+                          <strong className={disp > 0 ? 'text-bodegon font-black' : 'text-stone-500'}>
                             {disp.toFixed(1)} d
                           </strong>
                           <span className="text-stone-300">|</span>
@@ -5726,7 +5730,7 @@ export default function NominaAdminPage() {
                           setEmpleadoParaPagoVac(emp);
                           setShowModalEmitirPagoVac(true);
                         }}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-bodegon/5 text-bodegon border border-bodegon/35 hover:border-bodegon shadow-2xs transition-all cursor-pointer whitespace-nowrap"
                       >
                         Pagar
                       </button>
@@ -5803,12 +5807,12 @@ export default function NominaAdminPage() {
                   <div
                     className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold ${
                       modoAjusteVac === 'SUMAR'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        ? 'bg-bodegon/5 text-bodegon border border-bodegon/20'
                         : 'bg-stone-100 text-stone-700 border border-stone-200'
                     }`}
                   >
                     {modoAjusteVac === 'SUMAR' ? (
-                      <PlusCircle className="w-5 h-5 text-emerald-600" />
+                      <PlusCircle className="w-5 h-5 text-bodegon" />
                     ) : (
                       <Edit3 className="w-5 h-5 text-stone-700" />
                     )}
@@ -5841,12 +5845,12 @@ export default function NominaAdminPage() {
                   onClick={() => setModoAjusteVac('SUMAR')}
                   className={`flex-1 py-1.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
                     modoAjusteVac === 'SUMAR'
-                      ? 'bg-emerald-600 text-white shadow-xs'
+                      ? 'bg-bodegon text-white shadow-xs'
                       : 'text-stone-600 hover:text-stone-900'
                   }`}
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
-                  <span>➕ Sumar Días Extra (Matrimonio / Ley)</span>
+                  <span>Sumar Días Extra (Matrimonio / Ley)</span>
                 </button>
                 <button
                   type="button"
@@ -5858,14 +5862,14 @@ export default function NominaAdminPage() {
                   }`}
                 >
                   <Edit3 className="w-3.5 h-3.5" />
-                  <span>⚙️ Corregir Saldo Total</span>
+                  <span>Corregir Saldo Total</span>
                 </button>
               </div>
 
               <form onSubmit={handleSaveAjusteVacaciones} className="space-y-4">
                 {modoAjusteVac === 'SUMAR' ? (
                   <>
-                    <div className="grid grid-cols-2 gap-3 bg-emerald-50/50 p-3.5 rounded-2xl border border-emerald-200">
+                    <div className="grid grid-cols-2 gap-3 bg-bodegon/2 p-3.5 rounded-2xl border border-bodegon/20">
                       <div>
                         <span className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
                           Saldo Acumulado Actual:
@@ -5876,7 +5880,7 @@ export default function NominaAdminPage() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-1">
+                        <label className="block text-[10px] font-bold text-bodegon uppercase tracking-wider mb-1">
                           Días a Otorgar / Sumar (+):
                         </label>
                         <div className="relative">
@@ -5887,10 +5891,10 @@ export default function NominaAdminPage() {
                             required
                             value={diasASumar}
                             onChange={(e) => setDiasASumar(e.target.value)}
-                            className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-base font-mono font-black text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            className="w-full bg-white border border-bodegon/35 rounded-xl px-3 py-1.5 text-base font-mono font-black text-bodegon-noche focus:outline-none focus:ring-2 focus:ring-bodegon"
                             placeholder="5"
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-600">
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-bodegon">
                             días
                           </span>
                         </div>
@@ -5906,11 +5910,11 @@ export default function NominaAdminPage() {
                         onChange={(e) => setMotivoAcreditacion(e.target.value)}
                         className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs text-stone-900 font-bold"
                       >
-                        <option value="MATRIMONIO">💍 Permiso legal por Matrimonio (5 días por ley / política)</option>
-                        <option value="PATERNIDAD">👶 Permiso por Paternidad / Nacimiento de hijo</option>
-                        <option value="DUELO">🕊️ Permiso por Duelo / Luto familiar</option>
-                        <option value="BONIFICACION">🎁 Bonificación extraordinaria / Incentivo laboral</option>
-                        <option value="OTRO">📝 Otro motivo justificado por gerencia</option>
+                        <option value="MATRIMONIO">Permiso legal por Matrimonio (5 días por ley / política)</option>
+                        <option value="PATERNIDAD">Permiso por Paternidad / Nacimiento de hijo</option>
+                        <option value="DUELO">Permiso por Duelo / Luto familiar</option>
+                        <option value="BONIFICACION">Bonificación extraordinaria / Incentivo laboral</option>
+                        <option value="OTRO">Otro motivo justificado por gerencia</option>
                       </select>
                     </div>
 
@@ -5952,7 +5956,7 @@ export default function NominaAdminPage() {
                         </span>
                       </div>
                       <p className="text-[11px] text-stone-500 font-medium mt-1">
-                        💡 Reemplaza directamente el valor de días acumulados del empleado.
+                        Reemplaza directamente el valor de días acumulados del empleado.
                       </p>
                     </div>
 
@@ -5974,10 +5978,10 @@ export default function NominaAdminPage() {
                 )}
 
                 {/* Previsualización en Vivo */}
-                <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3.5 text-xs space-y-1.5">
-                  <div className="flex items-center justify-between font-bold text-emerald-950 uppercase tracking-wider text-[10px]">
+                <div className="bg-bodegon/4 border border-bodegon/20 rounded-2xl p-3.5 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between font-bold text-bodegon-noche uppercase tracking-wider text-[10px]">
                     <span>Previsualización del Saldo Resultante:</span>
-                    <span className="font-mono text-emerald-800">
+                    <span className="font-mono text-bodegon">
                       {modoAjusteVac === 'SUMAR'
                         ? `+${addDiasNum.toFixed(1)} días por ${motivoAcreditacion.toLowerCase()}`
                         : 'Fijación directa'}
@@ -5989,11 +5993,11 @@ export default function NominaAdminPage() {
                   </div>
                   <div className="flex items-center justify-between font-mono text-stone-700">
                     <span>Días ya tomados / gozados:</span>
-                    <strong className="text-amber-700">-{vacTom.toFixed(2)} d</strong>
+                    <strong className="text-dorado-tinta">-{vacTom.toFixed(2)} d</strong>
                   </div>
-                  <div className="flex items-center justify-between font-mono border-t border-emerald-200/80 pt-1.5 font-bold">
-                    <span className="text-emerald-950 text-xs">Saldo Total Disponible:</span>
-                    <strong className="text-emerald-800 text-base">={previewDisp.toFixed(2)} días</strong>
+                  <div className="flex items-center justify-between font-mono border-t border-bodegon/16 pt-1.5 font-bold">
+                    <span className="text-bodegon-noche text-xs">Saldo Total Disponible:</span>
+                    <strong className="text-bodegon text-base">={previewDisp.toFixed(2)} días</strong>
                   </div>
                 </div>
 
@@ -6009,7 +6013,7 @@ export default function NominaAdminPage() {
                   <button
                     type="submit"
                     disabled={savingAjusteVac}
-                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="bg-bodegon hover:bg-bodegon disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     {savingAjusteVac ? (
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -6111,7 +6115,7 @@ export default function NominaAdminPage() {
           >
             <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                <div className="w-8 h-8 rounded-xl bg-bodegon/5 text-bodegon flex items-center justify-center font-bold">
                   <Camera className="w-4 h-4" />
                 </div>
                 <div>
