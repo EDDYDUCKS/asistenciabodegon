@@ -4,8 +4,10 @@ import BackendKeepAlive from "@/components/BackendKeepAlive";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BodegónPass | Sistema de Asistencia",
-  description: "BodegónPass — Sistema Inteligente de Control de Asistencia y Personal",
+  title: "Bodegón Pass · TEGA",
+  authors: [{ name: "TEGA" }],
+  creator: "TEGA",
+  description: "Bodegón Pass: asistencia y personal del Restaurante El Bodegón. Un sistema de TEGA.",
   robots: { index: false, follow: false },
 };
 

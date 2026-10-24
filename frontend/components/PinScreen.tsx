@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Delete } from 'lucide-react';
+import TegaFirma from './TegaFirma';
 
 interface PinScreenProps {
   /** Etiqueta corta en dorado, sobre el título de la banda verde. */
@@ -123,6 +124,7 @@ export default function PinScreen({
               <Delete className="w-6 h-6" />
             </button>
           </div>
+          <TegaFirma alto={12} />
         </div>
       </section>
     </div>
