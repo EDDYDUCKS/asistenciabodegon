@@ -202,10 +202,10 @@ export default function ModalEmitirPagoHorasExtra({
   if (!isOpen || !mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-[99999] bg-black/80 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150">
         {/* Encabezado */}
-        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#1c6856] to-[#154f42] text-white">
+        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-bodegon to-bodegon-noche text-white">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 shadow-inner">
               <Banknote className="w-5 h-5 text-emerald-200" />
@@ -240,14 +240,14 @@ export default function ModalEmitirPagoHorasExtra({
           {/* Selector de Colaborador */}
           <div>
             <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-[#1c6856]" />
+              <User className="w-3.5 h-3.5 text-bodegon" />
               Colaborador a Liquidar:
             </label>
             <select
               value={selectedEmpId}
               onChange={(e) => setSelectedEmpId(e.target.value ? Number(e.target.value) : '')}
               disabled={Boolean(empleadoPreseleccionado)}
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#1c6856] disabled:opacity-75 disabled:bg-stone-100"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-semibold focus:outline-none focus:ring-2 focus:ring-bodegon disabled:opacity-75 disabled:bg-stone-100"
             >
               <option value="">-- Seleccione un colaborador --</option>
               {empleados
@@ -271,14 +271,14 @@ export default function ModalEmitirPagoHorasExtra({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-[#1c6856]" />
+                  <Clock className="w-3.5 h-3.5 text-bodegon" />
                   Jornadas Extraordinarias Aprobadas ({extrasDelColaborador.length}):
                 </label>
                 {extrasDelColaborador.length > 1 && (
                   <button
                     type="button"
                     onClick={toggleSelectAll}
-                    className="text-[11px] font-bold text-[#1c6856] hover:underline cursor-pointer"
+                    className="text-[11px] font-bold text-bodegon hover:underline cursor-pointer"
                   >
                     {selectedExtraIds.length === extrasDelColaborador.length ? 'Deseleccionar todas' : 'Seleccionar todas (Lote)'}
                   </button>
@@ -312,7 +312,7 @@ export default function ModalEmitirPagoHorasExtra({
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => toggleItem(h.id!)}
-                            className="w-4 h-4 rounded text-[#1c6856] focus:ring-[#1c6856] border-stone-300 cursor-pointer"
+                            className="w-4 h-4 rounded text-bodegon focus:ring-bodegon border-stone-300 cursor-pointer"
                           />
                           <div>
                             <span className="font-bold text-stone-900 block">
@@ -363,8 +363,8 @@ export default function ModalEmitirPagoHorasExtra({
                   <strong className="text-emerald-900 font-mono font-black text-sm">+{totalHorasSeleccionadas.toFixed(1)} hrs</strong>
                 </div>
                 <div className="bg-white/90 p-2.5 rounded-xl border border-emerald-200/80 shadow-2xs">
-                  <span className="text-[10px] uppercase font-bold text-[#1c6856] block">Monto Total a Pagar</span>
-                  <strong className="text-[#1c6856] font-mono font-black text-base">C$ {montoFinal.toFixed(2)}</strong>
+                  <span className="text-[10px] uppercase font-bold text-bodegon block">Monto Total a Pagar</span>
+                  <strong className="text-bodegon font-mono font-black text-base">C$ {montoFinal.toFixed(2)}</strong>
                 </div>
               </div>
 
@@ -378,7 +378,7 @@ export default function ModalEmitirPagoHorasExtra({
                     step="0.50"
                     value={tarifaHora}
                     onChange={(e) => setTarifaHora(e.target.value)}
-                    className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856]"
+                    className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-bodegon"
                   />
                   {currentEmp && !(parseFloat(String(currentEmp.tarifa_hora || 0)) > 0) ? (
                     <span className="text-[10px] text-amber-700 font-bold mt-0.5 block">
@@ -401,7 +401,7 @@ export default function ModalEmitirPagoHorasExtra({
                     placeholder={montoSugerido.toFixed(2)}
                     value={montoTotalManual}
                     onChange={(e) => setMontoTotalManual(e.target.value)}
-                    className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono font-black text-emerald-800 focus:outline-none focus:ring-2 focus:ring-[#1c6856]"
+                    className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono font-black text-emerald-800 focus:outline-none focus:ring-2 focus:ring-bodegon"
                   />
                   <span className="text-[10px] text-stone-500 mt-0.5 block">
                     Dejar en blanco para usar el total exacto (C$ {montoSugerido.toFixed(2)})
@@ -415,26 +415,26 @@ export default function ModalEmitirPagoHorasExtra({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#1c6856]" />
+                <Calendar className="w-3.5 h-3.5 text-bodegon" />
                 Fecha de Emisión del Pago:
               </label>
               <input
                 type="date"
                 value={fechaPago}
                 onChange={(e) => setFechaPago(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856]"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-bodegon"
               />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                <Banknote className="w-3.5 h-3.5 text-[#1c6856]" />
+                <Banknote className="w-3.5 h-3.5 text-bodegon" />
                 Modalidad / Método de Pago:
               </label>
               <select
                 value={metodoPago}
                 onChange={(e) => setMetodoPago(e.target.value as any)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856]"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-bodegon"
               >
                 <option value="EFECTIVO">Efectivo en Caja</option>
                 <option value="TRANSFERENCIA">Transferencia Bancaria</option>
@@ -453,7 +453,7 @@ export default function ModalEmitirPagoHorasExtra({
               placeholder="Ej. Liquidación de horas extra primera quincena de septiembre"
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856]"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-bodegon"
             />
           </div>
 
@@ -461,7 +461,7 @@ export default function ModalEmitirPagoHorasExtra({
           <div className="bg-stone-50 border border-stone-250 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 text-xs font-bold text-stone-900 uppercase tracking-wider">
-                <ShieldCheck className="w-4 h-4 text-[#1c6856]" />
+                <ShieldCheck className="w-4 h-4 text-bodegon" />
                 <span>Autorización Gerencial</span>
               </div>
               <p className="text-[11px] text-stone-500 mt-0.5">
@@ -481,7 +481,7 @@ export default function ModalEmitirPagoHorasExtra({
                   setPinError(false);
                 }}
                 className={`w-24 text-center font-mono font-black text-sm tracking-widest bg-white border rounded-xl py-2 px-3 focus:outline-none ${
-                  pinError ? 'border-rose-400 ring-2 ring-rose-200' : 'border-stone-300 focus:ring-2 focus:ring-[#1c6856]'
+                  pinError ? 'border-rose-400 ring-2 ring-rose-200' : 'border-stone-300 focus:ring-2 focus:ring-bodegon'
                 }`}
               />
             </div>
@@ -499,7 +499,7 @@ export default function ModalEmitirPagoHorasExtra({
             <button
               type="submit"
               disabled={loading || selectedExtraIds.length === 0}
-              className="px-6 py-2.5 rounded-xl bg-[#1c6856] hover:bg-[#154f42] text-white font-bold text-xs transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer active:scale-95"
+              className="px-6 py-2.5 rounded-xl bg-bodegon hover:bg-bodegon-noche text-white font-bold text-xs transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>{loading ? 'Emitiendo Pago...' : `Confirmar y Emitir Pago (C$ ${montoFinal.toFixed(2)})`}</span>

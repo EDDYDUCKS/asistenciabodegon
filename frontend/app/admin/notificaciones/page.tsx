@@ -266,7 +266,7 @@ export default function NotificacionesDetalladasPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center">
+            <div className="w-9 h-9 rounded-2xl bg-bodegon/10 text-bodegon flex items-center justify-center">
               <Bell className="w-5 h-5" />
             </div>
             Alertas y Sanciones
@@ -279,7 +279,7 @@ export default function NotificacionesDetalladasPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => downloadInasistenciasExcel()}
-            className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+            className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
             title="Descargar Reporte Oficial de Inasistencias y Compensaciones en Excel"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
@@ -293,7 +293,7 @@ export default function NotificacionesDetalladasPage() {
               setSancionFecha(new Date().toISOString().slice(0, 10));
               setShowModalSancion(true);
             }}
-            className="bg-rose-700 hover:bg-rose-800 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+            className="bg-rose-700 hover:bg-rose-800 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
             <Gavel className="w-4 h-4 text-rose-200" />
             Aplicar Sanción
@@ -322,7 +322,7 @@ export default function NotificacionesDetalladasPage() {
 
           <button
             onClick={loadData}
-            className="bg-[#1c6856]/10 border border-[#1c6856]/20 hover:bg-[#1c6856]/20 text-[#1c6856] px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="bg-bodegon/10 border border-bodegon/20 hover:bg-bodegon/20 text-bodegon px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Actualizar
@@ -338,7 +338,7 @@ export default function NotificacionesDetalladasPage() {
             onClick={() => setFiltroTipo('TODAS')}
             className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               filtroTipo === 'TODAS'
-                ? 'bg-[#1c6856] text-white shadow-sm'
+                ? 'bg-bodegon text-white shadow-sm'
                 : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
             }`}
           >
@@ -438,7 +438,7 @@ export default function NotificacionesDetalladasPage() {
             placeholder="Buscar por empleado o motivo..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#1c6856]/20 focus:border-[#1c6856]"
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-bodegon/20 focus:border-bodegon"
           />
         </div>
       </div>
@@ -446,7 +446,7 @@ export default function NotificacionesDetalladasPage() {
       {/* Listado de Notificaciones */}
       {loading ? (
         <div className="bg-white border border-stone-200 rounded-3xl p-12 text-center text-stone-400 space-y-3">
-          <RefreshCw className="w-8 h-8 animate-spin mx-auto text-[#1c6856]" />
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto text-bodegon" />
           <p className="text-xs font-bold">Cargando notificaciones detalladas...</p>
         </div>
       ) : filteredAlertas.length === 0 ? (
@@ -499,7 +499,7 @@ export default function NotificacionesDetalladasPage() {
                         {al.titulo}
                       </h3>
                       {al.empleado_detalle && (
-                        <p className="text-xs font-bold text-[#1c6856] mt-0.5">
+                        <p className="text-xs font-bold text-bodegon mt-0.5">
                           Colaborador: {al.empleado_detalle.nombre} {al.empleado_detalle.apellido}{' '}
                           <span className="text-stone-400 font-normal">({al.empleado_detalle.cargo_display})</span>
                         </p>
@@ -516,7 +516,7 @@ export default function NotificacionesDetalladasPage() {
                     {al.tipo === 'REPORTE_VACACIONES' ? (
                       <Link
                         href="/admin/nomina?tab=permisos&imprimirVacacionesMes=1"
-                        className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                        className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                       >
                         <Printer className="w-3.5 h-3.5 text-emerald-200" />
                         Imprimir Vacaciones del Mes
@@ -524,10 +524,10 @@ export default function NotificacionesDetalladasPage() {
                     ) : (
                       <button
                         onClick={() => setSelectedAlerta(al)}
-                        className="bg-white hover:bg-stone-50 border border-stone-300 text-stone-800 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:border-[#1c6856] hover:text-[#1c6856] active:scale-95"
+                        className="bg-white hover:bg-stone-50 border border-stone-300 text-stone-800 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hover:border-bodegon hover:text-bodegon"
                         title="Imprimir Acta Oficial para el Expediente Físico"
                       >
-                        <Printer className="w-3.5 h-3.5 text-[#1c6856]" />
+                        <Printer className="w-3.5 h-3.5 text-bodegon" />
                         Imprimir Boleta Oficial
                       </button>
                     )}
@@ -588,7 +588,7 @@ export default function NotificacionesDetalladasPage() {
                             <button
                               disabled={processingId === al.id}
                               onClick={() => handleResolver(al.id!, 'DIA_LIBRE_LABORADO')}
-                              className="bg-[#1c6856] hover:bg-[#154f42] text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                              className="bg-bodegon hover:bg-bodegon-noche text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                               title="Declarar como día libre laborado: Anular deuda y pasar horas trabajadas a la cola de Horas Extra"
                             >
                               <span>🌟 Día Libre Laborado (Horas Extra)</span>
@@ -596,7 +596,7 @@ export default function NotificacionesDetalladasPage() {
                             <button
                               disabled={processingId === al.id}
                               onClick={() => handleResolver(al.id!, 'SUMAR_DEUDA')}
-                              className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                              className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                               title="Confirmar llegada tardía o turno incompleto: Cargar horas faltantes a su Bolsa de Horas"
                             >
                               <span>⏳ Cargar a Déficit (Tarde)</span>
@@ -615,7 +615,7 @@ export default function NotificacionesDetalladasPage() {
                           <button
                             disabled={processingId === al.id}
                             onClick={() => handleCerrarSalida11pm(al.id!)}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                             title="Registrar la hora real de salida del turno y calcular horas trabajadas"
                           >
                             <Clock className="w-3.5 h-3.5 text-indigo-200" />

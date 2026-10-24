@@ -133,7 +133,7 @@ export default function PinSecurityGate({
 
   if (checkingAuth) {
     return (
-      <div className="min-h-screen bg-[#fcf9f5] flex items-center justify-center font-sans">
+      <div className="min-h-screen bg-crema flex items-center justify-center font-sans">
         <RefreshCw className="w-8 h-8 text-amber-600 animate-spin" />
       </div>
     );
@@ -141,7 +141,7 @@ export default function PinSecurityGate({
 
   if (!authorized) {
     return (
-      <div className="min-h-screen bg-[#fcf9f5] flex flex-col justify-between p-6 sm:p-12 font-sans text-stone-850 select-none">
+      <div className="min-h-screen bg-crema flex flex-col justify-between p-6 sm:p-12 font-sans text-stone-850 select-none">
         <div className="max-w-md w-full mx-auto my-auto bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm text-center space-y-6">
           <div className="w-20 h-20 rounded-full overflow-hidden mx-auto shadow-lg border-2 border-amber-500/30 bg-amber-500 flex items-center justify-center">
             <Image
@@ -169,7 +169,7 @@ export default function PinSecurityGate({
                 key={idx}
                 className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
                   pinError
-                    ? 'bg-rose-500 border-rose-500 animate-bounce'
+                    ? 'bg-rose-500 border-rose-500'
                     : idx < pin.length
                     ? 'bg-amber-600 border-amber-600 scale-110'
                     : 'border-stone-300 bg-stone-50'
@@ -194,7 +194,7 @@ export default function PinSecurityGate({
                 key={num}
                 onClick={() => handleKeyPress(num)}
                 type="button"
-                className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
+                className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs touch-manipulation select-none"
               >
                 {num}
               </button>
@@ -204,7 +204,7 @@ export default function PinSecurityGate({
             <button
               onClick={handleBackspace}
               type="button"
-              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer active:scale-95 touch-manipulation select-none"
+              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer touch-manipulation select-none"
             >
               Borrar
             </button>
@@ -212,7 +212,7 @@ export default function PinSecurityGate({
             <button
               onClick={() => handleKeyPress('0')}
               type="button"
-              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
+              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs touch-manipulation select-none"
             >
               0
             </button>
@@ -221,7 +221,7 @@ export default function PinSecurityGate({
             <Link
               href="/"
               onClick={handleLogout}
-              className="w-16 h-16 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer active:scale-95 touch-manipulation select-none"
+              className="w-16 h-16 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer touch-manipulation select-none"
             >
               Salir
             </Link>

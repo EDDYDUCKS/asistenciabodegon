@@ -519,7 +519,7 @@ export default function AsistenciaLogPage() {
               <button
                 type="button"
                 onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
-                className="relative group block cursor-pointer active:scale-95"
+                className="relative group block cursor-pointer"
                 title="Tocar para ampliar foto"
               >
                 <img
@@ -534,10 +534,10 @@ export default function AsistenciaLogPage() {
               <button
                 type="button"
                 onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-100 hover:bg-[#1c6856]/10 text-stone-700 hover:text-[#1c6856] border border-stone-200 hover:border-[#1c6856]/30 text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-100 hover:bg-bodegon/10 text-stone-700 hover:text-bodegon border border-stone-200 hover:border-bodegon/30 text-xs font-bold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
                 title="Ver foto de verificación biométrica tomada en el kiosco"
               >
-                <Camera className="w-3.5 h-3.5 text-[#1c6856]" />
+                <Camera className="w-3.5 h-3.5 text-bodegon" />
                 <span>Ver foto</span>
               </button>
             )
@@ -655,7 +655,7 @@ export default function AsistenciaLogPage() {
                 }
                 setEditTurnoOficial(initialTurno);
               }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-amber-50 border border-stone-200 hover:border-amber-300 text-stone-600 hover:text-amber-700 transition-all font-bold text-xs active:scale-95 shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-amber-50 border border-stone-200 hover:border-amber-300 text-stone-600 hover:text-amber-700 transition-all font-bold text-xs shadow-xs cursor-pointer"
               title="Corregir el colaborador asignado, turno oficial o tipo de evento"
             >
               <Pencil className="w-3.5 h-3.5 text-stone-400" />
@@ -663,7 +663,7 @@ export default function AsistenciaLogPage() {
             </button>
             <button
               onClick={() => setRecordToDelete(asis)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-250 text-stone-600 hover:text-rose-700 transition-all font-bold text-xs active:scale-95 shadow-xs"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-250 text-stone-600 hover:text-rose-700 transition-all font-bold text-xs shadow-xs"
               title="Eliminar este marcaje (si marcó por error o carnet equivocado)"
             >
               <Trash2 className="w-3.5 h-3.5 text-stone-400" />
@@ -703,7 +703,7 @@ export default function AsistenciaLogPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
-                  className="relative group shrink-0 active:scale-95 cursor-pointer"
+                  className="relative group shrink-0 cursor-pointer"
                   title="Tocar para ampliar foto"
                 >
                   <img
@@ -713,7 +713,7 @@ export default function AsistenciaLogPage() {
                     onError={() => setFailedPhotoIds((prev) => ({ ...prev, [asis.id]: true }))}
                     className="w-11 h-11 rounded-xl object-cover border border-stone-200 ring-2 ring-emerald-600/10"
                   />
-                  <div className="absolute -bottom-1 -right-1 bg-[#1c6856] text-white p-0.5 rounded-md shadow-xs">
+                  <div className="absolute -bottom-1 -right-1 bg-bodegon text-white p-0.5 rounded-md shadow-xs">
                     <Camera className="w-2.5 h-2.5" />
                   </div>
                 </button>
@@ -721,10 +721,10 @@ export default function AsistenciaLogPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedPhoto(asis.foto_verificacion_url!)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-[#1c6856]/10 text-stone-700 hover:text-[#1c6856] border border-stone-200 text-xs font-bold shrink-0 cursor-pointer active:scale-95 shadow-2xs whitespace-nowrap"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-bodegon/10 text-stone-700 hover:text-bodegon border border-stone-200 text-xs font-bold shrink-0 cursor-pointer shadow-2xs whitespace-nowrap"
                   title="Tocar para ver foto de verificación"
                 >
-                  <Camera className="w-3.5 h-3.5 text-[#1c6856]" />
+                  <Camera className="w-3.5 h-3.5 text-bodegon" />
                   <span>Ver foto</span>
                 </button>
               )
@@ -865,7 +865,7 @@ export default function AsistenciaLogPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight flex items-center gap-2">
-            <CalendarCheck className="w-7 h-7 text-[#1c6856]" />
+            <CalendarCheck className="w-7 h-7 text-bodegon" />
             Historial de Asistencia
           </h1>
           <p className="text-xs text-stone-500 font-medium mt-1">
@@ -876,7 +876,7 @@ export default function AsistenciaLogPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowManualModal(true)}
-            className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-2 shadow-sm"
+            className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
           >
             <Plus className="w-4 h-4" />
             Registrar Marcaje Manual
@@ -901,7 +901,7 @@ export default function AsistenciaLogPage() {
             disabled={loading}
             className="bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 shadow-sm"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''} text-[#1c6856]`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''} text-bodegon`} />
             Actualizar Historial
           </button>
         </div>
@@ -919,7 +919,7 @@ export default function AsistenciaLogPage() {
           }}
           className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
             periodoFiltro === '15dias' && !filterFecha
-              ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
+              ? 'bg-bodegon text-white shadow-sm ring-2 ring-bodegon/30'
               : 'bg-white text-stone-700 hover:bg-stone-50 border border-stone-200/60'
           }`}
           title="Carga ultrarrápida: últimos 15 días de marcajes"
@@ -937,7 +937,7 @@ export default function AsistenciaLogPage() {
           }}
           className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
             periodoFiltro === 'mes' && !filterFecha
-              ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
+              ? 'bg-bodegon text-white shadow-sm ring-2 ring-bodegon/30'
               : 'bg-white text-stone-700 hover:bg-stone-50 border border-stone-200/60'
           }`}
           title="Marcajes del mes actual en curso"
@@ -955,7 +955,7 @@ export default function AsistenciaLogPage() {
           }}
           className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
             periodoFiltro === 'todos' && !filterFecha
-              ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
+              ? 'bg-bodegon text-white shadow-sm ring-2 ring-bodegon/30'
               : 'bg-white text-stone-700 hover:bg-stone-50 border border-stone-200/60'
           }`}
           title="Cargar todo el histórico desde el inicio"
@@ -975,13 +975,13 @@ export default function AsistenciaLogPage() {
               placeholder="Buscar por empleado, cargo o evento..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
-              className="w-full bg-white border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm font-medium"
+              className="w-full bg-white border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon shadow-sm font-medium"
             />
           </div>
 
           <div className="flex items-center justify-between sm:justify-start gap-2 bg-white border border-stone-200 rounded-xl px-3 py-2 sm:py-1.5 shadow-sm">
             <div className="flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-[#1c6856] flex-shrink-0" />
+              <Calendar className="w-4 h-4 text-bodegon flex-shrink-0" />
               <span className="text-[11px] font-bold text-stone-500 whitespace-nowrap">Ver Día:</span>
             </div>
             <input
@@ -1036,7 +1036,7 @@ export default function AsistenciaLogPage() {
             onClick={() => setSepararPorDia(!separarPorDia)}
             className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border shadow-sm cursor-pointer ${
               separarPorDia
-                ? 'bg-[#1c6856]/10 border-[#1c6856]/30 text-[#1c6856]'
+                ? 'bg-bodegon/10 border-bodegon/30 text-bodegon'
                 : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
             }`}
             title="Alternar entre ver separadores de fecha por día o lista continua"
@@ -1051,7 +1051,7 @@ export default function AsistenciaLogPage() {
       <div className="block sm:hidden space-y-3">
         {loading ? (
           <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-stone-400 text-xs shadow-2xs">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#1c6856] mb-2" />
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-bodegon mb-2" />
             Cargando historial de asistencia...
           </div>
         ) : filtered.length === 0 ? (
@@ -1064,7 +1064,7 @@ export default function AsistenciaLogPage() {
               {/* Separador Móvil de Día */}
               <div className="bg-stone-100/90 border border-stone-200/80 rounded-xl px-3 py-2 flex items-center justify-between gap-2 shadow-2xs">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <div className="w-5 h-5 rounded-md bg-[#1c6856] text-white flex items-center justify-center font-bold shrink-0">
+                  <div className="w-5 h-5 rounded-md bg-bodegon text-white flex items-center justify-center font-bold shrink-0">
                     <Calendar className="w-3 h-3" />
                   </div>
                   <span className="font-black text-xs text-stone-900 truncate">
@@ -1081,7 +1081,7 @@ export default function AsistenciaLogPage() {
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] font-bold text-[#1c6856] bg-white px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs shrink-0">
+                <span className="text-[10px] font-bold text-bodegon bg-white px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs shrink-0">
                   {grupo.registros.length}
                 </span>
               </div>
@@ -1102,7 +1102,7 @@ export default function AsistenciaLogPage() {
       <div className="hidden sm:block bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm">
-            <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
+            <thead className="bg-bodegon/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-4">Foto</th>
                 <th className="px-6 py-4">Empleado</th>
@@ -1131,11 +1131,11 @@ export default function AsistenciaLogPage() {
                 gruposPorDia.map((grupo) => (
                   <React.Fragment key={`grupo-${grupo.diaKey}`}>
                     {/* Separador Visual de Día */}
-                    <tr className="bg-stone-100/95 border-y-2 border-[#1c6856]/20">
+                    <tr className="bg-stone-100/95 border-y-2 border-bodegon/20">
                       <td colSpan={8} className="px-6 py-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                            <div className="w-7 h-7 rounded-lg bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
                               <Calendar className="w-4 h-4" />
                             </div>
                             <span className="font-black text-xs sm:text-sm text-stone-900 tracking-tight">
@@ -1152,7 +1152,7 @@ export default function AsistenciaLogPage() {
                               </span>
                             )}
                           </div>
-                          <span className="text-[11px] font-bold text-[#1c6856] bg-white px-2.5 py-1 rounded-lg border border-stone-200 shadow-2xs">
+                          <span className="text-[11px] font-bold text-bodegon bg-white px-2.5 py-1 rounded-lg border border-stone-200 shadow-2xs">
                             {grupo.registros.length} marcaje{grupo.registros.length !== 1 ? 's' : ''} registrado{grupo.registros.length !== 1 ? 's' : ''}
                           </span>
                         </div>
@@ -1174,7 +1174,7 @@ export default function AsistenciaLogPage() {
       {selectedPhoto && (
         <div
           onClick={() => setSelectedPhoto(null)}
-          className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150 cursor-pointer"
+          className="fixed inset-0 z-[100] bg-black/75 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150 cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1216,7 +1216,7 @@ export default function AsistenciaLogPage() {
               </span>
               <button
                 onClick={() => setSelectedPhoto(null)}
-                className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer active:scale-95 shadow-2xs"
+                className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-1.5 rounded-xl font-bold text-xs transition-colors cursor-pointer shadow-2xs"
               >
                 Cerrar
               </button>
@@ -1238,7 +1238,7 @@ export default function AsistenciaLogPage() {
       {editEventoRecord && (
         <div
           onClick={() => setEditEventoRecord(null)}
-          className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+          className="fixed inset-0 bg-stone-950/70 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1375,7 +1375,7 @@ export default function AsistenciaLogPage() {
                     ((editEventoRecord.observacion || '').includes(`[TURNO:${editTurnoOficial}]`) ||
                       (editTurnoOficial === 'AUTO' && !(editEventoRecord.observacion || '').includes('[TURNO:'))))
                 }
-                className="flex-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {savingEdit ? (
                   <>
@@ -1398,7 +1398,7 @@ export default function AsistenciaLogPage() {
       {recordToDelete && (
         <div
           onClick={() => setRecordToDelete(null)}
-          className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+          className="fixed inset-0 bg-stone-950/70 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1457,7 +1457,7 @@ export default function AsistenciaLogPage() {
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={deletingRecord}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
               >
                 {deletingRecord ? (
                   <>
@@ -1525,7 +1525,7 @@ function ModalMarcajeManual({ empleados, onClose, onSave }: ModalMarcajeManualPr
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+      className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -1540,7 +1540,7 @@ function ModalMarcajeManual({ empleados, onClose, onSave }: ModalMarcajeManualPr
 
         <div>
           <h3 className="font-black text-stone-900 text-lg flex items-center gap-2">
-            <Plus className="w-5 h-5 text-[#1c6856]" />
+            <Plus className="w-5 h-5 text-bodegon" />
             Registrar Marcaje Manual
           </h3>
           <p className="text-xs text-stone-500 font-medium mt-1">
@@ -1557,7 +1557,7 @@ function ModalMarcajeManual({ empleados, onClose, onSave }: ModalMarcajeManualPr
               required
               value={empId}
               onChange={(e) => setEmpId(Number(e.target.value))}
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-bodegon"
             >
               <option value="">Seleccione un empleado...</option>
               {empleados.map((emp) => (
@@ -1575,7 +1575,7 @@ function ModalMarcajeManual({ empleados, onClose, onSave }: ModalMarcajeManualPr
             <select
               value={tipo}
               onChange={(e) => setTipo(e.target.value)}
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-bodegon"
             >
               <option value="ENTRADA">🟢 ENTRADA — Inicio de Jornada (Corrido o Quebrado)</option>
               <option value="SALIDA_QUEBRADA">🟡 SALIDA_QUEBRADA — Salida a Pausa (Descanso Intermedio)</option>
@@ -1594,7 +1594,7 @@ function ModalMarcajeManual({ empleados, onClose, onSave }: ModalMarcajeManualPr
                 required
                 value={fecha}
                 onChange={(e) => setFecha(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-bodegon"
               />
             </div>
             <div>
@@ -1606,7 +1606,7 @@ function ModalMarcajeManual({ empleados, onClose, onSave }: ModalMarcajeManualPr
                 required
                 value={hora}
                 onChange={(e) => setHora(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-bodegon"
               />
             </div>
           </div>
@@ -1620,7 +1620,7 @@ function ModalMarcajeManual({ empleados, onClose, onSave }: ModalMarcajeManualPr
               placeholder="Ej: Olvido de salida, confirmado presencialmente..."
               value={observacion}
               onChange={(e) => setObservacion(e.target.value)}
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 font-medium focus:outline-none focus:ring-1 focus:ring-bodegon"
             />
           </div>
 
@@ -1636,7 +1636,7 @@ function ModalMarcajeManual({ empleados, onClose, onSave }: ModalMarcajeManualPr
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 bg-[#1c6856] hover:bg-[#154f42] text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+              className="flex-1 bg-bodegon hover:bg-bodegon-noche text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
             >
               {saving ? 'Guardando...' : 'Guardar Marcaje'}
             </button>

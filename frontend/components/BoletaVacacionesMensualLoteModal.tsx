@@ -338,14 +338,14 @@ export default function BoletaVacacionesMensualLoteModal({
         {/* Bloque Superior: Encabezado + Datos + Resumen */}
         <div className="space-y-1.5">
           {/* Header Institucional */}
-          <div className="flex items-center justify-between border-b-2 border-[#1c6856] pb-1.5 gap-2">
+          <div className="flex items-center justify-between border-b-2 border-bodegon pb-1.5 gap-2">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/40 bg-[#1c6856]">
+              <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 border border-bodegon/40 bg-bodegon">
                 <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="font-black text-xs sm:text-sm tracking-tight text-[#1c6856] uppercase leading-none">
+                  <span className="font-black text-xs sm:text-sm tracking-tight text-bodegon uppercase leading-none">
                     Restaurante El Bodegón
                   </span>
                   <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded border border-stone-800 bg-stone-100 text-stone-900">
@@ -537,7 +537,7 @@ export default function BoletaVacacionesMensualLoteModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-start justify-center p-2 sm:p-5 overflow-y-auto print-vac-lote-backdrop print:!block print:!static print:!inset-auto print:!p-0 print:!m-0 print:!overflow-visible print:!bg-transparent print:!backdrop-blur-none">
+    <div className="fixed inset-0 z-[99999] bg-black/80 flex items-start justify-center p-2 sm:p-5 overflow-y-auto print-vac-lote-backdrop print:!block print:!static print:!inset-auto print:!p-0 print:!m-0 print:!overflow-visible print:!bg-transparent print:!">
       {/* Estilos de Impresión: Paginación real de 1 Hoja Carta por Trabajador con 2 Colillas Simétricas */}
       <style
         dangerouslySetInnerHTML={{
@@ -755,7 +755,7 @@ export default function BoletaVacacionesMensualLoteModal({
         <div className="bg-white px-5 py-4 border-b border-stone-200 flex flex-col gap-3 shrink-0 print-hide">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-2xl bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center font-bold">
+              <div className="w-9 h-9 rounded-2xl bg-bodegon/10 text-bodegon flex items-center justify-center font-bold">
                 <Palmtree className="w-5 h-5" />
               </div>
               <div>
@@ -772,7 +772,7 @@ export default function BoletaVacacionesMensualLoteModal({
               <button
                 onClick={() => window.print()}
                 disabled={empleadosAImprimir.length === 0 || loadingAsis}
-                className="bg-[#1c6856] hover:bg-[#154f42] disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                className="bg-bodegon hover:bg-bodegon-noche disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>
@@ -793,7 +793,7 @@ export default function BoletaVacacionesMensualLoteModal({
           {/* Controles de Mes, Año y Selección de Colaboradores */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-stone-100">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-[#1c6856]" />
+              <Calendar className="w-4 h-4 text-bodegon" />
               <span className="text-xs font-bold text-stone-700">Mes de Cierre:</span>
               <select
                 value={mes}
@@ -816,7 +816,7 @@ export default function BoletaVacacionesMensualLoteModal({
                 <option value={2027}>2027</option>
               </select>
               {loadingAsis && (
-                <span className="text-[11px] text-[#1c6856] font-bold flex items-center gap-1">
+                <span className="text-[11px] text-bodegon font-bold flex items-center gap-1">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   Calculando días laborados...
                 </span>
@@ -830,7 +830,7 @@ export default function BoletaVacacionesMensualLoteModal({
                 className="bg-stone-100 hover:bg-stone-200 text-stone-800 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 {selectedIds.size === empleadosActivos.length ? (
-                  <CheckSquare className="w-3.5 h-3.5 text-[#1c6856]" />
+                  <CheckSquare className="w-3.5 h-3.5 text-bodegon" />
                 ) : (
                   <Square className="w-3.5 h-3.5 text-stone-400" />
                 )}
@@ -854,7 +854,7 @@ export default function BoletaVacacionesMensualLoteModal({
                   onClick={() => toggleEmpleado(emp.id)}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer border ${
                     checked
-                      ? 'bg-[#1c6856] text-white border-[#1c6856]'
+                      ? 'bg-bodegon text-white border-bodegon'
                       : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
                   }`}
                 >

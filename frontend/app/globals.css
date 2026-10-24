@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* ── Identidad Bodegón ─────────────────────────────────────────────
+   Colores y letras definidos una sola vez. Ver el documento de identidad.
+   Siempre fondo claro: no hay modo oscuro. */
 :root {
   --background: #fcf9f5;
   --foreground: #1c1917;
@@ -8,20 +11,37 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  --color-bodegon: #135e4a;        /* Verde Bodegón: acciones y lo activo */
+  --color-bodegon-noche: #0e4536;  /* Verde Noche: hover y presionado */
+  --color-dorado: #d2a445;         /* Dorado Máscara: acentos, nunca texto sobre crema */
+  --color-dorado-vivo: #ebb43a;    /* Dorado Vivo: texto y detalles sobre verde */
+  --color-dorado-tinta: #8a6418;   /* Dorado Tinta: texto dorado y estado de atención */
+  --color-crema: #fcf9f5;          /* Fondo general */
+  --color-cafe: #5a4210;           /* Café Bodega: fondos cálidos e impresos */
+  --color-barro: #a8432e;          /* Barro: errores y alertas */
+  --color-tinta: #1c1917;          /* Texto principal */
+
   --font-sans: var(--font-inter);
-  --font-display: var(--font-outfit);
+  --font-display: var(--font-big-shoulders);
 }
 
 body {
-  background: #fcf9f5;
-  color: #1c1917;
+  background: var(--color-crema);
+  color: var(--color-tinta);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "tnum" 1;
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4, .font-display {
-  font-family: var(--font-outfit), sans-serif;
-  letter-spacing: -0.02em;
+/* Big Shoulders solo en títulos de página y números grandes; los subtítulos siguen en Inter. */
+h1, h2, .font-display {
+  font-family: var(--font-big-shoulders), sans-serif;
+  letter-spacing: 0.01em;
+}
+
+h1 {
+  text-transform: uppercase;
 }
 
 /* Custom styling for html5-qrcode library */
@@ -50,7 +70,7 @@ h1, h2, h3, h4, .font-display {
 #qr-reader-kiosk button, 
 #qr-reader-kiosk__camera_permission_button,
 .html5-qrcode-element {
-  background-color: #1c6856 !important;
+  background-color: #135e4a !important;
   color: white !important;
   font-weight: 700 !important;
   font-size: 12px !important;
@@ -59,12 +79,12 @@ h1, h2, h3, h4, .font-display {
   border: none !important;
   cursor: pointer !important;
   transition: all 0.2s ease !important;
-  box-shadow: 0 2px 4px rgba(28, 104, 86, 0.1);
+  box-shadow: 0 2px 4px rgba(19, 94, 74, 0.1);
 }
 
 #qr-reader-kiosk button:hover,
 #qr-reader-kiosk__camera_permission_button:hover {
-  background-color: #154f42 !important;
+  background-color: #0e4536 !important;
   transform: translateY(-0.5px);
 }
 
@@ -121,59 +141,29 @@ h1, h2, h3, h4, .font-display {
   animation: laser 2.2s infinite linear;
 }
 
-/* Glassmorphism utility classes */
+/* Superficies: blanco sólido con borde fino y sombra cálida. Sin efecto vidrio. */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: #ffffff;
+  border: 1px solid #e7e1d6;
 }
 
 .glass-dock {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: #ffffff;
+  border: 1px solid #e7e1d6;
 }
 
 .shadow-premium {
-  box-shadow: 0 8px 30px rgba(28, 41, 33, 0.03);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
-}
-
-.shadow-premium:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 14px 34px -4px rgba(28, 41, 33, 0.08);
+  box-shadow: 0 10px 28px -20px rgba(60, 40, 20, 0.35);
 }
 
 .shadow-kiosk {
-  box-shadow: 0 12px 40px rgba(28, 41, 33, 0.05);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 14px 36px -22px rgba(60, 40, 20, 0.4);
 }
 
-/* ── MICRO-ANIMACIONES GLOBALES VISIBLES & FLUIDAS (PREMIUM UI) ───────────── */
-
-/* Transición suave para todos los botones, enlaces e inputs interactivos */
+/* Movimiento corto y con motivo: solo color, borde y sombra. Nada se encoge ni salta. */
 button, a, input, select, textarea {
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   -webkit-tap-highlight-color: transparent;
-}
-
-/* Efecto elástico táctil de pulsación visible (tipo iOS) */
-button:active, a:active {
-  transform: scale(0.95) !important;
-}
-
-/* Suavizado de Entrada para Páginas y Vistas Principales */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 @keyframes fadeInSimple {
@@ -186,12 +176,12 @@ button:active, a:active {
 }
 
 .animate-fade-in {
-  animation: fadeInSimple 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: fadeInSimple 0.2s ease both;
 }
 
-/* Suavizado para todas las vistas principales sin transform para no romper position:fixed de modales */
+/* Entrada suave de cada vista, sin transform para no romper position:fixed de modales */
 main {
-  animation: fadeInSimple 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: fadeInSimple 0.2s ease both;
 }
 
 /* Ocultar barra de desplazamiento en contenedores horizontales móviles */
@@ -203,42 +193,23 @@ main {
   scrollbar-width: none;
 }
 
-/* Elevación táctil automática en tarjetas glassmorphism */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
-}
-
-.glass-panel:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 16px 36px -6px rgba(28, 41, 33, 0.09);
-  border-color: rgba(28, 104, 86, 0.25);
-}
-
-/* Respiración suave para badges y estados activos */
-@keyframes breathGlow {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.06);
-  }
-}
-
+/* Antes "respiraba" sin parar; las insignias ahora se quedan quietas. */
 .animate-breath {
-  animation: breathGlow 2.2s ease-in-out infinite;
+  animation: none;
 }
 
-/* Suavizado y realce al pasar sobre filas de tablas */
 tbody tr {
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 
 tbody tr:hover {
-  background-color: rgba(28, 104, 86, 0.04) !important;
+  background-color: rgba(19, 94, 74, 0.04) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -211,7 +211,7 @@ export default function ExpenseAnalyticsSection({ gastos, onRefreshExpenses }: P
             className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl transition cursor-pointer"
             title="Refrescar analítica"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-[#1c6856]' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-bodegon' : ''}`} />
           </button>
         </div>
       </div>
@@ -360,7 +360,7 @@ export default function ExpenseAnalyticsSection({ gastos, onRefreshExpenses }: P
                 placeholder="Buscar proveedor..."
                 value={vendorSearchTerm}
                 onChange={(e) => setVendorSearchTerm(e.target.value)}
-                className="bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-1 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                className="bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-1 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
               />
               <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             </div>
@@ -412,7 +412,7 @@ export default function ExpenseAnalyticsSection({ gastos, onRefreshExpenses }: P
           {filteredVendors.length > 10 && (
             <button
               onClick={() => setShowAllVendors((p) => !p)}
-              className="w-full text-center py-2 text-xs font-bold text-[#1c6856] hover:bg-stone-50 rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
+              className="w-full text-center py-2 text-xs font-bold text-bodegon hover:bg-stone-50 rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
             >
               <span>{showAllVendors ? 'Ver Menos' : `Ver Todos (${filteredVendors.length})`}</span>
               {showAllVendors ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -437,7 +437,7 @@ export default function ExpenseAnalyticsSection({ gastos, onRefreshExpenses }: P
                 placeholder="Buscar categoría..."
                 value={categorySearchTerm}
                 onChange={(e) => setCategorySearchTerm(e.target.value)}
-                className="bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-1 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                className="bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-1 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
               />
               <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             </div>
@@ -475,7 +475,7 @@ export default function ExpenseAnalyticsSection({ gastos, onRefreshExpenses }: P
                   <div className="w-full bg-stone-200 h-1.5 rounded-full overflow-hidden">
                     <div
                       style={{ width: `${Math.min(c.percent, 100)}%` }}
-                      className="bg-[#1c6856] h-full rounded-full"
+                      className="bg-bodegon h-full rounded-full"
                     />
                   </div>
                 </div>
@@ -486,7 +486,7 @@ export default function ExpenseAnalyticsSection({ gastos, onRefreshExpenses }: P
           {filteredCategories.length > 10 && (
             <button
               onClick={() => setShowAllCategories((p) => !p)}
-              className="w-full text-center py-2 text-xs font-bold text-[#1c6856] hover:bg-stone-50 rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
+              className="w-full text-center py-2 text-xs font-bold text-bodegon hover:bg-stone-50 rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
             >
               <span>{showAllCategories ? 'Ver Menos' : `Ver Todas (${filteredCategories.length})`}</span>
               {showAllCategories ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}

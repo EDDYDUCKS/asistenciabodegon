@@ -38,7 +38,7 @@ const CARGOS_OPCIONES: { value: CargoType; label: string }[] = [
 
 function CarnetCardItem({ emp }: { emp: Empleado }) {
   return (
-    <div className="print-card-cr80 flex border-[1.5pt] border-[#1c6856] rounded-[4.5mm] p-[3mm] bg-[#fdfbf7] text-[#1c1917] w-[85.6mm] h-[54mm] box-border relative text-left font-sans select-none items-center justify-between shadow-xs">
+    <div className="print-card-cr80 flex border-[1.5pt] border-bodegon rounded-[4.5mm] p-[3mm] bg-[#fdfbf7] text-tinta w-[85.6mm] h-[54mm] box-border relative text-left font-sans select-none items-center justify-between shadow-xs">
       {/* Lado Izquierdo: QR con alto contraste */}
       <div className="w-[37mm] h-[37mm] bg-white p-[1.5mm] rounded-[3mm] border border-stone-200 flex flex-col items-center justify-center shrink-0 shadow-inner">
         <QRCodeSVG
@@ -53,12 +53,12 @@ function CarnetCardItem({ emp }: { emp: Empleado }) {
       <div className="flex flex-col justify-between h-full w-[41mm] pl-[3mm] py-[0.5mm]">
         <div>
           {/* Header Marca */}
-          <div className="flex items-center gap-1.5 border-b border-[#1c6856]/20 pb-1 mb-1">
-            <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+          <div className="flex items-center gap-1.5 border-b border-bodegon/20 pb-1 mb-1">
+            <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 border border-bodegon/30 bg-bodegon">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
             <div className="leading-tight">
-              <span className="font-black text-[10.5px] tracking-tight text-[#1c6856] block leading-none">
+              <span className="font-black text-[10.5px] tracking-tight text-bodegon block leading-none">
                 BodegónPass
               </span>
               <span className="text-[6.5px] font-bold text-stone-400 uppercase tracking-widest block leading-none mt-0.5">
@@ -78,8 +78,8 @@ function CarnetCardItem({ emp }: { emp: Empleado }) {
           </div>
 
           {/* Cargo Badge */}
-          <div className="mt-1.5 inline-block bg-[#1c6856]/10 border border-[#1c6856]/20 rounded-md px-2 py-0.5">
-            <span className="text-[8px] font-black text-[#1c6856] uppercase tracking-wide block leading-none">
+          <div className="mt-1.5 inline-block bg-bodegon/10 border border-bodegon/20 rounded-md px-2 py-0.5">
+            <span className="text-[8px] font-black text-bodegon uppercase tracking-wide block leading-none">
               {emp.cargo_display}
             </span>
           </div>
@@ -88,7 +88,7 @@ function CarnetCardItem({ emp }: { emp: Empleado }) {
         {/* Footer Código */}
         <div className="border-t border-stone-200/80 pt-1 flex justify-between items-center text-[7px] font-mono text-stone-400">
           <span>ID: {emp.qr_code_token.slice(0, 14)}</span>
-          <span className="font-sans font-bold text-[#1c6856] text-[6.5px] uppercase">Oficial</span>
+          <span className="font-sans font-bold text-bodegon text-[6.5px] uppercase">Oficial</span>
         </div>
       </div>
     </div>
@@ -240,7 +240,7 @@ export default function EmpleadosAdminPage() {
         key={emp.id}
         className={`bg-white border rounded-2xl p-4 space-y-3 transition-all ${
           isSelected
-            ? 'border-[#1c6856] bg-emerald-50/40 shadow-xs ring-1 ring-[#1c6856]'
+            ? 'border-bodegon bg-emerald-50/40 shadow-xs ring-1 ring-bodegon'
             : 'border-stone-200/90 shadow-2xs'
         }`}
       >
@@ -251,12 +251,12 @@ export default function EmpleadosAdminPage() {
               type="checkbox"
               checked={isSelected}
               onChange={() => toggleSelectEmp(emp.id)}
-              className="w-5 h-5 rounded text-[#1c6856] focus:ring-[#1c6856] border-stone-300 cursor-pointer accent-[#1c6856] shrink-0"
+              className="w-5 h-5 rounded text-bodegon focus:ring-bodegon border-stone-300 cursor-pointer accent-bodegon shrink-0"
               title="Seleccionar para imprimir"
             />
 
             {/* Avatar con iniciales */}
-            <div className="w-10 h-10 rounded-xl bg-[#1c6856]/10 text-[#1c6856] border border-[#1c6856]/20 flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-bodegon/10 text-bodegon border border-bodegon/20 flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
               {iniciales || 'ID'}
             </div>
 
@@ -267,7 +267,7 @@ export default function EmpleadosAdminPage() {
                 </h4>
                 <span className="text-[10px] text-stone-400 font-mono">#{emp.id}</span>
               </div>
-              <span className="text-[10.5px] font-bold text-[#1c6856] block truncate mt-0.5">
+              <span className="text-[10.5px] font-bold text-bodegon block truncate mt-0.5">
                 {emp.cargo_display}
               </span>
             </div>
@@ -291,7 +291,7 @@ export default function EmpleadosAdminPage() {
         <div className="grid grid-cols-3 gap-2 pt-1 border-t border-stone-100 text-xs">
           <button
             onClick={() => setShowQrBadge(emp)}
-            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-[#1c6856]/10 hover:bg-[#1c6856]/20 text-[#1c6856] font-bold text-[11px] transition-colors border border-[#1c6856]/20 active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-bodegon/10 hover:bg-bodegon/20 text-bodegon font-bold text-[11px] transition-colors border border-bodegon/20 cursor-pointer"
           >
             <QrCode className="w-3.5 h-3.5" />
             <span>Ver QR</span>
@@ -299,7 +299,7 @@ export default function EmpleadosAdminPage() {
 
           <button
             onClick={() => openEditModal(emp)}
-            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-[11px] transition-colors active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-[11px] transition-colors cursor-pointer"
           >
             <Edit className="w-3.5 h-3.5" />
             <span>Editar</span>
@@ -307,7 +307,7 @@ export default function EmpleadosAdminPage() {
 
           <button
             onClick={() => handleDelete(emp.id)}
-            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] transition-colors border border-rose-200 active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] transition-colors border border-rose-200 cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Borrar</span>
@@ -423,7 +423,7 @@ export default function EmpleadosAdminPage() {
             display: flex !important;
             width: 85.6mm !important;
             height: 54mm !important;
-            border: 1.5pt solid #1c6856 !important;
+            border: 1.5pt solid #135E4A !important;
             border-radius: 4mm !important;
             box-sizing: border-box !important;
             padding: 3mm !important;
@@ -449,7 +449,7 @@ export default function EmpleadosAdminPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5 print-hide">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight flex items-center gap-2">
-            <Users className="w-7 h-7 text-[#1c6856]" />
+            <Users className="w-7 h-7 text-bodegon" />
             Gestión de Empleados
           </h1>
           <p className="text-xs text-stone-500 font-medium mt-1">
@@ -462,7 +462,7 @@ export default function EmpleadosAdminPage() {
             <>
               <Link
                 href={`/admin/empleados/imprimir?ids=${Array.from(selectedEmpIds).join(',')}`}
-                className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm animate-in fade-in active:scale-95"
+                className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm animate-in fade-in"
               >
                 <Printer className="w-4 h-4" />
                 Imprimir Seleccionados ({selectedEmpIds.size})
@@ -477,7 +477,7 @@ export default function EmpleadosAdminPage() {
           ) : (
             <Link
               href="/admin/empleados/imprimir"
-              className="bg-[#1c6856]/10 border border-[#1c6856]/20 hover:bg-[#1c6856]/20 text-[#1c6856] px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 active:scale-95"
+              className="bg-bodegon/10 border border-bodegon/20 hover:bg-bodegon/20 text-bodegon px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5"
             >
               <Printer className="w-4 h-4" />
               Imprimir Todo el Personal
@@ -486,7 +486,7 @@ export default function EmpleadosAdminPage() {
           
           <button
             onClick={openCreateModal}
-            className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+            className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
           >
             <Plus className="w-4 h-4" />
             Registrar Nuevo Empleado
@@ -498,7 +498,7 @@ export default function EmpleadosAdminPage() {
       <div className="block sm:hidden space-y-3 print-hide">
         {loading ? (
           <div className="bg-white border border-stone-200 rounded-2xl p-8 text-center text-stone-400 text-xs shadow-2xs">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#1c6856] mb-2" />
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto text-bodegon mb-2" />
             Cargando lista de empleados...
           </div>
         ) : empleados.length === 0 ? (
@@ -516,14 +516,14 @@ export default function EmpleadosAdminPage() {
       <div className="hidden sm:block bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm print-hide">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs sm:text-sm">
-            <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
+            <thead className="bg-bodegon/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-4 w-12 text-center">
                   <input
                     type="checkbox"
                     checked={empleados.filter(e => e.activo).length > 0 && selectedEmpIds.size === empleados.filter(e => e.activo).length}
                     onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded text-[#1c6856] focus:ring-[#1c6856] border-stone-300 cursor-pointer accent-[#1c6856]"
+                    className="w-4 h-4 rounded text-bodegon focus:ring-bodegon border-stone-300 cursor-pointer accent-bodegon"
                     title="Seleccionar / Desmarcar todos"
                   />
                 </th>
@@ -555,7 +555,7 @@ export default function EmpleadosAdminPage() {
                       key={emp.id}
                       className={`transition-colors ${
                         isSelected
-                          ? 'bg-emerald-50/60 hover:bg-emerald-50/80 border-l-4 border-l-[#1c6856]'
+                          ? 'bg-emerald-50/60 hover:bg-emerald-50/80 border-l-4 border-l-bodegon'
                           : 'hover:bg-stone-50/50'
                       }`}
                     >
@@ -564,7 +564,7 @@ export default function EmpleadosAdminPage() {
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleSelectEmp(emp.id)}
-                          className="w-4 h-4 rounded text-[#1c6856] focus:ring-[#1c6856] border-stone-300 cursor-pointer accent-[#1c6856]"
+                          className="w-4 h-4 rounded text-bodegon focus:ring-bodegon border-stone-300 cursor-pointer accent-bodegon"
                         />
                       </td>
                       <td className="px-6 py-4">
@@ -574,7 +574,7 @@ export default function EmpleadosAdminPage() {
                         <div className="text-[10px] text-stone-400 font-mono mt-0.5">ID #{emp.id}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#1c6856]/5 border border-[#1c6856]/15 text-[11px] font-bold text-[#1c6856]">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-bodegon/5 border border-bodegon/15 text-[11px] font-bold text-bodegon">
                           {emp.cargo_display}
                         </span>
                       </td>
@@ -594,7 +594,7 @@ export default function EmpleadosAdminPage() {
                           onClick={() => setShowQrBadge(emp)}
                           className="bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5"
                         >
-                          <QrCode className="w-3.5 h-3.5 text-[#1c6856]" />
+                          <QrCode className="w-3.5 h-3.5 text-bodegon" />
                           Ver Tarjeta
                         </button>
                       </td>
@@ -633,7 +633,7 @@ export default function EmpleadosAdminPage() {
           <div className="h-4 w-[1px] bg-stone-700" />
           <Link
             href={`/admin/empleados/imprimir?ids=${Array.from(selectedEmpIds).join(',')}`}
-            className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+            className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
           >
             <Printer className="w-3.5 h-3.5" />
             Imprimir Carnets ({selectedEmpIds.size})
@@ -662,7 +662,7 @@ export default function EmpleadosAdminPage() {
       {showQrBadge && (
         <div
           onClick={() => setShowQrBadge(null)}
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print-modal-wrapper cursor-pointer"
+          className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-3 sm:p-4 print-modal-wrapper cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -698,7 +698,7 @@ export default function EmpleadosAdminPage() {
               </button>
               <button
                 onClick={handlePrint}
-                className="flex-1 bg-[#1c6856] hover:bg-[#154f42] text-white py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                className="flex-1 bg-bodegon hover:bg-bodegon-noche text-white py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm"
               >
                 <Printer className="w-4 h-4" />
                 Imprimir Carnet
@@ -757,15 +757,15 @@ function EmpleadoFormModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 print-hide cursor-pointer"
+      className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-3 sm:p-4 print-hide cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
         className="bg-white border border-stone-200 w-full max-w-lg rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto cursor-default animate-in zoom-in-95 duration-150"
       >
         <div className="flex items-center justify-between border-b border-stone-200 pb-3">
-          <h2 className="text-base sm:text-lg font-black text-[#1c6856] flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+          <h2 className="text-base sm:text-lg font-black text-bodegon flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 border border-bodegon/30 bg-bodegon">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
             {editingEmp ? 'Editar Datos de Empleado' : 'Registrar Nuevo Empleado'}
@@ -787,7 +787,7 @@ function EmpleadoFormModal({
                 required
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
               />
             </div>
             <div>
@@ -797,7 +797,7 @@ function EmpleadoFormModal({
                 required
                 value={apellido}
                 onChange={(e) => setApellido(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
               />
             </div>
           </div>
@@ -807,7 +807,7 @@ function EmpleadoFormModal({
             <select
               value={cargo}
               onChange={(e) => setCargo(e.target.value as CargoType)}
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
             >
               {CARGOS_OPCIONES.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -822,7 +822,7 @@ function EmpleadoFormModal({
             <select
               value={activo ? 'true' : 'false'}
               onChange={(e) => setActivo(e.target.value === 'true')}
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
             >
               <option value="true">Activo (Marcaje habilitado)</option>
               <option value="false">Inactivo (Marcaje suspendido)</option>
@@ -867,7 +867,7 @@ function EmpleadoFormModal({
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 rounded-xl bg-[#1c6856] text-white text-xs font-bold hover:bg-[#154f42] transition-colors cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-bodegon text-white text-xs font-bold hover:bg-bodegon-noche transition-colors cursor-pointer"
             >
               {saving ? 'Guardando...' : 'Guardar Cambios'}
             </button>

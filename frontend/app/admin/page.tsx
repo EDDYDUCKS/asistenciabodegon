@@ -127,7 +127,7 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-5">
         <div>
           <h1 className="text-2xl sm:text-3xl font-display font-black text-stone-900 tracking-tight flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full overflow-hidden shadow-xs shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+            <div className="w-9 h-9 rounded-full overflow-hidden shadow-xs shrink-0 border border-bodegon/30 bg-bodegon">
               <Image src="/logo.png" alt="Logo" width={36} height={36} className="w-full h-full object-cover" />
             </div>
             Monitoreo en Vivo
@@ -140,7 +140,7 @@ export default function AdminDashboardPage() {
         <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
           <Link
             href="/admin/rendimiento-ayer"
-            className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-2 shadow-sm cursor-pointer"
+            className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
           >
             <TrendingUp className="w-4 h-4 text-emerald-300" />
             <span>Rendimiento de Ayer</span>
@@ -151,7 +151,7 @@ export default function AdminDashboardPage() {
 
           <Link
             href="/admin/notificaciones"
-            className="bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-200 text-stone-700 hover:text-rose-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-2 shadow-sm cursor-pointer"
+            className="bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-200 text-stone-700 hover:text-rose-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
             title="Ir a Alertas y Sanciones Disciplinarias"
           >
             <Gavel className="w-3.5 h-3.5 text-rose-500" />
@@ -161,9 +161,9 @@ export default function AdminDashboardPage() {
           <button
             onClick={loadData}
             disabled={loading}
-            className="bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-2 shadow-sm cursor-pointer"
+            className="bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''} text-[#1c6856]`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''} text-bodegon`} />
             Actualizar Estado
           </button>
         </div>
@@ -176,7 +176,7 @@ export default function AdminDashboardPage() {
           type="button"
           onClick={() => setShowModalPropinas(true)}
           title="Toca para ver el desglose detallado de quiénes asistieron hoy"
-          className="text-left glass-panel border border-amber-300/80 bg-gradient-to-br from-amber-50 via-white to-amber-50/30 rounded-3xl p-5 flex items-center justify-between gap-3 shadow-premium transition-all hover:scale-[1.02] hover:shadow-lg hover:border-amber-400 active:scale-[0.98] cursor-pointer group focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+          className="text-left glass-panel border border-amber-300/80 bg-gradient-to-br from-amber-50 via-white to-amber-50/30 rounded-3xl p-5 flex items-center justify-between gap-3 shadow-premium transition-all hover:shadow-lg hover:border-amber-400 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-amber-400/50"
         >
           <div className="flex items-center gap-4">
             <div className="p-3 bg-amber-100/90 border border-amber-200 rounded-2xl text-amber-700 shadow-sm group-hover:bg-amber-200 group-hover:text-amber-800 transition-colors">
@@ -236,7 +236,7 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="glass-panel border border-white rounded-3xl p-5 flex items-center gap-4 shadow-premium">
-          <div className="p-3 bg-[#1c6856]/5 border border-[#1c6856]/10 rounded-2xl text-[#1c6856]">
+          <div className="p-3 bg-bodegon/5 border border-bodegon/10 rounded-2xl text-bodegon">
             <Users className="w-6 h-6" />
           </div>
           <div>
@@ -255,12 +255,12 @@ export default function AdminDashboardPage() {
         <div className="lg:col-span-7 glass-panel rounded-3xl p-6 shadow-premium space-y-4 border border-white">
           <div className="flex items-center justify-between border-b border-stone-100 pb-3">
             <h2 className="font-black text-base text-stone-900 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-[#1c6856]" />
+              <Clock className="w-5 h-5 text-bodegon" />
               Actividad Reciente (Hoy)
             </h2>
             <Link
               href="/admin/asistencia"
-              className="text-xs font-bold text-[#1c6856] hover:underline flex items-center gap-1"
+              className="text-xs font-bold text-bodegon hover:underline flex items-center gap-1"
             >
               Ver Detalle <ArrowRight className="w-3 h-3" />
             </Link>
@@ -294,17 +294,17 @@ export default function AdminDashboardPage() {
                             }),
                           })
                         }
-                        className="group relative cursor-pointer active:scale-95 transition-transform shrink-0"
+                        className="group relative cursor-pointer transition-transform shrink-0"
                         title="Toca para ampliar foto de hoy"
                       >
                         <img
                           src={asis.foto_verificacion_url}
                           alt="Foto"
-                          className="w-10 h-10 rounded-lg object-cover border border-stone-200 group-hover:ring-2 group-hover:ring-[#1c6856] transition-all"
+                          className="w-10 h-10 rounded-lg object-cover border border-stone-200 group-hover:ring-2 group-hover:ring-bodegon transition-all"
                         />
                       </button>
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center font-bold text-sm">
+                      <div className="w-10 h-10 rounded-lg bg-bodegon/10 text-bodegon flex items-center justify-center font-bold text-sm">
                         {asis.empleado_detalle.nombre[0]}
                       </div>
                     )}
@@ -339,7 +339,7 @@ export default function AdminDashboardPage() {
         {/* Estado Actual del Personal */}
         <div className="lg:col-span-5 glass-panel rounded-3xl p-6 shadow-premium space-y-4 border border-white">
           <h2 className="font-display font-black text-base text-stone-900 flex items-center gap-2 border-b border-stone-100 pb-3">
-            <Users className="w-5 h-5 text-[#1c6856]" />
+            <Users className="w-5 h-5 text-bodegon" />
             Plantilla Activa
           </h2>
 
@@ -396,7 +396,7 @@ export default function AdminDashboardPage() {
       {/* Modal de Lista de Trabajadores que Llegaron Hoy (Propinas) */}
       {showModalPropinas && (
         <div
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+          className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
           onClick={() => setShowModalPropinas(false)}
         >
           <div
@@ -406,7 +406,7 @@ export default function AdminDashboardPage() {
             {/* Header con gradiente ámbar */}
             <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-500 text-white p-5 flex items-center justify-between shadow-xs">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-white/20 backdrop-blur-sm rounded-2xl text-white">
+                <div className="p-2.5 bg-white/20 rounded-2xl text-white">
                   <Coins className="w-6 h-6" />
                 </div>
                 <div>
@@ -483,7 +483,7 @@ export default function AdminDashboardPage() {
                                   : '',
                               })
                             }
-                            className="group relative cursor-pointer active:scale-95 transition-transform shrink-0"
+                            className="group relative cursor-pointer transition-transform shrink-0"
                             title="Toca para ampliar foto de hoy"
                           >
                             <img
@@ -539,7 +539,7 @@ export default function AdminDashboardPage() {
                 type="button"
                 onClick={copiarLista}
                 disabled={llegaronHoy.length === 0}
-                className="bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50 shadow-xs"
+                className="bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
               >
                 {copiado ? (
                   <>
@@ -557,7 +557,7 @@ export default function AdminDashboardPage() {
               <button
                 type="button"
                 onClick={() => setShowModalPropinas(false)}
-                className="bg-stone-900 hover:bg-stone-800 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-sm"
+                className="bg-stone-900 hover:bg-stone-800 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
               >
                 Cerrar
               </button>
@@ -569,7 +569,7 @@ export default function AdminDashboardPage() {
       {/* Modal Ampliar Foto de Verificación de Hoy */}
       {selectedPhoto && (
         <div
-          className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+          className="fixed inset-0 z-[120] bg-black/80 flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
           onClick={() => setSelectedPhoto(null)}
         >
           <div
@@ -608,7 +608,7 @@ export default function AdminDashboardPage() {
               <button
                 type="button"
                 onClick={() => setSelectedPhoto(null)}
-                className="px-4 py-1.5 bg-stone-900 text-white rounded-xl font-bold text-xs hover:bg-stone-800 transition-colors cursor-pointer active:scale-95"
+                className="px-4 py-1.5 bg-stone-900 text-white rounded-xl font-bold text-xs hover:bg-stone-800 transition-colors cursor-pointer"
               >
                 Cerrar
               </button>

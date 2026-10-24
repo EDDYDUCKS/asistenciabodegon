@@ -126,7 +126,7 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto print-boleta-backdrop">
+    <div className="fixed inset-0 z-[99999] bg-black/85 flex items-start justify-center p-3 sm:p-6 overflow-y-auto print-boleta-backdrop">
       {/* Estilos estrictos de impresión: 1 SOLA PÁGINA EXACTA */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
@@ -252,7 +252,7 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
         {/* Barra Superior del Modal (Oculta al Imprimir) */}
         <div className="bg-white px-5 py-3.5 border-b border-stone-200 flex items-center justify-between shrink-0 print-hide">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-bodegon/10 text-bodegon flex items-center justify-center">
               <FileText className="w-4 h-4" />
             </div>
             <div>
@@ -268,7 +268,7 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+              className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm"
             >
               <Printer className="w-4 h-4" />
               Imprimir Boleta (1 Página)
@@ -287,13 +287,13 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
           <div className="print-boleta-paper bg-white rounded-2xl p-5 sm:p-7 shadow-md border border-stone-200 text-stone-900 mx-auto max-w-[195mm]">
             
             {/* Encabezado Institucional Compacto */}
-            <div className="border-b-2 border-[#1c6856] pb-3 mb-3.5 flex items-center justify-between gap-2">
+            <div className="border-b-2 border-bodegon pb-3 mb-3.5 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-bodegon/30 bg-bodegon">
                   <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                 </div>
                 <div>
-                  <h1 className="font-black text-base tracking-tight text-[#1c6856] uppercase leading-none">
+                  <h1 className="font-black text-base tracking-tight text-bodegon uppercase leading-none">
                     Restaurante El Bodegón
                   </h1>
                   <span className="text-[8px] font-bold tracking-widest text-stone-400 uppercase block mt-0.5">
@@ -326,7 +326,7 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
 
             {/* Cuadro de Datos del Colaborador */}
             <div className="bg-stone-50/90 border border-stone-200 rounded-lg p-2.5 mb-2.5">
-              <h3 className="text-[10px] font-black text-[#1c6856] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+              <h3 className="text-[10px] font-black text-bodegon uppercase tracking-wider mb-1.5 flex items-center gap-1">
                 <User className="w-3 h-3" />
                 1. Datos del Colaborador
               </h3>
@@ -446,7 +446,7 @@ export default function BoletaIncidenciaModal({ alerta, onClose }: BoletaInciden
             </button>
             <button
               onClick={handlePrint}
-              className="px-5 py-2 rounded-xl bg-[#1c6856] text-white text-xs font-bold hover:bg-[#154f42] transition-colors flex items-center gap-1.5 shadow-sm active:scale-95"
+              className="px-5 py-2 rounded-xl bg-bodegon text-white text-xs font-bold hover:bg-bodegon-noche transition-colors flex items-center gap-1.5 shadow-sm"
             >
               <Printer className="w-4 h-4" />
               Imprimir Boleta (1 Página)

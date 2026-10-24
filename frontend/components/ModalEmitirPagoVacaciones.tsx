@@ -118,10 +118,10 @@ export default function ModalEmitirPagoVacaciones({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-[99999] bg-black/80 flex items-start justify-center p-3 sm:p-6 overflow-y-auto">
       <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden my-6 sm:my-8 animate-in fade-in zoom-in-95 duration-200">
         {/* Header institucional */}
-        <div className="flex items-center justify-between px-6 py-4 bg-[#1c6856] text-white">
+        <div className="flex items-center justify-between px-6 py-4 bg-bodegon text-white">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-white/10">
               <Banknote className="w-5 h-5 text-emerald-300" />
@@ -156,13 +156,13 @@ export default function ModalEmitirPagoVacaciones({
           {/* Selección de Colaborador */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-[#1c6856]" />
+              <User className="w-3.5 h-3.5 text-bodegon" />
               <span>Colaborador</span>
             </label>
             <select
               value={selectedEmpId}
               onChange={(e) => setSelectedEmpId(e.target.value ? Number(e.target.value) : '')}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-900 text-xs sm:text-sm font-semibold bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1c6856]/30 focus:border-[#1c6856]"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-900 text-xs sm:text-sm font-semibold bg-stone-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-bodegon/30 focus:border-bodegon"
               required
             >
               <option value="">Seleccione un colaborador...</option>
@@ -208,7 +208,7 @@ export default function ModalEmitirPagoVacaciones({
                 value={diasPagar}
                 onChange={(e) => setDiasPagar(e.target.value)}
                 placeholder="Ej. 2"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-900 text-xs sm:text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#1c6856]/30 focus:border-[#1c6856]"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-900 text-xs sm:text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-bodegon/30 focus:border-bodegon"
                 required
               />
             </div>
@@ -224,7 +224,7 @@ export default function ModalEmitirPagoVacaciones({
                 value={montoPagar}
                 onChange={(e) => setMontoPagar(e.target.value)}
                 placeholder="Monto acordado manual"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-900 text-xs sm:text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#1c6856]/30 focus:border-[#1c6856]"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-900 text-xs sm:text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-bodegon/30 focus:border-bodegon"
               />
               <span className="text-[10px] text-stone-400 block mt-1">
                 El admin define el monto libremente
@@ -243,7 +243,7 @@ export default function ModalEmitirPagoVacaciones({
                 type="date"
                 value={fechaPago}
                 onChange={(e) => setFechaPago(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1c6856]/30 focus:border-[#1c6856]"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-bodegon/30 focus:border-bodegon"
                 required
               />
             </div>
@@ -258,7 +258,7 @@ export default function ModalEmitirPagoVacaciones({
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
                 placeholder="Ej. Liquidación de feriados laborados"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1c6856]/30 focus:border-[#1c6856]"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-stone-900 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-bodegon/30 focus:border-bodegon"
               />
             </div>
           </div>
@@ -273,7 +273,7 @@ export default function ModalEmitirPagoVacaciones({
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
               placeholder="Notas administrativas adicionales para la boleta..."
-              className="w-full px-3.5 py-2 rounded-xl border border-stone-300 text-stone-900 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#1c6856]/30 focus:border-[#1c6856]"
+              className="w-full px-3.5 py-2 rounded-xl border border-stone-300 text-stone-900 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-bodegon/30 focus:border-bodegon"
             />
           </div>
 
@@ -299,7 +299,7 @@ export default function ModalEmitirPagoVacaciones({
             <button
               type="submit"
               disabled={loading || !selectedEmpId || numDias <= 0}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1c6856] hover:bg-[#154f41] disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md hover:scale-105 active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-bodegon hover:bg-bodegon-noche disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>{loading ? 'Emitiendo Boleta...' : 'Procesar y Emitir Boleta'}</span>
