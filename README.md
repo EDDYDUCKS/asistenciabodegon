@@ -95,10 +95,10 @@ Copia los valores de ejemplo de `.env.example` y ajústalos según tu entorno. *
 
 | Variable | Descripción | Valor de ejemplo |
 |---|---|---|
-| `SECRET_KEY` | Clave criptográfica de Django | `django-insecure-tu-clave-aqui` |
+| `SECRET_KEY` | Clave criptográfica de Django. **Obligatoria**: sin ella el servidor no arranca (salvo con `DEBUG=True`) | Genera una con `python -c "import secrets; print(secrets.token_urlsafe(50))"` |
 | `DEBUG` | Modo depuración | `True` (local) / `False` (producción) |
 | `DATABASE_URL` | Conexión a PostgreSQL (si no se define, usa SQLite) | `postgresql://postgres:clave@host:5432/postgres` |
-| `BACKUP_ADMIN_KEY` | Clave de autorización para descarga de volcado DB | `bodegon-admin-backup-key-2026-auth` |
+| `BACKUP_ADMIN_KEY` | Clave para descargar el respaldo de la DB. **Obligatoria**: sin ella el servidor no arranca (salvo con `DEBUG=True`). El panel la pide al pulsar «Respaldo» | Genera otra con el mismo comando |
 | `ADMIN_PAYROLL_PIN` | PIN para aprobar horas extra y pagos en servidor | `2322` |
 
 **Frontend** (archivo `frontend/.env.local` o variables en Vercel):

@@ -733,14 +733,27 @@ export async function cerrarSalida11pm(alertaId: number): Promise<{
 // ── RESPALDO TOTAL DE BASE DE DATOS ───────────────────────────────────────
 export async function downloadDatabaseBackup(): Promise<void> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const adminKey = typeof window !== 'undefined' ? (sessionStorage.getItem('backup_admin_key') || 'bodegon-admin-backup-key-2026-auth') : 'bodegon-admin-backup-key-2026-auth';
-  const headers: HeadersInit = {
-    'X-Admin-Backup-Key': adminKey,
-  };
+  let adminKey = typeof window !== 'undefined' ? sessionStorage.getItem('backup_admin_key') : null;
+  if (!adminKey && typeof window !== 'undefined') {
+    adminKey = window.prompt('Ingrese la clave de respaldo de administración:')?.trim() || null;
+  }
+  if (!adminKey && !token) {
+    throw new Error('Se requiere la clave de respaldo de administración.');
+  }
+  const headers: Record<string, string> = {};
+  if (adminKey) {
+    headers['X-Admin-Backup-Key'] = adminKey;
+  }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
   const res = await fetch(`${API_BASE_URL}/admin/respaldo-datos/`, { headers });
+  if (res.status === 403 && typeof window !== 'undefined') {
+    sessionStorage.removeItem('backup_admin_key');
+  }
+  if (res.ok && adminKey && typeof window !== 'undefined') {
+    sessionStorage.setItem('backup_admin_key', adminKey);
+  }
   if (!res.ok) {
     throw new Error('Error al generar la copia de seguridad de la base de datos.');
   }

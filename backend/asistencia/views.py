@@ -5424,14 +5424,15 @@ def exportar_respaldo_base_datos(request):
     de todas las tablas de Restaurante El Bodegón para resguardo de la administración.
     Requiere autenticación de administrador o clave administrativa de resguardo.
     """
-    import os
+    import hmac
+    from django.conf import settings
     admin_key_header = request.headers.get('X-Admin-Backup-Key') or request.GET.get('key')
-    expected_key = os.getenv('BACKUP_ADMIN_KEY', 'bodegon-admin-backup-key-2026-auth')
+    expected_key = settings.BACKUP_ADMIN_KEY
 
     is_authorized = False
     if request.user and request.user.is_authenticated and request.user.is_staff:
         is_authorized = True
-    elif admin_key_header and admin_key_header == expected_key:
+    elif admin_key_header and hmac.compare_digest(admin_key_header.encode('utf-8'), expected_key.encode('utf-8')):
         is_authorized = True
 
     if not is_authorized:
