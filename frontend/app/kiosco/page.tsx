@@ -3,8 +3,15 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { MarcajeKioscoResponse, TipoEventoType, Empleado } from '@/lib/types';
-import { marcarAsistenciaKiosco, consultarHorasKiosco, syncBatchAsistencias, fetchEmpleados } from '@/lib/api-client';
+import { MarcajeKioscoResponse, TipoEventoType } from '@/lib/types';
+import {
+  marcarAsistenciaKiosco,
+  consultarHorasKiosco,
+  syncBatchAsistencias,
+  fetchEmpleadosKiosco,
+  loginAdmin,
+  EmpleadoKiosco,
+} from '@/lib/api-client';
 import {
   Clock,
   Camera,
@@ -36,6 +43,17 @@ interface RecentScan {
   minutos_tardanza?: number;
 }
 
+// Huella SHA-256 del UUID del carnet, para reconocer al colaborador sin tener su token
+async function sha256Hex(value: string): Promise<string | null> {
+  try {
+    if (typeof crypto === 'undefined' || !crypto.subtle) return null;
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return null;
+  }
+}
+
 export default function KioscoPage() {
   const router = useRouter();
   const [timeStr, setTimeStr] = useState<string>('');
@@ -47,8 +65,10 @@ export default function KioscoPage() {
   const [showAdminPinModal, setShowAdminPinModal] = useState(false);
   const [adminPin, setAdminPin] = useState('');
   const [adminPinError, setAdminPinError] = useState(false);
-  const [empleadosCache, setEmpleadosCache] = useState<Empleado[]>([]);
-  const [empleadoDetectado, setEmpleadoDetectado] = useState<Empleado | null>(null);
+  const [adminPinErrorMsg, setAdminPinErrorMsg] = useState('PIN incorrecto. Intente de nuevo.');
+  const [adminPinVerifying, setAdminPinVerifying] = useState(false);
+  const [empleadosCache, setEmpleadosCache] = useState<EmpleadoKiosco[]>([]);
+  const [empleadoDetectado, setEmpleadoDetectado] = useState<EmpleadoKiosco | null>(null);
 
   // Estados de Consulta de Horas para Colaboradores
   const [showConsultaModal, setShowConsultaModal] = useState(false);
@@ -107,8 +127,8 @@ export default function KioscoPage() {
     const interval = setInterval(updateClock, 1000);
 
     // Precargar lista de empleados para reconocimiento visual instantáneo
-    fetchEmpleados()
-      .then((list) => setEmpleadosCache(list.filter((e) => e.activo)))
+    fetchEmpleadosKiosco()
+      .then((list) => setEmpleadosCache(list))
       .catch((e) => console.warn('Error precargando empleados para Kiosco:', e));
 
     return () => clearInterval(interval);
@@ -245,33 +265,32 @@ export default function KioscoPage() {
     }
   };
 
-  // ── PIN DE GERENCIA (4512) PARA TÚNEL DIRECTO A ADMINISTRACIÓN ────────────
-  const handleAdminPinKeyPress = useCallback((num: string) => {
-    setAdminPinError(false);
-    setAdminPin((prev) => {
-      if (prev.length >= 4) return prev;
-      const newPin = prev + num;
-      if (newPin === '4512') {
-        playAudioFeedback('success');
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('admin_auth_pin_verified', 'true');
-        }
-        setTimeout(() => {
-          setShowAdminPinModal(false);
-          setAdminPin('');
-          router.push('/admin');
-        }, 150);
-        return newPin;
-      } else if (newPin.length === 4) {
-        setTimeout(() => {
-          setAdminPinError(true);
-          setAdminPin('');
-          playAudioFeedback('error');
-        }, 200);
-      }
-      return newPin;
-    });
+  // ── PIN DE GERENCIA PARA TÚNEL DIRECTO A ADMINISTRACIÓN (validado en servidor) ──
+  const submitAdminPin = useCallback(async (candidate: string) => {
+    setAdminPinVerifying(true);
+    try {
+      await loginAdmin(candidate);
+      playAudioFeedback('success');
+      setShowAdminPinModal(false);
+      setAdminPin('');
+      router.push('/admin');
+    } catch (e: unknown) {
+      setAdminPinErrorMsg(e instanceof Error ? e.message : 'PIN incorrecto. Intente de nuevo.');
+      setAdminPinError(true);
+      setAdminPin('');
+      playAudioFeedback('error');
+    } finally {
+      setAdminPinVerifying(false);
+    }
   }, [router]);
+
+  const handleAdminPinKeyPress = useCallback((num: string) => {
+    if (adminPinVerifying || adminPin.length >= 4) return;
+    setAdminPinError(false);
+    const nextPin = adminPin + num;
+    setAdminPin(nextPin);
+    if (nextPin.length === 4) void submitAdminPin(nextPin);
+  }, [adminPin, adminPinVerifying, submitAdminPin]);
 
   const handleAdminPinBackspace = useCallback(() => {
     setAdminPin((prev) => prev.slice(0, -1));
@@ -512,7 +531,8 @@ export default function KioscoPage() {
 
       // 1. Reconocimiento visual instantáneo en el Kiosco
       const rawUuid = token.trim().split('.')[0];
-      const matchEmp = empleadosCache.find((e) => e.qr_code_token?.startsWith(rawUuid));
+      const qrHash = await sha256Hex(rawUuid);
+      const matchEmp = qrHash ? empleadosCache.find((e) => e.qr_hash === qrHash) : undefined;
       if (matchEmp) {
         setEmpleadoDetectado(matchEmp);
       }
@@ -1541,7 +1561,7 @@ export default function KioscoPage() {
         Restaurante El Bodegón © 2026 — Estación Kiosco Registrada
       </footer>
 
-      {/* ── MODAL DE ACCESO ADMINISTRATIVO CON PIN 4512 ── */}
+      {/* ── MODAL DE ACCESO ADMINISTRATIVO CON PIN DE GERENCIA ── */}
       {showAdminPinModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white border border-stone-200 w-full max-w-sm rounded-3xl p-6 sm:p-8 shadow-2xl text-center space-y-5 animate-in zoom-in-95 duration-200 select-none">
@@ -1574,8 +1594,11 @@ export default function KioscoPage() {
 
             {adminPinError && (
               <p className="text-xs text-rose-600 font-bold animate-pulse">
-                PIN incorrecto. Intente de nuevo.
+                {adminPinErrorMsg}
               </p>
+            )}
+            {adminPinVerifying && (
+              <p className="text-xs text-stone-500 font-bold">Verificando PIN...</p>
             )}
 
             {/* Teclado Numérico */}

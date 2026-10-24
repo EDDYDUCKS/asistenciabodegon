@@ -5,7 +5,17 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { AlertaAsistencia } from '@/lib/types';
-import { fetchAlertas, updateAlerta, resolverAlerta, downloadDatabaseBackup, cerrarSalida11pm } from '@/lib/api-client';
+import {
+  fetchAlertas,
+  updateAlerta,
+  resolverAlerta,
+  downloadDatabaseBackup,
+  cerrarSalida11pm,
+  loginAdmin,
+  getAdminToken,
+  clearAdminToken,
+  ADMIN_SESSION_EXPIRED_EVENT,
+} from '@/lib/api-client';
 import {
   Utensils,
   LayoutDashboard,
@@ -36,6 +46,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [pin, setPin] = useState('');
   const [authorized, setAuthorized] = useState(false);
   const [pinError, setPinError] = useState(false);
+  const [pinErrorMsg, setPinErrorMsg] = useState('PIN incorrecto. Intente de nuevo.');
+  const [verifyingPin, setVerifyingPin] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   // Estados de Alertas
@@ -72,9 +84,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   ];
 
   const handleLogout = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('admin_auth_pin_verified');
-    }
+    clearAdminToken();
     setAuthorized(false);
     setPin('');
     setPinError(false);
@@ -91,8 +101,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const isAuth = sessionStorage.getItem('admin_auth_pin_verified');
-      if (isAuth === 'true') {
+      if (getAdminToken()) {
         setAuthorized(true);
         loadAlerts();
       }
@@ -101,10 +110,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     // Al salir de /admin hacia cualquier otra ruta o cerrar la vista, asegurar cierre de sesión
     return () => {
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('admin_auth_pin_verified');
-      }
+      clearAdminToken();
     };
+  }, []);
+
+  // Si el servidor rechaza el token (vencido o inválido), volver a pedir el PIN
+  useEffect(() => {
+    const onExpired = () => {
+      setAuthorized(false);
+      setPin('');
+    };
+    window.addEventListener(ADMIN_SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(ADMIN_SESSION_EXPIRED_EVENT, onExpired);
   }, []);
 
   // Temporizador de auto-bloqueo por inactividad (5 minutos)
@@ -178,35 +195,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   };
 
-  const handleKeyPress = useCallback((num: string) => {
-    setPinError(false);
-    setPin((prevPin) => {
-      if (prevPin.length >= 4) return prevPin;
-      const newPin = prevPin + num;
-      if (newPin === '4512') {
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('admin_auth_pin_verified', 'true');
-        }
-        setAuthorized(true);
-        loadAlerts();
-        return '';
-      } else if (newPin.length === 4) {
-        setTimeout(() => {
-          setPinError(true);
-          setPin('');
-          playErrorBeep();
-        }, 150);
-      }
-      return newPin;
-    });
+  // El PIN se valida en el servidor; el frontend no conoce el PIN correcto
+  const submitPin = useCallback(async (candidate: string) => {
+    setVerifyingPin(true);
+    try {
+      await loginAdmin(candidate);
+      setAuthorized(true);
+      setPin('');
+      loadAlerts();
+    } catch (e: unknown) {
+      setPinErrorMsg(e instanceof Error ? e.message : 'PIN incorrecto. Intente de nuevo.');
+      setPinError(true);
+      setPin('');
+      playErrorBeep();
+    } finally {
+      setVerifyingPin(false);
+    }
   }, []);
+
+  const handleKeyPress = useCallback((num: string) => {
+    if (verifyingPin || pin.length >= 4) return;
+    setPinError(false);
+    const nextPin = pin + num;
+    setPin(nextPin);
+    if (nextPin.length === 4) void submitPin(nextPin);
+  }, [pin, verifyingPin, submitPin]);
 
   const handleBackspace = useCallback(() => {
     setPin((prev) => prev.slice(0, -1));
     setPinError(false);
   }, []);
 
-  // Soporte de Teclado Físico en PC para PIN 4512
+  // Soporte de Teclado Físico en PC para el PIN de gerencia
   useEffect(() => {
     if (authorized) return;
 
@@ -275,8 +295,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           {pinError && (
             <p className="text-xs text-rose-600 font-bold animate-pulse">
-              PIN incorrecto. Intente de nuevo.
+              {pinErrorMsg}
             </p>
+          )}
+          {verifyingPin && (
+            <p className="text-xs text-stone-500 font-bold">Verificando PIN...</p>
           )}
 
           {/* Teclado Numérico */}

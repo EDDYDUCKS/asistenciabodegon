@@ -7,9 +7,15 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-bodegon-asistencia-2026-key')
-
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
+
+# La SECRET_KEY firma los tokens del panel: en producción es obligatoria y no puede ser pública.
+SECRET_KEY = os.getenv('SECRET_KEY', '')
+if not SECRET_KEY:
+    if not DEBUG:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured('Define la variable de entorno SECRET_KEY en producción.')
+    SECRET_KEY = 'django-insecure-solo-desarrollo-local'
 
 ALLOWED_HOSTS = ['asistenciabodegon-api.onrender.com', '.onrender.com', 'localhost', '127.0.0.1', '*']
 
@@ -106,11 +112,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'asistencia.authentication.PanelTokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
+    # Todo requiere login del panel salvo lo que se marque explícitamente como público (kiosco)
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'asistencia.authentication.IsPanelAdmin',
     ],
 }
 

@@ -1931,7 +1931,6 @@ export default function BodegonControlPage() {
     <PinSecurityGate
       title="Bodegón Control"
       subtitle="Auditoría Online • Ventas, Ganancias & Caja Chica"
-      pinRequired="4512"
       sessionKey="bodegon_control_pin_verified"
     >
       <div className="min-h-screen bg-[#fcf9f5] text-stone-900 font-sans flex flex-col selection:bg-amber-100">

@@ -5,11 +5,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { RefreshCw, Lock } from 'lucide-react';
 import { playErrorBeep } from '@/lib/sound-feedback';
+import { loginAdmin, getAdminToken, clearAdminToken } from '@/lib/api-client';
 
 interface PinSecurityGateProps {
   title?: string;
   subtitle?: string;
-  pinRequired?: string;
   sessionKey?: string;
   children: React.ReactNode;
 }
@@ -17,19 +17,21 @@ interface PinSecurityGateProps {
 export default function PinSecurityGate({
   title = 'Bodegón Control',
   subtitle = 'Módulo de Compras, Gastos & Caja Chica',
-  pinRequired = '4512',
   sessionKey = 'bodegon_control_pin_verified',
   children,
 }: PinSecurityGateProps) {
   const [pin, setPin] = useState('');
   const [authorized, setAuthorized] = useState(false);
   const [pinError, setPinError] = useState(false);
+  const [pinErrorMsg, setPinErrorMsg] = useState('PIN incorrecto. Intente de nuevo.');
+  const [verifyingPin, setVerifyingPin] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   const handleLogout = useCallback(() => {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(sessionKey);
     }
+    clearAdminToken();
     setAuthorized(false);
     setPin('');
     setPinError(false);
@@ -38,7 +40,7 @@ export default function PinSecurityGate({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const isAuth = sessionStorage.getItem(sessionKey);
-      if (isAuth === 'true') {
+      if (isAuth === 'true' && getAdminToken()) {
         setAuthorized(true);
       }
       setCheckingAuth(false);
@@ -70,29 +72,36 @@ export default function PinSecurityGate({
     };
   }, [authorized, handleLogout]);
 
+  // El PIN se valida en el servidor; el frontend no conoce el PIN correcto
+  const submitPin = useCallback(
+    async (candidate: string) => {
+      setVerifyingPin(true);
+      try {
+        await loginAdmin(candidate);
+        sessionStorage.setItem(sessionKey, 'true');
+        setAuthorized(true);
+        setPin('');
+      } catch (e: unknown) {
+        setPinErrorMsg(e instanceof Error ? e.message : 'PIN incorrecto. Intente de nuevo.');
+        setPinError(true);
+        setPin('');
+        playErrorBeep();
+      } finally {
+        setVerifyingPin(false);
+      }
+    },
+    [sessionKey]
+  );
+
   const handleKeyPress = useCallback(
     (num: string) => {
+      if (verifyingPin || pin.length >= 4) return;
       setPinError(false);
-      setPin((prevPin) => {
-        if (prevPin.length >= 4) return prevPin;
-        const newPin = prevPin + num;
-        if (newPin === pinRequired) {
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem(sessionKey, 'true');
-          }
-          setAuthorized(true);
-          return '';
-        } else if (newPin.length === 4) {
-          setTimeout(() => {
-            setPinError(true);
-            setPin('');
-            playErrorBeep();
-          }, 150);
-        }
-        return newPin;
-      });
+      const nextPin = pin + num;
+      setPin(nextPin);
+      if (nextPin.length === 4) void submitPin(nextPin);
     },
-    [pinRequired, sessionKey]
+    [pin, verifyingPin, submitPin]
   );
 
   const handleBackspace = useCallback(() => {
@@ -171,8 +180,11 @@ export default function PinSecurityGate({
 
           {pinError && (
             <p className="text-xs text-rose-600 font-bold animate-pulse">
-              PIN incorrecto. Intente de nuevo.
+              {pinErrorMsg}
             </p>
+          )}
+          {verifyingPin && (
+            <p className="text-xs text-stone-500 font-bold">Verificando PIN...</p>
           )}
 
           {/* Teclado Numérico */}

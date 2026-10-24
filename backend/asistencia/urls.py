@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+from . import auth
 
 router = DefaultRouter()
 router.register(r'empleados', views.EmpleadoViewSet)
@@ -19,7 +20,12 @@ urlpatterns = [
     # Router CRUD
     path('', include(router.urls)),
 
-    # Kiosco Marcaje QR
+    # Autenticación del panel administrativo (PINs validados solo en servidor)
+    path('auth/login/', auth.login_panel, name='auth_login'),
+    path('auth/verificar-pin-nomina/', auth.verificar_pin_nomina_view, name='auth_verificar_pin_nomina'),
+
+    # Kiosco Marcaje QR (público, sin login)
+    path('kiosco/empleados/', views.empleados_kiosco, name='kiosco_empleados'),
     path('kiosco/marcar/', views.marcar_asistencia_kiosco, name='kiosco_marcar'),
     path('kiosco/consultar/', views.consultar_horas_kiosco, name='kiosco_consultar'),
 

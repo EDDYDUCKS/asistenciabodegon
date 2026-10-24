@@ -6,6 +6,7 @@ import datetime
 # Inicializar Django
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sgp_asistencia.settings')
+os.environ.setdefault('KIOSK_SIMULATION_KEY', 'bodegon-simulation-test-mode')
 django.setup()
 
 from django.test import Client

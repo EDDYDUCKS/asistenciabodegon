@@ -10,7 +10,7 @@ from django.db.models import Q, Sum
 from django.utils import timezone
 from django.http import HttpResponse, HttpResponseRedirect
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action, api_view, permission_classes, renderer_classes
+from rest_framework.decorators import action, api_view, permission_classes, renderer_classes, authentication_classes
 from rest_framework.response import Response
 from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -26,6 +26,8 @@ from .serializers import (
     PermisoAusenciaSerializer, CompensacionHorasSerializer, CompensacionFeriadoSerializer,
     PagoVacacionesSerializer, PagoHorasExtraSerializer
 )
+from .auth import verificar_pin_nomina, foto_firma_valida
+from .authentication import IsPanelAdmin
 
 
 class ExcelBinaryRenderer(BaseRenderer):
@@ -288,7 +290,7 @@ def _verificar_acreditacion_vacaciones_todos():
 class EmpleadoViewSet(viewsets.ModelViewSet):
     queryset = Empleado.objects.prefetch_related('permisos').all()
     serializer_class = EmpleadoSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
 
     def list(self, request, *args, **kwargs):
         try:
@@ -811,7 +813,7 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
     queryset = RegistroAsistencia.objects.all().select_related('empleado').defer('foto_base64')
     serializer_class = RegistroAsistenciaSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
@@ -891,12 +893,16 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
         except Exception as ex:
             print(f"Error al recalcular alertas tras update: {ex}")
 
-    @action(detail=True, methods=['get'], url_path='foto')
+    @action(detail=True, methods=['get'], url_path='foto', permission_classes=[permissions.AllowAny])
     def foto(self, request, pk=None):
         """
         Retorna la fotografía de verificación del marcaje en formato binario JPEG
         con encabezados de caché del navegador para acelerar la carga en un 99%.
         """
+        es_admin = IsPanelAdmin().has_permission(request, self)
+        if not es_admin and not foto_firma_valida(pk, request.GET.get('sig')):
+            return Response({'detail': 'Enlace de fotografía inválido o vencido.'}, status=403)
+
         instance = RegistroAsistencia.objects.filter(pk=pk).only('id', 'foto_base64', 'foto_verificacion').first()
         if not instance:
             return Response({'detail': 'Registro de asistencia no encontrado'}, status=404)
@@ -909,7 +915,7 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
                 import base64
                 img_bytes = base64.b64decode(b64_data)
                 resp = HttpResponse(img_bytes, content_type='image/jpeg')
-                resp['Cache-Control'] = 'public, max-age=604800'  # 7 días en caché de navegador
+                resp['Cache-Control'] = 'private, max-age=86400'  # 1 día en caché del navegador (URL firmada)
                 return resp
             except Exception:
                 pass
@@ -1044,8 +1050,7 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='purgar-dia-cero')
     def purgar_dia_cero(self, request):
-        pin = str(request.data.get('pin', '')).strip()
-        if pin != '2322':
+        if not verificar_pin_nomina(request, request.data.get('pin')):
             return Response(
                 {'status': 'error', 'mensaje': 'PIN de Gerencia incorrecto. No autorizado.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -1083,7 +1088,7 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
                 usuario=request.user if request.user.is_authenticated else None,
                 accion='CONFIGURACION_SISTEMA',
                 descripcion=(
-                    f"Purga oficial Día 0 ejecutada con PIN 2322: "
+                    f"Purga oficial Día 0 ejecutada con PIN de nómina: "
                     f"{reg_count} asistencias, {alerta_count} alertas y {extra_count} horas extra eliminadas. "
                     f"Balances reseteados a 0.00 hrs."
                 ),
@@ -1102,7 +1107,7 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
 class BitacoraViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = BitacoraAccion.objects.all()
     serializer_class = BitacoraAccionSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
 
     def get_queryset(self):
         qs = BitacoraAccion.objects.all().order_by('-fecha_hora', '-id')
@@ -1122,13 +1127,13 @@ class BitacoraViewSet(viewsets.ReadOnlyModelViewSet):
 class DiaFeriadoViewSet(viewsets.ModelViewSet):
     queryset = DiaFeriado.objects.all()
     serializer_class = DiaFeriadoSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
 
 
 class CompensacionFeriadoViewSet(viewsets.ModelViewSet):
     queryset = CompensacionFeriado.objects.all().select_related('empleado')
     serializer_class = CompensacionFeriadoSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
 
     def list(self, request, *args, **kwargs):
         try:
@@ -1304,7 +1309,7 @@ class PagoVacacionesViewSet(viewsets.ModelViewSet):
     """
     queryset = PagoVacaciones.objects.all().select_related('empleado', 'registrado_por')
     serializer_class = PagoVacacionesSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1421,7 +1426,7 @@ class PagoHorasExtraViewSet(viewsets.ModelViewSet):
     """
     queryset = PagoHorasExtra.objects.all().select_related('empleado', 'registrado_por')
     serializer_class = PagoHorasExtraSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1439,9 +1444,7 @@ class PagoHorasExtraViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         from decimal import Decimal
         import os
-        pin = str(request.data.get('pin', '')).strip()
-        expected_pin = os.getenv('ADMIN_PAYROLL_PIN', '2322')
-        if not pin or pin != expected_pin:
+        if not verificar_pin_nomina(request, request.data.get('pin')):
             try:
                 BitacoraAccion.objects.create(
                     usuario=request.user if (request.user and request.user.is_authenticated) else None,
@@ -1566,13 +1569,11 @@ class PagoHorasExtraViewSet(viewsets.ModelViewSet):
 class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
     queryset = AutorizacionHorasExtra.objects.all().select_related('empleado')
     serializer_class = AutorizacionHorasExtraSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
 
     def update(self, request, *args, **kwargs):
         import os
-        pin = str(request.data.get('pin', '')).strip()
-        expected_pin = os.getenv('ADMIN_PAYROLL_PIN', '2322')
-        if not pin or pin != expected_pin:
+        if not verificar_pin_nomina(request, request.data.get('pin')):
             try:
                 BitacoraAccion.objects.create(
                     usuario=request.user if (request.user and request.user.is_authenticated) else None,
@@ -1602,7 +1603,7 @@ class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
 class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
     queryset = AlertaAsistencia.objects.all().select_related('empleado')
     serializer_class = AlertaAsistenciaSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
 
     def perform_create(self, serializer):
         alerta = serializer.save()
@@ -2331,7 +2332,7 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
 class PermisoAusenciaViewSet(viewsets.ModelViewSet):
     queryset = PermisoAusencia.objects.all().select_related('empleado')
     serializer_class = PermisoAusenciaSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
 
     def perform_create(self, serializer):
         permiso = serializer.save()
@@ -2356,7 +2357,7 @@ class PermisoAusenciaViewSet(viewsets.ModelViewSet):
 class CompensacionHorasViewSet(viewsets.ModelViewSet):
     queryset = CompensacionHoras.objects.select_related('empleado').all()
     serializer_class = CompensacionHorasSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsPanelAdmin]
 
     def perform_destroy(self, instance):
         empleado = instance.empleado
@@ -2673,7 +2674,31 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
 # 🟢 ENDPOINT PRINCIPAL DEL KIOSCO DE MARCAJE
 # ==========================================
 
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([permissions.AllowAny])
+def empleados_kiosco(request):
+    """
+    Lista mínima de colaboradores activos para que el Kiosco muestre el nombre al escanear.
+    No expone el token QR: solo su huella SHA-256 (del UUID), que no sirve para marcar.
+    """
+    import hashlib
+    data = []
+    for emp in Empleado.objects.filter(activo=True).only('id', 'nombre', 'apellido', 'qr_code_token'):
+        raw_uuid = str(emp.qr_code_token or '').split('.', 1)[0]
+        if not raw_uuid:
+            continue
+        data.append({
+            'id': emp.id,
+            'nombre': emp.nombre,
+            'apellido': emp.apellido,
+            'qr_hash': hashlib.sha256(raw_uuid.encode()).hexdigest(),
+        })
+    return Response(data)
+
+
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([permissions.AllowAny])
 @renderer_classes([JSONRenderer])
 def marcar_asistencia_kiosco(request):
@@ -2700,7 +2725,12 @@ def marcar_asistencia_kiosco(request):
     # Solo se permite fecha_hora simulada si settings.DEBUG=True o mediante cabecera de pruebas autorizada.
     from django.conf import settings
     fecha_hora_simulada = request.data.get('fecha_hora')
-    test_auth_header = request.headers.get('X-Test-Simulation-Key') == 'bodegon-simulation-test-mode'
+    import os
+    import hmac
+    simulation_key = os.getenv('KIOSK_SIMULATION_KEY', '')
+    test_auth_header = bool(simulation_key) and hmac.compare_digest(
+        (request.headers.get('X-Test-Simulation-Key') or '').encode(), simulation_key.encode()
+    )
 
     if fecha_hora_simulada and (getattr(settings, 'DEBUG', False) or test_auth_header):
         from django.utils.dateparse import parse_datetime
@@ -2989,6 +3019,7 @@ def marcar_asistencia_kiosco(request):
 
 
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([permissions.AllowAny])
 @renderer_classes([JSONRenderer])
 def consultar_horas_kiosco(request):
@@ -3381,7 +3412,7 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
     """
     Aplica formalmente la amortización de deuda acumulada (Bolsa de Horas):
     1. Si origen == 'SALIDA_KIOSCO': Se aplica automáticamente en el marcaje de salida con el excedente trabajado.
-    2. Si origen == 'APROBACION_ADMIN': Se aplica cuando el Administrador APRUEBA una solicitud con PIN 2322.
+    2. Si origen == 'APROBACION_ADMIN': Se aplica cuando el Administrador APRUEBA una solicitud con PIN de nómina.
     - Descuenta hasta min(horas_a_amortizar, deuda_actual) de empleado.horas_pendientes.
     - Genera registro auditable en CompensacionHoras con desglose FIFO de días adeudados.
     - Genera notificación clara y verídica en AlertaAsistencia(tipo='COMPENSACION_HORAS').
@@ -3998,7 +4029,7 @@ def _evaluar_y_autoacreditar_feriados_pendientes(request=None):
 # ==========================================
 
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([IsPanelAdmin])
 @renderer_classes([ExcelBinaryRenderer, JSONRenderer])
 def exportar_reporte_nomina_excel(request):
     """
@@ -4746,7 +4777,7 @@ def exportar_reporte_nomina_excel(request):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([IsPanelAdmin])
 @renderer_classes([ExcelBinaryRenderer, JSONRenderer])
 def exportar_reporte_vacaciones_excel(request):
     """
@@ -5238,6 +5269,7 @@ def exportar_reporte_vacaciones_excel(request):
 
 
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([permissions.AllowAny])
 def sync_batch_asistencia(request):
     """
@@ -5425,13 +5457,14 @@ def exportar_respaldo_base_datos(request):
     Requiere autenticación de administrador o clave administrativa de resguardo.
     """
     import os
-    admin_key_header = request.headers.get('X-Admin-Backup-Key') or request.GET.get('key')
-    expected_key = os.getenv('BACKUP_ADMIN_KEY', 'bodegon-admin-backup-key-2026-auth')
+    import hmac
+    admin_key_header = request.headers.get('X-Admin-Backup-Key') or ''
+    expected_key = os.getenv('BACKUP_ADMIN_KEY', '')
 
     is_authorized = False
     if request.user and request.user.is_authenticated and request.user.is_staff:
         is_authorized = True
-    elif admin_key_header and admin_key_header == expected_key:
+    elif expected_key and admin_key_header and hmac.compare_digest(admin_key_header.encode(), expected_key.encode()):
         is_authorized = True
 
     if not is_authorized:
@@ -5479,7 +5512,7 @@ def exportar_respaldo_base_datos(request):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([IsPanelAdmin])
 def exportar_reporte_inasistencias_excel(request):
     """
     Genera un archivo Excel (.xlsx) oficial con el detalle de todas las inasistencias

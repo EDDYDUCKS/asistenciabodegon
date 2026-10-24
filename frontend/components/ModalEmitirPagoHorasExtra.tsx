@@ -169,9 +169,10 @@ export default function ModalEmitirPagoHorasExtra({
       return;
     }
 
-    if (pin.trim() !== '2322') {
+    // El servidor valida el PIN al registrar el pago
+    if (!pin.trim()) {
       setPinError(true);
-      setErrorMsg('PIN de autorización gerencial incorrecto.');
+      setErrorMsg('Ingrese el PIN de autorización gerencial.');
       return;
     }
 
@@ -450,7 +451,7 @@ export default function ModalEmitirPagoHorasExtra({
             />
           </div>
 
-          {/* Validación de Seguridad con PIN 2322 */}
+          {/* Validación de Seguridad con PIN de nómina (en servidor) */}
           <div className="bg-stone-50 border border-stone-250 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 text-xs font-bold text-stone-900 uppercase tracking-wider">

@@ -246,7 +246,7 @@ def build_pdf_manual(output_path):
         [Paragraph("MANUAL OFICIAL DE USUARIO Y OPERACIONES", ParagraphStyle('CSub1', parent=cover_sub_style, fontName='Helvetica-Bold', fontSize=13, leading=16, textColor=BW_BLACK, alignment=1))],
         [Paragraph("Guía Práctica Paso a Paso para el Administrador de Turno y el Jefe Propietario", ParagraphStyle('CSub2', parent=cover_sub_style, fontName='Helvetica', fontSize=10, leading=14, textColor=BW_DARK, alignment=1))],
         [Spacer(1, 4)],
-        [Paragraph("Control de Asistencia Biometría QR • Nómina Quincenal • Horas Extra (PIN 2322) • Vacaciones • Feriados", ParagraphStyle('CSub3', parent=cover_sub_style, fontName='Helvetica-Bold', fontSize=8, textColor=BW_BLACK, alignment=1))],
+        [Paragraph("Control de Asistencia Biometría QR • Nómina Quincenal • Horas Extra (PIN de nómina) • Vacaciones • Feriados", ParagraphStyle('CSub3', parent=cover_sub_style, fontName='Helvetica-Bold', fontSize=8, textColor=BW_BLACK, alignment=1))],
     ]
     banner_table = Table(banner_data, colWidths=[504])
     banner_table.setStyle(TableStyle([
@@ -263,9 +263,9 @@ def build_pdf_manual(output_path):
     # Ficha técnica de la portada en recuadro negro nítido
     cover_meta = [
         [Paragraph("<b>¿Para quién es este manual?</b>", body_bold), Paragraph("Para el Administrador de Turno, Supervisores, Cajeros, Gerencia General y Propietario del negocio.", body_style)],
-        [Paragraph("<b>Propósito:</b>", body_bold), Paragraph("Explicar con instrucciones 100% sencillas y operativas cómo funciona el Kiosco con carnet QR, cómo revisar la asistencia en vivo, cómo previsualizar y autorizar horas extra con el PIN Maestro 2322, cómo liquidar vacaciones y cómo descargar la planilla en Excel.", body_style)],
+        [Paragraph("<b>Propósito:</b>", body_bold), Paragraph("Explicar con instrucciones 100% sencillas y operativas cómo funciona el Kiosco con carnet QR, cómo revisar la asistencia en vivo, cómo previsualizar y autorizar horas extra con el PIN de nómina, cómo liquidar vacaciones y cómo descargar la planilla en Excel.", body_style)],
         [Paragraph("<b>Enfoque:</b>", body_bold), Paragraph("Instrucciones paso a paso (1, 2, 3) a prueba de errores, diseñadas para que cualquier persona sin conocimientos de computación pueda dominar el sistema en pocos minutos.", body_style)],
-        [Paragraph("<b>Claves Secretas del Sistema:</b>", body_bold), Paragraph("Contiene los dos códigos de seguridad oficiales:<br/>• <b>PIN 4512</b>: Acceso Administrativo para abrir el sistema en PC o celular.<br/>• <b>PIN 2322</b>: PIN Maestro de Gerencia para autorizar o rechazar horas extra.<br/><i>Nota: Los colaboradores NO tienen PIN; marcan exclusivamente con su Carnet QR único.</i>", body_style)],
+        [Paragraph("<b>Claves Secretas del Sistema:</b>", body_bold), Paragraph("Usa dos códigos de seguridad que la gerencia entrega en persona (nunca están escritos en el sistema):<br/>• <b>PIN de gerencia</b>: Acceso Administrativo para abrir el sistema en PC o celular.<br/>• <b>PIN de nómina</b>: Para autorizar o rechazar horas extra.<br/><i>Nota: Los colaboradores NO tienen PIN; marcan exclusivamente con su Carnet QR único.</i>", body_style)],
     ]
     cover_meta_tbl = Table(cover_meta, colWidths=[140, 364])
     cover_meta_tbl.setStyle(TableStyle([
@@ -297,7 +297,7 @@ def build_pdf_manual(output_path):
         ("Capítulo 1", "¿Cómo funciona El Bodegón Pass y quién hace cada tarea?", "Pág. 3"),
         ("Capítulo 2", "La Tablet de la Entrada (El Kiosco con Carnets QR)", "Pág. 4"),
         ("Capítulo 3", "El Panel de Control en Vivo (Supervisión del restaurante)", "Pág. 6"),
-        ("Capítulo 4", "Previsualización y Aprobación de Horas Extra (PIN Maestro 2322)", "Pág. 7"),
+        ("Capítulo 4", "Previsualización y Aprobación de Horas Extra (PIN de nómina)", "Pág. 7"),
         ("Capítulo 5", "El Cuadro de Nómina (Reporte de Horas, Filtros y Planilla Excel)", "Pág. 9"),
         ("Capítulo 6", "Vacaciones, Permisos y Feriados (Cálculo legal de Nicaragua)", "Pág. 10"),
         ("Capítulo 7", "Registro de Empleados Nuevos e Impresión de Carnets QR", "Pág. 11"),
@@ -363,11 +363,11 @@ def build_pdf_manual(output_path):
     story.append(ui_mockup_box(
         "LAS 2 CLAVES SECRETAS DE EL BODEGÓN",
         [
-            "🔑 <b>PIN 4512 (Para entrar al Panel de Administración):</b> Lo pone el Administrador o el Jefe en la computadora de caja o en su celular para abrir el sistema. Abre el menú de empleados, asistencia y nómina.",
-            "⭐ <b>PIN 2322 (PIN Maestro de Horas Extra):</b> Es la clave de máxima autoridad que solo el Jefe o la Gerencia General conocen. Se escribe cada vez que se va a autorizar o rechazar una hora extra en nómina para generar la boleta oficial.",
+            "🔑 <b>PIN de gerencia (Para entrar al Panel de Administración):</b> Lo pone el Administrador o el Jefe en la computadora de caja o en su celular para abrir el sistema. Abre el menú de empleados, asistencia y nómina.",
+            "⭐ <b>PIN de nómina (PIN Maestro de Horas Extra):</b> Es la clave de máxima autoridad que solo el Jefe o la Gerencia General conocen. Se escribe cada vez que se va a autorizar o rechazar una hora extra en nómina para generar la boleta oficial.",
             "🚫 <b>ACLARACIÓN IMPORTANTE SOBRE LOS TRABAJADORES:</b> Los colaboradores (meseros, cocineros, etc.) <b>NO TIENEN NINGÚN PIN</b>. Marcan exclusivamente acercando su <b>Carnet Oficial con Código QR</b> frente a la cámara de la tablet. No tienen que memorizar contraseñas."
         ],
-        "Nunca anotes el PIN 4512 ni el PIN 2322 a la vista de los clientes ni los compartas con el personal operativo."
+        "Nunca anotes el PIN de gerencia ni el PIN de nómina a la vista de los clientes ni los compartas con el personal operativo."
     ))
     story.append(Spacer(1, 8))
 
@@ -377,7 +377,7 @@ def build_pdf_manual(output_path):
         [Paragraph("Revisar que la Tablet esté encendida y limpia", table_td_style), Paragraph("<b>SÍ</b> (Al abrir el restaurante en su turno)", table_td_style), Paragraph("Supervisa aleatoriamente", table_td_style)],
         [Paragraph("Monitorear quién vino y quién falta", table_td_style), Paragraph("<b>SÍ</b> (En la pantalla de Asistencia de Hoy)", table_td_style), Paragraph("Revisa el resumen general", table_td_style)],
         [Paragraph("Cerrar turnos a quienes olvidaron marcar salida", table_td_style), Paragraph("<b>SÍ</b> (Tocando 'Cerrar 11:00 PM' en la campanita)", table_td_style), Paragraph("Revisa justificaciones", table_td_style)],
-        [Paragraph("Aprobar Horas Extra con el PIN 2322", table_td_style), Paragraph("Revisa la previsualización y el turno", table_td_style), Paragraph("<b>SÍ</b> (Es quien pone el PIN 2322 y autoriza)", table_td_style)],
+        [Paragraph("Aprobar Horas Extra con el PIN de nómina", table_td_style), Paragraph("Revisa la previsualización y el turno", table_td_style), Paragraph("<b>SÍ</b> (Es quien pone el PIN de nómina y autoriza)", table_td_style)],
         [Paragraph("Emitir Boletas de Vacaciones en dinero", table_td_style), Paragraph("Llena los días que pide el muchacho", table_td_style), Paragraph("<b>SÍ</b> (Firma y autoriza la entrega del dinero)", table_td_style)],
         [Paragraph("Descargar el Excel para pagar la quincena", table_td_style), Paragraph("Revisa que los días trabajados estén bien", table_td_style), Paragraph("<b>SÍ</b> (Descarga el archivo y realiza los pagos)", table_td_style)],
     ]
@@ -473,7 +473,7 @@ def build_pdf_manual(output_path):
             "• <b>Ejemplo C:</b> Si trabajó <b>9 horas y 10 minutos</b>: Hizo una hora completa más. El sistema le genera una solicitud de <b>1.0 hora extra</b>.",
             "• Las horas extra siempre se cuentan en bloques limpios de media hora: 0.5h, 1.0h, 1.5h, 2.0h, etc."
         ],
-        "Ninguna hora extra se paga sola. Todas van a la bandeja de pendientes para que el Jefe las revise y las autorice con su PIN Maestro 2322."
+        "Ninguna hora extra se paga sola. Todas van a la bandeja de pendientes para que el Jefe las revise y las autorice con su PIN de nómina."
     ))
 
     story.append(Spacer(1, 10))
@@ -500,7 +500,7 @@ def build_pdf_manual(output_path):
 
     story.append(Paragraph("3.1 Cómo Entrar al Sistema", h2_style))
     story.append(Paragraph("1. Abre el navegador de internet en la computadora o celular y abre El Bodegón Pass.", step_style))
-    story.append(Paragraph("2. La pantalla te pedirá el PIN de acceso administrativo. Escribe <b>4512</b>.", step_style))
+    story.append(Paragraph("2. La pantalla te pedirá el PIN de acceso administrativo. Escribe el <b>PIN de gerencia</b>.", step_style))
     story.append(Paragraph("3. ¡Listo! Ya estás adentro del panel general del restaurante.", step_style))
 
     story.append(Paragraph("3.2 La Pantalla de Asistencia de Hoy (El Semáforo del Personal)", h2_style))
@@ -545,9 +545,9 @@ def build_pdf_manual(output_path):
     story.append(PageBreak())
 
     # ═════════════════════════════════════════════════════════════════════════
-    # CAPÍTULO 4: GESTIÓN Y PREVISUALIZACIÓN DE HORAS EXTRA (PIN 2322)
+    # CAPÍTULO 4: GESTIÓN Y PREVISUALIZACIÓN DE HORAS EXTRA (PIN de nómina)
     # ═════════════════════════════════════════════════════════════════════════
-    story.append(Paragraph("CAPÍTULO 4: PREVISUALIZACIÓN Y APROBACIÓN DE HORAS EXTRA (PIN 2322)", h1_style))
+    story.append(Paragraph("CAPÍTULO 4: PREVISUALIZACIÓN Y APROBACIÓN DE HORAS EXTRA (PIN de nómina)", h1_style))
     story.append(HRFlowable(width="100%", thickness=1, color=BW_BLACK, spaceBefore=2, spaceAfter=8))
 
     story.append(Paragraph(
@@ -567,7 +567,7 @@ def build_pdf_manual(output_path):
             "👤 <b>Colaborador:</b> Xiomara Castillo • Cargo: Mesera / Atención",
             "📅 <b>Fecha del Turno:</b> Sábado 20 de Septiembre • <b>Horas Extra Solicitadas: +1.0 hrs</b>",
             "👁️ <b>BOTÓN [ Previsualizar ]:</b> Abre el cajón de auditoría biométrica y desglose completo del turno.",
-            "✍️ <b>BOTÓN [ Evaluar ]:</b> Abre la previsualización y el formulario para aprobar o rechazar con el PIN 2322.",
+            "✍️ <b>BOTÓN [ Evaluar ]:</b> Abre la previsualización y el formulario para aprobar o rechazar con el PIN de nómina.",
             "⚠️ <b>ALERTA DE SEGURIDAD (Si aparece):</b> <code>[ >9h sem (Art. 58 CT) ]</code> avisa si la persona ya sobrepasó el límite legal de 9 horas semanales."
         ],
         "Toda hora extra cuenta con previsualización completa antes de tomar una decisión financiera."
@@ -592,13 +592,13 @@ def build_pdf_manual(output_path):
     ))
     story.append(Spacer(1, 8))
 
-    story.append(Paragraph("4.3 Paso a Paso para Aprobar o Rechazar con el PIN Maestro 2322", h2_style))
+    story.append(Paragraph("4.3 Paso a Paso para Aprobar o Rechazar con el PIN de nómina", h2_style))
     story.append(Paragraph("<b>Paso 1: Tocar [ Evaluar ]:</b> En la fila del trabajador, presiona el botón <b>[ Evaluar ]</b>. Se abrirá la previsualización y el formulario de decisión.", step_style))
     story.append(Paragraph("<b>Paso 2: Ajustar las Horas si es Necesario:</b> El sistema sugiere las horas solicitadas (ej. 1.0 hr). Si el jefe considera que solo debió quedarse media hora, puede ajustar el número a <b>0.5</b>.", step_style))
     story.append(Paragraph("<b>Paso 3: Escribir Nota (Opcional) y Elegir Acción:</b>", step_style))
-    story.append(Paragraph("   • Si las vas a autorizar: Pulsa el botón <b>[ Aprobar con PIN 2322 ]</b>.", bullet_style))
+    story.append(Paragraph("   • Si las vas a autorizar: Pulsa el botón <b>[ Aprobar con PIN de nómina ]</b>.", bullet_style))
     story.append(Paragraph("   • Si no las autorizas (ej. se quedó esperando transporte y no laborando): Pulsa el botón <b>[ Rechazar Solicitud ]</b>.", bullet_style))
-    story.append(Paragraph("<b>Paso 4: Ingresar el PIN Maestro 2322:</b> Se abrirá la ventana de seguridad confirmando el nombre del empleado y el resumen de marcajes del día. En tu teclado escribe <b>2322</b>. Al poner el último 2, el sistema confirma de inmediato y sin lag.", step_style))
+    story.append(Paragraph("<b>Paso 4: Ingresar el PIN de nómina:</b> Se abrirá la ventana de seguridad confirmando el nombre del empleado y el resumen de marcajes del día. En tu teclado escribe el PIN de nómina. Al poner el cuarto dígito, el servidor lo valida y confirma de inmediato.", step_style))
     story.append(Paragraph("<b>Paso 5: Apertura Automática de la Boleta Oficial:</b> Si aprobaste la solicitud, en ese mismo instante se abrirá en tu pantalla la <b>Boleta Oficial de Horas Extra</b> lista para imprimir.", step_style))
 
     story.append(PageBreak())
@@ -628,7 +628,7 @@ def build_pdf_manual(output_path):
 
     story.append(Paragraph("4.5 El Apartado 'Por Pagar' y el Cierre de Quincena", h2_style))
     story.append(Paragraph(
-        "Una vez que apruebas una hora extra con el PIN 2322, esa solicitud desaparece de 'Pendientes' y se traslada "
+        "Una vez que apruebas una hora extra con el PIN de nómina, esa solicitud desaparece de 'Pendientes' y se traslada "
         "a la sub-pestaña <b>'Por Pagar (Aprobadas)'</b>.<br/>"
         "Ahí se van acumulando todas las horas autorizadas de la quincena. El día 15 o el día 30 del mes:<br/>"
         "1. Entras a <b>'Por Pagar'</b>.<br/>"
@@ -639,7 +639,7 @@ def build_pdf_manual(output_path):
     ))
 
     story.append(box_alert(
-        "<b>Regla de Oro:</b> Si una hora extra no está aprobada formalmente en el sistema con el PIN 2322, <b>no se paga</b>. "
+        "<b>Regla de Oro:</b> Si una hora extra no está aprobada formalmente en el sistema con el PIN de nómina, <b>no se paga</b>. "
         "Esto garantiza que no se pague dinero de más ni tiempos no autorizados por la gerencia.",
         "POLÍTICA ESTRICTA DE CAJA",
         "danger"
@@ -674,7 +674,7 @@ def build_pdf_manual(output_path):
         ("4. Horas Ordinarias", "La suma de horas normales trabajadas (hasta 8 horas por turno)."),
         ("5. Feriados Trabajados", "Días de fiesta nacional que vino a trabajar. Muestra el letrero <b>+2d vac.</b> porque por ley se le acreditan 2 días de vacaciones."),
         ("6. Vacaciones Pagadas", "Días de vacaciones que se le han pagado en efectivo. Tiene un botón <b>[+]</b> para pagarle vacaciones hoy mismo."),
-        ("7. H. Extra Aprobadas", "Horas extra que el Jefe ya autorizó con el PIN 2322. Muestra aviso de advertencia si rebasó las 9 horas semanales."),
+        ("7. H. Extra Aprobadas", "Horas extra que el Jefe ya autorizó con el PIN de nómina. Muestra aviso de advertencia si rebasó las 9 horas semanales."),
         ("8. H. Extra por Aprobar", "Horas que los muchachos hicieron de más pero que el Jefe todavía no revisa. Si hay horas, sale un botón para ir a evaluarlas."),
         ("9. Horas Debidas (Bolsa)", "Horas que el muchacho le debe a la empresa por haber salido temprano de su turno de 8 horas."),
         ("10. Vacaciones Restantes", "Días de vacaciones disponibles que tiene acumulados para descansar o para pedir que se los paguen en dinero."),
@@ -875,7 +875,7 @@ def build_pdf_manual(output_path):
         "Toda la información de El Bodegón Pass está protegida y respaldada en la nube en tiempo real.<br/>"
         "• <b>¿Qué pasa si se va la luz o el internet?</b> La tablet del Kiosco guarda los marcajes en su memoria interna. En cuanto regresa el internet, sube todos los datos automáticamente sin perder ningún segundo.<br/>"
         "• <b>Respaldos de Nómina:</b> Se recomienda descargar el archivo de Excel quincenal y guardarlo en una memoria USB o en la computadora de gerencia.<br/>"
-        "• <b>Auditoría de Acciones:</b> Cada vez que alguien aprueba una hora extra con el PIN 2322 o borra un registro, el sistema anota la hora exacta, el usuario y la dirección IP en la bitácora interna de seguridad.",
+        "• <b>Auditoría de Acciones:</b> Cada vez que alguien aprueba una hora extra con el PIN de nómina o borra un registro, el sistema anota la hora exacta, el usuario y la dirección IP en la bitácora interna de seguridad.",
         body_style
     ))
 
@@ -962,7 +962,7 @@ def build_pdf_manual(output_path):
     story.append(Paragraph("12.1 Lista de Tareas Diarias del Administrador de Turno", h2_style))
     checklist_admin = (
         "[ ] Al abrir el turno: Pasar un paño suave al lente de la tablet y comprobar que la pantalla esté encendida.<br/>"
-        "[ ] Durante el turno: Entrar a 'Asistencia' con el PIN <b>4512</b> para verificar quién ya llegó y quién está comiendo.<br/>"
+        "[ ] Durante el turno: Entrar a 'Asistencia' con el <b>PIN de gerencia</b> para verificar quién ya llegó y quién está comiendo.<br/>"
         "[ ] Al mediodía o tarde: Revisar la campanita de alertas por si alguien salió temprano o debe horas a la Bolsa.<br/>"
         "[ ] Al cerrar el restaurante: Verificar que nadie quede con turno abierto. Si alguien olvidó marcar salida, tocar <b>[ 🌙 Cerrar 11:00 PM ]</b>."
     )
@@ -973,7 +973,7 @@ def build_pdf_manual(output_path):
     checklist_jefe = (
         "[ ] Todos los días o cada 2 días: Entrar a Nómina ➔ Horas Extra ➔ 'Pendientes'.<br/>"
         "[ ] Tocar <b>[ Previsualizar ]</b> o <b>[ Evaluar ]</b> para revisar las horas reales marcadas y fotos de la tablet.<br/>"
-        "[ ] Poner el PIN Maestro <b>2322</b> para aprobar o rechazar las horas de los muchachos.<br/>"
+        "[ ] Poner el <b>PIN de nómina</b> para aprobar o rechazar las horas de los muchachos.<br/>"
         "[ ] Imprimir la Boleta Oficial de Horas Extra (BHE) y archivarla con la firma del colaborador.<br/>"
         "[ ] Los días 15 y 30 del mes: Tocar <b>[ Planilla Quincenal ]</b> y presionar <b>[ Descargar Excel ]</b> para pagar los salarios."
     )

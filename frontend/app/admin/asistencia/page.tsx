@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useDeferredValue } from 'react';
 import { RegistroAsistencia } from '@/lib/types';
-import { fetchAsistencias, deleteAsistencia } from '@/lib/api-client';
+import { fetchAsistencias, deleteAsistencia, authHeaders } from '@/lib/api-client';
 import {
   CalendarCheck,
   RefreshCw,
@@ -327,7 +327,7 @@ export default function AsistenciaLogPage() {
       const fechaHoraISO = `${data.fecha}T${data.hora}:00-06:00`;
       await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api'}/asistencia/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           empleado: data.empleadoId,
           tipo_evento: data.tipo,
@@ -393,7 +393,7 @@ export default function AsistenciaLogPage() {
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
       const res = await fetch(`${API_BASE_URL}/asistencia/${editEventoRecord.id}/`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           empleado: Number(editEmpleadoId),
           tipo_evento: editNuevoTipo,
