@@ -2494,6 +2494,19 @@ def empleados_kiosco(request):
     return Response(data)
 
 
+def _empleado_por_qr(qr_token):
+    """
+    Busca al empleado activo por el código QR completo (uuid.firma), tal como está
+    guardado y impreso en su carnet. Se compara el código entero: un UUID con firma
+    inventada o ausente no autentica. No recalcula la firma, así que cambiar
+    SECRET_KEY no invalida los carnets existentes.
+    """
+    token = str(qr_token or '').strip()
+    if not token:
+        return None
+    return Empleado.objects.filter(qr_code_token=token, activo=True).first()
+
+
 @api_view(['POST'])
 @authentication_classes([])
 @permission_classes([permissions.AllowAny])
@@ -2509,11 +2522,7 @@ def marcar_asistencia_kiosco(request):
 
     qr_token = qr_token.strip()
 
-    # Buscar empleado activo directamente por su token o por el prefijo UUID
-    empleado = Empleado.objects.filter(qr_code_token=qr_token, activo=True).first()
-    if not empleado and '.' in qr_token:
-        raw_uuid = qr_token.split('.', 1)[0]
-        empleado = Empleado.objects.filter(qr_code_token__startswith=raw_uuid, activo=True).first()
+    empleado = _empleado_por_qr(qr_token)
 
     if not empleado:
         return Response({'status': 'error', 'mensaje': 'Código QR no encontrado en base de datos o empleado inactivo.'}, status=400)
@@ -2829,11 +2838,7 @@ def consultar_horas_kiosco(request):
     if not qr_token:
         return Response({'status': 'error', 'mensaje': 'Código QR no proporcionado.'}, status=400)
 
-    # Buscar empleado por token exacto o por prefijo UUID
-    empleado = Empleado.objects.filter(qr_code_token=qr_token, activo=True).first()
-    if not empleado:
-        raw_uuid = qr_token.split('.', 1)[0]
-        empleado = Empleado.objects.filter(qr_code_token__startswith=raw_uuid, activo=True).first()
+    empleado = _empleado_por_qr(qr_token)
 
     if not empleado:
         return Response({'status': 'error', 'mensaje': 'Carnet de colaborador no reconocido o inactivo.'}, status=404)
@@ -5154,10 +5159,7 @@ def sync_batch_asistencia(request):
             continue
 
         # 1. Buscar Empleado por token o prefijo UUID
-        empleado = Empleado.objects.filter(qr_code_token=qr_code_token.strip(), activo=True).first()
-        if not empleado and '.' in qr_code_token:
-            raw_uuid = qr_code_token.split('.', 1)[0]
-            empleado = Empleado.objects.filter(qr_code_token__startswith=raw_uuid, activo=True).first()
+        empleado = _empleado_por_qr(qr_code_token)
 
         if not empleado:
             respuestas.append({'status': 'error', 'mensaje': 'Empleado no encontrado o inactivo.', 'token': qr_code_token})
