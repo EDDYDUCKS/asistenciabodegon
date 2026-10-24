@@ -6,7 +6,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import BooleanField, Case, Q, Sum, Value, When
 from django.utils import timezone
 from django.http import HttpResponse, HttpResponseRedirect
 from rest_framework import viewsets, permissions, status
@@ -836,7 +836,15 @@ class RegistroAsistenciaViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
-        qs = RegistroAsistencia.objects.all().select_related('empleado').defer('foto_base64').order_by('-fecha_hora', '-id')
+        # La foto no se carga en el listado; solo se calcula si existe para armar su URL
+        # (leer foto_base64 diferido hacía una consulta extra por cada fila).
+        qs = RegistroAsistencia.objects.all().select_related('empleado').defer('foto_base64').annotate(
+            tiene_foto_base64=Case(
+                When(Q(foto_base64__isnull=True) | Q(foto_base64=''), then=Value(False)),
+                default=Value(True),
+                output_field=BooleanField(),
+            )
+        ).order_by('-fecha_hora', '-id')
         if not hasattr(self, 'request') or self.request is None:
             return qs
 
@@ -3973,8 +3981,31 @@ def _evaluar_y_autoacreditar_feriados_pendientes(request=None):
     if not feriados:
         return
 
-    feriados_map = {f.fecha: f.descripcion for f in feriados}
-    empleados_activos = Empleado.objects.filter(activo=True)
+    feriados_map = {f.fecha: f.descripcion for f in feriados if f.fecha <= hoy}
+    if not feriados_map:
+        return
+    empleados_activos = list(Empleado.objects.filter(activo=True))
+
+    # Todo se carga en 2 consultas (antes eran 2 por cada empleado × feriado en cada petición)
+    ya_compensados = set(CompensacionFeriado.objects.filter(
+        fecha_feriado__in=list(feriados_map)
+    ).values_list('empleado_id', 'fecha_feriado'))
+
+    ventanas = {}
+    for f_fecha in feriados_map:
+        start_dt = timezone.make_aware(datetime.datetime.combine(f_fecha, datetime.time.min), tz)
+        end_dt = timezone.make_aware(datetime.datetime.combine(f_fecha, datetime.time.max), tz) + datetime.timedelta(hours=5)
+        ventanas[f_fecha] = (start_dt, end_dt)
+
+    filtro_ventanas = Q()
+    for start_dt, end_dt in ventanas.values():
+        filtro_ventanas |= Q(fecha_hora__range=(start_dt, end_dt))
+    regs_por_empleado = {}
+    for reg in RegistroAsistencia.objects.filter(
+        filtro_ventanas,
+        empleado__in=empleados_activos
+    ).defer('foto_base64').order_by('fecha_hora'):
+        regs_por_empleado.setdefault(reg.empleado_id, []).append(reg)
 
     for emp in empleados_activos:
         nombre_completo = f"{emp.nombre} {emp.apellido}".lower()
@@ -3982,19 +4013,11 @@ def _evaluar_y_autoacreditar_feriados_pendientes(request=None):
             continue
 
         for f_fecha, f_nombre in feriados_map.items():
-            if f_fecha > hoy:
+            if (emp.id, f_fecha) in ya_compensados:
                 continue
 
-            if CompensacionFeriado.objects.filter(empleado=emp, fecha_feriado=f_fecha).exists():
-                continue
-
-            start_dt = timezone.make_aware(datetime.datetime.combine(f_fecha, datetime.time.min), tz)
-            end_dt = timezone.make_aware(datetime.datetime.combine(f_fecha, datetime.time.max), tz) + datetime.timedelta(hours=5)
-
-            regs = list(RegistroAsistencia.objects.filter(
-                empleado=emp,
-                fecha_hora__range=(start_dt, end_dt)
-            ).order_by('fecha_hora'))
+            start_dt, end_dt = ventanas[f_fecha]
+            regs = [r for r in regs_por_empleado.get(emp.id, []) if start_dt <= r.fecha_hora <= end_dt]
 
             if not regs:
                 continue

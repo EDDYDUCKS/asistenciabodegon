@@ -152,8 +152,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Encuestas periódicas para alertas si está autorizado
   useEffect(() => {
     if (!authorized) return;
-    const interval = setInterval(loadAlerts, 10000); // Cada 10s para ver inmediato tardanzas
-    return () => clearInterval(interval);
+    // Cada 60s y solo con la pestaña visible: cada consulta de alertas ocupa el único worker del backend
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') loadAlerts();
+    }, 60000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadAlerts();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [authorized]);
 
   const handleMarkAsRead = async (id: number) => {
