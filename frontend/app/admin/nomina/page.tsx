@@ -1574,10 +1574,10 @@ export default function NominaAdminPage() {
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               {totalPendienteEmp > 0 && (
                 <span
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1c6856] bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs"
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-bodegon bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs"
                   title="Suma total acumulada de horas extra que este colaborador tiene pendientes de aprobación"
                 >
-                  <Clock className="w-3 h-3 text-[#1c6856] shrink-0" />
+                  <Clock className="w-3 h-3 text-bodegon shrink-0" />
                   Suma por aprobar: +{totalPendienteEmp.toFixed(1)} hrs
                 </span>
               )}
@@ -1660,7 +1660,7 @@ export default function NominaAdminPage() {
                 min="0.5"
                 value={tempAutorizadas}
                 onChange={(e) => setTempAutorizadas(e.target.value)}
-                className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                className="w-20 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-right font-mono focus:outline-none focus:ring-1 focus:ring-bodegon"
               />
             ) : (
               <span>
@@ -1686,7 +1686,7 @@ export default function NominaAdminPage() {
           <td className="px-6 py-4 text-right">
             {isEditing ? (
               <div className="flex items-center justify-end gap-2">
-                <span className="text-[11px] font-bold text-[#1c6856] bg-emerald-50 border border-emerald-250 px-2.5 py-1 rounded-xl">
+                <span className="text-[11px] font-bold text-bodegon bg-emerald-50 border border-emerald-250 px-2.5 py-1 rounded-xl">
                   Evaluando abajo ↓
                 </span>
                 <button
@@ -1711,7 +1711,7 @@ export default function NominaAdminPage() {
                     <button
                       type="button"
                       onClick={() => setSelectedExtraParaBoleta(item)}
-                      className="inline-flex items-center gap-1 bg-[#1c6856]/10 hover:bg-[#1c6856]/20 text-[#1c6856] border border-[#1c6856]/30 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      className="inline-flex items-center gap-1 bg-bodegon/10 hover:bg-bodegon/20 text-bodegon border border-bodegon/30 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
                       title="Ver e imprimir boleta oficial con firmas"
                     >
                       <FileText className="w-3.5 h-3.5" />
@@ -1728,10 +1728,10 @@ export default function NominaAdminPage() {
                       setPreviewExtraId(item.id || null);
                     }
                   }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs active:scale-95 cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
                     previewExtraId === item.id
-                      ? 'bg-[#1c6856] text-white border-[#1c6856]'
-                      : 'bg-emerald-50/90 hover:bg-emerald-100 text-[#1c6856] border-emerald-300'
+                      ? 'bg-bodegon text-white border-bodegon'
+                      : 'bg-emerald-50/90 hover:bg-emerald-100 text-bodegon border-emerald-300'
                   }`}
                   title="Previsualizar marcajes biométricos y análisis de horas del día antes de evaluar"
                 >
@@ -1751,13 +1751,13 @@ export default function NominaAdminPage() {
 
         {/* ── FILA EXPANDIBLE: PREVISUALIZACIÓN DETALLADA DE ASISTENCIA Y EVALUACIÓN ── */}
         {isExpanded && (
-          <tr className="bg-stone-100/80 border-b-2 border-[#1c6856]/30 animate-in fade-in duration-200">
+          <tr className="bg-stone-100/80 border-b-2 border-bodegon/30 animate-in fade-in duration-200">
             <td colSpan={6} className="p-3.5 sm:p-5">
               <div className="bg-white rounded-2xl border border-stone-200 shadow-md p-4 sm:p-6 space-y-4">
                 {/* Cabecera de la Previsualización */}
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-3.5">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#1c6856] border border-emerald-250 flex items-center justify-center font-bold shadow-2xs">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-bodegon border border-emerald-250 flex items-center justify-center font-bold shadow-2xs">
                       <Eye className="w-5 h-5" />
                     </div>
                     <div>
@@ -1773,7 +1773,7 @@ export default function NominaAdminPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-xs text-[#1c6856] bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-xl">
+                    <span className="font-mono font-black text-xs text-bodegon bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-xl">
                       Solicitud: +{hSolicitadasNum.toFixed(1)} hrs extra
                     </span>
                     <button
@@ -1796,7 +1796,7 @@ export default function NominaAdminPage() {
                   <div className="bg-stone-50/80 rounded-2xl border border-stone-200 p-3.5 space-y-2.5">
                     <div className="flex items-center justify-between border-b border-stone-200 pb-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-[#1c6856]" />
+                        <Clock className="w-3.5 h-3.5 text-bodegon" />
                         Marcajes en Kiosco ({detalleDia?.eventos.length || 0})
                       </span>
                       <span className="text-[10px] font-mono font-semibold text-stone-400">
@@ -1840,7 +1840,7 @@ export default function NominaAdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => setSelectedPhotoUrl(ev.fotoUrl!)}
-                                  className="relative group p-0.5 rounded-lg border border-stone-300 hover:border-[#1c6856] bg-stone-100 cursor-pointer overflow-hidden shadow-2xs"
+                                  className="relative group p-0.5 rounded-lg border border-stone-300 hover:border-bodegon bg-stone-100 cursor-pointer overflow-hidden shadow-2xs"
                                   title="Clic para ver fotografía tomada en el kiosco"
                                 >
                                   <img
@@ -1879,7 +1879,7 @@ export default function NominaAdminPage() {
                   <div className="bg-stone-50/80 rounded-2xl border border-stone-200 p-3.5 space-y-2.5">
                     <div className="flex items-center justify-between border-b border-stone-200 pb-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
-                        <Scale className="w-3.5 h-3.5 text-[#1c6856]" />
+                        <Scale className="w-3.5 h-3.5 text-bodegon" />
                         Análisis del Turno (Base 8h)
                       </span>
                       <span className="text-[10px] font-mono font-semibold text-stone-400">
@@ -1943,7 +1943,7 @@ export default function NominaAdminPage() {
                   <div className="bg-stone-50/80 rounded-2xl border border-stone-200 p-3.5 space-y-2.5">
                     <div className="flex items-center justify-between border-b border-stone-200 pb-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
-                        <Banknote className="w-3.5 h-3.5 text-[#1c6856]" />
+                        <Banknote className="w-3.5 h-3.5 text-bodegon" />
                         Liquidación y Bolsa de Horas
                       </span>
                       <span className="text-[10px] font-mono font-semibold text-stone-400">
@@ -2014,10 +2014,10 @@ export default function NominaAdminPage() {
 
                 {/* Footer de Decisión y Formulario de Aprobación */}
                 {isEditing ? (
-                  <div className="bg-gradient-to-r from-emerald-50/80 via-white to-emerald-50/80 border-2 border-[#1c6856]/40 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
+                  <div className="bg-gradient-to-r from-emerald-50/80 via-white to-emerald-50/80 border-2 border-bodegon/40 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
-                        <KeyRound className="w-4 h-4 text-[#1c6856]" />
+                        <KeyRound className="w-4 h-4 text-bodegon" />
                         <span>Evaluación Oficial de Horas Extra (Confirmación con PIN de nómina)</span>
                       </div>
                       <span className="text-[11px] text-stone-500 font-medium">
@@ -2032,7 +2032,7 @@ export default function NominaAdminPage() {
                             Horas a Autorizar (hrs) *
                           </label>
                           {horasSugeridasCalculadas > 0 && (
-                            <span className="text-[10px] font-bold text-[#1c6856] bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
+                            <span className="text-[10px] font-bold text-bodegon bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
                               Sugerido: {horasSugeridasCalculadas.toFixed(1)}h
                             </span>
                           )}
@@ -2045,7 +2045,7 @@ export default function NominaAdminPage() {
                               const nextVal = Math.max(0.5, Math.round((curr - 0.5) * 2) / 2);
                               setTempAutorizadas(String(nextVal.toFixed(1)));
                             }}
-                            className="w-11 h-9 rounded-xl bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 font-bold text-xs flex items-center justify-center border border-stone-300 transition cursor-pointer select-none shrink-0"
+                            className="w-11 h-9 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs flex items-center justify-center border border-stone-300 transition cursor-pointer select-none shrink-0"
                             title="Restar 0.5 horas"
                           >
                             -0.5h
@@ -2056,7 +2056,7 @@ export default function NominaAdminPage() {
                             min="0.5"
                             value={tempAutorizadas}
                             onChange={(e) => setTempAutorizadas(e.target.value)}
-                            className="flex-1 min-w-[70px] bg-white border border-stone-300 rounded-xl px-2 py-2 text-xs font-mono font-bold text-center focus:outline-none focus:ring-2 focus:ring-[#1c6856] shadow-2xs"
+                            className="flex-1 min-w-[70px] bg-white border border-stone-300 rounded-xl px-2 py-2 text-xs font-mono font-bold text-center focus:outline-none focus:ring-2 focus:ring-bodegon shadow-2xs"
                           />
                           <button
                             type="button"
@@ -2065,7 +2065,7 @@ export default function NominaAdminPage() {
                               const nextVal = Math.round((curr + 0.5) * 2) / 2;
                               setTempAutorizadas(String(nextVal.toFixed(1)));
                             }}
-                            className="w-11 h-9 rounded-xl bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-[#1c6856] font-bold text-xs flex items-center justify-center border border-emerald-300 transition cursor-pointer select-none shrink-0"
+                            className="w-11 h-9 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-bodegon font-bold text-xs flex items-center justify-center border border-emerald-300 transition cursor-pointer select-none shrink-0"
                             title="Sumar 0.5 horas"
                           >
                             +0.5h
@@ -2077,7 +2077,7 @@ export default function NominaAdminPage() {
                             <button
                               type="button"
                               onClick={() => setTempAutorizadas(String(horasSugeridasCalculadas.toFixed(1)))}
-                              className="text-[#1c6856] underline font-semibold hover:text-[#154f42] cursor-pointer"
+                              className="text-bodegon underline font-semibold hover:text-bodegon-noche cursor-pointer"
                             >
                               Volver a {horasSugeridasCalculadas.toFixed(1)}h
                             </button>
@@ -2096,7 +2096,7 @@ export default function NominaAdminPage() {
                           onChange={(e) => {
                             tempComentarioRef.current = e.target.value;
                           }}
-                          className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856] shadow-2xs font-medium"
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-bodegon shadow-2xs font-medium"
                         />
                       </div>
                     </div>
@@ -2116,7 +2116,7 @@ export default function NominaAdminPage() {
                         type="button"
                         onClick={() => initiateDecision(item, 'RECHAZADO')}
                         disabled={savingExtra}
-                        className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95"
+                        className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                       >
                         <ThumbsDown className="w-3.5 h-3.5" /> Rechazar Solicitud
                       </button>
@@ -2124,7 +2124,7 @@ export default function NominaAdminPage() {
                         type="button"
                         onClick={() => initiateDecision(item, 'APROBADO')}
                         disabled={savingExtra}
-                        className="bg-[#1c6856] hover:bg-[#154f42] text-white px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-[#1c6856]/20 cursor-pointer active:scale-95"
+                        className="bg-bodegon hover:bg-bodegon-noche text-white px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-bodegon/20 cursor-pointer"
                       >
                         <ThumbsUp className="w-3.5 h-3.5" /> Aprobar con PIN
                       </button>
@@ -2148,7 +2148,7 @@ export default function NominaAdminPage() {
                       <button
                         type="button"
                         onClick={() => startDecision(item)}
-                        className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer active:scale-95"
+                        className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                       >
                         <ThumbsUp className="w-3.5 h-3.5" />
                         <span>Evaluar Solicitud</span>
@@ -2170,24 +2170,24 @@ export default function NominaAdminPage() {
       <div className="bg-stone-200/80 p-1.5 rounded-2xl border border-stone-300 shadow-2xs inline-flex flex-wrap sm:flex-nowrap gap-1.5 overflow-x-auto no-scrollbar print-hide max-w-full">
         <button
           onClick={() => setActiveTab('reporte')}
-          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap active:scale-95 cursor-pointer ${
+          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeTab === 'reporte'
-              ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+              ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
               : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
           }`}
         >
-          <FileSpreadsheet className={`w-4 h-4 ${activeTab === 'reporte' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+          <FileSpreadsheet className={`w-4 h-4 ${activeTab === 'reporte' ? 'text-emerald-200' : 'text-bodegon'}`} />
           <span>Reporte de Horas</span>
         </button>
         <button
           onClick={() => setActiveTab('extras')}
-          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap active:scale-95 cursor-pointer ${
+          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeTab === 'extras'
-              ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+              ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
               : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
           }`}
         >
-          <Clock className={`w-4 h-4 ${activeTab === 'extras' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+          <Clock className={`w-4 h-4 ${activeTab === 'extras' ? 'text-emerald-200' : 'text-bodegon'}`} />
           <span>Horas Extra</span>
           {horasExtra.filter((h) => h.estado === 'PENDIENTE').length > 0 && (
             <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
@@ -2199,35 +2199,35 @@ export default function NominaAdminPage() {
         </button>
         <button
           onClick={() => setActiveTab('permisos')}
-          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap active:scale-95 cursor-pointer ${
+          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeTab === 'permisos'
-              ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+              ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
               : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
           }`}
         >
-          <Palmtree className={`w-4 h-4 ${activeTab === 'permisos' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+          <Palmtree className={`w-4 h-4 ${activeTab === 'permisos' ? 'text-emerald-200' : 'text-bodegon'}`} />
           <span>Vacaciones & Permisos</span>
         </button>
         <button
           onClick={() => setActiveTab('feriados')}
-          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap active:scale-95 cursor-pointer ${
+          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeTab === 'feriados'
-              ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+              ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
               : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
           }`}
         >
-          <Calendar className={`w-4 h-4 ${activeTab === 'feriados' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+          <Calendar className={`w-4 h-4 ${activeTab === 'feriados' ? 'text-emerald-200' : 'text-bodegon'}`} />
           <span>Feriados</span>
         </button>
         <button
           onClick={() => setActiveTab('vacaciones_pagadas')}
-          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap active:scale-95 cursor-pointer ${
+          className={`px-4 py-2.5 font-bold text-xs rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeTab === 'vacaciones_pagadas'
-              ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+              ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
               : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
           }`}
         >
-          <Banknote className={`w-4 h-4 ${activeTab === 'vacaciones_pagadas' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+          <Banknote className={`w-4 h-4 ${activeTab === 'vacaciones_pagadas' ? 'text-emerald-200' : 'text-bodegon'}`} />
           <span>Vacaciones Pagadas</span>
         </button>
       </div>
@@ -2238,7 +2238,7 @@ export default function NominaAdminPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-5">
             <div>
               <h1 className="text-xl sm:text-2xl font-display font-black text-stone-900 tracking-tight flex items-center gap-2">
-                <FileSpreadsheet className="w-6 h-6 text-[#1c6856]" />
+                <FileSpreadsheet className="w-6 h-6 text-bodegon" />
                 Balance de Jornadas
               </h1>
               <p className="text-xs text-stone-500 font-medium mt-1">
@@ -2253,7 +2253,7 @@ export default function NominaAdminPage() {
                   type="button"
                   onClick={() => setShowQuincenaMenu(!showQuincenaMenu)}
                   disabled={downloadingQuincenal}
-                  className="bg-stone-900 hover:bg-black active:scale-95 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer border border-stone-800"
+                  className="bg-stone-900 hover:bg-black disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer border border-stone-800"
                   title="Descargar Planilla Quincenal Oficial (1ra o 2da Quincena)"
                 >
                   {downloadingQuincenal ? (
@@ -2281,7 +2281,7 @@ export default function NominaAdminPage() {
                       {/* Sección 1: Visualizar en Pantalla */}
                       <div className="space-y-0.5">
                         <div className="px-2 pt-1 pb-0.5 text-[9px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
-                          <Eye className="w-3 h-3 text-[#1c6856]" />
+                          <Eye className="w-3 h-3 text-bodegon" />
                           Visualizar en Pantalla
                         </div>
                         <button
@@ -2291,14 +2291,14 @@ export default function NominaAdminPage() {
                             setShowQuincenaMenu(false);
                           }}
                           className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
-                            quincenaActiva === '1ra' ? 'bg-[#1c6856]/15 text-[#1c6856]' : 'text-stone-700 hover:bg-stone-100'
+                            quincenaActiva === '1ra' ? 'bg-bodegon/15 text-bodegon' : 'text-stone-700 hover:bg-stone-100'
                           }`}
                         >
                           <div>
                             <div className="font-bold">1ra Quincena (01-15)</div>
                             <div className="text-[10px] text-stone-400 font-normal">Días 01 al 15 del mes</div>
                           </div>
-                          <Eye className="w-3.5 h-3.5 text-[#1c6856]" />
+                          <Eye className="w-3.5 h-3.5 text-bodegon" />
                         </button>
                         <button
                           type="button"
@@ -2307,14 +2307,14 @@ export default function NominaAdminPage() {
                             setShowQuincenaMenu(false);
                           }}
                           className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
-                            quincenaActiva === '2da' ? 'bg-[#1c6856]/15 text-[#1c6856]' : 'text-stone-700 hover:bg-stone-100'
+                            quincenaActiva === '2da' ? 'bg-bodegon/15 text-bodegon' : 'text-stone-700 hover:bg-stone-100'
                           }`}
                         >
                           <div>
                             <div className="font-bold">2da Quincena (16-Fin)</div>
                             <div className="text-[10px] text-stone-400 font-normal">Días 16 al cierre de mes</div>
                           </div>
-                          <Eye className="w-3.5 h-3.5 text-[#1c6856]" />
+                          <Eye className="w-3.5 h-3.5 text-bodegon" />
                         </button>
                         <button
                           type="button"
@@ -2323,38 +2323,38 @@ export default function NominaAdminPage() {
                             setShowQuincenaMenu(false);
                           }}
                           className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
-                            quincenaActiva === 'anterior' ? 'bg-[#1c6856]/15 text-[#1c6856]' : 'text-stone-700 hover:bg-stone-100'
+                            quincenaActiva === 'anterior' ? 'bg-bodegon/15 text-bodegon' : 'text-stone-700 hover:bg-stone-100'
                           }`}
                         >
                           <div>
                             <div className="font-bold">Quincena Anterior</div>
                             <div className="text-[10px] text-stone-400 font-normal">Última quincena cerrada</div>
                           </div>
-                          <Eye className="w-3.5 h-3.5 text-[#1c6856]" />
+                          <Eye className="w-3.5 h-3.5 text-bodegon" />
                         </button>
                       </div>
 
                       {/* Sección 2: Descargar Planilla Excel */}
                       <div className="border-t border-stone-100 pt-1 space-y-0.5">
                         <div className="px-2 pt-1 pb-0.5 text-[9px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1">
-                          <Download className="w-3 h-3 text-[#1c6856]" />
+                          <Download className="w-3 h-3 text-bodegon" />
                           Descargar Excel (.xlsx)
                         </div>
                         <button
                           type="button"
                           onClick={() => handleDescargarQuincena('1ra')}
-                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-[#1c6856]/10 hover:text-[#1c6856] transition-colors flex items-center justify-between cursor-pointer"
+                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-bodegon/10 hover:text-bodegon transition-colors flex items-center justify-between cursor-pointer"
                         >
                           <span className="font-medium text-stone-700">Excel 1ra Quincena</span>
-                          <Download className="w-3.5 h-3.5 text-[#1c6856]" />
+                          <Download className="w-3.5 h-3.5 text-bodegon" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDescargarQuincena('2da')}
-                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-[#1c6856]/10 hover:text-[#1c6856] transition-colors flex items-center justify-between cursor-pointer"
+                          className="w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold text-stone-700 hover:bg-bodegon/10 hover:text-bodegon transition-colors flex items-center justify-between cursor-pointer"
                         >
                           <span className="font-medium text-stone-700">Excel 2da Quincena</span>
-                          <Download className="w-3.5 h-3.5 text-[#1c6856]" />
+                          <Download className="w-3.5 h-3.5 text-bodegon" />
                         </button>
                         <button
                           type="button"
@@ -2375,7 +2375,7 @@ export default function NominaAdminPage() {
                 type="button"
                 onClick={handleDownloadExcel}
                 disabled={downloading}
-                className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="bg-bodegon hover:bg-bodegon-noche disabled:opacity-50 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                 title="Descargar reporte Excel del rango de fechas personalizado seleccionado en los filtros"
               >
                 {downloading ? (
@@ -2396,7 +2396,7 @@ export default function NominaAdminPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-stone-200/60">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1.5 mr-1">
-                  <Eye className="w-3.5 h-3.5 text-[#1c6856]" />
+                  <Eye className="w-3.5 h-3.5 text-bodegon" />
                   Visualizar:
                 </span>
                 <button
@@ -2404,8 +2404,8 @@ export default function NominaAdminPage() {
                   onClick={() => aplicarFiltroQuincena('1ra')}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     quincenaActiva === '1ra'
-                      ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
-                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200 active:scale-95'
+                      ? 'bg-bodegon text-white shadow-sm ring-2 ring-bodegon/30'
+                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                   }`}
                   title="Visualizar en pantalla la 1ra quincena de este mes (días 01 al 15)"
                 >
@@ -2417,8 +2417,8 @@ export default function NominaAdminPage() {
                   onClick={() => aplicarFiltroQuincena('2da')}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     quincenaActiva === '2da'
-                      ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
-                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200 active:scale-95'
+                      ? 'bg-bodegon text-white shadow-sm ring-2 ring-bodegon/30'
+                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                   }`}
                   title="Visualizar en pantalla la 2da quincena de este mes (días 16 al cierre)"
                 >
@@ -2430,8 +2430,8 @@ export default function NominaAdminPage() {
                   onClick={() => aplicarFiltroQuincena('anterior')}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     quincenaActiva === 'anterior'
-                      ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
-                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200 active:scale-95'
+                      ? 'bg-bodegon text-white shadow-sm ring-2 ring-bodegon/30'
+                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                   }`}
                   title="Visualizar en pantalla la última quincena cerrada anterior"
                 >
@@ -2443,8 +2443,8 @@ export default function NominaAdminPage() {
                   onClick={() => aplicarFiltroQuincena('mes_completo')}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     quincenaActiva === 'mes_completo'
-                      ? 'bg-[#1c6856] text-white shadow-sm ring-2 ring-[#1c6856]/30'
-                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200 active:scale-95'
+                      ? 'bg-bodegon text-white shadow-sm ring-2 ring-bodegon/30'
+                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                   }`}
                   title="Visualizar en pantalla el mes completo"
                 >
@@ -2454,7 +2454,7 @@ export default function NominaAdminPage() {
               </div>
 
               {quincenaActiva !== 'personalizado' ? (
-                <span className="text-[11px] font-semibold text-[#1c6856] bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 hidden sm:inline-block">
+                <span className="text-[11px] font-semibold text-bodegon bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 hidden sm:inline-block">
                   Viendo: <strong className="font-mono">{fechaInicio}</strong> al <strong className="font-mono">{fechaFin}</strong>
                 </span>
               ) : (
@@ -2467,33 +2467,33 @@ export default function NominaAdminPage() {
             <div className="flex flex-col md:flex-row items-end gap-4">
             <div className="w-full md:w-44">
               <label className="block text-xs font-bold text-stone-600 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
-                <Calendar className="w-4 h-4 text-[#1c6856]" />
+                <Calendar className="w-4 h-4 text-bodegon" />
                 Desde:
               </label>
               <input
                 type="date"
                 value={fechaInicio}
                 onChange={(e) => setFechaInicio(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-mono"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon font-mono"
               />
             </div>
 
             <div className="w-full md:w-44">
               <label className="block text-xs font-bold text-stone-600 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
-                <Calendar className="w-4 h-4 text-[#1c6856]" />
+                <Calendar className="w-4 h-4 text-bodegon" />
                 Hasta:
               </label>
               <input
                 type="date"
                 value={fechaFin}
                 onChange={(e) => setFechaFin(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-mono"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon font-mono"
               />
             </div>
 
             <div className="flex-1 w-full">
               <label className="block text-xs font-bold text-stone-600 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
-                <Search className="w-4 h-4 text-[#1c6856]" />
+                <Search className="w-4 h-4 text-bodegon" />
                 Buscar Colaborador:
               </label>
               <div className="relative">
@@ -2502,7 +2502,7 @@ export default function NominaAdminPage() {
                   placeholder="Escriba el nombre o cargo del trabajador..."
                   value={searchColaborador}
                   onChange={(e) => setSearchColaborador(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-bodegon"
                 />
                 <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 {searchColaborador && (
@@ -2519,7 +2519,7 @@ export default function NominaAdminPage() {
 
             <button
               onClick={loadData}
-              className="w-full md:w-auto bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all border border-stone-200 whitespace-nowrap"
+              className="w-full md:w-auto bg-stone-100 hover:bg-stone-200 text-stone-700 px-5 py-2.5 rounded-xl font-bold text-xs transition-all border border-stone-200 whitespace-nowrap"
             >
               Recalcular Balance
             </button>
@@ -2533,7 +2533,7 @@ export default function NominaAdminPage() {
               </span>
               <button
                 onClick={() => setSearchColaborador('')}
-                className="text-[#1c6856] hover:underline font-bold"
+                className="text-bodegon hover:underline font-bold"
               >
                 Mostrar todos
               </button>
@@ -2557,7 +2557,7 @@ export default function NominaAdminPage() {
                 onClick={() => setAreaFiltro('TODAS')}
                 className={`px-3 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer ${
                   areaFiltro === 'TODAS'
-                    ? 'bg-[#1c6856] text-white shadow-2xs'
+                    ? 'bg-bodegon text-white shadow-2xs'
                     : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
                 }`}
               >
@@ -2627,7 +2627,7 @@ export default function NominaAdminPage() {
                 onClick={() => setVistaModo('TABLA')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   vistaModo === 'TABLA'
-                    ? 'bg-white text-[#1c6856] shadow-2xs'
+                    ? 'bg-white text-bodegon shadow-2xs'
                     : 'text-stone-500 hover:text-stone-800'
                 }`}
               >
@@ -2639,7 +2639,7 @@ export default function NominaAdminPage() {
                 onClick={() => setVistaModo('TARJETAS')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   vistaModo === 'TARJETAS'
-                    ? 'bg-white text-[#1c6856] shadow-2xs'
+                    ? 'bg-white text-bodegon shadow-2xs'
                     : 'text-stone-500 hover:text-stone-800'
                 }`}
               >
@@ -2654,7 +2654,7 @@ export default function NominaAdminPage() {
             <div className="glass-panel border border-stone-200/90 rounded-3xl overflow-hidden shadow-premium">
               <div className="max-h-[72vh] overflow-auto relative">
                 <table className="w-full text-left text-xs sm:text-sm border-separate border-spacing-0">
-                  <thead className="sticky top-0 z-30 bg-stone-100/95 backdrop-blur text-stone-700 font-bold uppercase tracking-wider text-[11px] sm:text-xs">
+                  <thead className="sticky top-0 z-30 bg-stone-100/95 text-stone-700 font-bold uppercase tracking-wider text-[11px] sm:text-xs">
                     <tr>
                       <th className="sticky left-0 top-0 z-40 bg-stone-100 px-6 py-4 border-b border-stone-200 border-r border-stone-200 shadow-[2px_0_6px_rgba(0,0,0,0.06)] min-w-[240px]">
                         Empleado y Puesto
@@ -2697,7 +2697,7 @@ export default function NominaAdminPage() {
                               {item.emp.nombre} {item.emp.apellido}
                             </div>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                              <span className="inline-block px-2 py-0.5 rounded-full bg-[#1c6856]/5 border border-[#1c6856]/15 text-[11px] font-bold text-[#1c6856]">
+                              <span className="inline-block px-2 py-0.5 rounded-full bg-bodegon/5 border border-bodegon/15 text-[11px] font-bold text-bodegon">
                                 {item.emp.cargo_display}
                               </span>
                               {item.permisosInfo.length > 0 && (
@@ -2719,7 +2719,7 @@ export default function NominaAdminPage() {
                           <td className="px-6 py-4 text-right font-mono font-bold text-stone-900 border-b border-stone-100 whitespace-nowrap">
                             {item.horasOrdinarias.toFixed(1)} hrs
                           </td>
-                          <td className="px-6 py-4 text-right font-mono font-bold text-[#1c6856] border-b border-stone-100 whitespace-nowrap">
+                          <td className="px-6 py-4 text-right font-mono font-bold text-bodegon border-b border-stone-100 whitespace-nowrap">
                             <div className="flex flex-col items-end">
                               <span>{item.feriadosTrabajadosDias} {item.feriadosTrabajadosDias === 1 ? 'feriado' : 'feriados'}</span>
                               {item.feriadosTrabajadosDias > 0 && (
@@ -2754,7 +2754,7 @@ export default function NominaAdminPage() {
                                       key={p.id}
                                       type="button"
                                       onClick={() => setSelectedPagoVacaciones(p)}
-                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-[#1c6856] hover:text-[#154f42] hover:underline bg-[#1c6856]/10 px-1.5 py-0.5 rounded border border-[#1c6856]/20 transition-all cursor-pointer"
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-bodegon hover:text-bodegon-noche hover:underline bg-bodegon/10 px-1.5 py-0.5 rounded border border-bodegon/20 transition-all cursor-pointer"
                                       title={`Ver Boleta N° ${p.numero_recibo} (C$ ${parseFloat(String(p.monto_pagado)).toLocaleString('es-NI', { minimumFractionDigits: 2 })})`}
                                     >
                                       <FileText className="w-3 h-3" />
@@ -2786,7 +2786,7 @@ export default function NominaAdminPage() {
                                   setActiveTab('extras');
                                   setSubTabExtras('pendientes');
                                 }}
-                                className="inline-flex items-center gap-1.5 text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-xl transition-all hover:scale-105 active:scale-95 cursor-pointer text-xs font-bold"
+                                className="inline-flex items-center gap-1.5 text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-xl transition-all cursor-pointer text-xs font-bold"
                                 title="Haga clic para ir a revisar y autorizar estas horas extra pendientes"
                               >
                                 <span>+{item.horasExtraPendientes.toFixed(1)} hrs</span>
@@ -2813,7 +2813,7 @@ export default function NominaAdminPage() {
                             <button
                               type="button"
                               onClick={() => handleOpenVacacionesEmp(item.emp)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all hover:scale-105 active:scale-95 cursor-pointer group"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all cursor-pointer group"
                               title="Haga clic para ver el desglose legal auditado de días acumulados, tomados y saldo disponible"
                             >
                               <span className={item.vacRestantes < 0 ? 'text-rose-600' : 'text-emerald-800'}>
@@ -2826,7 +2826,7 @@ export default function NominaAdminPage() {
                       ))
                     )}
                   </tbody>
-                  <tfoot className="sticky bottom-0 z-30 bg-stone-100/95 backdrop-blur font-bold text-stone-900 shadow-[0_-2px_6px_rgba(0,0,0,0.05)]">
+                  <tfoot className="sticky bottom-0 z-30 bg-stone-100/95 font-bold text-stone-900 shadow-[0_-2px_6px_rgba(0,0,0,0.05)]">
                     <tr>
                       <td className="sticky left-0 bottom-0 z-40 bg-stone-100 px-6 py-4 border-t-2 border-stone-300 border-r border-stone-200 shadow-[2px_0_6px_rgba(0,0,0,0.06)] text-left uppercase text-xs text-stone-600">
                         Totales ({resumenFiltrado.length} colab.):
@@ -2840,7 +2840,7 @@ export default function NominaAdminPage() {
                       <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-stone-950 text-base font-mono font-black whitespace-nowrap">
                         {totalOrdinariasPeriodo.toFixed(1)} hrs
                       </td>
-                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-[#1c6856] text-base font-mono font-black whitespace-nowrap">
+                      <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-bodegon text-base font-mono font-black whitespace-nowrap">
                         {totalFeriadasPeriodo} {totalFeriadasPeriodo === 1 ? 'día' : 'días'}
                       </td>
                       <td className="px-6 py-4 text-right border-t-2 border-stone-300 text-amber-900 bg-amber-50/50 text-base font-mono font-black border-x border-amber-100/50 whitespace-nowrap">
@@ -2886,17 +2886,17 @@ export default function NominaAdminPage() {
                   return (
                     <div
                       key={item.emp.id}
-                      className="bg-white rounded-3xl border border-stone-200/90 hover:border-[#1c6856]/40 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-4 group"
+                      className="bg-white rounded-3xl border border-stone-200/90 hover:border-bodegon/40 p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-4 group"
                     >
                       {/* Top: Info del empleado */}
                       <div>
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-2xl bg-[#1c6856]/10 text-[#1c6856] font-black text-sm flex items-center justify-center shrink-0 border border-[#1c6856]/20 shadow-2xs">
+                            <div className="w-10 h-10 rounded-2xl bg-bodegon/10 text-bodegon font-black text-sm flex items-center justify-center shrink-0 border border-bodegon/20 shadow-2xs">
                               {item.emp.nombre.charAt(0)}{item.emp.apellido.charAt(0)}
                             </div>
                             <div>
-                              <h3 className="font-bold text-stone-900 leading-snug group-hover:text-[#1c6856] transition-colors">
+                              <h3 className="font-bold text-stone-900 leading-snug group-hover:text-bodegon transition-colors">
                                 {item.emp.nombre} {item.emp.apellido}
                               </h3>
                               <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
@@ -2948,10 +2948,10 @@ export default function NominaAdminPage() {
                             <span className="font-mono font-bold text-stone-900 text-sm">{item.horasOrdinarias.toFixed(1)} hrs</span>
                           </div>
 
-                          <div className="p-2.5 rounded-xl bg-[#1c6856]/5 border border-[#1c6856]/10">
-                            <span className="text-[10px] text-[#1c6856] font-bold uppercase block">Feriados</span>
+                          <div className="p-2.5 rounded-xl bg-bodegon/5 border border-bodegon/10">
+                            <span className="text-[10px] text-bodegon font-bold uppercase block">Feriados</span>
                             <div className="flex items-baseline gap-1">
-                              <span className="font-mono font-bold text-[#1c6856] text-sm">{item.feriadosTrabajadosDias}</span>
+                              <span className="font-mono font-bold text-bodegon text-sm">{item.feriadosTrabajadosDias}</span>
                               {item.feriadosTrabajadosDias > 0 && (
                                 <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 rounded">
                                   +{item.feriadosTrabajadosDias * 2}d vac
@@ -2985,7 +2985,7 @@ export default function NominaAdminPage() {
                                     key={p.id}
                                     type="button"
                                     onClick={() => setSelectedPagoVacaciones(p)}
-                                    className="inline-flex items-center gap-0.5 text-[9px] font-bold text-[#1c6856] hover:underline bg-[#1c6856]/10 px-1 py-0.2 rounded border border-[#1c6856]/20 cursor-pointer"
+                                    className="inline-flex items-center gap-0.5 text-[9px] font-bold text-bodegon hover:underline bg-bodegon/10 px-1 py-0.2 rounded border border-bodegon/20 cursor-pointer"
                                   >
                                     <FileText className="w-2.5 h-2.5" />
                                     <span>{p.numero_recibo}</span>
@@ -3065,7 +3065,7 @@ export default function NominaAdminPage() {
         <div className="space-y-6 animate-in fade-in duration-200">
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight flex items-center gap-2">
-              <Clock className="w-6 h-6 text-[#1c6856]" />
+              <Clock className="w-6 h-6 text-bodegon" />
               Autorización de Horas Extra
             </h1>
             <p className="text-xs text-stone-500 font-medium mt-1">
@@ -3077,13 +3077,13 @@ export default function NominaAdminPage() {
           <div className="bg-stone-200/80 p-1.5 rounded-2xl border border-stone-300 shadow-2xs inline-flex flex-wrap items-center gap-1.5 print-hide">
             <button
               onClick={() => setSubTabExtras('pendientes')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer ${
                 subTabExtras === 'pendientes'
-                  ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+                  ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
                   : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
               }`}
             >
-              <Clock className={`w-4 h-4 ${subTabExtras === 'pendientes' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+              <Clock className={`w-4 h-4 ${subTabExtras === 'pendientes' ? 'text-emerald-200' : 'text-bodegon'}`} />
               <span>Solicitudes Pendientes</span>
               {horasExtra.filter((h) => h.estado === 'PENDIENTE').length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
@@ -3096,13 +3096,13 @@ export default function NominaAdminPage() {
 
             <button
               onClick={() => setSubTabExtras('por_pagar')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer ${
                 subTabExtras === 'por_pagar'
-                  ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+                  ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
                   : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
               }`}
             >
-              <Banknote className={`w-4 h-4 ${subTabExtras === 'por_pagar' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+              <Banknote className={`w-4 h-4 ${subTabExtras === 'por_pagar' ? 'text-emerald-200' : 'text-bodegon'}`} />
               <span>Por Pagar (Aprobadas)</span>
               {horasExtra.filter((h) => h.estado === 'APROBADO' && h.estado_pago !== 'PAGADO' && Number(h.horas_extra_autorizadas) > 0).length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
@@ -3115,17 +3115,17 @@ export default function NominaAdminPage() {
 
             <button
               onClick={() => setSubTabExtras('pagadas')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer ${
                 subTabExtras === 'pagadas'
-                  ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+                  ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
                   : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
               }`}
             >
-              <Receipt className={`w-4 h-4 ${subTabExtras === 'pagadas' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+              <Receipt className={`w-4 h-4 ${subTabExtras === 'pagadas' ? 'text-emerald-200' : 'text-bodegon'}`} />
               <span>Historial de Pagos</span>
               {pagosHorasExtra.length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
-                  subTabExtras === 'pagadas' ? 'bg-white text-[#1c6856]' : 'bg-[#1c6856]/15 text-[#1c6856]'
+                  subTabExtras === 'pagadas' ? 'bg-white text-bodegon' : 'bg-bodegon/15 text-bodegon'
                 }`}>
                   {pagosHorasExtra.length}
                 </span>
@@ -3134,17 +3134,17 @@ export default function NominaAdminPage() {
 
             <button
               onClick={() => setSubTabExtras('historial')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer ${
                 subTabExtras === 'historial'
-                  ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+                  ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
                   : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
               }`}
             >
-              <FileCheck className={`w-4 h-4 ${subTabExtras === 'historial' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+              <FileCheck className={`w-4 h-4 ${subTabExtras === 'historial' ? 'text-emerald-200' : 'text-bodegon'}`} />
               <span>Todas las Resoluciones</span>
               {horasExtra.filter((h) => h.estado !== 'PENDIENTE').length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
-                  subTabExtras === 'historial' ? 'bg-white text-[#1c6856]' : 'bg-[#1c6856]/15 text-[#1c6856]'
+                  subTabExtras === 'historial' ? 'bg-white text-bodegon' : 'bg-bodegon/15 text-bodegon'
                 }`}>
                   {horasExtra.filter((h) => h.estado !== 'PENDIENTE').length}
                 </span>
@@ -3153,17 +3153,17 @@ export default function NominaAdminPage() {
 
             <button
               onClick={() => setSubTabExtras('compensaciones')}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer ${
                 subTabExtras === 'compensaciones'
-                  ? 'bg-[#1c6856] text-white shadow-md shadow-[#1c6856]/30 font-black'
+                  ? 'bg-bodegon text-white shadow-md shadow-bodegon/30 font-black'
                   : 'bg-white text-stone-700 hover:text-stone-900 hover:bg-stone-50 border border-stone-200 shadow-2xs'
               }`}
             >
-              <Scale className={`w-4 h-4 ${subTabExtras === 'compensaciones' ? 'text-emerald-200' : 'text-[#1c6856]'}`} />
+              <Scale className={`w-4 h-4 ${subTabExtras === 'compensaciones' ? 'text-emerald-200' : 'text-bodegon'}`} />
               <span>Bolsa de Horas</span>
               {compensaciones.length > 0 && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
-                  subTabExtras === 'compensaciones' ? 'bg-white text-[#1c6856]' : 'bg-[#1c6856]/15 text-[#1c6856]'
+                  subTabExtras === 'compensaciones' ? 'bg-white text-bodegon' : 'bg-bodegon/15 text-bodegon'
                 }`}>
                   {compensaciones.length}
                 </span>
@@ -3202,7 +3202,7 @@ export default function NominaAdminPage() {
                     <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
                       Horas Extra Aprobadas
                     </span>
-                    <div className="w-8 h-8 rounded-xl bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                    <div className="w-8 h-8 rounded-xl bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
                       <ThumbsUp className="w-4 h-4" />
                     </div>
                   </div>
@@ -3250,7 +3250,7 @@ export default function NominaAdminPage() {
                     placeholder="Buscar por colaborador o cargo en horas extra..."
                     value={searchExtra}
                     onChange={(e) => setSearchExtra(e.target.value)}
-                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm font-medium"
+                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-bodegon shadow-sm font-medium"
                   />
                   <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   {searchExtra && (
@@ -3268,7 +3268,7 @@ export default function NominaAdminPage() {
                     onClick={() => setSepararPorDiaExtras(!separarPorDiaExtras)}
                     className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-2 shadow-2xs ${
                       separarPorDiaExtras
-                        ? 'bg-[#1c6856]/10 border-[#1c6856]/30 text-[#1c6856]'
+                        ? 'bg-bodegon/10 border-bodegon/30 text-bodegon'
                         : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
                     }`}
                     title="Alternar entre ver separadores de fecha por día o lista continua"
@@ -3286,7 +3286,7 @@ export default function NominaAdminPage() {
               <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs sm:text-sm">
-                    <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
+                    <thead className="bg-bodegon/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
                       <tr>
                         <th className="px-6 py-4">Fecha</th>
                         <th className="px-6 py-4">Empleado</th>
@@ -3317,11 +3317,11 @@ export default function NominaAdminPage() {
                         gruposPorDiaExtras.map((grupo) => (
                           <React.Fragment key={`grupo-extra-${grupo.diaKey}`}>
                             {/* Separador Visual de Día */}
-                            <tr className="bg-stone-100/95 border-y-2 border-[#1c6856]/20">
+                            <tr className="bg-stone-100/95 border-y-2 border-bodegon/20">
                               <td colSpan={6} className="px-6 py-2.5">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                   <div className="flex items-center gap-2.5">
-                                    <div className="w-7 h-7 rounded-lg bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                                    <div className="w-7 h-7 rounded-lg bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
                                       <Calendar className="w-4 h-4" />
                                     </div>
                                     <span className="font-black text-xs sm:text-sm text-stone-900 tracking-tight">
@@ -3338,7 +3338,7 @@ export default function NominaAdminPage() {
                                       </span>
                                     )}
                                   </div>
-                                  <span className="text-[11px] font-bold text-[#1c6856] bg-white px-2.5 py-1 rounded-lg border border-stone-200 shadow-2xs">
+                                  <span className="text-[11px] font-bold text-bodegon bg-white px-2.5 py-1 rounded-lg border border-stone-200 shadow-2xs">
                                     {grupo.registros.length} pendiente{grupo.registros.length !== 1 ? 's' : ''}
                                   </span>
                                 </div>
@@ -3353,7 +3353,7 @@ export default function NominaAdminPage() {
                     </tbody>
                     {/* Fila de Totales de Solicitudes */}
                     {horasExtraFiltradas.length > 0 && !loading && (
-                      <tfoot className="bg-[#1c6856]/5 border-t-2 border-[#1c6856]/30 font-bold text-stone-800">
+                      <tfoot className="bg-bodegon/5 border-t-2 border-bodegon/30 font-bold text-stone-800">
                         <tr>
                           <td colSpan={2} className="px-6 py-3.5 text-right font-bold uppercase text-xs tracking-wider text-stone-600">
                             Total Pendiente por Evaluar:
@@ -3406,7 +3406,7 @@ export default function NominaAdminPage() {
                         <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
                           Horas Autorizadas Pendientes
                         </span>
-                        <div className="w-8 h-8 rounded-xl bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                        <div className="w-8 h-8 rounded-xl bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
                           <Clock className="w-4 h-4" />
                         </div>
                       </div>
@@ -3472,7 +3472,7 @@ export default function NominaAdminPage() {
                     placeholder="Buscar colaborador por nombre, cargo o fecha..."
                     value={searchPorPagarHE}
                     onChange={(e) => setSearchPorPagarHE(e.target.value)}
-                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm"
+                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-bodegon shadow-sm"
                   />
                   <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   {searchPorPagarHE && (
@@ -3492,7 +3492,7 @@ export default function NominaAdminPage() {
                       setHorasExtraParaPagoHE([]);
                       setShowModalEmitirPagoHE(true);
                     }}
-                    className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Emitir Pago de Horas Extra</span>
@@ -3589,7 +3589,7 @@ export default function NominaAdminPage() {
 
                               <button
                                 onClick={() => emp && handleAbrirPagoHE(emp, items)}
-                                className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+                                className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center gap-2 cursor-pointer shrink-0"
                               >
                                 <Banknote className="w-4 h-4" />
                                 <span>Pagar Todas ({items.length})</span>
@@ -3651,15 +3651,15 @@ export default function NominaAdminPage() {
                                           <button
                                             type="button"
                                             onClick={() => setSelectedExtraParaBoleta(it)}
-                                            className="bg-white hover:bg-[#1c6856]/10 text-[#1c6856] border border-[#1c6856]/30 px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95"
+                                            className="bg-white hover:bg-bodegon/10 text-bodegon border border-bodegon/30 px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1 cursor-pointer shadow-2xs"
                                             title="Ver e imprimir boleta oficial con firmas"
                                           >
-                                            <FileText className="w-3 h-3 text-[#1c6856]" />
+                                            <FileText className="w-3 h-3 text-bodegon" />
                                             <span>Boleta</span>
                                           </button>
                                           <button
                                             onClick={() => emp && handleAbrirPagoHE(emp, [it])}
-                                            className="bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-400 px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                                            className="bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-400 px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
                                           >
                                             <Coins className="w-3 h-3 text-emerald-600" />
                                             <span>Pagar Fecha</span>
@@ -3696,7 +3696,7 @@ export default function NominaAdminPage() {
                         <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
                           Recibos Oficiales Emitidos
                         </span>
-                        <div className="w-8 h-8 rounded-xl bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                        <div className="w-8 h-8 rounded-xl bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
                           <Receipt className="w-4 h-4" />
                         </div>
                       </div>
@@ -3759,7 +3759,7 @@ export default function NominaAdminPage() {
                     placeholder="Buscar por colaborador, recibo (RPHE-...) o método..."
                     value={searchPagoHE}
                     onChange={(e) => setSearchPagoHE(e.target.value)}
-                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm"
+                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-bodegon shadow-sm"
                   />
                   <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   {searchPagoHE && (
@@ -3837,7 +3837,7 @@ export default function NominaAdminPage() {
                             return (
                               <tr key={`pago-row-${pago.id}`} className="hover:bg-stone-50/60 transition-colors">
                                 <td className="py-3 px-4">
-                                  <span className="font-mono font-bold text-[#1c6856] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1.5">
+                                  <span className="font-mono font-bold text-bodegon bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1.5">
                                     <Receipt className="w-3.5 h-3.5" />
                                     {pago.numero_recibo}
                                   </span>
@@ -3878,7 +3878,7 @@ export default function NominaAdminPage() {
                                   <div className="flex items-center justify-end gap-1.5">
                                     <button
                                       onClick={() => setSelectedPagoHEParaBoleta(pago)}
-                                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95"
+                                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
                                       title="Imprimir o Ver Recibo Oficial"
                                     >
                                       <Printer className="w-3.5 h-3.5 text-emerald-700" />
@@ -3887,7 +3887,7 @@ export default function NominaAdminPage() {
 
                                     <button
                                       onClick={() => handleDeletePagoHE(pago)}
-                                      className="bg-stone-50 hover:bg-rose-50 text-stone-400 hover:text-rose-600 border border-stone-200 hover:border-rose-300 p-1 rounded-lg text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
+                                      className="bg-stone-50 hover:bg-rose-50 text-stone-400 hover:text-rose-600 border border-stone-200 hover:border-rose-300 p-1 rounded-lg text-xs transition-all cursor-pointer shadow-2xs"
                                       title="Anular Recibo de Pago"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -3916,7 +3916,7 @@ export default function NominaAdminPage() {
                     <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider">
                       Horas Extra Aprobadas
                     </span>
-                    <div className="w-8 h-8 rounded-xl bg-[#1c6856] text-white flex items-center justify-center font-bold shadow-xs">
+                    <div className="w-8 h-8 rounded-xl bg-bodegon text-white flex items-center justify-center font-bold shadow-xs">
                       <CheckCircle className="w-4 h-4" />
                     </div>
                   </div>
@@ -3983,7 +3983,7 @@ export default function NominaAdminPage() {
                     placeholder="Buscar por colaborador, cargo, comentario o folio BHE-..."
                     value={searchExtra}
                     onChange={(e) => setSearchExtra(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-9 pr-8 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-medium"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-9 pr-8 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-bodegon font-medium"
                   />
                   <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   {searchExtra && (
@@ -3997,7 +3997,7 @@ export default function NominaAdminPage() {
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#1c6856] text-white flex items-center gap-1.5 shadow-xs">
+                  <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-bodegon text-white flex items-center gap-1.5 shadow-xs">
                     <CheckCircle className="w-3.5 h-3.5" />
                     Horas Extra Aprobadas ({horasExtra.filter((h) => h.estado === 'APROBADO').length})
                   </span>
@@ -4038,7 +4038,7 @@ export default function NominaAdminPage() {
                   <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm">
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs sm:text-sm">
-                        <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider text-[11px]">
+                        <thead className="bg-bodegon/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider text-[11px]">
                           <tr>
                             <th className="px-4 py-3.5">N° Boleta</th>
                             <th className="px-4 py-3.5">Fecha Laborada</th>
@@ -4073,8 +4073,8 @@ export default function NominaAdminPage() {
 
                             return (
                               <tr key={item.id} className="hover:bg-stone-50/70 transition-colors">
-                                <td className="px-4 py-3.5 font-mono font-bold text-[#1c6856] whitespace-nowrap">
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-[#1c6856]/10 text-[#1c6856] border border-[#1c6856]/20 font-black text-xs">
+                                <td className="px-4 py-3.5 font-mono font-bold text-bodegon whitespace-nowrap">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-bodegon/10 text-bodegon border border-bodegon/20 font-black text-xs">
                                     {folioNum}
                                   </span>
                                 </td>
@@ -4154,7 +4154,7 @@ export default function NominaAdminPage() {
                                     <button
                                       type="button"
                                       onClick={() => setSelectedExtraParaBoleta(item)}
-                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#1c6856] hover:bg-[#154f42] text-white transition-all shadow-2xs cursor-pointer active:scale-95"
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-bodegon hover:bg-bodegon-noche text-white transition-all shadow-2xs cursor-pointer"
                                       title="Abrir comprobante imprimible con recuadro de firmas"
                                     >
                                       <FileText className="w-3.5 h-3.5" />
@@ -4208,7 +4208,7 @@ export default function NominaAdminPage() {
                     placeholder="Buscar por colaborador o cargo..."
                     value={searchCompensacion}
                     onChange={(e) => setSearchCompensacion(e.target.value)}
-                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] shadow-sm"
+                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-8 py-2.5 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-bodegon shadow-sm"
                   />
                   <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   {searchCompensacion && (
@@ -4277,7 +4277,7 @@ export default function NominaAdminPage() {
 
                             <button
                               onClick={() => setSelectedCompensacion(comp)}
-                              className="bg-white hover:bg-emerald-50 border border-stone-300 hover:border-emerald-500 text-stone-700 hover:text-emerald-800 px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+                              className="bg-white hover:bg-emerald-50 border border-stone-300 hover:border-emerald-500 text-stone-700 hover:text-emerald-800 px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
                               title="Descargar Boleta de Compensación en PDF"
                             >
                               <Printer className="w-3.5 h-3.5 text-emerald-700" />
@@ -4462,10 +4462,10 @@ export default function NominaAdminPage() {
                                       </div>
 
                                       <div className="bg-white p-2 rounded-lg border border-stone-200/60">
-                                        <span className="text-[#1c6856] block text-[10px] uppercase font-bold">
+                                        <span className="text-bodegon block text-[10px] uppercase font-bold">
                                           {esSalidaAnt ? 'Horas Extra Deducidas' : 'Horas Extra Aplicadas'}
                                         </span>
-                                        <span className="font-mono font-bold text-[#1c6856]">
+                                        <span className="font-mono font-bold text-bodegon">
                                           {esSalidaAnt ? '-' : '+'}{horasAplicadas.toFixed(1)} hrs
                                         </span>
                                         <span className="text-[10px] text-stone-400 block">
@@ -4521,7 +4521,7 @@ export default function NominaAdminPage() {
                                   <>
                                     <span className="text-stone-700 font-bold" title="Laboradas">+{Number(comp.horas_extra_generadas).toFixed(1)}h</span>
                                     <span className="text-stone-400 font-normal">|</span>
-                                    <span className="text-[#1c6856] font-bold" title="Aplicadas a Deuda">-{Number(comp.horas_deducidas).toFixed(1)}h</span>
+                                    <span className="text-bodegon font-bold" title="Aplicadas a Deuda">-{Number(comp.horas_deducidas).toFixed(1)}h</span>
                                     <span className="text-stone-400 font-normal">|</span>
                                     <span className="text-emerald-700 font-black bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200" title="A Pagar en Nómina">
                                       {Number(comp.remanente_extra) > 0 ? `+${Number(comp.remanente_extra).toFixed(1)}h pagar` : '0.0h'}
@@ -4571,7 +4571,7 @@ export default function NominaAdminPage() {
                             </span>
                             <button
                               onClick={() => setSelectedCompensacion(comp)}
-                              className="bg-[#1c6856] hover:bg-[#154f42] text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                              className="bg-bodegon hover:bg-bodegon-noche text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                             >
                               <Printer className="w-3.5 h-3.5" />
                               Ver Boleta Oficial PDF
@@ -4593,7 +4593,7 @@ export default function NominaAdminPage() {
         <div className="space-y-6 animate-in fade-in duration-200">
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight flex items-center gap-2">
-              <Palmtree className="w-6 h-6 text-[#1c6856]" />
+              <Palmtree className="w-6 h-6 text-bodegon" />
               Gestión de Vacaciones & Permisos
             </h1>
             <p className="text-xs text-stone-500 font-medium mt-1">
@@ -4605,7 +4605,7 @@ export default function NominaAdminPage() {
           <div className="glass-panel border border-white rounded-3xl p-6 shadow-premium space-y-5 bg-white/95">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center font-bold shadow-2xs">
+                <div className="w-10 h-10 rounded-2xl bg-bodegon/10 text-bodegon flex items-center justify-center font-bold shadow-2xs">
                   <Palmtree className="w-5 h-5" />
                 </div>
                 <div>
@@ -4628,7 +4628,7 @@ export default function NominaAdminPage() {
                     setEmpIdImprimirVacacionesMes(null);
                     setShowModalImprimirVacacionesMes(true);
                   }}
-                  className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 text-white px-4 py-2 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                  className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer shrink-0"
                   title="Imprimir reporte de vacaciones del mes en formato doble colilla (Colaborador con firma / Administración sin firma)"
                 >
                   <Printer className="w-4 h-4" />
@@ -4641,7 +4641,7 @@ export default function NominaAdminPage() {
                     placeholder="Buscar colaborador..."
                     value={searchVacacionesColab}
                     onChange={(e) => setSearchVacacionesColab(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-7 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-7 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-bodegon"
                   />
                   <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   {searchVacacionesColab && (
@@ -4659,7 +4659,7 @@ export default function NominaAdminPage() {
             {/* Tabla de Saldos */}
             <div className="overflow-x-auto rounded-2xl border border-stone-200/80">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#1c6856]/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
+                <thead className="bg-bodegon/5 text-stone-700 border-b border-stone-200 font-bold uppercase tracking-wider">
                   <tr>
                     <th className="px-5 py-3">Colaborador</th>
                     <th className="px-4 py-3 text-right">Acumuladas Totales</th>
@@ -4748,7 +4748,7 @@ export default function NominaAdminPage() {
                               <button
                                 type="button"
                                 onClick={() => handleOpenVacacionesEmp(emp)}
-                                className="bg-stone-50 hover:bg-[#1c6856] hover:text-white border border-stone-200 text-stone-700 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                                className="bg-stone-50 hover:bg-bodegon hover:text-white border border-stone-200 text-stone-700 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
                                 title="Ver auditoría y estado de cuenta de vacaciones"
                               >
                                 <Info className="w-3.5 h-3.5" />
@@ -4757,7 +4757,7 @@ export default function NominaAdminPage() {
                               <button
                                 type="button"
                                 onClick={() => handleOpenAjuste(emp)}
-                                className="bg-[#1c6856]/10 hover:bg-[#1c6856] text-[#1c6856] hover:text-white border border-[#1c6856]/20 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                                className="bg-bodegon/10 hover:bg-bodegon text-bodegon hover:text-white border border-bodegon/20 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
                                 title="Ajustar saldo inicial de vacaciones"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -4776,7 +4776,7 @@ export default function NominaAdminPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Formulario Registrar Permiso */}
             <form onSubmit={handleAddPermiso} className="lg:col-span-4 bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5 border-b border-stone-100 pb-2">
+              <h3 className="font-bold text-sm text-bodegon flex items-center gap-1.5 border-b border-stone-100 pb-2">
                 <Plus className="w-4 h-4" />
                 Registrar Permiso o Vacaciones
               </h3>
@@ -4786,7 +4786,7 @@ export default function NominaAdminPage() {
                 <select
                   value={nuevoPermisoEmp}
                   onChange={(e) => setNuevoPermisoEmp(Number(e.target.value))}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-medium"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon font-medium"
                 >
                   {empleados.filter((e) => e.activo).map((emp) => (
                     <option key={emp.id} value={emp.id}>
@@ -4801,7 +4801,7 @@ export default function NominaAdminPage() {
                 <select
                   value={nuevoPermisoTipo}
                   onChange={(e) => setNuevoPermisoTipo(e.target.value as TipoPermisoType)}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-medium"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon font-medium"
                 >
                   <option value="VACACIONES">🏖️ Vacaciones</option>
                   <option value="VACACIONES_PAGADAS">💰 Vacaciones Pagadas</option>
@@ -4818,7 +4818,7 @@ export default function NominaAdminPage() {
                     required
                     value={nuevoPermisoInicio}
                     onChange={(e) => setNuevoPermisoInicio(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-mono"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon font-mono"
                   />
                 </div>
                 <div>
@@ -4828,7 +4828,7 @@ export default function NominaAdminPage() {
                     required
                     value={nuevoPermisoFin}
                     onChange={(e) => setNuevoPermisoFin(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-mono"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon font-mono"
                   />
                 </div>
               </div>
@@ -4842,13 +4842,13 @@ export default function NominaAdminPage() {
                   onChange={(e) => {
                     nuevoPermisoMotivoRef.current = e.target.value;
                   }}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-bodegon"
                 />
               </div>
 
               {/* Desglose de descanso semanal y días netos para Vacaciones */}
               {nuevoPermisoTipo === 'VACACIONES' && nuevoPermisoDiasCalendario > 0 && (
-                <div className="bg-[#1c6856]/5 border border-[#1c6856]/20 rounded-xl p-3 space-y-2">
+                <div className="bg-bodegon/5 border border-bodegon/20 rounded-xl p-3 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-stone-600 font-medium">Período Calendario:</span>
                     <span className="font-bold text-stone-900 font-mono">
@@ -4866,14 +4866,14 @@ export default function NominaAdminPage() {
                         max={Math.max(0, nuevoPermisoDiasCalendario - 1)}
                         value={nuevoPermisoDescanso}
                         onChange={(e) => setNuevoPermisoDescanso(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-14 bg-white border border-stone-300 rounded-lg px-2 py-1 text-center font-bold text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                        className="w-14 bg-white border border-stone-300 rounded-lg px-2 py-1 text-center font-bold text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
                       />
                       <span className="text-stone-500 text-[11px] font-medium">días</span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-xs pt-1.5 border-t border-[#1c6856]/15">
+                  <div className="flex items-center justify-between text-xs pt-1.5 border-t border-bodegon/15">
                     <span className="font-bold text-stone-800">Días a deducir de saldo:</span>
-                    <span className="font-black text-[#1c6856] text-sm font-mono">
+                    <span className="font-black text-bodegon text-sm font-mono">
                       {nuevoPermisoDiasEfectivos} {nuevoPermisoDiasEfectivos === 1 ? 'día' : 'días'}
                     </span>
                   </div>
@@ -4886,7 +4886,7 @@ export default function NominaAdminPage() {
               <button
                 type="submit"
                 disabled={addingPermiso || !nuevoPermisoEmp || !nuevoPermisoInicio || !nuevoPermisoFin}
-                className="w-full bg-[#1c6856] hover:bg-[#154f42] disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 shadow-sm"
+                className="w-full bg-bodegon hover:bg-bodegon-noche disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 shadow-sm"
               >
                 {addingPermiso ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -4898,7 +4898,7 @@ export default function NominaAdminPage() {
 
             {/* Listado de Permisos Registrados */}
             <div className="lg:col-span-8 bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5 border-b border-stone-100 pb-2">
+              <h3 className="font-bold text-sm text-bodegon flex items-center gap-1.5 border-b border-stone-100 pb-2">
                 <Palmtree className="w-4 h-4" />
                 Permisos y Vacaciones Registradas
               </h3>
@@ -4925,11 +4925,11 @@ export default function NominaAdminPage() {
                               {p.total_dias || 1} {p.total_dias === 1 ? 'Día Vac.' : 'Días Vac.'}
                             </span>
                             {(p.dias_descanso_semanal || 0) > 0 && (
-                              <span className="text-[9px] text-[#1c6856] font-bold block mt-0.5 leading-none">
+                              <span className="text-[9px] text-bodegon font-bold block mt-0.5 leading-none">
                                 +{p.dias_descanso_semanal} desc.
                               </span>
                             )}
-                            <strong className="text-[11px] text-[#1c6856] font-mono block mt-1 leading-none">
+                            <strong className="text-[11px] text-bodegon font-mono block mt-1 leading-none">
                               {new Date(p.fecha_inicio + 'T00:00:00').toLocaleDateString('es-NI', {
                                 day: '2-digit',
                                 month: '2-digit',
@@ -4944,7 +4944,7 @@ export default function NominaAdminPage() {
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="inline-block px-2 py-0.5 rounded-md bg-[#1c6856]/10 text-[10px] font-bold text-[#1c6856]">
+                              <span className="inline-block px-2 py-0.5 rounded-md bg-bodegon/10 text-[10px] font-bold text-bodegon">
                                 {p.tipo_display}
                               </span>
                               <span className="text-[10px] text-stone-400 font-mono">
@@ -4984,7 +4984,7 @@ export default function NominaAdminPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center font-bold">
+                  <div className="w-8 h-8 rounded-xl bg-bodegon/10 text-bodegon flex items-center justify-center font-bold">
                     <FileSpreadsheet className="w-4 h-4" />
                   </div>
                   <h3 className="font-bold text-base text-stone-900 tracking-tight">
@@ -5003,7 +5003,7 @@ export default function NominaAdminPage() {
                     setEmpIdImprimirVacacionesMes(null);
                     setShowModalImprimirVacacionesMes(true);
                   }}
-                  className="bg-stone-800 hover:bg-stone-900 active:scale-95 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                  className="bg-stone-800 hover:bg-stone-900 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
                   <span>Imprimir Colillas de {MESES_NOMBRES[reporteMes]}</span>
@@ -5013,7 +5013,7 @@ export default function NominaAdminPage() {
                   type="button"
                   onClick={handleDownloadVacacionesExcel}
                   disabled={downloadingVacaciones}
-                  className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+                  className="bg-bodegon hover:bg-bodegon-noche disabled:opacity-50 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm cursor-pointer"
                 >
                   {downloadingVacaciones ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -5029,13 +5029,13 @@ export default function NominaAdminPage() {
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
               <div className="sm:col-span-4">
                 <label className="block text-xs font-bold text-stone-600 mb-1.5 flex items-center gap-1.5 uppercase tracking-wide">
-                  <Calendar className="w-3.5 h-3.5 text-[#1c6856]" />
+                  <Calendar className="w-3.5 h-3.5 text-bodegon" />
                   Seleccionar Mes:
                 </label>
                 <select
                   value={reporteMes}
                   onChange={(e) => setReporteMes(Number(e.target.value))}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-bold"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon font-bold"
                 >
                   <option value={1}>Enero</option>
                   <option value={2}>Febrero</option>
@@ -5059,7 +5059,7 @@ export default function NominaAdminPage() {
                 <select
                   value={reporteAnio}
                   onChange={(e) => setReporteAnio(Number(e.target.value))}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-mono font-bold"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon font-mono font-bold"
                 >
                   <option value={2025}>2025</option>
                   <option value={2026}>2026</option>
@@ -5085,7 +5085,7 @@ export default function NominaAdminPage() {
                   ) : (
                     <span>
                       <strong className="text-stone-900 font-bold">{permisosMesSeleccionado.length}</strong> registro{permisosMesSeleccionado.length !== 1 ? 's' : ''} (
-                      <strong className="text-[#1c6856] font-bold">{totalDiasMesSeleccionado}</strong> días concedidos)
+                      <strong className="text-bodegon font-bold">{totalDiasMesSeleccionado}</strong> días concedidos)
                     </span>
                   )}
                 </div>
@@ -5133,7 +5133,7 @@ export default function NominaAdminPage() {
                               </span>
                             </td>
                             <td className="py-2.5 px-3">
-                              <span className="inline-block px-2 py-0.5 rounded-md bg-[#1c6856]/10 text-[10px] font-bold text-[#1c6856]">
+                              <span className="inline-block px-2 py-0.5 rounded-md bg-bodegon/10 text-[10px] font-bold text-bodegon">
                                 {p.tipo_display}
                               </span>
                             </td>
@@ -5143,7 +5143,7 @@ export default function NominaAdminPage() {
                             <td className="py-2.5 px-3 text-center font-bold text-stone-900">
                               {p.total_dias} {p.total_dias === 1 ? 'día' : 'días'}
                               {(p.dias_descanso_semanal || 0) > 0 && (
-                                <span className="block text-[10px] text-[#1c6856] font-normal">
+                                <span className="block text-[10px] text-bodegon font-normal">
                                   (+{p.dias_descanso_semanal} desc.)
                                 </span>
                               )}
@@ -5168,7 +5168,7 @@ export default function NominaAdminPage() {
         <div className="space-y-6 animate-in fade-in duration-200">
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight flex items-center gap-2">
-              <Calendar className="w-6 h-6 text-[#1c6856]" />
+              <Calendar className="w-6 h-6 text-bodegon" />
               Gestión Dinámica de Feriados
             </h1>
             <p className="text-xs text-stone-500 font-medium mt-1">
@@ -5179,7 +5179,7 @@ export default function NominaAdminPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Formulario Agregar Feriado */}
             <form onSubmit={handleAddFeriado} className="lg:col-span-4 bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5 border-b border-stone-100 pb-2">
+              <h3 className="font-bold text-sm text-bodegon flex items-center gap-1.5 border-b border-stone-100 pb-2">
                 <Plus className="w-4 h-4" />
                 Registrar Feriado
               </h3>
@@ -5191,7 +5191,7 @@ export default function NominaAdminPage() {
                   required
                   value={nuevoFeriadoFecha}
                   onChange={(e) => setNuevoFeriadoFecha(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-mono"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon font-mono"
                 />
               </div>
 
@@ -5203,14 +5203,14 @@ export default function NominaAdminPage() {
                   placeholder="Ej. Día de la Independencia"
                   value={nuevoFeriadoDesc}
                   onChange={(e) => setNuevoFeriadoDesc(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={addingFeriado || !nuevoFeriadoFecha || !nuevoFeriadoDesc.trim()}
-                className="w-full bg-[#1c6856] hover:bg-[#154f42] disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 shadow-sm"
+                className="w-full bg-bodegon hover:bg-bodegon-noche disabled:opacity-50 text-white py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 shadow-sm"
               >
                 {addingFeriado ? (
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -5222,7 +5222,7 @@ export default function NominaAdminPage() {
 
             {/* Listado de Feriados Registrados */}
             <div className="lg:col-span-8 bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5 border-b border-stone-100 pb-2">
+              <h3 className="font-bold text-sm text-bodegon flex items-center gap-1.5 border-b border-stone-100 pb-2">
                 <Calendar className="w-4 h-4" />
                 Feriados Activos
               </h3>
@@ -5271,7 +5271,7 @@ export default function NominaAdminPage() {
             <div className="lg:col-span-12 bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-4 mt-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3">
                 <div>
-                  <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5">
+                  <h3 className="font-bold text-sm text-bodegon flex items-center gap-1.5">
                     <Coins className="w-4 h-4" />
                     Liquidación y Acreditación de Feriados Laborados
                   </h3>
@@ -5284,7 +5284,7 @@ export default function NominaAdminPage() {
                   type="button"
                   onClick={handleSincronizarFeriados}
                   disabled={syncingFeriados}
-                  className="bg-stone-50 hover:bg-[#1c6856]/10 text-[#1c6856] border border-[#1c6856]/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+                  className="bg-stone-50 hover:bg-bodegon/10 text-bodegon border border-bodegon/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${syncingFeriados ? 'animate-spin' : ''}`} />
                   <span>Sincronizar / Refrescar Feriados</span>
@@ -5327,7 +5327,7 @@ export default function NominaAdminPage() {
                             <td className="py-3 px-3 font-medium text-stone-800">
                               {comp.nombre_feriado || 'Día Feriado'}
                             </td>
-                            <td className="py-3 px-3 text-center font-mono font-bold text-[#1c6856]">
+                            <td className="py-3 px-3 text-center font-mono font-bold text-bodegon">
                               +{Number(comp.dias_compensatorios_totales || 2.0).toFixed(1)} días
                             </td>
                             <td className="py-3 px-3 text-center">
@@ -5359,7 +5359,7 @@ export default function NominaAdminPage() {
                                   setSelectedCompensacionFeriado(comp);
                                   setShowModalLiquidarFeriado(true);
                                 }}
-                                className="px-3 py-1 rounded-xl text-xs font-bold bg-[#1c6856] hover:bg-[#154f42] text-white transition-colors cursor-pointer shadow-2xs"
+                                className="px-3 py-1 rounded-xl text-xs font-bold bg-bodegon hover:bg-bodegon-noche text-white transition-colors cursor-pointer shadow-2xs"
                               >
                                 {comp.estado === 'PENDIENTE' ? 'Liquidar' : 'Modificar'}
                               </button>
@@ -5382,7 +5382,7 @@ export default function NominaAdminPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-5">
             <div>
               <h1 className="text-xl sm:text-2xl font-display font-black text-stone-900 tracking-tight flex items-center gap-2">
-                <Banknote className="w-6 h-6 text-[#1c6856]" />
+                <Banknote className="w-6 h-6 text-bodegon" />
                 Vacaciones Pagadas en Dinero
               </h1>
               <p className="text-xs text-stone-500 font-medium mt-1">
@@ -5395,7 +5395,7 @@ export default function NominaAdminPage() {
                 type="button"
                 onClick={handleSincronizarDescansos}
                 disabled={syncingDescansos}
-                className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+                className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
                 title="Escanear semanas completas trabajadas (7 días) y acreditar +1 día a vacaciones por descanso laborado"
               >
                 <Sparkles className={`w-3.5 h-3.5 text-amber-600 ${syncingDescansos ? 'animate-spin' : ''}`} />
@@ -5408,7 +5408,7 @@ export default function NominaAdminPage() {
                   setEmpleadoParaPagoVac(null);
                   setShowModalEmitirPagoVac(true);
                 }}
-                className="bg-[#1c6856] hover:bg-[#154f42] active:scale-95 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="bg-bodegon hover:bg-bodegon-noche text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>+ Emitir Pago en Dinero</span>
@@ -5427,7 +5427,7 @@ export default function NominaAdminPage() {
                 <div className="glass-panel border border-stone-200/80 rounded-2xl p-4 shadow-xs bg-white">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">Días Pagados Totales</span>
-                    <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-[#1c6856]">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-bodegon">
                       <Palmtree className="w-4 h-4" />
                     </div>
                   </div>
@@ -5490,7 +5490,7 @@ export default function NominaAdminPage() {
           <div className="glass-panel border border-white rounded-3xl p-5 shadow-premium space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3">
               <div>
-                <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5">
+                <h3 className="font-bold text-sm text-bodegon flex items-center gap-1.5">
                   <FileText className="w-4 h-4" />
                   Historial Detallado de Boletas y Pagos de Vacaciones
                 </h3>
@@ -5507,7 +5507,7 @@ export default function NominaAdminPage() {
                   placeholder="Buscar recibo, colaborador..."
                   value={searchPagoVac}
                   onChange={(e) => setSearchPagoVac(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-8 pr-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
                 />
               </div>
             </div>
@@ -5541,7 +5541,7 @@ export default function NominaAdminPage() {
                           setEmpleadoParaPagoVac(null);
                           setShowModalEmitirPagoVac(true);
                         }}
-                        className="bg-[#1c6856] hover:bg-[#154f42] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                        className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
                       >
                         + Emitir Primera Boleta de Pago
                       </button>
@@ -5576,8 +5576,8 @@ export default function NominaAdminPage() {
 
                         return (
                           <tr key={p.id} className="hover:bg-stone-50/60 transition-colors">
-                            <td className="px-4 py-3.5 font-mono font-bold text-[#1c6856]">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-50 text-[#1c6856] border border-emerald-200 font-black text-xs">
+                            <td className="px-4 py-3.5 font-mono font-bold text-bodegon">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-50 text-bodegon border border-emerald-200 font-black text-xs">
                                 {p.numero_recibo}
                               </span>
                             </td>
@@ -5642,7 +5642,7 @@ export default function NominaAdminPage() {
                                 <button
                                   type="button"
                                   onClick={() => setSelectedPagoVacaciones(p)}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#1c6856] hover:bg-[#154f42] text-white transition-all shadow-2xs cursor-pointer active:scale-95"
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-bodegon hover:bg-bodegon-noche text-white transition-all shadow-2xs cursor-pointer"
                                   title="Ver boleta oficial completa en formato de impresión"
                                 >
                                   <FileText className="w-3.5 h-3.5" />
@@ -5672,7 +5672,7 @@ export default function NominaAdminPage() {
           <div className="glass-panel border border-white rounded-3xl p-5 shadow-premium space-y-4">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div>
-                <h3 className="font-bold text-sm text-[#1c6856] flex items-center gap-1.5">
+                <h3 className="font-bold text-sm text-bodegon flex items-center gap-1.5">
                   <Palmtree className="w-4 h-4" />
                   Saldos de Vacaciones Disponibles del Personal
                 </h3>
@@ -5726,7 +5726,7 @@ export default function NominaAdminPage() {
                           setEmpleadoParaPagoVac(emp);
                           setShowModalEmitirPagoVac(true);
                         }}
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-500 shadow-2xs transition-all cursor-pointer whitespace-nowrap"
                       >
                         Pagar
                       </button>
@@ -5796,7 +5796,7 @@ export default function NominaAdminPage() {
         const previewDisp = Number((nuevoAcumulado - vacTom).toFixed(2));
 
         return (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-stone-200/90 p-6 space-y-4">
               <div className="flex items-start justify-between gap-3 border-b border-stone-100 pb-3">
                 <div className="flex items-center gap-2.5">
@@ -5944,7 +5944,7 @@ export default function NominaAdminPage() {
                           required
                           value={tempAjusteDias}
                           onChange={(e) => setTempAjusteDias(e.target.value)}
-                          className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-base font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856]"
+                          className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-base font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-bodegon"
                           placeholder="Ej: 12.5"
                         />
                         <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400">
@@ -5967,7 +5967,7 @@ export default function NominaAdminPage() {
                           tempAjusteMotivoRef.current = e.target.value;
                         }}
                         placeholder="Ej: Corrección de saldo acumulado histórico"
-                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
                       />
                     </div>
                   </>
@@ -6103,7 +6103,7 @@ export default function NominaAdminPage() {
       {selectedPhotoUrl && (
         <div
           onClick={() => setSelectedPhotoUrl(null)}
-          className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+          className="fixed inset-0 z-[120] bg-black/80 flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}

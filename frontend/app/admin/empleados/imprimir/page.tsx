@@ -100,7 +100,7 @@ function ImprimirCarnetsContent() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-100 text-stone-600 font-sans">
         <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-4 border-[#1c6856] border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="w-10 h-10 border-4 border-bodegon border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-sm font-bold">Generando hojas de carnets oficiales...</p>
         </div>
       </div>
@@ -168,7 +168,7 @@ function ImprimirCarnetsContent() {
             display: flex !important;
             width: 85.6mm !important;
             height: 54mm !important;
-            border: 1.5pt solid #1c6856 !important;
+            border: 1.5pt solid #135E4A !important;
             border-radius: 4.5mm !important;
             box-sizing: border-box !important;
             padding: 3.5mm !important;
@@ -192,7 +192,7 @@ function ImprimirCarnetsContent() {
       `}} />
 
       {/* Barra Superior de Control (Oculta al Imprimir) */}
-      <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-stone-200 px-6 py-4 shadow-sm flex flex-wrap items-center justify-between gap-4 print-hide">
+      <div className="sticky top-0 z-50 bg-white/95 border-b border-stone-200 px-6 py-4 shadow-sm flex flex-wrap items-center justify-between gap-4 print-hide">
         <div className="flex items-center gap-3">
           <Link
             href="/admin/empleados"
@@ -203,7 +203,7 @@ function ImprimirCarnetsContent() {
           </Link>
           <div>
             <h1 className="text-base font-black text-stone-900 flex items-center gap-2">
-              <Printer className="w-4 h-4 text-[#1c6856]" />
+              <Printer className="w-4 h-4 text-bodegon" />
               Hojas de Impresión de Carnets (CR80)
             </h1>
             <p className="text-xs text-stone-500 font-medium">
@@ -220,7 +220,7 @@ function ImprimirCarnetsContent() {
             className="bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-2 border border-stone-200 shadow-2xs cursor-pointer"
             title="Elegir qué colaboradores incluir en esta impresión"
           >
-            <Users className="w-4 h-4 text-[#1c6856]" />
+            <Users className="w-4 h-4 text-bodegon" />
             <span>Elegir Personal ({carnetsAImprimir.length}/{empleados.length})</span>
           </button>
 
@@ -228,9 +228,9 @@ function ImprimirCarnetsContent() {
           <button
             onClick={handlePrint}
             disabled={carnetsAImprimir.length === 0}
-            className={`px-6 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-md active:scale-95 ${
+            className={`px-6 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-md ${
               carnetsAImprimir.length > 0
-                ? 'bg-[#1c6856] hover:bg-[#154f42] text-white shadow-[#1c6856]/20 cursor-pointer'
+                ? 'bg-bodegon hover:bg-bodegon-noche text-white shadow-bodegon/20 cursor-pointer'
                 : 'bg-stone-200 text-stone-400 cursor-not-allowed shadow-none'
             }`}
           >
@@ -265,7 +265,7 @@ function ImprimirCarnetsContent() {
           <div className="flex justify-center gap-2 pt-2">
             <button
               onClick={selectAll}
-              className="bg-[#1c6856] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-[#154f42] transition-colors cursor-pointer"
+              className="bg-bodegon text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-bodegon-noche transition-colors cursor-pointer"
             >
               Seleccionar Todo el Personal
             </button>
@@ -288,8 +288,8 @@ function ImprimirCarnetsContent() {
             >
               {/* Encabezado Técnico de la Hoja */}
               <div className="flex items-center justify-between border-b border-dashed border-stone-300 pb-2 mb-6 text-stone-500 text-[10px] font-bold uppercase tracking-wider">
-                <span className="flex items-center gap-2 text-[#1c6856]">
-                  <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                <span className="flex items-center gap-2 text-bodegon">
+                  <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 border border-bodegon/30 bg-bodegon">
                     <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                   </div>
                   Restaurante El Bodegón — BodegónPass Credenciales Oficiales
@@ -307,7 +307,7 @@ function ImprimirCarnetsContent() {
                     key={emp.id}
                     className="carnet-cut-wrapper p-[1.5mm] border border-dashed border-stone-300 rounded-[6mm] bg-white inline-block shadow-xs"
                   >
-                    <div className="carnet-card-cr80 flex border-2 border-[#1c6856] rounded-[5mm] p-[3.5mm] bg-[#faf8f5] text-[#1a1a1a] w-[85.6mm] h-[54mm] box-border relative text-left font-sans select-none items-center justify-between">
+                    <div className="carnet-card-cr80 flex border-2 border-bodegon rounded-[5mm] p-[3.5mm] bg-[#faf8f5] text-[#1a1a1a] w-[85.6mm] h-[54mm] box-border relative text-left font-sans select-none items-center justify-between">
                       {/* QR Izquierdo */}
                       <div className="w-[37mm] h-[37mm] bg-white p-[1.5mm] rounded-[3mm] border border-stone-200 flex flex-col items-center justify-center shrink-0 shadow-inner">
                         <QRCodeSVG
@@ -316,7 +316,7 @@ function ImprimirCarnetsContent() {
                           level="M"
                           includeMargin={false}
                         />
-                        <span className="text-[6.5px] font-extrabold text-[#1c6856] tracking-wider uppercase mt-1 leading-none">
+                        <span className="text-[6.5px] font-extrabold text-bodegon tracking-wider uppercase mt-1 leading-none">
                           Escanear en Kiosco
                         </span>
                       </div>
@@ -325,12 +325,12 @@ function ImprimirCarnetsContent() {
                       <div className="flex flex-col justify-between h-full w-[41mm] pl-[3mm] py-[0.5mm]">
                         <div>
                           {/* Logo y Marca */}
-                          <div className="flex items-center gap-1.5 border-b border-[#1c6856]/20 pb-1 mb-1.5">
-                            <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                          <div className="flex items-center gap-1.5 border-b border-bodegon/20 pb-1 mb-1.5">
+                            <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 border border-bodegon/30 bg-bodegon">
                               <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                             </div>
                             <div className="leading-tight">
-                              <span className="font-black text-[11px] tracking-tight text-[#1c6856] block leading-none">
+                              <span className="font-black text-[11px] tracking-tight text-bodegon block leading-none">
                                 BodegónPass
                               </span>
                               <span className="text-[6.5px] font-bold text-stone-400 uppercase tracking-widest block leading-none mt-0.5">
@@ -350,8 +350,8 @@ function ImprimirCarnetsContent() {
                           </div>
 
                           {/* Distintivo de Cargo */}
-                          <div className="mt-1.5 inline-block bg-[#1c6856]/10 border border-[#1c6856]/25 rounded-md px-2 py-0.5">
-                            <span className="text-[8px] font-black text-[#1c6856] uppercase tracking-wide block leading-none">
+                          <div className="mt-1.5 inline-block bg-bodegon/10 border border-bodegon/25 rounded-md px-2 py-0.5">
+                            <span className="text-[8px] font-black text-bodegon uppercase tracking-wide block leading-none">
                               {emp.cargo_display}
                             </span>
                           </div>
@@ -360,7 +360,7 @@ function ImprimirCarnetsContent() {
                         {/* Footer ID y Validación */}
                         <div className="border-t border-stone-200 pt-1 flex justify-between items-center text-[7px] font-mono text-stone-400">
                           <span>ID: {emp.qr_code_token.slice(0, 14)}</span>
-                          <span className="font-sans font-bold text-[#1c6856] text-[6.5px] uppercase">Oficial</span>
+                          <span className="font-sans font-bold text-bodegon text-[6.5px] uppercase">Oficial</span>
                         </div>
                       </div>
                     </div>
@@ -374,12 +374,12 @@ function ImprimirCarnetsContent() {
 
       {/* Modal: Elegir Personal a Imprimir */}
       {showSelectorModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 print-hide animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 print-hide animate-in fade-in duration-150">
           <div className="bg-white border border-stone-200 w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-stone-200 pb-3">
               <div>
                 <h3 className="text-base font-black text-stone-900 flex items-center gap-2">
-                  <Users className="w-4 h-4 text-[#1c6856]" />
+                  <Users className="w-4 h-4 text-bodegon" />
                   Seleccionar Carnets a Imprimir
                 </h3>
                 <p className="text-[11px] text-stone-500 font-medium mt-0.5">
@@ -401,7 +401,7 @@ function ImprimirCarnetsContent() {
                 placeholder="Buscar por nombre o cargo..."
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-9 pr-4 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-[#1c6856] font-medium"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-9 pr-4 py-2 text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-bodegon font-medium"
               />
               <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
@@ -409,13 +409,13 @@ function ImprimirCarnetsContent() {
             {/* Acciones Rápidas: Todos / Ninguno */}
             <div className="flex items-center justify-between text-xs pt-1">
               <span className="text-stone-500 font-semibold text-[11px]">
-                <strong className="text-[#1c6856] font-bold">{selectedIds.size}</strong> de {empleados.length} seleccionados
+                <strong className="text-bodegon font-bold">{selectedIds.size}</strong> de {empleados.length} seleccionados
               </span>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={selectAll}
-                  className="text-[11px] font-bold text-[#1c6856] hover:underline cursor-pointer"
+                  className="text-[11px] font-bold text-bodegon hover:underline cursor-pointer"
                 >
                   Marcar Todos
                 </button>
@@ -452,7 +452,7 @@ function ImprimirCarnetsContent() {
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => {}} // Manejado en onClick del label
-                          className="w-4 h-4 rounded text-[#1c6856] focus:ring-[#1c6856] border-stone-300 accent-[#1c6856]"
+                          className="w-4 h-4 rounded text-bodegon focus:ring-bodegon border-stone-300 accent-bodegon"
                         />
                         <div>
                           <div className="font-bold text-stone-900">
@@ -477,7 +477,7 @@ function ImprimirCarnetsContent() {
               <button
                 type="button"
                 onClick={() => setShowSelectorModal(false)}
-                className="w-full bg-[#1c6856] hover:bg-[#154f42] text-white py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+                className="w-full bg-bodegon hover:bg-bodegon-noche text-white py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
               >
                 Confirmar Selección ({selectedIds.size})
               </button>
@@ -495,7 +495,7 @@ export default function ImprimirCarnetsPage() {
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-stone-100 text-stone-600 font-sans">
           <div className="text-center space-y-3">
-            <div className="w-10 h-10 border-4 border-[#1c6856] border-t-transparent rounded-full animate-spin mx-auto" />
+            <div className="w-10 h-10 border-4 border-bodegon border-t-transparent rounded-full animate-spin mx-auto" />
             <p className="text-sm font-bold">Cargando carnets oficiales...</p>
           </div>
         </div>

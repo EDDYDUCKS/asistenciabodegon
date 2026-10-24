@@ -278,7 +278,7 @@ export default function DailyEarningsSection({
       <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-[#1c6856]/10 text-[#1c6856] border border-[#1c6856]/20 shadow-2xs">
+            <div className="p-2.5 rounded-xl bg-bodegon/10 text-bodegon border border-bodegon/20 shadow-2xs">
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
@@ -303,7 +303,7 @@ export default function DailyEarningsSection({
               onClick={() => setSelectedDate(todayStr)}
               className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
                 selectedDate === todayStr
-                  ? 'bg-white text-[#1c6856] shadow-xs'
+                  ? 'bg-white text-bodegon shadow-xs'
                   : 'text-stone-600 hover:text-stone-900'
               }`}
             >
@@ -313,7 +313,7 @@ export default function DailyEarningsSection({
               onClick={() => setSelectedDate(yesterdayStr)}
               className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
                 selectedDate === yesterdayStr
-                  ? 'bg-white text-[#1c6856] shadow-xs'
+                  ? 'bg-white text-bodegon shadow-xs'
                   : 'text-stone-600 hover:text-stone-900'
               }`}
             >
@@ -323,7 +323,7 @@ export default function DailyEarningsSection({
 
           {/* Selector de Fecha */}
           <div className="flex items-center gap-1.5 bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-200">
-            <Calendar className="w-4 h-4 text-[#1c6856]" />
+            <Calendar className="w-4 h-4 text-bodegon" />
             <input
               type="date"
               value={selectedDate}
@@ -336,7 +336,7 @@ export default function DailyEarningsSection({
           {onOpenEditSales && (
             <button
               onClick={onOpenEditSales}
-              className="flex items-center gap-1.5 bg-[#1c6856] hover:bg-[#154f42] text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 bg-bodegon hover:bg-bodegon-noche text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
               title="Registrar o corregir ventas de este día"
             >
               <Edit3 className="w-3.5 h-3.5" />
@@ -432,7 +432,7 @@ export default function DailyEarningsSection({
               C$ {activeDaySummary.netEarnings.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 transition-transform">
             <TrendingUp className="w-5 h-5" />
           </div>
         </button>
@@ -462,7 +462,7 @@ export default function DailyEarningsSection({
               {cashPercent.toFixed(1)}%
             </span>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-stone-100 text-[11px] text-[#1c6856] font-bold flex items-center justify-between">
+          <div className="mt-2.5 pt-2 border-t border-stone-100 text-[11px] text-bodegon font-bold flex items-center justify-between">
             <span>Ver auditoría de caja</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </div>
@@ -585,14 +585,14 @@ export default function DailyEarningsSection({
       <div className="bg-white rounded-2xl border border-stone-200 p-5 shadow-xs">
         <div className="flex items-center justify-between mb-4 border-b border-stone-100 pb-3">
           <div className="flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-[#1c6856]" />
+            <CreditCard className="w-4 h-4 text-bodegon" />
             <h3 className="text-sm font-black text-stone-900 uppercase tracking-wider">
               Desglose Individual de Tarjetas por Banco
             </h3>
           </div>
           <button
             onClick={() => setActiveModal('CARDS')}
-            className="text-xs font-mono font-black text-[#1c6856] bg-emerald-50 hover:bg-emerald-100 px-3 py-1 rounded-xl border border-emerald-200 transition cursor-pointer"
+            className="text-xs font-mono font-black text-bodegon bg-emerald-50 hover:bg-emerald-100 px-3 py-1 rounded-xl border border-emerald-200 transition cursor-pointer"
           >
             Total Tarjetas: C$ {activeDaySummary.totalCards.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
           </button>
@@ -617,7 +617,7 @@ export default function DailyEarningsSection({
                   : 0}% del datáfono
               </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-white border border-rose-200 text-rose-600 font-black flex items-center justify-center text-xs shadow-2xs group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-white border border-rose-200 text-rose-600 font-black flex items-center justify-center text-xs shadow-2xs transition-transform">
               BAC
             </div>
           </div>
@@ -640,7 +640,7 @@ export default function DailyEarningsSection({
                   : 0}% del datáfono
               </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-white border border-purple-200 text-purple-600 font-black flex items-center justify-center text-xs shadow-2xs group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-white border border-purple-200 text-purple-600 font-black flex items-center justify-center text-xs shadow-2xs transition-transform">
               FICO
             </div>
           </div>
@@ -663,7 +663,7 @@ export default function DailyEarningsSection({
                   : 0}% del datáfono
               </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-white border border-emerald-200 text-emerald-600 font-black flex items-center justify-center text-xs shadow-2xs group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-white border border-emerald-200 text-emerald-600 font-black flex items-center justify-center text-xs shadow-2xs transition-transform">
               BAN
             </div>
           </div>
@@ -686,7 +686,7 @@ export default function DailyEarningsSection({
                   : 0}% del datáfono
               </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-white border border-blue-200 text-blue-600 font-black flex items-center justify-center text-xs shadow-2xs group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-white border border-blue-200 text-blue-600 font-black flex items-center justify-center text-xs shadow-2xs transition-transform">
               LAF
             </div>
           </div>
@@ -698,7 +698,7 @@ export default function DailyEarningsSection({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-[#1c6856]" />
+              <BarChart3 className="w-4 h-4 text-bodegon" />
               <h3 className="text-sm font-black text-stone-900 uppercase tracking-wider">
                 Línea de Tiempo & Comparativa de Ganancias
               </h3>
@@ -713,7 +713,7 @@ export default function DailyEarningsSection({
             <button
               onClick={() => setTimeFilter('7days')}
               className={`px-3 py-1 rounded-lg transition cursor-pointer ${
-                timeFilter === '7days' ? 'bg-white text-[#1c6856] shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                timeFilter === '7days' ? 'bg-white text-bodegon shadow-xs' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
               7 Días
@@ -721,7 +721,7 @@ export default function DailyEarningsSection({
             <button
               onClick={() => setTimeFilter('14days')}
               className={`px-3 py-1 rounded-lg transition cursor-pointer ${
-                timeFilter === '14days' ? 'bg-white text-[#1c6856] shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                timeFilter === '14days' ? 'bg-white text-bodegon shadow-xs' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
               14 Días
@@ -729,7 +729,7 @@ export default function DailyEarningsSection({
             <button
               onClick={() => setTimeFilter('30days')}
               className={`px-3 py-1 rounded-lg transition cursor-pointer ${
-                timeFilter === '30days' ? 'bg-white text-[#1c6856] shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                timeFilter === '30days' ? 'bg-white text-bodegon shadow-xs' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
               30 Días
@@ -793,7 +793,7 @@ export default function DailyEarningsSection({
                   >
                     {/* Tooltip Emergente */}
                     {isHovered && (
-                      <div className="absolute -top-36 z-30 bg-stone-900/95 backdrop-blur-xs text-white p-3 rounded-xl shadow-2xl text-left whitespace-nowrap border border-stone-700 animate-in fade-in zoom-in-95 pointer-events-none">
+                      <div className="absolute -top-36 z-30 bg-stone-900/95 text-white p-3 rounded-xl shadow-2xl text-left whitespace-nowrap border border-stone-700 animate-in fade-in zoom-in-95 pointer-events-none">
                         <div className="font-black text-xs text-amber-400 capitalize flex items-center justify-between gap-3">
                           <span>{d.dayLabel}</span>
                           <span className="text-[10px] text-stone-400 font-mono">{d.date}</span>
@@ -838,7 +838,7 @@ export default function DailyEarningsSection({
                     {/* Badge numérico encima si está seleccionada */}
                     {isSelected && (
                       <div className="flex items-center gap-1 mb-1">
-                        <span className="text-[9px] font-mono font-black text-[#1c6856] bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded shadow-2xs">
+                        <span className="text-[9px] font-mono font-black text-bodegon bg-emerald-50 border border-emerald-200 px-1 py-0.5 rounded shadow-2xs">
                           C$ {Math.round(salesTotal)}
                         </span>
                       </div>
@@ -848,7 +848,7 @@ export default function DailyEarningsSection({
                     <div
                       className={`w-full max-w-[56px] h-full flex items-end justify-center gap-1 sm:gap-1.5 p-1 rounded-xl transition-all duration-300 ${
                         isSelected
-                          ? 'bg-emerald-50/80 ring-2 ring-[#1c6856] ring-offset-2 shadow-sm'
+                          ? 'bg-emerald-50/80 ring-2 ring-bodegon ring-offset-2 shadow-sm'
                           : 'hover:bg-stone-50'
                       }`}
                     >
@@ -904,7 +904,7 @@ export default function DailyEarningsSection({
                     {/* Etiqueta del Día */}
                     <div
                       className={`text-[10px] font-mono mt-2 transition-colors ${
-                        isSelected ? 'font-black text-[#1c6856]' : 'text-stone-400 group-hover:text-stone-700'
+                        isSelected ? 'font-black text-bodegon' : 'text-stone-400 group-hover:text-stone-700'
                       }`}
                     >
                       {d.date.slice(8, 10)}
@@ -919,7 +919,7 @@ export default function DailyEarningsSection({
 
       {/* 6. Modales Interactivos de Detalle */}
       {activeModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-3xl border border-stone-200 max-w-lg w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div className="flex items-center gap-2">

@@ -746,7 +746,7 @@ export default function KioscoPage() {
   }, [startCamera]);
 
   return (
-    <main className="min-h-screen bg-[#fcf9f5] text-stone-900 flex flex-col justify-between p-4 sm:p-6 select-none font-sans">
+    <main className="min-h-screen bg-crema text-stone-900 flex flex-col justify-between p-4 sm:p-6 select-none font-sans">
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Banner de Sincronización Offline */}
@@ -761,7 +761,7 @@ export default function KioscoPage() {
       )}
 
       {/* Header del Kiosco */}
-      <header className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-stone-200/80 pb-5 bg-white/70 backdrop-blur-md px-6 py-4 rounded-3xl shadow-premium border border-white/60">
+      <header className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-stone-200/80 pb-5 bg-white/70 px-6 py-4 rounded-3xl shadow-premium border border-white/60">
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
@@ -769,14 +769,14 @@ export default function KioscoPage() {
               setAdminPin('');
               setAdminPinError(false);
             }}
-            className="p-2.5 rounded-xl bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-600 hover:text-stone-900 transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
+            className="p-2.5 rounded-xl bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-600 hover:text-stone-900 transition-all flex items-center gap-1.5 shadow-sm"
             title="Acceso Administrativo"
           >
-            <Lock className="w-4 h-4 text-[#1c6856]" />
-            <span className="text-xs font-bold text-[#1c6856] hidden sm:inline">Admin</span>
+            <Lock className="w-4 h-4 text-bodegon" />
+            <span className="text-xs font-bold text-bodegon hidden sm:inline">Admin</span>
           </button>
           
-          <div className="w-11 h-11 rounded-full overflow-hidden shadow-md shadow-[#1c6856]/15 shrink-0 border border-[#1c6856]/20 bg-[#1c6856]">
+          <div className="w-11 h-11 rounded-full overflow-hidden shadow-md shadow-bodegon/15 shrink-0 border border-bodegon/20 bg-bodegon">
             <Image
               src="/logo.png"
               alt="Restaurante El Bodegón"
@@ -787,9 +787,9 @@ export default function KioscoPage() {
             />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-display font-black tracking-tight text-[#1c6856] flex items-center gap-2">
+            <h1 className="text-lg sm:text-xl font-display font-black tracking-tight text-bodegon flex items-center gap-2">
               BodegónPass
-              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#1c6856]/10 text-[#1c6856]">
+              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-bodegon/10 text-bodegon">
                 Kiosco
               </span>
             </h1>
@@ -801,7 +801,7 @@ export default function KioscoPage() {
 
         {/* Reloj Digital */}
         <div className="text-center md:text-right px-5 py-2 bg-stone-50 border border-stone-200/80 rounded-2xl">
-          <div className="text-2xl sm:text-3xl font-black font-mono tracking-wider text-[#1c6856] flex items-center justify-center md:justify-end gap-2">
+          <div className="text-2xl sm:text-3xl font-black font-mono tracking-wider text-bodegon flex items-center justify-center md:justify-end gap-2">
             <Clock className="w-5 h-5 text-amber-500 animate-pulse shrink-0" />
             {timeStr || '00:00:00 AM'}
           </div>
@@ -818,7 +818,7 @@ export default function KioscoPage() {
         <div className="md:col-span-7 bg-white border border-stone-200/80 rounded-3xl p-6 shadow-kiosk space-y-5 flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-stone-100 pb-3">
             <div className="flex items-center gap-2">
-              <Camera className="w-5 h-5 text-[#1c6856]" />
+              <Camera className="w-5 h-5 text-bodegon" />
               <h3 className="font-display font-black text-sm text-stone-800">
                 Lector de Asistencia
               </h3>
@@ -837,8 +837,8 @@ export default function KioscoPage() {
             
             {/* Pantalla de Permisos / Activación de Cámara */}
             {!cameraActive && (
-              <div className="absolute inset-0 bg-stone-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-white text-center space-y-3 z-30">
-                <div className="w-12 h-12 rounded-2xl bg-[#1c6856] flex items-center justify-center text-white shadow-lg mx-auto">
+              <div className="absolute inset-0 bg-stone-900/90 flex flex-col items-center justify-center p-6 text-white text-center space-y-3 z-30">
+                <div className="w-12 h-12 rounded-2xl bg-bodegon flex items-center justify-center text-white shadow-lg mx-auto">
                   <Camera className="w-6 h-6" />
                 </div>
                 <div>
@@ -849,7 +849,7 @@ export default function KioscoPage() {
                 </div>
                 <button
                   onClick={startCamera}
-                  className="bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2"
+                  className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2"
                 >
                   <Camera className="w-4 h-4" />
                   Activar Cámara / Otorgar Permisos
@@ -887,7 +887,7 @@ export default function KioscoPage() {
 
             {/* ── OVERLAY CENTRAL DE ALTA VISIBILIDAD (MÓVIL & PC) ── */}
             {processing && !feedback && !errorMsg && (
-              <div className="absolute inset-0 bg-stone-950/85 backdrop-blur-md z-30 flex flex-col items-center justify-center p-4 text-center animate-in fade-in duration-150">
+              <div className="absolute inset-0 bg-stone-950/85 z-30 flex flex-col items-center justify-center p-4 text-center animate-in fade-in duration-150">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-emerald-300 mx-auto shadow-lg mb-2 animate-pulse">
                   <Camera className="w-7 h-7" />
                 </div>
@@ -914,7 +914,7 @@ export default function KioscoPage() {
             )}
 
             {feedback && (
-              <div className="absolute inset-0 bg-stone-950/95 backdrop-blur-md z-30 flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-in zoom-in-95 duration-200">
+              <div className="absolute inset-0 bg-stone-950/95 z-30 flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-in zoom-in-95 duration-200">
                 {feedback.status === 'cooldown' ? (
                   <div className="space-y-2.5 max-w-sm sm:max-w-md mx-auto">
                     <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-500 border-2 border-amber-300 flex items-center justify-center text-white mx-auto shadow-xl">
@@ -967,7 +967,7 @@ export default function KioscoPage() {
                       if (feedback.es_tardanza) {
                         return (
                           <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
-                            <div className="w-14 h-14 rounded-2xl bg-rose-600 border-2 border-rose-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-rose-950/50 animate-bounce">
+                            <div className="w-14 h-14 rounded-2xl bg-rose-600 border-2 border-rose-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-rose-950/50">
                               <AlertTriangle className="w-8 h-8" />
                             </div>
                             <div>
@@ -1075,7 +1075,7 @@ export default function KioscoPage() {
                       if (feedback.es_tardanza) {
                         return (
                           <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
-                            <div className="w-14 h-14 rounded-2xl bg-rose-600 border-2 border-rose-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-rose-950/50 animate-bounce">
+                            <div className="w-14 h-14 rounded-2xl bg-rose-600 border-2 border-rose-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-rose-950/50">
                               <AlertTriangle className="w-8 h-8" />
                             </div>
                             <div>
@@ -1149,7 +1149,7 @@ export default function KioscoPage() {
                     if (feedback.advertencia_quiebre) {
                       return (
                         <div className="space-y-3 max-w-sm sm:max-w-md mx-auto animate-in zoom-in-95">
-                          <div className="w-14 h-14 rounded-2xl bg-amber-500 border-2 border-amber-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-amber-950/50 animate-bounce">
+                          <div className="w-14 h-14 rounded-2xl bg-amber-500 border-2 border-amber-300 flex items-center justify-center text-white mx-auto shadow-xl shadow-amber-950/50">
                             <AlertTriangle className="w-8 h-8" />
                           </div>
                           <div>
@@ -1246,7 +1246,7 @@ export default function KioscoPage() {
             )}
 
             {errorMsg && (
-              <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-md z-30 flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-in zoom-in-95 duration-200">
+              <div className="absolute inset-0 bg-stone-950/90 z-30 flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-in zoom-in-95 duration-200">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-rose-500 border-2 border-rose-300 flex items-center justify-center text-white mx-auto shadow-xl mb-2">
                   <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
@@ -1451,7 +1451,7 @@ export default function KioscoPage() {
                 <button
                   type="button"
                   onClick={handleCerrarConsulta}
-                  className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs transition-all flex items-center gap-1 active:scale-95 shrink-0"
+                  className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs transition-all flex items-center gap-1 shrink-0"
                 >
                   <X className="w-3.5 h-3.5" />
                   <span>Cancelar</span>
@@ -1467,7 +1467,7 @@ export default function KioscoPage() {
 
             {!processing && !feedback && !errorMsg && !showConsultaModal && (
               <div className="text-center space-y-1.5 py-2">
-                <QrCode className="w-7 h-7 text-[#1c6856]/40 mx-auto animate-bounce" />
+                <QrCode className="w-7 h-7 text-bodegon/40 mx-auto" />
                 <div>
                   <span className="text-xs font-black text-stone-700 block">
                     Acerque su carnet QR al escáner
@@ -1489,7 +1489,7 @@ export default function KioscoPage() {
                     setConsultaData(null);
                     setConsultaError(null);
                   }}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
                 >
                   <BarChart3 className="w-4 h-4" />
                   <span>Consultar Mis Horas y Marcajes</span>
@@ -1503,7 +1503,7 @@ export default function KioscoPage() {
         <div className="md:col-span-5 glass-panel rounded-3xl p-6 shadow-kiosk flex flex-col justify-between border border-white">
           <div className="space-y-4">
             <h3 className="font-display font-black text-sm text-stone-850 border-b border-stone-200/60 pb-3 flex items-center gap-1.5">
-              <Clock className="w-4.5 h-4.5 text-[#1c6856]" />
+              <Clock className="w-4.5 h-4.5 text-bodegon" />
               Actividad Reciente (Hoy)
             </h3>
 
@@ -1566,9 +1566,9 @@ export default function KioscoPage() {
 
       {/* ── MODAL DE ACCESO ADMINISTRATIVO CON PIN DE GERENCIA ── */}
       {showAdminPinModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white border border-stone-200 w-full max-w-sm rounded-3xl p-6 sm:p-8 shadow-2xl text-center space-y-5 animate-in zoom-in-95 duration-200 select-none">
-            <div className="w-14 h-14 rounded-2xl bg-[#1c6856]/10 border border-[#1c6856]/25 flex items-center justify-center text-[#1c6856] mx-auto shadow-md">
+            <div className="w-14 h-14 rounded-2xl bg-bodegon/10 border border-bodegon/25 flex items-center justify-center text-bodegon mx-auto shadow-md">
               <Lock className="w-7 h-7" />
             </div>
 
@@ -1586,9 +1586,9 @@ export default function KioscoPage() {
                   key={idx}
                   className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
                     adminPinError
-                      ? 'bg-rose-500 border-rose-500 animate-bounce'
+                      ? 'bg-rose-500 border-rose-500'
                       : idx < adminPin.length
-                      ? 'bg-[#1c6856] border-[#1c6856] scale-110'
+                      ? 'bg-bodegon border-bodegon scale-110'
                       : 'border-stone-300 bg-stone-50'
                   }`}
                 />
@@ -1655,7 +1655,7 @@ export default function KioscoPage() {
 
       {/* ── MODAL FICHA DEL COLABORADOR (CONSULTA DE HORAS) ── */}
       {showConsultaModal && consultaData && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white border border-stone-200 w-full max-w-lg rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 select-none">
             
             {/* Header del Colaborador */}
@@ -1678,7 +1678,7 @@ export default function KioscoPage() {
               <button
                 type="button"
                 onClick={handleCerrarConsulta}
-                className="w-9 h-9 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-600 transition-all flex items-center justify-center active:scale-95"
+                className="w-9 h-9 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-600 transition-all flex items-center justify-center"
                 title="Cerrar consulta"
               >
                 <X className="w-5 h-5" />
@@ -1862,7 +1862,7 @@ export default function KioscoPage() {
               <button
                 type="button"
                 onClick={handleCerrarConsulta}
-                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#1c6856] hover:bg-[#155042] text-white font-bold text-xs transition-all active:scale-95 shadow-md flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-bodegon hover:bg-bodegon-noche text-white font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Listo / Volver</span>

@@ -65,7 +65,7 @@ export default function BoletaPagoVacacionesModal({
   const horasEquivalentes = diasPagados * 8.0;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex justify-center items-start p-3 sm:p-6 overflow-y-auto print-pago-vacaciones-backdrop">
+    <div className="fixed inset-0 z-[99999] bg-black/85 flex justify-center items-start p-3 sm:p-6 overflow-y-auto print-pago-vacaciones-backdrop">
       {/* Estilos estrictos de impresión: AISLAMIENTO TOTAL EN 1 SOLA PÁGINA */}
       <style
         dangerouslySetInnerHTML={{
@@ -205,7 +205,7 @@ export default function BoletaPagoVacacionesModal({
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#1c6856] hover:bg-[#154f41] text-white text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-bodegon hover:bg-bodegon-noche text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Imprimir Boleta / PDF</span>
@@ -224,14 +224,14 @@ export default function BoletaPagoVacacionesModal({
         {/* ── CUERPO DEL COMPROBANTE IMPRIMIBLE ── */}
         <div className="p-5 sm:p-7 space-y-3.5 text-stone-900 text-xs print-boleta-content">
           {/* Encabezado Institucional */}
-          <div className="flex items-start justify-between border-b-2 border-[#1c6856] pb-3">
+          <div className="flex items-start justify-between border-b-2 border-bodegon pb-3">
             <div>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-bodegon/30 bg-bodegon">
                   <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                 </div>
                 <div>
-                  <span className="text-xl font-black tracking-tight text-[#1c6856]">
+                  <span className="text-xl font-black tracking-tight text-bodegon">
                     RESTAURANTE EL BODEGÓN
                   </span>
                   <p className="text-[11px] font-bold text-stone-600 uppercase tracking-wider mt-0.5">
@@ -319,9 +319,9 @@ export default function BoletaPagoVacacionesModal({
           </div>
 
           {/* ── TABLA DE DETALLE DE LIQUIDACIÓN Y CÁLCULO FINANCIERO ── */}
-          <div className="rounded-2xl border-2 border-[#1c6856]/40 overflow-hidden shadow-2xs">
-            <div className="bg-[#1c6856]/10 px-4 py-2 border-b border-[#1c6856]/25 flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-[#1c6856]">
+          <div className="rounded-2xl border-2 border-bodegon/40 overflow-hidden shadow-2xs">
+            <div className="bg-bodegon/10 px-4 py-2 border-b border-bodegon/25 flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-bodegon">
                 Desglose Financiero de Vacaciones Pagadas
               </span>
               <span className="text-[10px] font-bold text-stone-600 font-mono">
@@ -347,7 +347,7 @@ export default function BoletaPagoVacacionesModal({
                   <span className="text-[9px] uppercase font-bold text-emerald-800 block">
                     Total Pagado
                   </span>
-                  <span className="text-lg font-black text-[#1c6856] font-mono mt-0.5 block">
+                  <span className="text-lg font-black text-bodegon font-mono mt-0.5 block">
                     {montoNum > 0 ? `C$ ${montoNum.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Acordado'}
                   </span>
                   <span className="text-[9px] text-emerald-700 font-bold">
@@ -403,7 +403,7 @@ export default function BoletaPagoVacacionesModal({
           </div>
 
           {/* Constancia Legal y Recibo Conforme */}
-          <p className="text-[10px] text-stone-600 leading-relaxed text-justify border-l-2 border-[#1c6856] pl-3 py-1 bg-stone-50/50 rounded-r-lg">
+          <p className="text-[10px] text-stone-600 leading-relaxed text-justify border-l-2 border-bodegon pl-3 py-1 bg-stone-50/50 rounded-r-lg">
             Por medio del presente comprobante oficial, el/la colaborador(a) abajo firmante hace constar que ha recibido de
             la Administración de <strong>Restaurante El Bodegón</strong> la cantidad líquida descrita en concepto de pago de sus días
             de vacaciones acumuladas, conforme a lo normado en el Artículo 76 del Código del Trabajo de la República de Nicaragua. Con
@@ -446,7 +446,7 @@ export default function BoletaPagoVacacionesModal({
           <button
             type="button"
             onClick={handlePrint}
-            className="px-6 py-2.5 rounded-xl bg-[#1c6856] hover:bg-[#154f42] text-white font-bold text-xs transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer active:scale-95"
+            className="px-6 py-2.5 rounded-xl bg-bodegon hover:bg-bodegon-noche text-white font-bold text-xs transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>Imprimir Boleta Oficial / Guardar PDF</span>

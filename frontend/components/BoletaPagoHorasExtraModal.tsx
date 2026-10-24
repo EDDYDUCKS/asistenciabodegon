@@ -71,7 +71,7 @@ export default function BoletaPagoHorasExtraModal({
   const detalles = Array.isArray(pago.detalles_fechas) ? pago.detalles_fechas : [];
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex justify-center items-start p-3 sm:p-6 overflow-y-auto print-pago-extra-backdrop">
+    <div className="fixed inset-0 z-[99999] bg-black/85 flex justify-center items-start p-3 sm:p-6 overflow-y-auto print-pago-extra-backdrop">
       {/* Estilos estrictos de impresión: 1 SOLA PÁGINA CARTA */}
       <style
         dangerouslySetInnerHTML={{
@@ -232,7 +232,7 @@ export default function BoletaPagoHorasExtraModal({
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#1c6856] hover:bg-[#154f41] text-white text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-bodegon hover:bg-bodegon-noche text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Imprimir Recibo</span>
@@ -250,15 +250,15 @@ export default function BoletaPagoHorasExtraModal({
         {/* Contenido Imprimible */}
         <div className="p-6 sm:p-7 space-y-4 text-stone-900 font-sans print-pago-content">
           {/* Encabezado */}
-          <div className="border-b-2 border-[#1c6856] pb-3.5 print-header-block">
+          <div className="border-b-2 border-bodegon pb-3.5 print-header-block">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                  <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-bodegon/30 bg-bodegon">
                     <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-black tracking-tight text-[#1c6856] uppercase leading-tight font-display">
+                    <h1 className="text-xl font-black tracking-tight text-bodegon uppercase leading-tight font-display">
                       Restaurante El Bodegón
                     </h1>
                     <p className="text-xs font-bold text-stone-700 uppercase tracking-wider">
@@ -273,11 +273,11 @@ export default function BoletaPagoHorasExtraModal({
 
               {/* Folio y Fecha */}
               <div className="text-right shrink-0">
-                <div className="inline-block border-2 border-[#1c6856]/40 bg-[#1c6856]/5 rounded-xl px-3.5 py-1.5 text-right shadow-2xs">
+                <div className="inline-block border-2 border-bodegon/40 bg-bodegon/5 rounded-xl px-3.5 py-1.5 text-right shadow-2xs">
                   <span className="text-[9px] font-bold text-stone-500 uppercase tracking-widest block">
                     Recibo Oficial N°
                   </span>
-                  <span className="text-base font-mono font-black text-[#1c6856]">
+                  <span className="text-base font-mono font-black text-bodegon">
                     {pago.numero_recibo}
                   </span>
                 </div>
@@ -290,7 +290,7 @@ export default function BoletaPagoHorasExtraModal({
             {/* Sub-título con Estado */}
             <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-stone-150">
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#1c6856]" />
+                <FileText className="w-4 h-4 text-bodegon" />
                 <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-stone-800">
                   Liquidación de Horas Extraordinarias
                 </h2>
@@ -304,7 +304,7 @@ export default function BoletaPagoHorasExtraModal({
 
           {/* Información del Colaborador */}
           <div className="bg-stone-50/90 border border-stone-200 rounded-2xl p-3.5 shadow-xs print-info-grid">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#1c6856] block mb-2 flex items-center gap-1.5">
+            <span className="text-[10px] font-black uppercase tracking-wider text-bodegon block mb-2 flex items-center gap-1.5">
               <User className="w-3.5 h-3.5" />
               Información del Personal y Pago
             </span>
@@ -323,7 +323,7 @@ export default function BoletaPagoHorasExtraModal({
               </div>
               <div>
                 <span className="text-stone-500 text-[10px] block uppercase font-bold">Modalidad de Pago:</span>
-                <span className="text-[#1c6856] font-bold">{metodoPagoDisplay}</span>
+                <span className="text-bodegon font-bold">{metodoPagoDisplay}</span>
               </div>
             </div>
           </div>
@@ -357,8 +357,8 @@ export default function BoletaPagoHorasExtraModal({
 
           {/* Desglose de Jornadas Extraordinarias Pagadas */}
           <div className="border border-stone-200 rounded-2xl overflow-hidden shadow-xs print-detalles-card">
-            <div className="bg-[#1c6856]/10 px-4 py-2 border-b border-stone-200 flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-[#1c6856] flex items-center gap-1.5">
+            <div className="bg-bodegon/10 px-4 py-2 border-b border-stone-200 flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-bodegon flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5" />
                 Detalle de Fechas y Horas Extra Amparadas en este Recibo ({detalles.length} jornada{detalles.length !== 1 ? 's' : ''})
               </span>
@@ -423,7 +423,7 @@ export default function BoletaPagoHorasExtraModal({
           </div>
 
           {/* Declaración Legal de Recibo Conforme */}
-          <p className="text-[10px] text-stone-600 leading-relaxed text-justify border-l-2 border-[#1c6856] pl-3 py-1 bg-stone-50/50 rounded-r-lg print-legal-text">
+          <p className="text-[10px] text-stone-600 leading-relaxed text-justify border-l-2 border-bodegon pl-3 py-1 bg-stone-50/50 rounded-r-lg print-legal-text">
             Por medio del presente comprobante oficial, el/la colaborador(a) abajo firmante hace constar que ha recibido a su entera satisfacción de <strong>Restaurante El Bodegón</strong> la cantidad neta en Córdobas aquí especificada, en concepto de pago y liquidación íntegra de las horas extraordinarias detalladas, habiendo sido calculadas y canceladas conforme a lo preceptuado en el Artículo 62 del Código del Trabajo de la República de Nicaragua con el recargo legal correspondiente del cien por ciento (100%), no teniendo reclamo pendiente alguno por este concepto en las fechas relacionadas.
           </p>
 
@@ -456,7 +456,7 @@ export default function BoletaPagoHorasExtraModal({
           <button
             type="button"
             onClick={handlePrint}
-            className="px-6 py-2.5 rounded-xl bg-[#1c6856] hover:bg-[#154f42] text-white font-bold text-xs transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer active:scale-95"
+            className="px-6 py-2.5 rounded-xl bg-bodegon hover:bg-bodegon-noche text-white font-bold text-xs transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>Imprimir Recibo Oficial / Guardar PDF</span>

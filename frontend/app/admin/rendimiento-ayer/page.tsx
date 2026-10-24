@@ -570,7 +570,7 @@ export default function RendimientoAyerPage() {
       const contentW = logicalWidth - marginX * 2;
       let curY = 24;
 
-      drawCardRect(marginX, curY, contentW, 122, 16, '#1c6856');
+      drawCardRect(marginX, curY, contentW, 122, 16, '#135E4A');
 
       ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#fef08a';
@@ -955,7 +955,7 @@ export default function RendimientoAyerPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/admin"
-            className="w-10 h-10 rounded-2xl bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center transition-all shadow-2xs active:scale-95 shrink-0"
+            className="w-10 h-10 rounded-2xl bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 flex items-center justify-center transition-all shadow-2xs shrink-0"
             title="Volver al Dashboard"
           >
             <ArrowLeft className="w-5 h-5 text-stone-600" />
@@ -963,10 +963,10 @@ export default function RendimientoAyerPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-display font-black text-stone-900 tracking-tight flex items-center gap-2">
-                <TrendingUp className="w-7 h-7 text-[#1c6856]" />
+                <TrendingUp className="w-7 h-7 text-bodegon" />
                 Rendimiento de Ayer
               </h1>
-              <span className="bg-[#1c6856]/10 text-[#1c6856] text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-[#1c6856]/20">
+              <span className="bg-bodegon/10 text-bodegon text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-bodegon/20">
                 Briefing Ejecutivo Matutino
               </span>
             </div>
@@ -984,7 +984,7 @@ export default function RendimientoAyerPage() {
               onClick={() => setFechaSeleccionada(ayerManagua)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 fechaSeleccionada === ayerManagua
-                  ? 'bg-[#1c6856] text-white shadow-2xs'
+                  ? 'bg-bodegon text-white shadow-2xs'
                   : 'text-stone-600 hover:text-stone-900'
               }`}
             >
@@ -994,7 +994,7 @@ export default function RendimientoAyerPage() {
               onClick={() => setFechaSeleccionada(antierManagua)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 fechaSeleccionada === antierManagua
-                  ? 'bg-[#1c6856] text-white shadow-2xs'
+                  ? 'bg-bodegon text-white shadow-2xs'
                   : 'text-stone-600 hover:text-stone-900'
               }`}
             >
@@ -1016,7 +1016,7 @@ export default function RendimientoAyerPage() {
           <button
             onClick={generarFichaWhatsApp}
             disabled={loading || generandoFicha}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer disabled:opacity-50"
             title="Generar Ficha Ejecutiva para WhatsApp"
           >
             {generandoFicha ? (
@@ -1030,10 +1030,10 @@ export default function RendimientoAyerPage() {
           <button
             onClick={loadAllData}
             disabled={loading}
-            className="w-9 h-9 rounded-xl bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 flex items-center justify-center transition-all shadow-2xs active:scale-95 cursor-pointer"
+            className="w-9 h-9 rounded-xl bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 flex items-center justify-center transition-all shadow-2xs cursor-pointer"
             title="Recargar datos"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''} text-[#1c6856]`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''} text-bodegon`} />
           </button>
         </div>
       </div>
@@ -1133,7 +1133,7 @@ export default function RendimientoAyerPage() {
 
         {/* Métrica 2: Índice de Puntualidad */}
         <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-[#1c6856]/10 text-[#1c6856] flex items-center justify-center border border-[#1c6856]/20 shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-bodegon/10 text-bodegon flex items-center justify-center border border-bodegon/20 shrink-0">
             <Award className="w-6 h-6" />
           </div>
           <div>
@@ -1247,7 +1247,7 @@ export default function RendimientoAyerPage() {
                 </div>
                 <Link
                   href="/admin/nomina"
-                  className="bg-[#1c6856] hover:bg-[#154f42] text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0 shadow-2xs cursor-pointer"
+                  className="bg-bodegon hover:bg-bodegon-noche text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0 shadow-2xs cursor-pointer"
                 >
                   Evaluar <ExternalLink className="w-3 h-3" />
                 </Link>
@@ -1321,7 +1321,7 @@ export default function RendimientoAyerPage() {
         <div className="p-4 sm:p-5 border-b border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="text-base font-black text-stone-900 tracking-tight flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-[#1c6856]" />
+              <FileSpreadsheet className="w-5 h-5 text-bodegon" />
               Desglose Individual de la Jornada
             </h3>
             <p className="text-xs text-stone-500 font-medium mt-0.5">
@@ -1464,7 +1464,7 @@ export default function RendimientoAyerPage() {
                         <button
                           type="button"
                           onClick={() => setSelectedPuntualidadFila(fila)}
-                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95 ${
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer shadow-2xs ${
                             fila.puntual
                               ? 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 border-emerald-200'
                               : 'text-amber-800 bg-amber-50 hover:bg-amber-100/80 border-amber-200 animate-pulse'
@@ -1539,7 +1539,7 @@ export default function RendimientoAyerPage() {
       {/* ── 5. BOTÓN DE CIERRE (VUELTA AL DASHBOARD) ─────────────────────────── */}
       <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full overflow-hidden shadow-xs shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+          <div className="w-11 h-11 rounded-full overflow-hidden shadow-xs shrink-0 border border-bodegon/30 bg-bodegon">
             <Image src="/logo.png" alt="Restaurante El Bodegón" width={44} height={44} className="w-full h-full object-cover" />
           </div>
           <div>
@@ -1554,7 +1554,7 @@ export default function RendimientoAyerPage() {
 
         <Link
           href="/admin"
-          className="w-full sm:w-auto bg-[#1c6856] hover:bg-[#154f42] text-white px-6 py-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95 cursor-pointer text-center"
+          className="w-full sm:w-auto bg-bodegon hover:bg-bodegon-noche text-white px-6 py-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer text-center"
         >
           <ArrowLeft className="w-4 h-4" />
           Cerrar y Volver al Dashboard
@@ -1564,7 +1564,7 @@ export default function RendimientoAyerPage() {
       {/* ── MODAL EXPLICATIVO DE PUNTUALIDAD (CLICK EN DESKTOP / TAP EN MÓVIL) ── */}
       {selectedPuntualidadFila && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
           onClick={() => setSelectedPuntualidadFila(null)}
         >
           <div
@@ -1701,7 +1701,7 @@ export default function RendimientoAyerPage() {
 
             {/* Nota institucional */}
             <div className="bg-emerald-50/50 border border-emerald-200/60 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-emerald-950 font-medium">
-              <Info className="w-4 h-4 text-[#1c6856] shrink-0 mt-0.5" />
+              <Info className="w-4 h-4 text-bodegon shrink-0 mt-0.5" />
               <span>
                 <strong>Regla Institucional:</strong> Restaurante El Bodegón concede <strong>10 minutos de cortesía</strong> después de la hora oficial programada. Los retrasos menores a 20 minutos no emiten notificación de alerta para no saturar al administrador, reservándose la alerta oficial únicamente para tardanzas severas de <strong>20 minutos en adelante</strong>.
               </span>
@@ -1710,7 +1710,7 @@ export default function RendimientoAyerPage() {
             {/* Footer */}
             <button
               onClick={() => setSelectedPuntualidadFila(null)}
-              className="w-full bg-[#1c6856] hover:bg-[#154f42] text-white py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm active:scale-95 cursor-pointer"
+              className="w-full bg-bodegon hover:bg-bodegon-noche text-white py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer"
             >
               Entendido / Cerrar Detalle
             </button>
@@ -1722,7 +1722,7 @@ export default function RendimientoAyerPage() {
       {showFichaModal && fichaImgUrl && (
         <div
           onClick={() => setShowFichaModal(false)}
-          className="fixed inset-0 bg-stone-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200 cursor-pointer"
+          className="fixed inset-0 bg-stone-950/80 z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200 cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -1731,7 +1731,7 @@ export default function RendimientoAyerPage() {
             {/* Header modal */}
             <div className="flex items-center justify-between border-b border-stone-100 pb-3 shrink-0">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-[#1c6856] flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-bodegon flex items-center justify-center">
                   <Share2 className="w-4 h-4" />
                 </div>
                 <div>
@@ -1773,21 +1773,21 @@ export default function RendimientoAyerPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 shrink-0">
               <button
                 onClick={compartirFicha}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95 cursor-pointer"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
               >
                 <Share2 className="w-4 h-4" />
                 <span>Compartir a WhatsApp</span>
               </button>
               <button
                 onClick={copiarFichaAlPortapapeles}
-                className="bg-stone-800 hover:bg-stone-900 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95 cursor-pointer"
+                className="bg-stone-800 hover:bg-stone-900 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
               >
                 <Copy className="w-4 h-4" />
                 <span>Copiar Imagen</span>
               </button>
               <button
                 onClick={descargarFicha}
-                className="bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-2xs active:scale-95 cursor-pointer"
+                className="bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-2xs cursor-pointer"
               >
                 <Download className="w-4 h-4" />
                 <span>Descargar PNG</span>

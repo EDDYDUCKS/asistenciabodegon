@@ -105,10 +105,10 @@ export default function ModalLiquidarFeriado({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] flex items-start justify-center p-4 overflow-y-auto bg-stone-900/75 backdrop-blur-md animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[99999] flex items-start justify-center p-4 overflow-y-auto bg-stone-900/75 animate-in fade-in duration-150">
       <div className="bg-white rounded-3xl shadow-2xl border border-stone-200/80 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh] my-6 sm:my-8">
         {/* Encabezado */}
-        <div className="bg-gradient-to-r from-[#1c6856] to-[#154f42] text-white p-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-bodegon to-bodegon-noche text-white p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center text-emerald-200 shadow-inner">
               <Calendar className="w-5 h-5" />
@@ -143,7 +143,7 @@ export default function ModalLiquidarFeriado({
                 {nombreEmp}
               </span>
               {cargoEmp && (
-                <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-[#1c6856]/10 text-[#1c6856] text-[10px] font-bold">
+                <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-bodegon/10 text-bodegon text-[10px] font-bold">
                   {cargoEmp}
                 </span>
               )}
@@ -153,7 +153,7 @@ export default function ModalLiquidarFeriado({
               <span className="text-[10px] uppercase font-bold text-stone-400 block tracking-wider">
                 Días Ganados
               </span>
-              <span className="font-mono font-black text-[#1c6856] text-lg block">
+              <span className="font-mono font-black text-bodegon text-lg block">
                 +{totalDias.toFixed(1)} días
               </span>
               <span className="text-[10px] text-stone-500">
@@ -240,7 +240,7 @@ export default function ModalLiquidarFeriado({
                     setDiasDinero(val);
                     setDiasVacaciones(Math.max(0, totalDias - val));
                   }}
-                  className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
                 />
                 <span className="text-[9px] text-stone-400 mt-0.5 block">
                   Se paga en nómina como feriado
@@ -263,7 +263,7 @@ export default function ModalLiquidarFeriado({
                     setDiasVacaciones(val);
                     setDiasDinero(Math.max(0, totalDias - val));
                   }}
-                  className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-sm font-mono font-bold text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
                 />
                 <span className="text-[9px] text-stone-400 mt-0.5 block">
                   Acredita directamente a vacaciones
@@ -294,7 +294,7 @@ export default function ModalLiquidarFeriado({
               placeholder="Ej. Liquidado conforme a común acuerdo con el trabajador..."
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
-              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-[#1c6856]"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-bodegon"
             />
           </div>
 
@@ -321,7 +321,7 @@ export default function ModalLiquidarFeriado({
             type="button"
             onClick={handleGuardar}
             disabled={loading || !esValido}
-            className="bg-[#1c6856] hover:bg-[#154f42] disabled:opacity-50 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95"
+            className="bg-bodegon hover:bg-bodegon-noche disabled:opacity-50 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
             {loading ? (
               <RefreshCw className="w-4 h-4 animate-spin" />

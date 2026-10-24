@@ -1,9 +1,11 @@
-import { Outfit, Inter } from 'next/font/google';
+import { Big_Shoulders, Inter } from 'next/font/google';
 
-export const outfit = Outfit({
+// Títulos y números grandes. Con el eje opsz toma la forma "Display" en tamaños grandes.
+export const bigShoulders = Big_Shoulders({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '900'],
-  variable: '--font-outfit',
+  weight: 'variable',
+  axes: ['opsz'],
+  variable: '--font-big-shoulders',
   display: 'swap',
 });
 

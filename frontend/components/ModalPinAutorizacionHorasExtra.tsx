@@ -129,7 +129,7 @@ export default function ModalPinAutorizacionHorasExtra({
       onClick={() => {
         if (!isSubmitting) onClose();
       }}
-      className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
+      className="fixed inset-0 bg-stone-950/70 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-150 cursor-pointer"
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -140,7 +140,7 @@ export default function ModalPinAutorizacionHorasExtra({
             isSuccess
               ? 'bg-emerald-500 border-emerald-600 text-white'
               : action.decision === 'APROBADO'
-              ? 'bg-emerald-100 border-emerald-300 text-[#1c6856]'
+              ? 'bg-emerald-100 border-emerald-300 text-bodegon'
               : 'bg-rose-100 border-rose-300 text-rose-700'
           }`}
         >
@@ -180,7 +180,7 @@ export default function ModalPinAutorizacionHorasExtra({
             <div className="bg-white/90 rounded-xl border border-stone-200 p-2 space-y-1 my-1">
               <div className="flex justify-between items-center text-[11px]">
                 <span className="text-stone-600 font-bold flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-[#1c6856]" /> Marcajes Biométricos:
+                  <Clock className="w-3 h-3 text-bodegon" /> Marcajes Biométricos:
                 </span>
                 <span className="font-mono font-bold text-stone-900">
                   {action.resumenAsistencia.entrada} ➔ {action.resumenAsistencia.salida}
@@ -188,7 +188,7 @@ export default function ModalPinAutorizacionHorasExtra({
               </div>
               <div className="flex justify-between items-center text-[10px] text-stone-500">
                 <span>Horas netas trabajadas:</span>
-                <span className="font-mono font-bold text-[#1c6856]">
+                <span className="font-mono font-bold text-bodegon">
                   {action.resumenAsistencia.horasTrabajadas} hrs
                   {action.resumenAsistencia.minutosDescanso ? ` (${action.resumenAsistencia.minutosDescanso}m descanso)` : ''}
                 </span>
@@ -198,7 +198,7 @@ export default function ModalPinAutorizacionHorasExtra({
           {action.totalPendienteColaborador !== undefined && action.totalPendienteColaborador > 0 && (
             <div className="flex justify-between items-center">
               <span className="text-stone-500 font-bold">Suma Total por Aprobar:</span>
-              <span className="font-mono font-black text-[#1c6856] bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+              <span className="font-mono font-black text-bodegon bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
                 +{action.totalPendienteColaborador.toFixed(1)} hrs
               </span>
             </div>
@@ -303,11 +303,11 @@ export default function ModalPinAutorizacionHorasExtra({
               key={idx}
               className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
                 pinError
-                  ? 'bg-rose-500 border-rose-500 animate-bounce'
+                  ? 'bg-rose-500 border-rose-500'
                   : isSuccess
                   ? 'bg-emerald-500 border-emerald-500 scale-125 shadow-sm shadow-emerald-400'
                   : idx < pin.length
-                  ? 'bg-[#1c6856] border-[#1c6856] scale-110'
+                  ? 'bg-bodegon border-bodegon scale-110'
                   : 'border-stone-300 bg-stone-50'
               }`}
             />
@@ -321,7 +321,7 @@ export default function ModalPinAutorizacionHorasExtra({
         )}
 
         {isSubmitting && (
-          <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#1c6856] animate-pulse">
+          <div className="flex items-center justify-center gap-2 text-xs font-bold text-bodegon animate-pulse">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>Guardando cambios...</span>
           </div>
@@ -335,7 +335,7 @@ export default function ModalPinAutorizacionHorasExtra({
               type="button"
               disabled={isSubmitting}
               onClick={() => handleDigit(num)}
-              className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 disabled:opacity-50 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
+              className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 disabled:opacity-50 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs touch-manipulation select-none"
             >
               {num}
             </button>
@@ -345,7 +345,7 @@ export default function ModalPinAutorizacionHorasExtra({
             type="button"
             disabled={isSubmitting}
             onClick={handleBackspace}
-            className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 active:bg-stone-200 disabled:opacity-50 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase cursor-pointer active:scale-95 touch-manipulation select-none"
+            className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 active:bg-stone-200 disabled:opacity-50 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase cursor-pointer touch-manipulation select-none"
           >
             Borrar
           </button>
@@ -354,7 +354,7 @@ export default function ModalPinAutorizacionHorasExtra({
             type="button"
             disabled={isSubmitting}
             onClick={() => handleDigit('0')}
-            className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 disabled:opacity-50 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs active:scale-95 touch-manipulation select-none"
+            className="w-14 h-14 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 hover:border-stone-300 active:bg-stone-200 disabled:opacity-50 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs touch-manipulation select-none"
           >
             0
           </button>
@@ -363,7 +363,7 @@ export default function ModalPinAutorizacionHorasExtra({
             type="button"
             disabled={isSubmitting}
             onClick={onClose}
-            className="w-14 h-14 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase cursor-pointer active:scale-95 touch-manipulation select-none"
+            className="w-14 h-14 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase cursor-pointer touch-manipulation select-none"
           >
             Cancelar
           </button>

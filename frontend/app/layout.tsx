@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { outfit, inter } from "./font";
+import { bigShoulders, inter } from "./font";
 import BackendKeepAlive from "@/components/BackendKeepAlive";
 import "./globals.css";
 
@@ -17,17 +17,17 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${outfit.variable} ${inter.variable} h-full antialiased`}
+      className={`${bigShoulders.variable} ${inter.variable} h-full antialiased`}
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#1c6856" />
+        <meta name="theme-color" content="#135E4A" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="icon" href="/icon.png" type="image/png" />
         <link rel="apple-touch-icon" href="/icon.png" />
       </head>
-      <body className="min-h-full flex flex-col font-sans bg-[#fcf9f5] text-[#1c1917]">
+      <body className="min-h-full flex flex-col font-sans bg-crema text-tinta">
         <BackendKeepAlive />
         {children}
       </body>

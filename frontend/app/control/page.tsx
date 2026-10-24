@@ -1933,12 +1933,12 @@ export default function BodegonControlPage() {
       subtitle="Auditoría Online • Ventas, Ganancias & Caja Chica"
       sessionKey="bodegon_control_pin_verified"
     >
-      <div className="min-h-screen bg-[#fcf9f5] text-stone-900 font-sans flex flex-col selection:bg-amber-100">
+      <div className="min-h-screen bg-crema text-stone-900 font-sans flex flex-col selection:bg-amber-100">
         {/* ── TOPBAR PRINCIPAL ── */}
         <header className="bg-white border-b border-stone-200/90 sticky top-0 z-30 shadow-2xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm border border-stone-200 bg-[#1c6856] flex items-center justify-center text-white shrink-0">
+              <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm border border-stone-200 bg-bodegon flex items-center justify-center text-white shrink-0">
                 <Image src="/logo.png" alt="El Bodegón" width={40} height={40} className="w-full h-full object-cover" priority />
               </div>
               <div className="min-w-0 hidden sm:block">
@@ -1999,7 +1999,7 @@ export default function BodegonControlPage() {
               <button
                 type="button"
                 onClick={handleExportarReporteCSV}
-                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 title="Exportar reporte contable a Excel / CSV"
               >
                 <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
@@ -2010,7 +2010,7 @@ export default function BodegonControlPage() {
               <button
                 type="button"
                 onClick={() => setShowModalPrint(true)}
-                className="bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+                className="bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 title="Imprimir Acta Oficial en Blanco y Negro (1 o 2 Hojas)"
               >
                 <Printer className="w-4 h-4 text-stone-700" />
@@ -2023,7 +2023,7 @@ export default function BodegonControlPage() {
                   setErrorMsg(null);
                   setShowModalGasto(true);
                 }}
-                className="bg-[#1c6856] hover:bg-[#154f42] text-white px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+                className="bg-bodegon hover:bg-bodegon-noche text-white px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap"
                 title="Registrar Gasto"
               >
                 <Plus className="w-4 h-4" />
@@ -2141,7 +2141,7 @@ export default function BodegonControlPage() {
               <button
                 type="button"
                 onClick={() => handleCerrarJornadaAnterior(jornadaAnteriorAbierta)}
-                className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer active:scale-95 shadow-xs shrink-0"
+                className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs shrink-0"
               >
                 Cerrar Turno Anterior
               </button>
@@ -2215,7 +2215,7 @@ export default function BodegonControlPage() {
               {/* Botón Día Anterior */}
               <button
                 onClick={() => cambiarDia(-1)}
-                className="flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer active:scale-95 border border-stone-300 shadow-2xs shrink-0"
+                className="flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer border border-stone-300 shadow-2xs shrink-0"
                 title="Ir al día anterior"
               >
                 <ChevronLeft className="w-5 h-5 text-stone-700" />
@@ -2267,7 +2267,7 @@ export default function BodegonControlPage() {
               <div className="flex items-center gap-2 justify-stretch shrink-0 flex-wrap sm:flex-nowrap">
                 <button
                   onClick={() => cambiarDia(1)}
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer active:scale-95 border border-stone-300 shadow-2xs"
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer border border-stone-300 shadow-2xs"
                   title="Ir al día siguiente"
                 >
                   <span>DÍA SIGUIENTE ▶</span>
@@ -2276,10 +2276,10 @@ export default function BodegonControlPage() {
 
                 <button
                   onClick={() => setSelectedDate(hoyStr)}
-                  className={`px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center gap-1.5 ${
+                  className={`px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm flex items-center justify-center gap-1.5 ${
                     selectedDate === hoyStr
                       ? 'bg-amber-500 text-stone-950 border border-amber-600 shadow-md ring-2 ring-amber-300'
-                      : 'bg-[#1c6856] hover:bg-[#154f42] text-white'
+                      : 'bg-bodegon hover:bg-bodegon-noche text-white'
                   }`}
                   title="Regresar a la fecha de hoy"
                 >
@@ -2288,7 +2288,7 @@ export default function BodegonControlPage() {
 
                 <button
                   onClick={() => setShowModalPrint(true)}
-                  className="px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center gap-2 bg-stone-900 hover:bg-black text-white border border-stone-800"
+                  className="px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm flex items-center justify-center gap-2 bg-stone-900 hover:bg-black text-white border border-stone-800"
                   title="Imprimir Acta Oficial en Blanco y Negro de este día"
                 >
                   <Printer className="w-4.5 h-4.5 text-amber-400" />
@@ -2537,7 +2537,7 @@ export default function BodegonControlPage() {
                         setProveedor('');
                         setShowModalGasto(true);
                       }}
-                      className="bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      className="bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[3]" />
                       <span>+ Registrar Compra</span>
@@ -2554,7 +2554,7 @@ export default function BodegonControlPage() {
                         setMetodoPago('EFECTIVO');
                         setShowModalGasto(true);
                       }}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[3]" />
                       <span>+ Depósito Caja Chica</span>
@@ -2827,7 +2827,7 @@ export default function BodegonControlPage() {
                                   setSelectedDate(day.date);
                                   setActiveTab('VENTAS');
                                 }}
-                                className="text-[10px] font-bold text-[#1c6856] hover:underline"
+                                className="text-[10px] font-bold text-bodegon hover:underline"
                               >
                                 Ver Dashboard ➜
                               </button>
@@ -2847,9 +2847,9 @@ export default function BodegonControlPage() {
         {/* ── MODAL ÚNICO DE ESCRITURA: + REGISTRAR COMPRA O DEPÓSITO ────── */}
         {/* ══════════════════════════════════════════════════════════════════ */}
         {showModalGasto && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95">
-              <div className={`${modalTipoMovimiento === 'FONDEO' ? 'bg-emerald-800' : 'bg-[#1c6856]'} text-white p-4.5 flex items-center justify-between transition-colors`}>
+              <div className={`${modalTipoMovimiento === 'FONDEO' ? 'bg-emerald-800' : 'bg-bodegon'} text-white p-4.5 flex items-center justify-between transition-colors`}>
                 <h3 className="font-bold text-sm flex items-center gap-2">
                   <Plus className="w-4 h-4" />
                   <span>
@@ -3088,7 +3088,7 @@ export default function BodegonControlPage() {
                     type="file"
                     accept="image/*"
                     onChange={handleFotoChange}
-                    className="w-full text-stone-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#1c6856]/10 file:text-[#1c6856] hover:file:bg-[#1c6856]/20 cursor-pointer"
+                    className="w-full text-stone-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-bodegon/10 file:text-bodegon hover:file:bg-bodegon/20 cursor-pointer"
                   />
                   {fotoBase64 && (
                     <p className="text-[10px] text-emerald-600 font-bold mt-1">✓ Imagen adjunta lista para sincronizar</p>
@@ -3106,7 +3106,7 @@ export default function BodegonControlPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className={`${modalTipoMovimiento === 'FONDEO' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-[#1c6856] hover:bg-[#154f42]'} text-white px-5 py-2 rounded-xl font-bold transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50`}
+                    className={`${modalTipoMovimiento === 'FONDEO' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-bodegon hover:bg-bodegon-noche'} text-white px-5 py-2 rounded-xl font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50`}
                   >
                     {submitting
                       ? 'Guardando en la Nube...'
@@ -3125,14 +3125,14 @@ export default function BodegonControlPage() {
         {/* ══════════════════════════════════════════════════════════════════ */}
         {activeDetailModal && (
           <div
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+            className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-in fade-in"
             onClick={() => setActiveDetailModal(null)}
           >
             <div
               className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-stone-200"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="bg-[#1c6856] text-white p-4.5 flex items-center justify-between">
+              <div className="bg-bodegon text-white p-4.5 flex items-center justify-between">
                 <h3 className="font-bold text-sm flex items-center gap-2">
                   <Info className="w-4 h-4 text-amber-300" />
                   <span>
@@ -3259,7 +3259,7 @@ export default function BodegonControlPage() {
                         C$ {selectedDayData.sales.salesPedidosYa.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center pt-2 font-black text-sm text-[#1c6856]">
+                    <div className="flex justify-between items-center pt-2 font-black text-sm text-bodegon">
                       <span>Ventas Brutas Totales:</span>
                       <span className="font-mono">
                         C$ {selectedDayData.sales.totalGrossSales.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
@@ -3327,7 +3327,7 @@ export default function BodegonControlPage() {
         {/* ══════════════════════════════════════════════════════════════════ */}
         {showModalPrint && (
           <div
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
             onClick={() => setShowModalPrint(false)}
           >
             <div
@@ -3450,7 +3450,7 @@ export default function BodegonControlPage() {
         {/* ── MODAL: CARGAR / EDITAR VENTAS DEL DÍA (CONTROL GERENCIA) ─── */}
         {/* ══════════════════════════════════════════════════════════════════ */}
         {showModalEditSales && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150 my-8">
               <div className="flex items-center justify-between pb-4 border-b border-stone-100">
                 <div className="flex items-center gap-3">
@@ -3626,7 +3626,7 @@ export default function BodegonControlPage() {
                   <button
                     type="submit"
                     disabled={submittingSales}
-                    className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs shadow-md transition cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs shadow-md transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                   >
                     <Save className="w-4 h-4" />
                     <span>{submittingSales ? 'Guardando...' : 'Guardar Ventas'}</span>

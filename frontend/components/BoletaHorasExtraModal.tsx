@@ -261,7 +261,7 @@ export default function BoletaHorasExtraModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-black/85 backdrop-blur-md flex items-start justify-center p-3 sm:p-6 overflow-y-auto print-horas-extra-backdrop">
+    <div className="fixed inset-0 z-[99999] bg-black/85 flex items-start justify-center p-3 sm:p-6 overflow-y-auto print-horas-extra-backdrop">
       {/* Estilos estrictos de impresión: AISLAMIENTO TOTAL EN 1 SOLA PÁGINA CARTA (SIN RECORTES) */}
       <style
         dangerouslySetInnerHTML={{
@@ -505,7 +505,7 @@ export default function BoletaHorasExtraModal({
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#1c6856] hover:bg-[#154f41] text-white text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-bodegon hover:bg-bodegon-noche text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Imprimir Boleta</span>
@@ -524,15 +524,15 @@ export default function BoletaHorasExtraModal({
         {/* ── CONTENIDO IMPRIMIBLE DE LA BOLETA ── */}
         <div className="p-6 sm:p-7 space-y-4 text-stone-900 font-sans print-boleta-content">
           {/* Encabezado Institucional: Restaurante El Bodegón & Administración */}
-          <div className="border-b-2 border-[#1c6856] pb-3.5 print-header-block">
+          <div className="border-b-2 border-bodegon pb-3.5 print-header-block">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-[#1c6856]/30 bg-[#1c6856]">
+                  <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-bodegon/30 bg-bodegon">
                     <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-black tracking-tight text-[#1c6856] uppercase leading-tight font-display">
+                    <h1 className="text-xl font-black tracking-tight text-bodegon uppercase leading-tight font-display">
                       Restaurante El Bodegón
                     </h1>
                     <p className="text-xs font-bold text-stone-700 uppercase tracking-wider">
@@ -547,11 +547,11 @@ export default function BoletaHorasExtraModal({
 
               {/* Folio y Fecha */}
               <div className="text-right shrink-0">
-                <div className="inline-block border-2 border-[#1c6856]/40 bg-[#1c6856]/5 rounded-xl px-3.5 py-1.5 text-right shadow-2xs">
+                <div className="inline-block border-2 border-bodegon/40 bg-bodegon/5 rounded-xl px-3.5 py-1.5 text-right shadow-2xs">
                   <span className="text-[9px] font-bold text-stone-500 uppercase tracking-widest block">
                     Comprobante N°
                   </span>
-                  <span className="text-base font-mono font-black text-[#1c6856]">{folio}</span>
+                  <span className="text-base font-mono font-black text-bodegon">{folio}</span>
                 </div>
                 <p className="text-[10px] font-mono text-stone-500 mt-1">
                   Resolución: {fechaEmision}
@@ -562,7 +562,7 @@ export default function BoletaHorasExtraModal({
             {/* Título de la Boleta con Estado */}
             <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-stone-150">
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#1c6856]" />
+                <FileText className="w-4 h-4 text-bodegon" />
                 <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-stone-800">
                   Resolución de Jornada Extraordinaria
                 </h2>
@@ -590,7 +590,7 @@ export default function BoletaHorasExtraModal({
 
           {/* Datos Completos del Colaborador y Puesto */}
           <div className="bg-stone-50/90 border border-stone-200 rounded-2xl p-3.5 shadow-xs print-info-personal">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#1c6856] block mb-2 flex items-center gap-1.5">
+            <span className="text-[10px] font-black uppercase tracking-wider text-bodegon block mb-2 flex items-center gap-1.5">
               <User className="w-3.5 h-3.5" />
               Información del Personal
             </span>
@@ -605,7 +605,7 @@ export default function BoletaHorasExtraModal({
               </div>
               <div>
                 <span className="text-stone-500 text-[10px] block uppercase font-bold">Área Operativa:</span>
-                <span className="text-[#1c6856] font-semibold">{areaOperativa}</span>
+                <span className="text-bodegon font-semibold">{areaOperativa}</span>
               </div>
               <div>
                 <span className="text-stone-500 text-[10px] block uppercase font-bold">Cédula / Carnet:</span>
@@ -616,8 +616,8 @@ export default function BoletaHorasExtraModal({
 
           {/* Desglose Detallado de la Jornada y Marcajes Biométricos */}
           <div className="border border-stone-200 rounded-2xl overflow-hidden shadow-xs print-desglose-card">
-            <div className="bg-[#1c6856]/10 px-4 py-2 border-b border-stone-200 flex flex-wrap items-center justify-between gap-2 print-desglose-header">
-              <span className="text-xs font-black uppercase tracking-wider text-[#1c6856] flex items-center gap-1.5">
+            <div className="bg-bodegon/10 px-4 py-2 border-b border-stone-200 flex flex-wrap items-center justify-between gap-2 print-desglose-header">
+              <span className="text-xs font-black uppercase tracking-wider text-bodegon flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5" />
                 Desglose Técnico de la Jornada Laboral
               </span>
@@ -630,14 +630,14 @@ export default function BoletaHorasExtraModal({
               {/* Marcajes biométricos reales registrados */}
               <div className="bg-stone-50/80 p-3 rounded-xl border border-stone-200 text-xs print-reloj-grid space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-1 border-b border-stone-200/80 pb-1.5 text-[10px] uppercase font-bold text-stone-600">
-                  <span className="flex items-center gap-1.5 text-[#1c6856]">
+                  <span className="flex items-center gap-1.5 text-bodegon">
                     <Clock className="w-3.5 h-3.5" />
                     Registros Biométricos Oficiales {marcajesDia.length >= 4 ? '(Horario Quebrado - 4 Marcaciones)' : `(${marcajesDia.length} marcación${marcajesDia.length !== 1 ? 'es' : ''})`}
                   </span>
                   <div className="flex items-center gap-2 font-mono text-stone-500">
                     <span>Jornada Base: <strong>8.0 hrs</strong></span>
                     <span>•</span>
-                    <span className="text-[#1c6856] font-bold">Total: {marcajesDia.length} registro(s)</span>
+                    <span className="text-bodegon font-bold">Total: {marcajesDia.length} registro(s)</span>
                   </div>
                 </div>
 
@@ -800,7 +800,7 @@ export default function BoletaHorasExtraModal({
 
               {/* Justificación Operativa y Dictamen de Administración */}
               <div className="bg-stone-50/90 border border-stone-200 rounded-xl p-3 text-xs space-y-1 print-dictamen-box">
-                <span className="text-[10px] font-black text-[#1c6856] uppercase tracking-wider block">
+                <span className="text-[10px] font-black text-bodegon uppercase tracking-wider block">
                   Motivo Operativo & Dictamen de la Administración:
                 </span>
                 <p className="text-stone-800 font-medium leading-relaxed italic">
@@ -817,7 +817,7 @@ export default function BoletaHorasExtraModal({
           </div>
 
           {/* Constancia Legal y Notificación Conforme */}
-          <p className="text-[10px] text-stone-600 leading-relaxed text-justify border-l-2 border-[#1c6856] pl-3 py-1 bg-stone-50/50 rounded-r-lg print-legal-text">
+          <p className="text-[10px] text-stone-600 leading-relaxed text-justify border-l-2 border-bodegon pl-3 py-1 bg-stone-50/50 rounded-r-lg print-legal-text">
             {esAprobado ? (
               <>
                 Por medio del presente comprobante oficial, las partes hacen constar que el/la colaborador(a) abajo firmante ha laborado el tiempo extraordinario aquí detallado por requerimientos operativos de <strong>Restaurante El Bodegón</strong>, el cual ha sido debidamente verificado y autorizado por la Administración conforme a lo preceptuado en el Artículo 62 del Código del Trabajo de la República de Nicaragua. Con la firma de este documento, el/la colaborador(a) manifiesta su entera conformidad con la cantidad de horas autorizadas y su correspondiente liquidación en la nómina del período con el recargo legal del cien por ciento (100%), sirviendo el presente como formal notificación y constancia para ambas partes.
@@ -862,7 +862,7 @@ export default function BoletaHorasExtraModal({
           <button
             type="button"
             onClick={handlePrint}
-            className="px-6 py-2.5 rounded-xl bg-[#1c6856] hover:bg-[#154f42] text-white font-bold text-xs transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer active:scale-95"
+            className="px-6 py-2.5 rounded-xl bg-bodegon hover:bg-bodegon-noche text-white font-bold text-xs transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             <span>Imprimir Boleta Oficial / Guardar PDF</span>

@@ -200,7 +200,7 @@ export default function ModalAplicarSancion({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-md flex items-start justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[99999] bg-black/80 flex items-start justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-150">
       <div
         className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] my-6 sm:my-8 animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
@@ -208,7 +208,7 @@ export default function ModalAplicarSancion({
         {/* Encabezado Modal */}
         <div className="bg-gradient-to-r from-rose-700 via-rose-800 to-stone-900 text-white p-5 flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-white/15 backdrop-blur-sm rounded-2xl text-rose-200">
+            <div className="p-2.5 bg-white/15 rounded-2xl text-rose-200">
               <Gavel className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -375,7 +375,7 @@ export default function ModalAplicarSancion({
             type="button"
             onClick={handleGuardar}
             disabled={guardando}
-            className="bg-rose-700 hover:bg-rose-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+            className="bg-rose-700 hover:bg-rose-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
           >
             {guardando ? (
               <span>Registrando...</span>
