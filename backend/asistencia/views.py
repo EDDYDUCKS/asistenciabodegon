@@ -5,6 +5,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import BooleanField, Case, Q, Sum, Value, When
 from django.utils import timezone
@@ -1657,6 +1658,15 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             )
 
     def list(self, request, *args, **kwargs):
+        # El panel consulta alertas cada minuto; el mantenimiento (~90 consultas) basta
+        # correrlo una vez cada MANTENIMIENTO_ALERTAS_SEGUNDOS. cache.add es atómico entre hilos.
+        if cache.add('mantenimiento_alertas_en_curso', True, timeout=self.MANTENIMIENTO_ALERTAS_SEGUNDOS):
+            self._ejecutar_mantenimiento_alertas()
+        return super().list(request, *args, **kwargs)
+
+    MANTENIMIENTO_ALERTAS_SEGUNDOS = 15 * 60
+
+    def _ejecutar_mantenimiento_alertas(self):
         # 1. Procesar resolución automática de 24 horas para inasistencias vencidas
         try:
             self._procesar_resolucion_automatica_inasistencias()
@@ -1684,8 +1694,6 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Error verificando alerta mensual de vacaciones: {e}")
-
-        return super().list(request, *args, **kwargs)
 
     def _verificar_alerta_reporte_vacaciones_mensual(self):
         """

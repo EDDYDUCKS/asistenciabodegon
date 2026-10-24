@@ -3,13 +3,15 @@ Los listados del panel no deben hacer una consulta por cada fila: en Render (1 w
 0.15 CPU) contra Supabase cada consulta extra suma latencia a toda la pantalla.
 """
 import datetime
+from unittest import mock
 
+from django.core.cache import cache
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from asistencia.models import CompensacionFeriado, DiaFeriado, Empleado, RegistroAsistencia
-from asistencia.views import _evaluar_y_autoacreditar_feriados_pendientes
+from asistencia.views import AlertaAsistenciaViewSet, _evaluar_y_autoacreditar_feriados_pendientes
 
 from .base import NominaTestCase, local_dt
 
@@ -62,3 +64,31 @@ class BarridoFeriadosTests(NominaTestCase):
             _evaluar_y_autoacreditar_feriados_pendientes()
 
         self.assertLess(len(ctx.captured_queries), 6)
+
+
+class MantenimientoAlertasTests(NominaTestCase):
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+
+    def test_mantenimiento_corre_una_vez_por_ventana(self):
+        with mock.patch.object(AlertaAsistenciaViewSet, '_ejecutar_mantenimiento_alertas') as mantenimiento:
+            for _ in range(3):
+                self.assertEqual(self.client.get('/api/alertas/').status_code, 200)
+            self.assertEqual(mantenimiento.call_count, 1)
+
+            cache.delete('mantenimiento_alertas_en_curso')  # vence la ventana
+            self.client.get('/api/alertas/')
+            self.assertEqual(mantenimiento.call_count, 2)
+
+
+class CompresionTests(NominaTestCase):
+    def test_listados_se_envian_comprimidos(self):
+        ayer = timezone.localdate() - datetime.timedelta(days=1)
+        for hora in range(6, 22):
+            self.registrar('ENTRADA', ayer, hora)
+
+        response = self.client.get('/api/asistencia/', HTTP_ACCEPT_ENCODING='gzip')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Encoding'], 'gzip')
