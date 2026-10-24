@@ -1930,7 +1930,7 @@ export default function BodegonControlPage() {
   return (
     <PinSecurityGate
       title="Bodegón Control"
-      subtitle="Auditoría Online • Ventas, Ganancias & Caja Chica"
+      subtitle="Ventas, ganancias y caja chica del día."
       sessionKey="bodegon_control_pin_verified"
     >
       <div className="min-h-screen bg-crema text-stone-900 font-sans flex flex-col selection:bg-amber-100">

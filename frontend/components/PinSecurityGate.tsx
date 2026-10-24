@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { RefreshCw, Lock } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+import PinScreen from '@/components/PinScreen';
 import { playErrorBeep } from '@/lib/sound-feedback';
 import { loginAdmin, getAdminToken, clearAdminToken } from '@/lib/api-client';
 
@@ -141,102 +140,18 @@ export default function PinSecurityGate({
 
   if (!authorized) {
     return (
-      <div className="min-h-screen bg-crema flex flex-col justify-between p-6 sm:p-12 font-sans text-stone-850 select-none">
-        <div className="max-w-md w-full mx-auto my-auto bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm text-center space-y-6">
-          <div className="w-20 h-20 rounded-full overflow-hidden mx-auto shadow-lg border-2 border-amber-500/30 bg-amber-500 flex items-center justify-center">
-            <Image
-              src="/logo.png"
-              alt="Restaurante El Bodegón"
-              width={80}
-              height={80}
-              className="w-full h-full object-cover"
-              priority
-            />
-          </div>
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-black uppercase tracking-wider mb-2">
-              <Lock className="w-3.5 h-3.5 text-amber-600" />
-              Acceso Protegido
-            </div>
-            <h2 className="font-black text-2xl text-stone-900 tracking-tight">{title}</h2>
-            <p className="text-xs text-stone-500 font-bold mt-1 uppercase tracking-wide">{subtitle}</p>
-          </div>
-
-          {/* Indicador de PIN */}
-          <div className="flex justify-center gap-4 py-3">
-            {[0, 1, 2, 3].map((idx) => (
-              <div
-                key={idx}
-                className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
-                  pinError
-                    ? 'bg-rose-500 border-rose-500'
-                    : idx < pin.length
-                    ? 'bg-amber-600 border-amber-600 scale-110'
-                    : 'border-stone-300 bg-stone-50'
-                }`}
-              />
-            ))}
-          </div>
-
-          {pinError && (
-            <p className="text-xs text-rose-600 font-bold animate-pulse">
-              {pinErrorMsg}
-            </p>
-          )}
-          {verifyingPin && (
-            <p className="text-xs text-stone-500 font-bold">Verificando PIN...</p>
-          )}
-
-          {/* Teclado Numérico */}
-          <div className="grid grid-cols-3 gap-3 max-w-[240px] mx-auto pt-2">
-            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-              <button
-                key={num}
-                onClick={() => handleKeyPress(num)}
-                type="button"
-                className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs touch-manipulation select-none"
-              >
-                {num}
-              </button>
-            ))}
-
-            {/* Backspace */}
-            <button
-              onClick={handleBackspace}
-              type="button"
-              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer touch-manipulation select-none"
-            >
-              Borrar
-            </button>
-
-            <button
-              onClick={() => handleKeyPress('0')}
-              type="button"
-              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs touch-manipulation select-none"
-            >
-              0
-            </button>
-
-            {/* Salir al Portal Principal */}
-            <Link
-              href="/"
-              onClick={handleLogout}
-              className="w-16 h-16 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer touch-manipulation select-none"
-            >
-              Salir
-            </Link>
-          </div>
-
-          <p className="text-[11px] text-stone-400 font-semibold">
-            Ingrese el PIN de seguridad asignado (4 dígitos)
-          </p>
-        </div>
-
-        {/* Footer */}
-        <footer className="text-center text-xs text-stone-400 font-bold uppercase tracking-wide">
-          Restaurante El Bodegón © 2026 — Bodegón Control
-        </footer>
-      </div>
+      <PinScreen
+        eyebrow="Acceso protegido"
+        title={title}
+        subtitle={subtitle}
+        pin={pin}
+        pinError={pinError}
+        pinErrorMsg={pinErrorMsg}
+        verifyingPin={verifyingPin}
+        onKey={handleKeyPress}
+        onBackspace={handleBackspace}
+        onExit={handleLogout}
+      />
     );
   }
 

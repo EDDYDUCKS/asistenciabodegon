@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { playErrorBeep } from '@/lib/sound-feedback';
 import BoletaIncidenciaModal from '@/components/BoletaIncidenciaModal';
+import PinScreen from '@/components/PinScreen';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -273,108 +274,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!authorized) {
     return (
-      <div className="min-h-screen bg-crema flex flex-col justify-between p-6 sm:p-12 font-sans text-stone-850 select-none">
-        <div className="max-w-md w-full mx-auto my-auto bg-white border border-stone-200 rounded-3xl p-6 sm:p-8 shadow-sm text-center space-y-6">
-          <div className="w-20 h-20 rounded-full overflow-hidden mx-auto shadow-lg border-2 border-bodegon/20 bg-bodegon">
-            <Image
-              src="/logo.png"
-              alt="Restaurante El Bodegón"
-              width={80}
-              height={80}
-              className="w-full h-full object-cover"
-              priority
-            />
-          </div>
-          <div>
-            <h2 className="font-black text-xl text-bodegon tracking-tight">Acceso Administrativo</h2>
-            <p className="text-xs text-stone-500 font-bold mt-1 uppercase tracking-wide">Restaurante El Bodegón</p>
-          </div>
-
-          {/* Indicador de PIN */}
-          <div className="flex justify-center gap-4 py-3">
-            {[0, 1, 2, 3].map((idx) => (
-              <div
-                key={idx}
-                className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
-                  pinError
-                    ? 'bg-rose-500 border-rose-500'
-                    : idx < pin.length
-                    ? 'bg-bodegon border-bodegon scale-110'
-                    : 'border-stone-300 bg-stone-50'
-                }`}
-              />
-            ))}
-          </div>
-
-          {pinError && (
-            <p className="text-xs text-rose-600 font-bold animate-pulse">
-              {pinErrorMsg}
-            </p>
-          )}
-          {verifyingPin && (
-            <p className="text-xs text-stone-500 font-bold">Verificando PIN...</p>
-          )}
-
-          {/* Teclado Numérico */}
-          <div className="grid grid-cols-3 gap-3 max-w-[240px] mx-auto pt-2">
-            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-              <button
-                key={num}
-                onClick={() => handleKeyPress(num)}
-                type="button"
-                className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs touch-manipulation select-none"
-              >
-                {num}
-              </button>
-            ))}
-            
-            {/* Backspace */}
-            <button
-              onClick={handleBackspace}
-              type="button"
-              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-xs text-stone-600 transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer touch-manipulation select-none"
-            >
-              Borrar
-            </button>
-            
-            <button
-              onClick={() => handleKeyPress('0')}
-              type="button"
-              className="w-16 h-16 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100 font-bold text-lg text-stone-800 transition-all flex items-center justify-center cursor-pointer shadow-xs touch-manipulation select-none"
-            >
-              0
-            </button>
-
-            {/* Cancel/Home */}
-            <Link
-              href="/"
-              onClick={handleLogout}
-              className="w-16 h-16 rounded-2xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center justify-center uppercase tracking-wide cursor-pointer touch-manipulation select-none"
-            >
-              Salir
-            </Link>
-          </div>
-
-          <p className="text-[11px] text-stone-400 font-medium hidden sm:block">
-            💡 Puedes escribir el PIN directamente con tu teclado numérico (0-9)
-          </p>
-        </div>
-        
-        <footer className="text-center text-[10px] text-stone-400 font-medium">
-          Restaurante El Bodegón © 2026 — Acceso Protegido
-        </footer>
-      </div>
+      <PinScreen
+        eyebrow="Acceso de gerencia"
+        title="Solo para la casa"
+        subtitle="Nómina, sanciones y datos del equipo."
+        pin={pin}
+        pinError={pinError}
+        pinErrorMsg={pinErrorMsg}
+        verifyingPin={verifyingPin}
+        onKey={handleKeyPress}
+        onBackspace={handleBackspace}
+        onExit={handleLogout}
+      />
     );
   }
 
   return (
     <div className="min-h-screen bg-crema text-stone-850 flex flex-col font-sans">
-      {/* Navbar Superior con Efecto Cristal (Glassmorphic) */}
-      <header className="print:hidden glass-dock sticky top-0 z-40 shadow-premium border-b border-stone-200/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+      {/* Barra superior: blanca y sólida, la marca a la izquierda */}
+      <header className="print:hidden bg-white sticky top-0 z-40 border-b border-stone-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-stretch justify-between gap-3">
           <div className="flex items-center gap-3">
             <Link href="/" onClick={handleLogout} className="flex items-center gap-3 hover:opacity-90 transition-opacity">
-              <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shadow-sm shrink-0 border border-emerald-800/20 bg-bodegon">
+              <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 bg-bodegon">
                 <Image
                   src="/logo.png"
                   alt="Restaurante El Bodegón"
@@ -383,29 +305,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div>
-                <span className="font-black text-lg text-bodegon tracking-tight flex items-center gap-1.5">
-                  BodegónPass
-                  <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-bodegon/10 text-bodegon">
-                    Admin
-                  </span>
-                </span>
-              </div>
+              <span className="font-display font-extrabold text-2xl uppercase tracking-wide text-bodegon leading-none">
+                Bodegón Pass
+              </span>
             </Link>
           </div>
 
           {/* Navegación Desktop */}
-          <nav className="hidden xl:flex items-center gap-1">
+          <nav className="hidden xl:flex items-stretch gap-1">
             {navItems.map((item) => {
               const active = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex items-center gap-2 px-3 pt-[3px] border-b-[3px] text-sm font-semibold ${
                     active
-                      ? 'bg-bodegon text-white shadow-sm shadow-bodegon/30'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+                      ? 'border-dorado text-bodegon'
+                      : 'border-transparent text-stone-600 hover:text-tinta'
                   }`}
                 >
                   {item.icon}
@@ -420,12 +338,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div className="relative">
               <button
                 onClick={() => setShowAlertsDropdown(!showAlertsDropdown)}
-                className="p-2 rounded-xl bg-stone-50 border border-stone-200 text-stone-600 hover:bg-stone-100 hover:text-stone-900 transition-all relative flex"
+                className="w-10 h-10 rounded-xl bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 hover:text-tinta relative flex items-center justify-center"
                 title="Alertas de Asistencia"
               >
                 <Bell className="w-4.5 h-4.5" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center border-2 border-white">
+                  <span className="absolute -top-1 -right-1 min-w-4.5 h-4.5 px-1 rounded-full bg-barro text-white font-bold text-[10px] flex items-center justify-center border-2 border-white">
                     {unreadCount}
                   </span>
                 )}
@@ -709,7 +627,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="relative">
             <button
               onClick={() => setShowMoreMenu(!showMoreMenu)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 hover:bg-stone-100 text-xs font-bold text-stone-700 transition-colors cursor-pointer"
+              className="h-10 flex items-center gap-1.5 px-3 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 text-sm font-semibold text-stone-700 cursor-pointer"
               title="Más opciones"
               aria-haspopup="menu"
               aria-expanded={showMoreMenu}
@@ -780,7 +698,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 border border-rose-250 hover:bg-rose-100 text-xs font-bold text-rose-700 transition-colors shadow-sm cursor-pointer"
+            className="h-10 flex items-center gap-1.5 px-3 rounded-xl bg-white border border-stone-300 hover:bg-stone-50 text-sm font-semibold text-tinta cursor-pointer"
             title="Bloquear Panel Administrativo y Cerrar Sesión"
           >
             <Lock className="w-3.5 h-3.5" />
@@ -791,18 +709,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </header>
 
     {/* Navegación Mobile Superior Estilizada y Táctil (Pills con scroll suave sin barra) */}
-    <div className="print:hidden xl:hidden bg-white/95 border-b border-stone-200/80 px-2.5 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar shadow-2xs sticky top-16 z-30">
-      <div className="flex items-center gap-1.5 min-w-max">
+    <div className="print:hidden xl:hidden bg-white border-b border-stone-200 px-2 flex items-stretch overflow-x-auto no-scrollbar sticky top-16 z-30">
+      <div className="flex items-stretch gap-1 min-w-max">
         {navItems.map((item) => {
           const active = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all ${
+              aria-current={active ? 'page' : undefined}
+              className={`flex items-center gap-1.5 px-3 h-11 border-b-[3px] text-[13px] font-semibold whitespace-nowrap ${
                 active
-                  ? 'bg-bodegon text-white shadow-xs shadow-bodegon/20'
-                  : 'text-stone-600 hover:text-stone-900 bg-stone-100/70 hover:bg-stone-100'
+                  ? 'border-dorado text-bodegon'
+                  : 'border-transparent text-stone-600 hover:text-tinta'
               }`}
             >
               {item.icon}
