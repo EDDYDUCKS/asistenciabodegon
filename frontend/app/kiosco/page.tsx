@@ -56,7 +56,8 @@ async function sha256Hex(value: string): Promise<string | null> {
 
 export default function KioscoPage() {
   const router = useRouter();
-  const [timeStr, setTimeStr] = useState<string>('');
+  // Hora separada en partes para dibujar los minutos grandes y los segundos y a. m./p. m. aparte
+  const [clock, setClock] = useState<{ hm: string; ss: string; period: string } | null>(null);
   const [dateStr, setDateStr] = useState<string>('');
   const [processing, setProcessing] = useState(false);
   const [feedback, setFeedback] = useState<MarcajeKioscoResponse | null>(null);
@@ -119,7 +120,9 @@ export default function KioscoPage() {
         month: 'long',
         day: 'numeric',
       };
-      setTimeStr(new Intl.DateTimeFormat('es-NI', optionsTime).format(now));
+      const parts = new Intl.DateTimeFormat('es-NI', optionsTime).formatToParts(now);
+      const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? '';
+      setClock({ hm: `${part('hour')}:${part('minute')}`, ss: part('second'), period: part('dayPeriod') });
       setDateStr(new Intl.DateTimeFormat('es-NI', optionsDate).format(now));
     };
 
@@ -746,8 +749,11 @@ export default function KioscoPage() {
   }, [startCamera]);
 
   return (
-    <main className="min-h-screen bg-crema text-stone-900 flex flex-col justify-between p-4 sm:p-6 select-none font-sans">
+    <main className="min-h-screen bg-crema text-tinta select-none font-sans md:h-screen md:grid md:grid-cols-[minmax(0,1fr)_380px] lg:grid-cols-[minmax(0,1fr)_440px]">
       <canvas ref={canvasRef} className="hidden" />
+
+      {/* Columna izquierda: encabezado y lector. En tablet horizontal ocupa el alto completo. */}
+      <section className="flex flex-col gap-4 p-4 sm:p-6 md:min-h-0 md:overflow-y-auto">
 
       {/* Banner de Sincronización Offline */}
       {offlineCount > 0 && (
@@ -760,23 +766,10 @@ export default function KioscoPage() {
         </div>
       )}
 
-      {/* Header del Kiosco */}
-      <header className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-stone-200/80 pb-5 bg-white/70 px-6 py-4 rounded-3xl shadow-premium border border-white/60">
+      {/* Encabezado del Kiosco */}
+      <header className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              setShowAdminPinModal(true);
-              setAdminPin('');
-              setAdminPinError(false);
-            }}
-            className="p-2.5 rounded-xl bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-600 hover:text-stone-900 transition-all flex items-center gap-1.5 shadow-sm"
-            title="Acceso Administrativo"
-          >
-            <Lock className="w-4 h-4 text-bodegon" />
-            <span className="text-xs font-bold text-bodegon hidden sm:inline">Admin</span>
-          </button>
-          
-          <div className="w-11 h-11 rounded-full overflow-hidden shadow-md shadow-bodegon/15 shrink-0 border border-bodegon/20 bg-bodegon">
+          <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 bg-bodegon">
             <Image
               src="/logo.png"
               alt="Restaurante El Bodegón"
@@ -787,35 +780,37 @@ export default function KioscoPage() {
             />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-display font-black tracking-tight text-bodegon flex items-center gap-2">
-              BodegónPass
-              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-bodegon/10 text-bodegon">
-                Kiosco
-              </span>
+            <h1 className="text-2xl font-display font-extrabold text-bodegon leading-none">
+              Kiosco
             </h1>
-            <p className="text-[10px] sm:text-xs text-stone-500 font-medium font-sans">
-              Restaurante El Bodegón — Estación de Asistencia
+            <p className="text-xs text-stone-500 mt-0.5">
+              Marcá entrada, quebrada y salida con tu carnet
             </p>
           </div>
         </div>
 
-        {/* Reloj Digital */}
-        <div className="text-center md:text-right px-5 py-2 bg-stone-50 border border-stone-200/80 rounded-2xl">
-          <div className="text-2xl sm:text-3xl font-black font-mono tracking-wider text-bodegon flex items-center justify-center md:justify-end gap-2">
-            <Clock className="w-5 h-5 text-amber-500 animate-pulse shrink-0" />
-            {timeStr || '00:00:00 AM'}
-          </div>
-          <p className="text-[9px] text-stone-400 uppercase font-bold tracking-widest mt-0.5">
-            {dateStr || 'Cargando fecha...'}
-          </p>
+        <div className="flex items-center gap-3">
+          {/* En celular la columna del reloj queda abajo, así que se repite aquí */}
+          <span className="md:hidden font-display font-extrabold text-3xl text-bodegon leading-none">
+            {clock ? clock.hm : '--:--'}
+          </span>
+          <button
+            onClick={() => {
+              setShowAdminPinModal(true);
+              setAdminPin('');
+              setAdminPinError(false);
+            }}
+            className="h-11 px-3 rounded-xl bg-white hover:bg-stone-50 border border-stone-200 text-stone-600 flex items-center gap-1.5"
+            title="Acceso Administrativo"
+          >
+            <Lock className="w-4 h-4" />
+            <span className="text-sm font-semibold hidden sm:inline">Admin</span>
+          </button>
         </div>
       </header>
 
-      {/* Cuerpo Principal - Grid de Doble Columna en Pantallas Grandes */}
-      <div className="my-auto py-6 max-w-6xl mx-auto w-full grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
-        
-        {/* Columna Izquierda: Lector / Escáner */}
-        <div className="md:col-span-7 bg-white border border-stone-200/80 rounded-3xl p-6 shadow-kiosk space-y-5 flex flex-col justify-between">
+        {/* Lector / Escáner */}
+        <div className="flex-1 bg-white border border-stone-200 rounded-3xl p-5 sm:p-6 shadow-kiosk space-y-5 flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-stone-100 pb-3">
             <div className="flex items-center gap-2">
               <Camera className="w-5 h-5 text-bodegon" />
@@ -849,7 +844,7 @@ export default function KioscoPage() {
                 </div>
                 <button
                   onClick={startCamera}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-2"
+                  className="bg-bodegon hover:bg-bodegon-noche text-white font-semibold text-sm px-5 py-3 rounded-xl flex items-center gap-2"
                 >
                   <Camera className="w-4 h-4" />
                   Activar Cámara / Otorgar Permisos
@@ -1489,7 +1484,7 @@ export default function KioscoPage() {
                     setConsultaData(null);
                     setConsultaError(null);
                   }}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-bodegon hover:bg-bodegon-noche text-white font-semibold text-sm flex items-center justify-center gap-2"
                 >
                   <BarChart3 className="w-4 h-4" />
                   <span>Consultar Mis Horas y Marcajes</span>
@@ -1499,14 +1494,37 @@ export default function KioscoPage() {
           </div>
         </div>
 
-        {/* Columna Derecha: Feed de Actividad Reciente */}
-        <div className="md:col-span-5 glass-panel rounded-3xl p-6 shadow-kiosk flex flex-col justify-between border border-white">
-          <div className="space-y-4">
-            <h3 className="font-display font-black text-sm text-stone-850 border-b border-stone-200/60 pb-3 flex items-center gap-1.5">
-              <Clock className="w-4.5 h-4.5 text-bodegon" />
-              Actividad Reciente (Hoy)
-            </h3>
+      </section>
 
+      {/* Columna derecha: banda verde con el reloj y las marcas del día */}
+      <aside className="relative overflow-hidden bg-bodegon text-crema p-5 sm:p-7 flex flex-col gap-6 md:min-h-0">
+        <Image
+          src="/logo-emblem.png"
+          alt=""
+          aria-hidden
+          width={286}
+          height={368}
+          className="pointer-events-none absolute -right-12 -top-6 w-56 opacity-[0.12]"
+        />
+        <div className="relative hidden md:block">
+          <div className="font-display font-extrabold text-[96px] lg:text-[112px] leading-[0.85] tracking-tight">
+            {clock ? clock.hm : '--:--'}
+            <span className="text-4xl lg:text-5xl text-dorado-vivo ml-2">{clock?.ss}</span>
+          </div>
+          <p className="text-sm text-[#CFE3DC] mt-3 first-letter:uppercase">
+            {dateStr ? `${dateStr} · ${clock?.period ?? ''}` : 'Cargando fecha…'}
+          </p>
+        </div>
+
+        <div className="relative mt-auto bg-crema text-tinta rounded-2xl p-4 flex flex-col gap-3 md:min-h-0 md:max-h-[55vh]">
+          <h3 className="flex items-center justify-between text-xs font-bold uppercase tracking-[0.1em] text-stone-500">
+            <span>Marcas de hoy</span>
+            <span className="flex items-center gap-1.5 normal-case tracking-normal font-semibold">
+              <span className={`w-2 h-2 rounded-full ${navigator.onLine ? 'bg-bodegon' : 'bg-dorado'}`} />
+              {navigator.onLine ? 'En línea' : 'Sin conexión, se guardan aquí'}
+            </span>
+          </h3>
+          <div className="md:overflow-y-auto md:min-h-0">
             {recentScans.length === 0 ? (
               <div className="py-24 text-center text-stone-400 space-y-2 border border-dashed border-stone-200 rounded-2xl bg-white/20">
                 <QrCode className="w-10 h-10 mx-auto text-stone-300 opacity-60" />
@@ -1551,18 +1569,8 @@ export default function KioscoPage() {
             )}
           </div>
 
-          <div className="pt-4 border-t border-stone-200/60 text-center">
-            <p className="text-[10px] text-stone-400 font-medium">
-              Conexión: {navigator.onLine ? '🟢 En línea' : '🟡 Modo sin conexión local'}
-            </p>
-          </div>
         </div>
-      </div>
-
-      {/* Footer */}
-      <footer className="text-center text-[9px] text-stone-400 uppercase font-bold tracking-wider border-t border-stone-200/60 pt-4 mt-6">
-        Restaurante El Bodegón © 2026 — Estación Kiosco Registrada
-      </footer>
+      </aside>
 
       {/* ── MODAL DE ACCESO ADMINISTRATIVO CON PIN DE GERENCIA ── */}
       {showAdminPinModal && (
