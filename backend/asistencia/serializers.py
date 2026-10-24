@@ -103,7 +103,11 @@ class RegistroAsistenciaSerializer(serializers.ModelSerializer):
         ]
 
     def get_foto_verificacion_url(self, obj):
-        if not obj.foto_base64 and not obj.foto_verificacion:
+        # tiene_foto_base64 viene anotado en el listado para no traer la foto completa por fila
+        tiene_foto = getattr(obj, 'tiene_foto_base64', None)
+        if tiene_foto is None:
+            tiene_foto = bool(obj.foto_base64)
+        if not tiene_foto and not obj.foto_verificacion:
             return None
         request = self.context.get('request')
         # URL firmada: las etiquetas <img> no envían el token del panel
