@@ -169,7 +169,11 @@ export default function NominaAdminPage() {
   const [fechaFin, setFechaFin] = useState(hoyStr);
   const [searchColaborador, setSearchColaborador] = useState('');
   const [areaFiltro, setAreaFiltro] = useState<AreaOperativa>('TODAS');
-  const [vistaModo, setVistaModo] = useState<'TABLA' | 'TARJETAS'>('TABLA');
+  // En pantallas angostas la tabla de nómina (~2100 px) obliga a desplazarse de lado; arrancar en tarjetas.
+  // El layout de admin solo monta esta página en el cliente (tras validar la sesión), así que window existe.
+  const [vistaModo, setVistaModo] = useState<'TABLA' | 'TARJETAS'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches ? 'TARJETAS' : 'TABLA'
+  );
   const [colabExpandidoId, setColabExpandidoId] = useState<number | null>(null);
   const deferredSearchColaborador = useDeferredValue(searchColaborador);
   const deferredSearchExtra = useDeferredValue(searchExtra);
