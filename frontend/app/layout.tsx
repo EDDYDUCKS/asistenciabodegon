@@ -6,6 +6,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "BodegónPass | Sistema de Asistencia",
   description: "BodegónPass — Sistema Inteligente de Control de Asistencia y Personal",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
