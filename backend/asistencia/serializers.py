@@ -63,9 +63,7 @@ class EmpleadoSerializer(serializers.ModelSerializer):
         try:
             permisos = obj.permisos.all()
             total = sum(
-                p.total_dias for p in permisos
-                if p.tipo in ('VACACIONES', 'VACACIONES_PAGADAS')
-                or (p.tipo == 'PERMISO_AUTORIZADO' and 'vacaciones' in (p.motivo or '').lower())
+                p.total_dias for p in permisos if p.descuenta_vacaciones
             )
             val = round(float(total), 2)
             obj._vacaciones_tomadas_cache = val

@@ -29,7 +29,6 @@ import {
   fetchBitacora,
   declararDiaLibreLaborado,
   ajustarHorasPendientes,
-  resetearDeficitGeneral,
 } from '@/lib/api-client';
 import { Empleado, RegistroAsistencia, DiaFeriado, AutorizacionHorasExtra, PermisoAusencia, TipoPermisoType, CompensacionHoras, CompensacionFeriado, PagoVacaciones, PagoHorasExtra, BitacoraAccion } from '@/lib/types';
 import BoletaCompensacionModal from '@/components/BoletaCompensacionModal';
@@ -381,17 +380,6 @@ export default function NominaAdminPage() {
       await loadData();
     } catch (err: any) {
       alert(`Error: ${err.message || ''}`);
-    }
-  };
-
-  const handleResetearDeficitGeneral = async () => {
-    if (!confirm('¿Deseas aplicar Borrón y Cuenta Nueva general de déficit de horas?\n\n- Se eliminará cualquier déficit acumulado previo al 10 de octubre de 2026 (horas_pendientes = 0.0h para todos los empleados).\n- Se restaurarán todas las horas extra a su valor bruto real (sin mutilación ni amortizaciones automáticas).\n- El cómputo de déficit comenzará oficialmente a partir de hoy.')) return;
-    try {
-      const res = await resetearDeficitGeneral();
-      alert(`✅ ${res.mensaje}`);
-      await loadData();
-    } catch (err: any) {
-      alert(`Error al ejecutar borrón y cuenta nueva: ${err.message || ''}`);
     }
   };
 
@@ -1522,7 +1510,7 @@ export default function NominaAdminPage() {
     const emp = empleados.find((e) => e.id === empId);
     const deuda = emp ? parseFloat(String(emp.horas_pendientes || 0)) : 0;
     const tarifaBase = Number(emp?.tarifa_hora || 0);
-    const tarifaHE = tarifaBase > 0 ? tarifaBase * 2 : 50;
+    const tarifaHE = tarifaBase * 2; // sin tarifa registrada el servidor no deja pagar
 
     // Calcular total semanal con búsqueda O(1) en el mapa indexado
     const parts = item.fecha.split('-');
@@ -2394,16 +2382,6 @@ export default function NominaAdminPage() {
                 <span>Descargar Excel (.xlsx)</span>
               </button>
 
-              {/* Botón 3: Borrón y Cuenta Nueva (Reiniciar Déficit previo a hoy) */}
-              <button
-                type="button"
-                onClick={handleResetearDeficitGeneral}
-                className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 active:scale-95 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                title="Borrón y cuenta nueva: Eliminar cualquier déficit acumulado previo al 10/10/2026 y restaurar las horas extra brutas reales"
-              >
-                <Scale className="w-4 h-4 text-amber-700" />
-                <span>Borrón y Cuenta Nueva (Déficit a 0h)</span>
-              </button>
 
             </div>
           </div>
@@ -3411,7 +3389,7 @@ export default function NominaAdminPage() {
                   if (empId) empsConExtras.add(empId);
                   const emp = empleados.find((e) => e.id === empId);
                   const tarifaBase = Number(emp?.tarifa_hora || 0);
-                  const tarifaHE = tarifaBase > 0 ? (tarifaBase * 2) : 50;
+                  const tarifaHE = tarifaBase * 2; // sin tarifa registrada el servidor no deja pagar
                   const hrs = Number(it.horas_extra_autorizadas || 0);
                   totHoras += hrs;
                   totMontoEst += (hrs * tarifaHE);
@@ -3560,7 +3538,7 @@ export default function NominaAdminPage() {
                       const nombre = emp ? `${emp.nombre} ${emp.apellido}` : (items[0]?.empleado_detalle?.nombre ? `${items[0].empleado_detalle.nombre} ${items[0].empleado_detalle.apellido}` : `Colaborador #${empId}`);
                       const cargo = emp?.cargo_display || '';
                       const tarifaBase = Number(emp?.tarifa_hora || 0);
-                      const tarifaHE = tarifaBase > 0 ? (tarifaBase * 2) : 50;
+                      const tarifaHE = tarifaBase * 2; // sin tarifa registrada el servidor no deja pagar
 
                       let totalHorasColab = 0;
                       let totalMontoColab = 0;

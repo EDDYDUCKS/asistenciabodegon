@@ -11,6 +11,7 @@ import {
   resolverAlerta,
   downloadDatabaseBackup,
   cerrarSalida11pm,
+  pedirHoraSalidaReal,
   loginAdmin,
   getAdminToken,
   clearAdminToken,
@@ -658,20 +659,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <div className="pt-1.5 border-t border-orange-100 flex items-center justify-between gap-1">
                               <button
                                 onClick={async () => {
-                                  if (confirm('¿Cerrar automáticamente este marcaje huérfano registrando la salida a las 11:00 PM del día del turno?')) {
+                                  const hora = pedirHoraSalidaReal();
+                                  if (hora !== null) {
                                     try {
-                                      const res = await cerrarSalida11pm(al.id!);
+                                      const res = await cerrarSalida11pm(al.id!, hora || undefined);
                                       alert(res.mensaje);
                                       loadAlerts();
                                     } catch (err: unknown) {
-                                      alert(err instanceof Error ? err.message : 'Error al cerrar el turno a las 11:00 PM');
+                                      alert(err instanceof Error ? err.message : 'Error al cerrar el turno');
                                     }
                                   }
                                 }}
                                 className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                               >
                                 <Clock className="w-3 h-3 text-indigo-600" />
-                                <span>🌙 Cerrar 11:00 PM</span>
+                                <span>🌙 Cerrar turno</span>
                               </button>
                               <Link
                                 href="/admin/asistencia"
