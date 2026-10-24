@@ -3,7 +3,6 @@ Vacaciones: acreditación por día laborado (Art. 76 CT, 2.5 días/mes),
 saldo disponible y boletas de pago en dinero.
 """
 import datetime
-import unittest
 from decimal import Decimal
 from unittest import mock
 
@@ -81,15 +80,33 @@ class AcreditacionVacacionesTests(NominaTestCase):
         _verificar_acreditacion_vacaciones_empleado(self.empleado, datetime.date(2026, 10, 30))
         self.assertEqual(self.recargar().dias_vacaciones_acumuladas, Decimal('2.50'))
 
-    @unittest.expectedFailure
     def test_mes_completo_con_cortes_diarios_da_dos_dias_y_medio(self, _now):
-        # ERROR CONOCIDO: EmpleadoViewSet.list acredita a diario, y cada corte redondea
-        # 2.5/30 = 0.0833 a 0.08. Tras 30 días laborados queda en 2.40 en vez de 2.50.
+        # EmpleadoViewSet.list acredita a diario; el redondeo no debe perder 0.0033 por corte.
         for dia in range(1, 31):
             fecha = datetime.date(2026, 10, dia)
             self.registrar('ENTRADA', fecha, 12)
             _verificar_acreditacion_vacaciones_empleado(self.recargar(), fecha)
         self.assertEqual(self.recargar().dias_vacaciones_acumuladas, Decimal('2.50'))
+
+
+    def test_corte_a_mitad_de_mes_continua_el_acumulado(self, _now):
+        for dia in range(1, 31):
+            self.registrar('ENTRADA', datetime.date(2026, 10, dia), 12)
+        _verificar_acreditacion_vacaciones_empleado(self.empleado, datetime.date(2026, 10, 12))
+        self.assertEqual(self.recargar().dias_vacaciones_acumuladas, Decimal('1.00'))
+        _verificar_acreditacion_vacaciones_empleado(self.recargar(), datetime.date(2026, 10, 30))
+        self.assertEqual(self.recargar().dias_vacaciones_acumuladas, Decimal('2.50'))
+
+    def test_cambio_de_mes_reinicia_el_acumulado(self, _now):
+        for dia in range(1, 31):  # el 31 no laboró
+            self.registrar('ENTRADA', datetime.date(2026, 10, dia), 12)
+        self.registrar('ENTRADA', datetime.date(2026, 11, 1), 12)
+        _verificar_acreditacion_vacaciones_empleado(self.empleado, datetime.date(2026, 10, 28))
+        for dia in (datetime.date(2026, 10, 29), datetime.date(2026, 10, 30),
+                    datetime.date(2026, 10, 31), datetime.date(2026, 11, 1)):
+            _verificar_acreditacion_vacaciones_empleado(self.recargar(), dia)
+        # Octubre: 30 laborados = 2.50; noviembre arranca de cero con 1 día = 0.08.
+        self.assertEqual(self.recargar().dias_vacaciones_acumuladas, Decimal('2.58'))
 
 
 class PagoVacacionesApiTests(NominaTestCase):
