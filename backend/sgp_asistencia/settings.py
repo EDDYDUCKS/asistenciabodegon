@@ -5,17 +5,31 @@ Django settings for sgp_asistencia project.
 from pathlib import Path
 import os
 
+from django.core.exceptions import ImproperlyConfigured
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-# La SECRET_KEY firma los tokens del panel: en producción es obligatoria y no puede ser pública.
-SECRET_KEY = os.getenv('SECRET_KEY', '')
-if not SECRET_KEY:
-    if not DEBUG:
-        from django.core.exceptions import ImproperlyConfigured
-        raise ImproperlyConfigured('Define la variable de entorno SECRET_KEY en producción.')
-    SECRET_KEY = 'django-insecure-solo-desarrollo-local'
+
+def _required_env(name, dev_default):
+    """Lee una variable obligatoria. En producción (DEBUG=False) el servidor no arranca si falta;
+    en desarrollo local (DEBUG=True) usa un valor de prueba que nunca debe llegar a producción."""
+    value = os.getenv(name, '').strip()
+    if value:
+        return value
+    if DEBUG:
+        return dev_default
+    raise ImproperlyConfigured(
+        f"Falta la variable de entorno {name}. Configúrala en Render (Environment) "
+        f"o en tu .env local antes de iniciar el servidor."
+    )
+
+
+SECRET_KEY = _required_env('SECRET_KEY', 'django-insecure-solo-desarrollo-local')
+
+# Clave para descargar el respaldo total de la base de datos (cabecera X-Admin-Backup-Key)
+BACKUP_ADMIN_KEY = _required_env('BACKUP_ADMIN_KEY', 'solo-desarrollo-local-backup')
 
 ALLOWED_HOSTS = ['asistenciabodegon-api.onrender.com', '.onrender.com', 'localhost', '127.0.0.1', '*']
 

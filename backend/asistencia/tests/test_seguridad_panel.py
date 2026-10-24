@@ -2,7 +2,7 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from .models import Empleado, RegistroAsistencia
+from asistencia.models import Empleado, RegistroAsistencia
 
 
 @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})

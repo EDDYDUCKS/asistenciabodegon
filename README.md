@@ -95,13 +95,13 @@ Copia los valores de ejemplo de `.env.example` y ajústalos según tu entorno. *
 
 | Variable | Descripción | Valor de ejemplo |
 |---|---|---|
-| `SECRET_KEY` | Clave criptográfica de Django. **Obligatoria en producción** (firma los tokens del panel) | cadena aleatoria larga |
+| `SECRET_KEY` | Clave criptográfica de Django. **Obligatoria**: sin ella el servidor no arranca (salvo con `DEBUG=True`) | Genera una con `python -c "import secrets; print(secrets.token_urlsafe(50))"` |
 | `DEBUG` | Modo depuración | `True` (local) / `False` (producción) |
 | `DATABASE_URL` | Conexión a PostgreSQL (si no se define, usa SQLite) | `postgresql://postgres:clave@host:5432/postgres` |
+| `BACKUP_ADMIN_KEY` | Clave para descargar el respaldo de la DB. **Obligatoria**: sin ella el servidor no arranca (salvo con `DEBUG=True`). Permite descargar el respaldo sin sesión del panel (cabecera `X-Admin-Backup-Key`); con sesión del panel no hace falta | Genera otra con el mismo comando |
 | `ADMIN_SUPERVISOR_PIN` | PIN de gerencia para entrar al panel (4 dígitos). Sin valor por defecto | definido por gerencia |
 | `ADMIN_PAYROLL_PIN` | PIN de nómina para aprobar horas extra y pagos (4 dígitos). Sin valor por defecto | definido por gerencia |
 | `ADMIN_TOKEN_HOURS` | Horas de validez de la sesión del panel (opcional) | `12` |
-| `BACKUP_ADMIN_KEY` | Clave opcional para descargar el respaldo sin sesión del panel | cadena aleatoria larga |
 | `KIOSK_SIMULATION_KEY` | Solo pruebas: permite simular la hora de marcaje en el kiosco. No definir en producción | — |
 
 Los PINs nunca se escriben en el frontend ni en el repositorio: el panel los envía al servidor (`POST /api/auth/login/`), que devuelve un token firmado con vencimiento. Tras 5 intentos fallidos desde la misma IP, el servidor bloquea el PIN por 15 minutos.
@@ -169,19 +169,24 @@ El PIN administrativo de demostración se entrega por separado al docente evalua
 
 ## 10. Pruebas automatizadas
 
-Los scripts en el directorio `backend/` validan exhaustivamente las reglas laborales, turnos quebrados, tolerancias y cálculos:
+Las pruebas de nómina (horas extra y bolsa de horas, tardanza, vacaciones y marcaje del kiosco) están en `backend/asistencia/tests/` y corren solas en GitHub Actions en cada push a `main` y en cada pull request:
 
 ```bash
 cd backend
-python test_shifts.py         # Validación de turnos corridos y quebrados
-python test_extreme_late.py   # Validación de políticas de tardanza y alertas
-python test_auto_scan.py      # Validación de lógica de escaneo y duplicados
-python verify_nomina.py       # Comprobación de fórmulas y redondeo de nómina
+python manage.py test asistencia
+```
+
+Django crea una base de datos de prueba temporal y la borra al terminar, así que no tocan los datos reales.
+
+Scripts de diagnóstico que siguen disponibles:
+
+```bash
+python verify_nomina.py       # Balance de nómina del 01 al 15 de agosto 2026
 python simulate_week.py       # Simulación de ciclo semanal completo
 ```
 
 > [!WARNING]
-> Estos scripts de prueba crean y modifican registros temporales. Ejecútalos únicamente en el entorno local (SQLite, sin configurar `DATABASE_URL` de producción).
+> `simulate_week.py` borra y crea registros en la base de datos configurada. Ejecútalo únicamente en el entorno local (SQLite, sin configurar `DATABASE_URL` de producción).
 
 La matriz de pruebas completa con capturas de evidencia se encuentra en el documento *Evidencia de pruebas*.
 
@@ -201,7 +206,7 @@ En la auditoría técnica previa a la entrega se identificaron y mitigaron los s
 - **API cerrada por defecto:** Todos los endpoints exigen la sesión del panel (`Authorization: Bearer <token>`). Solo quedan públicos los del kiosco: `kiosco/marcar/`, `kiosco/consultar/`, `kiosco/empleados/` (nombres y huella del QR, sin tokens) y `asistencia/sync-batch/`.
 - **PINs solo en servidor:** El PIN de gerencia (`ADMIN_SUPERVISOR_PIN`) y el de nómina (`ADMIN_PAYROLL_PIN`) se validan únicamente en Django, con comparación en tiempo constante y bloqueo por intentos fallidos. El frontend no contiene ningún PIN.
 - **Fotos de marcaje:** Se sirven con URL firmada que vence en 24 horas.
-- **Protección de Volcado de Datos:** El endpoint `/api/admin/respaldo-datos/` exige la sesión del panel (o la cabecera `X-Admin-Backup-Key` si `BACKUP_ADMIN_KEY` está definida), registrando intentos indebidos en la bitácora con IP.
+- **Protección de Volcado de Datos:** El endpoint `/api/admin/respaldo-datos/` exige la sesión del panel (o la cabecera `X-Admin-Backup-Key` con `BACKUP_ADMIN_KEY`), registrando intentos indebidos en la bitácora con IP.
 - **Sanitización de Datos de Empleados:** Se retiraron los tokens QR y cédulas de los serializadores anidados de asistencia y horas extra para evitar fuga de credenciales.
 - **CORS Restringido:** Se eliminó `CORS_ALLOW_ALL_ORIGINS = True` y se configuró una lista estricta de orígenes permitidos (`asistenciabodegon.vercel.app`, `localhost:3000`).
 - **Política de Retención y Privacidad:** Las fotos de verificación tomadas en el kiosco se restringen al uso exclusivo de auditoría de asistencia interna.

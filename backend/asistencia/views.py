@@ -65,6 +65,11 @@ def _obtener_dias_vacaciones_disponibles(emp):
     return max(Decimal('0.00'), round(acumuladas - tomadas, 2))
 
 
+def _vacaciones_por_dias(dias_laborados):
+    """Días de vacaciones (2 decimales) que generan N días laborados: N × 2.5 / 30."""
+    return round(Decimal(str(dias_laborados)) * Decimal('2.5') / Decimal('30'), 2)
+
+
 def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
     """
     Acredita las vacaciones estrictamente por DÍA LABORADO:
@@ -101,8 +106,25 @@ def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
     curr = corte + datetime.timedelta(days=1)
     dias_laborados_acreditados = 0
     dias_no_laborados = 0
+    total_incremento = Decimal('0.00')
+
+    # El redondeo a 2 decimales se aplica sobre el acumulado del mes (no por corte), para que
+    # 30 días laborados sumen exactamente 2.50 aunque la acreditación corra a diario.
+    laborados_mes = 0
+    if curr.day != 1:
+        inicio_mes_dt = timezone.make_aware(datetime.datetime.combine(curr.replace(day=1), datetime.time.min), tz)
+        corte_fin_dt = timezone.make_aware(datetime.datetime.combine(corte, datetime.time.max), tz)
+        laborados_mes = len({
+            fh.astimezone(tz).date()
+            for fh in RegistroAsistencia.objects.filter(
+                empleado=emp,
+                fecha_hora__range=(inicio_mes_dt, corte_fin_dt)
+            ).values_list('fecha_hora', flat=True)
+        })
 
     while curr <= fecha_referencia:
+        if curr.day == 1:
+            laborados_mes = 0
         # Comprobar en zona horaria de Nicaragua si el trabajador registró asistencia en esta fecha
         start_dt = timezone.make_aware(datetime.datetime.combine(curr, datetime.time.min), tz)
         end_dt = timezone.make_aware(datetime.datetime.combine(curr, datetime.time.max), tz)
@@ -113,15 +135,12 @@ def _verificar_acreditacion_vacaciones_empleado(emp, fecha_referencia=None):
 
         if asistio:
             dias_laborados_acreditados += 1
+            total_incremento += _vacaciones_por_dias(laborados_mes + 1) - _vacaciones_por_dias(laborados_mes)
+            laborados_mes += 1
         else:
             dias_no_laborados += 1
 
         curr += datetime.timedelta(days=1)
-
-    total_incremento = round(
-        Decimal(str(dias_laborados_acreditados)) * Decimal('2.5') / Decimal('30'),
-        2
-    )
 
     emp.ultimo_corte_vacaciones = fecha_referencia
     if total_incremento > Decimal('0.00'):
@@ -5456,15 +5475,15 @@ def exportar_respaldo_base_datos(request):
     de todas las tablas de Restaurante El Bodegón para resguardo de la administración.
     Requiere autenticación de administrador o clave administrativa de resguardo.
     """
-    import os
     import hmac
-    admin_key_header = request.headers.get('X-Admin-Backup-Key') or ''
-    expected_key = os.getenv('BACKUP_ADMIN_KEY', '')
+    from django.conf import settings
+    admin_key_header = request.headers.get('X-Admin-Backup-Key') or request.GET.get('key')
+    expected_key = settings.BACKUP_ADMIN_KEY
 
     is_authorized = False
     if request.user and request.user.is_authenticated and request.user.is_staff:
         is_authorized = True
-    elif expected_key and admin_key_header and hmac.compare_digest(admin_key_header.encode(), expected_key.encode()):
+    elif admin_key_header and hmac.compare_digest(admin_key_header.encode('utf-8'), expected_key.encode('utf-8')):
         is_authorized = True
 
     if not is_authorized:
