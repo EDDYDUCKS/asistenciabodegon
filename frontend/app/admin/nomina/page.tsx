@@ -99,6 +99,21 @@ const getEmpleadoArea = (cargoStr?: string): 'COCINA' | 'SALON' | 'BARRA_CAJA' |
   return 'OPERACIONES';
 };
 
+// El domingo el restaurante cierra a las 10:30 PM: quien se queda al cierre (sale desde las 10:20 PM
+// o de madrugada) cumple con 7.5 h. Cualquier otra jornada exige 8 h. Igual que _jornada_esperada en el backend.
+const jornadaEsperada = (dia: Date, regs: { tipo_evento: string; fecha_hora: string }[]): number => {
+  if (dia.getDay() !== 0) return 8.0;
+  const alCierre = regs.some((r) => {
+    if (r.tipo_evento !== 'SALIDA_DEFINITIVA') return false;
+    const [h, m] = new Date(r.fecha_hora)
+      .toLocaleTimeString('en-GB', { timeZone: 'America/Managua', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .split(':')
+      .map(Number);
+    return h < 5 || h * 60 + m >= 22 * 60 + 20;
+  });
+  return alCierre ? 7.5 : 8.0;
+};
+
 const MESES_NOMBRES: Record<number, string> = {
   1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril', 5: 'Mayo', 6: 'Junio',
   7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
@@ -1159,11 +1174,8 @@ export default function NominaAdminPage() {
                           entradaTemp = null;
                         }
                       });
-                      const horasOrd = Math.min(horasDia, 8.0);
-                      if (sCurr.getDay() !== 0) {
-                        const deficit = Math.max(0, 8.0 - horasOrd);
-                        deficitSemana += deficit;
-                      }
+                      const meta = jornadaEsperada(sCurr, regs);
+                      deficitSemana += Math.max(0, meta - Math.min(horasDia, meta));
                       if (horasDia > 8.0) {
                         excedenteSemana += (horasDia - 8.0);
                       }
@@ -1200,12 +1212,8 @@ export default function NominaAdminPage() {
                         entradaTemp = null;
                       }
                     });
-                    const horasOrd = Math.min(horasDia, 8.0);
-                    // En domingo (getDay() === 0) la administración autoriza salida temprana por cierre a las 10 PM, sin generar deuda
-                    if (sCurr.getDay() !== 0) {
-                      const deficit = Math.max(0, 8.0 - horasOrd);
-                      deficitSemana += deficit;
-                    }
+                    const meta = jornadaEsperada(sCurr, regs);
+                    deficitSemana += Math.max(0, meta - Math.min(horasDia, meta));
                     if (horasDia > 8.0) {
                       excedenteSemana += (horasDia - 8.0);
                     }

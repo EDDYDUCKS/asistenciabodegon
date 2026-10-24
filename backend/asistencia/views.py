@@ -710,7 +710,8 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         horas_netas = _calcular_horas_netas_dia(regs)
 
         # Anular cualquier déficit que este día haya generado
-        deficit_dia = max(0.0, 8.0 - horas_netas) if (horas_netas < 8.0 and fecha_obj.weekday() != 6) else 0.0
+        meta = _jornada_esperada(fecha_obj, regs)
+        deficit_dia = max(0.0, meta - horas_netas)
         deuda_previa = float(empleado.horas_pendientes or 0.0)
         if deficit_dia > 0:
             nueva_deuda = max(0.0, round(deuda_previa - deficit_dia, 1))
@@ -2030,7 +2031,8 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
                 ).order_by('fecha_hora'))
 
                 horas_netas = _calcular_horas_netas_dia(regs_dia)
-                deficit_dia = max(0.0, 8.0 - horas_netas) if (horas_netas < 8.0 and fecha_ref.weekday() != 6) else 0.0
+                meta = _jornada_esperada(fecha_ref, regs_dia)
+                deficit_dia = max(0.0, meta - horas_netas)
 
                 if deficit_dia > 0:
                     deuda_act = float(empleado.horas_pendientes or 0.0)
@@ -2681,18 +2683,18 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                                 f"(Déficit de {deficit_mins} min)."
                             )
                 else:
-                    # Jornada estándar de 8 horas:
-                    # En domingo la administración autoriza la salida temprana por cierre anticipado del restaurante a las 10:00 PM.
-                    # Solo alertar si NO es domingo y el déficit supera los 10 minutos (menos de 7.83h):
-                    es_domingo = (hora_actual.weekday() == 6)
-                    if not es_domingo and horas_netas_hoy < 7.83:
-                        deficit_mins = int(round((8.0 - horas_netas_hoy) * 60))
+                    # Jornada estándar de 8 horas (7.5 h el domingo para quien se queda al cierre de las 10:30 PM).
+                    # Alertar si el déficit supera los 10 minutos de tolerancia.
+                    fecha_jornada = primera_ent.fecha_hora.astimezone(timezone.get_current_timezone()).date() if primera_ent else hora_actual.date()
+                    meta = _jornada_esperada(fecha_jornada, registros_actualizados)
+                    if horas_netas_hoy < meta - TOLERANCIA_SALIDA_HORAS:
+                        deficit_mins = int(round((meta - horas_netas_hoy) * 60))
                         if deficit_mins > 10:
                             alerta_creada = True
                             alerta_tipo = 'SALIDA_ANTICIPADA'
                             alerta_titulo = f"Jornada incompleta{tag_offline}: {empleado.nombre} {empleado.apellido}"
                             alerta_mensaje = (
-                                f"Se retiró antes de cumplir sus 8 horas. Acumuló {round(horas_netas_hoy, 1)} hrs "
+                                f"Se retiró antes de cumplir sus {meta:g} horas. Acumuló {round(horas_netas_hoy, 1)} hrs "
                                 f"(Déficit de {deficit_mins} min)."
                             )
 
@@ -2945,8 +2947,9 @@ def marcar_asistencia_kiosco(request):
     minutos_tardanza_kiosco = int(info_alerta.get('minutos_tardanza', 0))
     turno_esperado_kiosco = str(info_alerta.get('turno_esperado', ''))
 
-    horas_restantes_hoy = max(0.0, round(8.0 - horas_netas_hoy, 1))
-    cumplio_meta = horas_netas_hoy >= 7.95
+    meta_hoy = _jornada_esperada(dia_operativo_cierre, registros_actualizados)
+    horas_restantes_hoy = max(0.0, round(meta_hoy - horas_netas_hoy, 1))
+    cumplio_meta = horas_netas_hoy >= meta_hoy - TOLERANCIA_SALIDA_HORAS
 
     # Detectar si entró en el turno vespertino especial de las 5:00 PM (ej. Xiomara Castillo)
     primera_ent_kiosco = next((r for r in registros_actualizados if r.tipo_evento == 'ENTRADA'), None)
@@ -3274,6 +3277,41 @@ def _calcular_horas_netas_dia(registros_dia):
     return total_segundos / 3600.0
 
 
+# El domingo el restaurante cierra a las 10:30 PM en vez de las 11:00 PM: quien se queda
+# hasta el cierre (sale desde las 10:20 PM, o de madrugada) cumple con 7.5 h.
+JORNADA_ORDINARIA = 8.0
+JORNADA_CIERRE_DOMINGO = 7.5
+TOLERANCIA_SALIDA_HORAS = 10 / 60  # 10 min de cortesía
+
+
+def _jornada_esperada(fecha, registros_dia):
+    """Horas que debe cumplir el colaborador en `fecha` según sus marcajes del día."""
+    if fecha.weekday() != 6:
+        return JORNADA_ORDINARIA
+    tz_ni = timezone.get_current_timezone()
+    for r in registros_dia:
+        if r.tipo_evento != 'SALIDA_DEFINITIVA':
+            continue
+        local = r.fecha_hora.astimezone(tz_ni)
+        if local.date() > fecha or local.hour * 60 + local.minute >= 22 * 60 + 20:
+            return JORNADA_CIERRE_DOMINGO
+    return JORNADA_ORDINARIA
+
+
+def _registros_jornada(empleado, fecha):
+    """Marcajes de la jornada de `fecha`, incluida una salida de madrugada (antes de las 5 AM)."""
+    tz_ni = timezone.get_current_timezone()
+    inicio = timezone.make_aware(datetime.datetime.combine(fecha, datetime.time.min), tz_ni)
+    fin = timezone.make_aware(datetime.datetime.combine(fecha, datetime.time.max), tz_ni) + datetime.timedelta(hours=5)
+    regs = []
+    for r in RegistroAsistencia.objects.filter(empleado=empleado, fecha_hora__range=(inicio, fin)).defer('foto_base64').order_by('fecha_hora'):
+        local = r.fecha_hora.astimezone(tz_ni)
+        if local.date() > fecha and r.tipo_evento != 'SALIDA_DEFINITIVA':
+            continue
+        regs.append(r)
+    return regs
+
+
 def _ejecutar_reset_general_deficit_octubre(forzar=False):
     """
     Acuerdo Gerencial 10/10/2026:
@@ -3417,12 +3455,13 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
             es_dia_libre = AutorizacionHorasExtra.objects.filter(
                 empleado=empleado, fecha=d, comentario__icontains='[Día Libre Laborado]'
             ).exists()
-            # Mismas reglas que el kiosco (_acumular_horas_pendientes): sin deuda en domingo,
-            # tolerancia de 7h50 y marcajes técnicos < 12 min ignorados.
-            if not es_dia_libre and d.weekday() != 6:
+            # Mismas reglas que el kiosco (_acumular_horas_pendientes): tolerancia de 10 min,
+            # 7.5 h el domingo al cierre y marcajes técnicos < 12 min ignorados.
+            if not es_dia_libre:
                 horas_dia = _calcular_horas_netas_dia(regs_d)
-                if 0.2 <= horas_dia < 7.83:
-                    deficit = round(8.0 - horas_dia, 1)
+                meta = _jornada_esperada(d, regs_d)
+                if 0.2 <= horas_dia < meta - TOLERANCIA_SALIDA_HORAS:
+                    deficit = round(meta - horas_dia, 1)
                     if deficit > 0.1:
                         deuda_acumulada += deficit
     # Restar compensaciones formalmente aprobadas en el mes
@@ -3457,25 +3496,22 @@ def _sincronizar_periodo_deuda(empleado, fecha):
     return True
 
 
-def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
+def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia, meta=JORNADA_ORDINARIA):
     """
-    Si el empleado trabajó menos de 8 horas, acumula el déficit en horas_pendientes.
-    En domingo la administración autoriza salida anticipada por cierre a las 10 PM, no genera deuda.
+    Si el empleado trabajó menos de su jornada (`meta`: 8 h, o 7.5 h el domingo al cierre),
+    acumula el déficit en horas_pendientes.
     El cómputo de déficit inicia oficialmente a partir del 10 de octubre de 2026.
     """
     if fecha_hoy < datetime.date(2026, 10, 10):
         return  # Todo déficit previo al 10 de octubre de 2026 queda condonado / borrón y cuenta nueva
 
-    if fecha_hoy.weekday() == 6:
-        return  # En domingo no se acumula deuda por cierre anticipado acordado
-
-    # Tolerancia oficial de salida cumplida: >= 7.83h (7h 50m) se considera jornada completa cumplida.
+    # Tolerancia oficial de salida: hasta 10 min antes de la meta se considera jornada cumplida.
     # Si las horas trabajadas son insignificantes (< 0.2h = menos de 12 min), es marcaje duplicado o erróneo.
-    if horas_trabajadas_dia >= 7.83 or horas_trabajadas_dia < 0.2:
+    if horas_trabajadas_dia >= meta - TOLERANCIA_SALIDA_HORAS or horas_trabajadas_dia < 0.2:
         return  # No hay deuda (jornada cumplida dentro de tolerancia de 10 min o marcaje técnico insignificante)
 
-    horas_ordinarias = min(horas_trabajadas_dia, 8.0)
-    deficit = max(0.0, 8.0 - horas_ordinarias)
+    horas_ordinarias = min(horas_trabajadas_dia, meta)
+    deficit = max(0.0, meta - horas_ordinarias)
 
     if deficit <= 0.1:
         return  # No hay deuda que acumular este día
@@ -3544,8 +3580,9 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
         tiene_salida_def = any(r.tipo_evento == 'SALIDA_DEFINITIVA' for r in regs_d)
         if tiene_salida_def:
             horas_dia = _calcular_horas_netas_dia(regs_d)
-            if d.weekday() != 6 and horas_dia < 8.0:
-                deficit_dia = round(8.0 - horas_dia, 1)
+            meta_d = _jornada_esperada(d, regs_d)
+            if horas_dia < meta_d:
+                deficit_dia = round(meta_d - horas_dia, 1)
                 aplicado = min(horas_por_cubrir, deficit_dia)
                 if aplicado > 0:
                     saldo_item = round(deficit_dia - aplicado, 1)
@@ -3794,23 +3831,10 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'es_septimo_dia': True,
         }
 
-    # En domingo la administración autoriza la salida temprana al terminar la limpieza (cierre 10 PM), sin generar deuda ni deducir horas extra
-    es_domingo = (fecha_hoy.weekday() == 6)
-    if es_domingo and horas_trabajadas_dia < 8.0:
-        return {
-            'horas_netas': round(horas_trabajadas_dia, 1),
-            'excedente': 0.0,
-            'horas_amortizadas': 0.0,
-            'deuda_restante': round(float(empleado.horas_pendientes or 0.0), 1),
-            'horas_extra_solicitadas': 0.0,
-            'horas_compensadas_de_extra': 0.0,
-            'deficit_dia': 0.0,
-        }
-
-    # Tolerancia oficial de jornada cumplida:
-    # 7.83 horas = 7 horas y 50 minutos (tolerancia de cortesía de hasta 10 min).
-    # Si acumuló 7.83h o más, la jornada se considera cumplida y no genera déficit ni alerta.
-    if horas_trabajadas_dia < 7.83:
+    # Jornada esperada: 8 h, o 7.5 h el domingo para quien se queda al cierre de las 10:30 PM.
+    # Tolerancia de cortesía de 10 min: dentro de ella la jornada se considera cumplida.
+    meta = _jornada_esperada(fecha_hoy, _registros_jornada(empleado, fecha_hoy))
+    if horas_trabajadas_dia < meta - TOLERANCIA_SALIDA_HORAS:
         # Si las horas trabajadas son insignificantes (< 0.2h = menos de 12 min), se trata de un marcaje
         # de salida duplicado o error técnico, no de una jornada corta real. Evitar generar alerta absurda de 0.0 hrs.
         if horas_trabajadas_dia < 0.2:
@@ -3824,13 +3848,13 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
                 'deficit_dia': 0.0,
             }
 
-        deficit_dia = round(8.0 - horas_trabajadas_dia, 1)
+        deficit_dia = round(meta - horas_trabajadas_dia, 1)
 
         # OPCIÓN B (Control Gerencial):
         # El Kiosco NO borra ni recorta a ciegas las solicitudes de Horas Extra pendientes del colaborador.
         # En su lugar, acumula el déficit en la Bolsa de Horas (horas_pendientes) de forma limpia y transparente,
         # emitiendo una notificación para que la administración decida: Exonerar con justificación, Cargar a Deuda o Cruzar con Horas Extra.
-        _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia)
+        _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia, meta)
 
         # Evitar crear alerta duplicada si ya existe una alerta de déficit o salida anticipada para este día
         tz = timezone.get_current_timezone()
@@ -4411,10 +4435,8 @@ def exportar_reporte_nomina_excel(request):
                             else:
                                 regs_d = dias_map[d]
                                 horas_dia = _calcular_horas_netas_dia(regs_d)
-                                horas_ord = min(horas_dia, 8.0)
-                                if d.weekday() != 6:
-                                    deficit = max(0.0, 8.0 - horas_ord)
-                                    deficit_semana += deficit
+                                meta_d = _jornada_esperada(d, regs_d)
+                                deficit_semana += max(0.0, meta_d - min(horas_dia, meta_d))
                                 if horas_dia > 8.0:
                                     excedente_semana += (horas_dia - 8.0)
                         elif d in feriados_set and d not in dias_map:
