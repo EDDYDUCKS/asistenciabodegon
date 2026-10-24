@@ -1,15 +1,11 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import BrandBand from '@/components/BrandBand';
 import {
-  ShieldCheck,
   TrendingUp,
   AlertTriangle,
   Wallet,
-  Building2,
-  Banknote,
-  CreditCard,
-  Truck,
   ArrowUpRight,
   ArrowDownRight,
   CheckCircle2,
@@ -97,197 +93,119 @@ export default function ExecutiveSummaryBanner({
   const isClosed = jornadaDia?.estado === 'CERRADA';
   const isOpen = jornadaDia?.estado === 'ABIERTA';
 
+  const fechaLarga = (() => {
+    const d = new Date(`${selectedDate}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return selectedDate;
+    const t = d.toLocaleDateString('es-NI', { weekday: 'long', day: 'numeric', month: 'long' });
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  })();
+
+  const pill = 'h-10 px-3.5 rounded-xl text-sm font-bold flex items-center gap-2';
+  const estado = closing ? (
+    closing.auditStatus === 'SQUARED' ? (
+      <span className={`${pill} bg-crema text-bodegon`}>
+        <CheckCircle2 className="w-4 h-4" />
+        Arqueo cuadrado
+      </span>
+    ) : closing.auditStatus === 'SURPLUS' ? (
+      <span className={`${pill} bg-dorado-vivo text-tinta`}>
+        <Sparkles className="w-4 h-4" />
+        Sobrante: +C$ {closing.differenceNIO.toFixed(2)}
+      </span>
+    ) : (
+      <span className={`${pill} bg-barro text-white`}>
+        <AlertTriangle className="w-4 h-4" />
+        Faltante: -C$ {Math.abs(closing.differenceNIO).toFixed(2)}
+      </span>
+    )
+  ) : isOpen ? (
+    <span className={`${pill} bg-crema text-bodegon`}>
+      <span className="w-2 h-2 rounded-full bg-bodegon" />
+      Turno abierto
+    </span>
+  ) : (
+    <span className={`${pill} border border-white/35 text-crema`}>
+      <Clock className="w-4 h-4" />
+      {isClosed ? 'Turno cerrado' : 'Sin turno abierto'}
+    </span>
+  );
+
+  const money = (n: number) => n.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   return (
-    <div className="bg-gradient-to-br from-stone-900 via-stone-850 to-stone-950 text-white rounded-3xl p-5 sm:p-7 shadow-xl border border-stone-800 space-y-6">
-      {/* Barra Superior de Estado */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 flex items-center justify-center font-bold">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-black tracking-tight text-white">
-                Command Center Financiero Ejecutivo
-              </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-stone-800 text-stone-300 border border-stone-700">
-                {selectedDate}
-              </span>
-            </div>
-            <p className="text-xs text-stone-400 font-medium">
-              Supervisión de caja, arqueos y movimientos sin necesidad de estar físicamente en el restaurante
-            </p>
-          </div>
-        </div>
+    <BrandBand eyebrow={fechaLarga} title="Caja del día" actions={estado}>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Pilar featured icon={<ArrowUpRight className="w-4 h-4" />} label="Ingresos" value={`C$ ${money(sales.totalGrossSales)}`}>
+          <Linea label="Efectivo" value={`C$ ${money(sales.salesCash)}`} />
+          <Linea label="Tarjetas POS" value={`C$ ${money(sales.totalCards)}`} />
+          <Linea label="PedidosYa y transferencias" value={`C$ ${money(sales.salesPedidosYa + sales.salesBankTransfers)}`} />
+        </Pilar>
 
-        {/* Semáforo del Estado de Arqueo */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {closing ? (
-            <div
-              className={`px-3 py-1.5 rounded-xl border text-xs font-black flex items-center gap-1.5 ${
-                closing.auditStatus === 'SQUARED'
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                  : closing.auditStatus === 'SURPLUS'
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-              }`}
-            >
-              {closing.auditStatus === 'SQUARED' ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Arqueo Cuadrado (C$ 0.00 dif.)</span>
-                </>
-              ) : closing.auditStatus === 'SURPLUS' ? (
-                <>
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>Sobrante: +C$ {closing.differenceNIO.toFixed(2)}</span>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle className="w-4 h-4 text-rose-400" />
-                  <span>Faltante en Caja: -C$ {Math.abs(closing.differenceNIO).toFixed(2)}</span>
-                </>
-              )}
-            </div>
-          ) : isOpen ? (
-            <div className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black flex items-center gap-1.5 animate-pulse">
-              <Clock className="w-4 h-4 text-emerald-400" />
-              <span>Turno Abierto en Curso</span>
-            </div>
-          ) : (
-            <div className="px-3 py-1.5 rounded-xl bg-stone-800 text-stone-400 border border-stone-700 text-xs font-bold">
-              <span>Sin Turno Abierto</span>
-            </div>
-          )}
-        </div>
+        <Pilar icon={<ArrowDownRight className="w-4 h-4" />} label="Egresos" value={`- C$ ${money(gastosTotal)}`}>
+          <Linea label="Caja chica (efectivo)" value={`C$ ${money(gastosEfectivo)}`} />
+          <Linea label="Banco y transferencias" value={`C$ ${money(gastosBanco)}`} />
+          <Linea label="Compras" value={`${gastosDia.length} facturas`} />
+        </Pilar>
+
+        <Pilar icon={<Wallet className="w-4 h-4" />} label="Efectivo en gaveta" value={`C$ ${money(efectivoEnCustodia)}`}>
+          <Linea label="Fondo de apertura" value={`C$ ${money(opening.totalOpeningNIO)}`} />
+          {opening.totalOpeningUSD > 0 && <Linea label="Dólares de apertura" value={`$${opening.totalOpeningUSD} USD`} />}
+          <Linea label="Saldo teórico" value={`C$ ${money(efectivoEnCustodia)}`} />
+        </Pilar>
+
+        <Pilar icon={<TrendingUp className="w-4 h-4" />} label="Utilidad neta" value={`C$ ${money(gananciaNeta)}`}>
+          <Linea label="Margen operativo" value={`${margenPercent.toFixed(1)}%`} />
+          {sales.tips > 0 && <Linea label="Propinas deducidas" value={`- C$ ${money(sales.tips)}`} />}
+          <Linea label="Responsable" value={jornadaDia?.responsable || 'Bodegón'} />
+        </Pilar>
       </div>
+    </BrandBand>
+  );
+}
 
-      {/* Los 4 Pilares Fundamentales del Negocio */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Pilar 1: Ingresos Totales */}
-        <div className="bg-stone-800/60 rounded-2xl p-4 border border-stone-700/70 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
-              1. Ingresos Totales de Hoy
-            </span>
-            <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="text-2xl font-black font-mono text-white">
-            C$ {sales.totalGrossSales.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-          </div>
-          <div className="space-y-1 pt-1.5 border-t border-stone-700/60 text-[11px] font-mono text-stone-300">
-            <div className="flex justify-between">
-              <span className="text-stone-400">Efectivo:</span>
-              <span className="font-bold text-emerald-300">C$ {sales.salesCash.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-stone-400">Tarjetas POS:</span>
-              <span className="font-bold text-blue-300">C$ {sales.totalCards.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-stone-400">PedidosYa + Transf:</span>
-              <span className="font-bold text-purple-300">
-                C$ {(sales.salesPedidosYa + sales.salesBankTransfers).toFixed(2)}
-              </span>
-            </div>
-          </div>
-        </div>
+/** Contexto para que las líneas de desglose tomen el tono de su tarjeta. */
+const PilarTono = React.createContext(false);
 
-        {/* Pilar 2: Egresos Totales */}
-        <div className="bg-stone-800/60 rounded-2xl p-4 border border-stone-700/70 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-rose-400">
-              2. Egresos Totales de Hoy
-            </span>
-            <div className="w-6 h-6 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center">
-              <ArrowDownRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="text-2xl font-black font-mono text-rose-300">
-            - C$ {gastosTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-          </div>
-          <div className="space-y-1 pt-1.5 border-t border-stone-700/60 text-[11px] font-mono text-stone-300">
-            <div className="flex justify-between">
-              <span className="text-stone-400">Caja Chica (Efectivo):</span>
-              <span className="font-bold text-rose-300">C$ {gastosEfectivo.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-stone-400">Banco / Transferencias:</span>
-              <span className="font-bold text-blue-300">C$ {gastosBanco.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-stone-400">Total Compras:</span>
-              <span className="font-bold text-stone-200">{gastosDia.length} facturas</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Pilar 3: Dinero Físico en Custodia (Gaveta AHORA) */}
-        <div className="bg-emerald-950/40 rounded-2xl p-4 border border-emerald-500/30 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
-              3. Dinero Físico en Gaveta
-            </span>
-            <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-              <Wallet className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="text-2xl font-black font-mono text-emerald-300">
-            C$ {efectivoEnCustodia.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-          </div>
-          <div className="space-y-1 pt-1.5 border-t border-emerald-900/60 text-[11px] font-mono text-emerald-100/80">
-            <div className="flex justify-between">
-              <span className="text-stone-400">Fondo Apertura NIO:</span>
-              <span className="font-bold">C$ {opening.totalOpeningNIO.toFixed(2)}</span>
-            </div>
-            {opening.totalOpeningUSD > 0 && (
-              <div className="flex justify-between text-amber-300">
-                <span>Dólares Apertura:</span>
-                <span className="font-bold">${opening.totalOpeningUSD} USD</span>
-              </div>
-            )}
-            <div className="flex justify-between text-emerald-400 font-bold">
-              <span>Saldo Teórico:</span>
-              <span>C$ {efectivoEnCustodia.toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Pilar 4: Ganancia Neta Real & Margen */}
-        <div className="bg-stone-800/60 rounded-2xl p-4 border border-stone-700/70 space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
-              4. Utilidad Neta del Día
-            </span>
-            <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
-              <TrendingUp className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="text-2xl font-black font-mono text-emerald-400">
-            C$ {gananciaNeta.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
-          </div>
-          <div className="space-y-1 pt-1.5 border-t border-stone-700/60 text-[11px] font-mono text-stone-300">
-            <div className="flex justify-between">
-              <span className="text-stone-400">Margen Operativo:</span>
-              <span className="font-bold text-emerald-300 font-mono">{margenPercent.toFixed(1)}%</span>
-            </div>
-            {sales.tips > 0 && (
-              <div className="flex justify-between text-amber-400">
-                <span>Propinas deducidas:</span>
-                <span>- C$ {sales.tips.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-stone-400">
-              <span>Responsable:</span>
-              <span className="font-bold text-white truncate max-w-[110px]">
-                {jornadaDia?.responsable || 'Bodegón'}
-              </span>
-            </div>
-          </div>
-        </div>
+function Pilar({
+  featured = false,
+  icon,
+  label,
+  value,
+  children,
+}: {
+  featured?: boolean;
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`rounded-2xl p-4 flex flex-col gap-2 min-w-0 ${
+        featured ? 'col-span-2 sm:col-span-1 bg-crema text-tinta' : 'bg-white/[0.08] border border-white/[0.18] text-crema'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className={`text-xs font-semibold ${featured ? 'uppercase tracking-[0.08em] text-dorado-tinta' : 'text-[#CFE3DC]'}`}>
+          {label}
+        </span>
+        <span className={featured ? 'text-bodegon' : 'text-[#CFE3DC]'}>{icon}</span>
       </div>
+      <div className={`font-display font-bold leading-none tabular-nums truncate ${featured ? 'text-3xl' : 'text-2xl sm:text-3xl'}`}>{value}</div>
+      {/* En celular solo la tarjeta principal muestra el desglose, para que la banda no se alargue. */}
+      <div className={`mt-1 pt-2 space-y-1 text-xs border-t ${featured ? 'border-stone-200' : 'hidden sm:block border-white/15'}`}>
+        <PilarTono.Provider value={featured}>{children}</PilarTono.Provider>
+      </div>
+    </div>
+  );
+}
+
+function Linea({ label, value }: { label: string; value: string }) {
+  const featured = React.useContext(PilarTono);
+  return (
+    <div className="flex justify-between gap-3">
+      <span className={featured ? 'text-stone-500' : 'text-[#CFE3DC]'}>{label}</span>
+      <span className="font-semibold tabular-nums truncate">{value}</span>
     </div>
   );
 }

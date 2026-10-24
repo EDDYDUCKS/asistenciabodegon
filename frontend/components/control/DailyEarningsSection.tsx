@@ -346,20 +346,20 @@ export default function DailyEarningsSection({
         </div>
       </div>
 
-      {/* 2. Banner de Información del Día Seleccionado con Navegación ◀ ▶ */}
-      <div className="bg-stone-900 rounded-2xl p-5 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* 2. Banner de Información del Día Seleccionado con Navegación */}
+      <div className="bg-white rounded-2xl p-5 text-tinta border border-stone-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-stone-400 text-xs font-bold uppercase tracking-wider mb-1">
-            <CalendarDays className="w-4 h-4 text-amber-400" />
+          <div className="flex items-center gap-2 text-stone-500 text-xs font-bold uppercase tracking-wider mb-1">
+            <CalendarDays className="w-4 h-4 text-dorado-tinta" />
             <span>Jornada Operativa</span>
             <span>•</span>
             <span
               className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
                 activeDaySummary.isVoid
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-400/40'
+                  ? 'bg-dorado/20 text-dorado-tinta'
                   : activeDaySummary.status === 'OPEN'
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
-                  : 'bg-stone-700 text-stone-300 border border-stone-600'
+                  ? 'bg-bodegon text-white'
+                  : 'bg-stone-200 text-stone-600'
               }`}
             >
               {activeDaySummary.isVoid
@@ -373,13 +373,13 @@ export default function DailyEarningsSection({
           <div className="flex items-center gap-3">
             <button
               onClick={handlePrevDay}
-              className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+              className="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center transition cursor-pointer"
               title="Ir al día anterior"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <div className="text-xl sm:text-2xl font-black text-white tracking-tight capitalize">
+            <div className="font-display font-extrabold text-2xl sm:text-3xl uppercase leading-none">
               {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-NI', {
                 weekday: 'long',
                 day: 'numeric',
@@ -390,23 +390,23 @@ export default function DailyEarningsSection({
 
             <button
               onClick={handleNextDay}
-              className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+              className="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center transition cursor-pointer"
               title="Ir al día siguiente"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="text-xs text-stone-400 mt-1.5 flex flex-wrap items-center gap-2">
+          <div className="text-xs text-stone-500 mt-1.5 flex flex-wrap items-center gap-2">
             <span>
-              Responsable: <strong className="text-white">{activeDaySummary.responsible}</strong>
+              Responsable: <strong className="text-tinta">{activeDaySummary.responsible}</strong>
             </span>
             {activeDaySummary.tipsCollected > 0 && (
               <>
                 <span>•</span>
                 <span>
                   Propinas Recaudadas:{' '}
-                  <strong className="text-amber-400 font-mono font-bold">
+                  <strong className="text-dorado-tinta font-mono font-bold">
                     C$ {activeDaySummary.tipsCollected.toFixed(2)}
                   </strong>
                 </span>
@@ -418,21 +418,21 @@ export default function DailyEarningsSection({
         {/* Resumen Compacto de Ganancia Neta — Clickable */}
         <button
           onClick={() => setActiveModal('NET')}
-          className="flex items-center gap-4 bg-white/10 hover:bg-white/15 px-5 py-3 rounded-2xl border border-white/10 transition text-left cursor-pointer group"
+          className="flex items-center gap-4 bg-bodegon hover:bg-bodegon-noche text-white px-5 py-3 rounded-2xl transition text-left cursor-pointer group"
           title="Ver desglose financiero de ganancia neta"
         >
           <div>
-            <div className="text-[10px] font-bold text-stone-300 uppercase tracking-wider flex items-center gap-1">
+            <div className="text-[10px] font-bold text-[#CFE3DC] uppercase tracking-wider flex items-center gap-1">
               <span>Ganancia Neta Auditada</span>
-              <span className="text-[9px] text-emerald-400 underline font-normal">
+              <span className="text-[10px] text-dorado-vivo underline font-normal">
                 (Ver fórmula)
               </span>
             </div>
-            <div className="text-2xl font-black font-mono text-emerald-400">
+            <div className="text-2xl font-black font-mono text-white">
               C$ {activeDaySummary.netEarnings.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
             </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 transition-transform">
+          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-dorado-vivo transition-transform">
             <TrendingUp className="w-5 h-5" />
           </div>
         </button>
