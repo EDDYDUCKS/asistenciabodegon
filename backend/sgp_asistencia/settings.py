@@ -50,6 +50,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    # Comprime las respuestas JSON (el listado de asistencia pesa cientos de KB sin comprimir)
+    'django.middleware.gzip.GZipMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Cargar estáticos en producción
     'django.contrib.sessions.middleware.SessionMiddleware',
