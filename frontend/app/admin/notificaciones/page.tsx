@@ -11,6 +11,7 @@ import {
   marcarTodasAlertasLeidas,
   limpiarAlertasLeidas,
   cerrarSalida11pm,
+  pedirHoraSalidaReal,
   downloadInasistenciasExcel,
 } from '@/lib/api-client';
 import BoletaIncidenciaModal from '@/components/BoletaIncidenciaModal';
@@ -117,15 +118,16 @@ export default function NotificacionesDetalladasPage() {
   };
 
   const handleCerrarSalida11pm = async (id: number) => {
-    if (!confirm('¿Desea registrar automáticamente la salida a las 11:00 PM del día del turno y recalcular las horas de este colaborador?')) return;
+    const hora = pedirHoraSalidaReal();
+    if (hora === null) return;
     setProcessingId(id);
     try {
-      const res = await cerrarSalida11pm(id);
+      const res = await cerrarSalida11pm(id, hora || undefined);
       alert(res.mensaje);
       loadData();
     } catch (e: unknown) {
       console.error(e);
-      alert(e instanceof Error ? e.message : 'Error al cerrar el marcaje a las 11:00 PM.');
+      alert(e instanceof Error ? e.message : 'Error al cerrar el marcaje.');
     } finally {
       setProcessingId(null);
     }
@@ -614,10 +616,10 @@ export default function NotificacionesDetalladasPage() {
                             disabled={processingId === al.id}
                             onClick={() => handleCerrarSalida11pm(al.id!)}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
-                            title="Cerrar automáticamente el turno con salida a las 11:00 PM y calcular horas trabajadas"
+                            title="Registrar la hora real de salida del turno y calcular horas trabajadas"
                           >
                             <Clock className="w-3.5 h-3.5 text-indigo-200" />
-                            <span>🌙 Cerrar a las 11:00 PM</span>
+                            <span>🌙 Cerrar turno</span>
                           </button>
                         )}
                         {(al.tipo === 'REGISTRO_INCOMPLETO' || al.tipo === 'TARDANZA') && (

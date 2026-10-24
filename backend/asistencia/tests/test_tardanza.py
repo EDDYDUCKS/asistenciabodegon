@@ -83,9 +83,15 @@ class SalidaAnticipadaTests(NominaTestCase):
         self.marcar(MIERCOLES, 18, 30, tipo_evento='SALIDA_DEFINITIVA')
         self.assertTrue(AlertaAsistencia.objects.filter(empleado=self.empleado, tipo='SALIDA_ANTICIPADA').exists())
 
-    def test_domingo_no_alerta_salida_temprana(self):
+    def test_domingo_salida_temprana_si_alerta(self):
         self.marcar(DOMINGO, 12)
         self.marcar(DOMINGO, 18, 30, tipo_evento='SALIDA_DEFINITIVA')
+        self.assertTrue(AlertaAsistencia.objects.filter(empleado=self.empleado, tipo='SALIDA_ANTICIPADA').exists())
+
+    def test_domingo_cierre_1030_no_alerta(self):
+        self.marcar(DOMINGO, 15)
+        res = self.marcar(DOMINGO, 22, 30)
+        self.assertTrue(res['cumplio_meta_8h'])
         self.assertFalse(AlertaAsistencia.objects.filter(empleado=self.empleado, tipo='SALIDA_ANTICIPADA').exists())
 
     def test_turno_5pm_solo_exige_seis_horas(self):

@@ -235,6 +235,19 @@ class PermisoAusencia(models.Model):
         return 0
 
     @property
+    def descuenta_vacaciones(self):
+        """Si este permiso se descuenta del saldo de vacaciones."""
+        motivo = (self.motivo or '').lower()
+        if self.tipo in ('VACACIONES', 'VACACIONES_PAGADAS'):
+            # El abono de un feriado a vacaciones suma días; no es un día tomado
+            return not motivo.startswith('abono de vacaciones por feriado laborado')
+        if self.tipo == 'PERMISO_AUTORIZADO':
+            # Permisos antiguos registrados "a cuenta de vacaciones". Las faltas cargadas a la bolsa
+            # de horas también dicen "sin saldo de vacaciones", pero ya se cobraron en horas.
+            return 'vacaciones' in motivo and 'deuda' not in motivo
+        return False
+
+    @property
     def total_dias(self):
         """
         Días netos que efectivamente se descuentan del saldo de vacaciones:

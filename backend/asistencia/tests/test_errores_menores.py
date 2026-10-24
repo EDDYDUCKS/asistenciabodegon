@@ -98,6 +98,11 @@ class BolsaDeHorasTests(NominaTestCase):
 
 @mock.patch.dict(os.environ, {'ADMIN_PAYROLL_PIN': '554433'})
 class PagoHorasExtraTests(NominaTestCase):
+    def setUp(self):
+        super().setUp()
+        self.empleado.tarifa_hora = 60
+        self.empleado.save()
+
     def pagar(self, *autorizaciones):
         return self.client.post('/api/pagos-horas-extra/', {
             'pin': '554433', 'empleado': self.empleado.id,
@@ -119,3 +124,16 @@ class PagoHorasExtraTests(NominaTestCase):
     def test_no_se_pagan_horas_sin_aprobar(self):
         he = self.autorizacion(LUNES, estado='PENDIENTE')
         self.assertEqual(self.pagar(he).status_code, 400)
+
+    def test_servidor_calcula_monto_al_doble_de_la_tarifa(self):
+        he = self.autorizacion(LUNES)
+        res = self.pagar(he)  # la pantalla manda tarifa 50 y monto 100; se ignoran
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(float(res.json()['tarifa_hora_aplicada']), 120.0)
+        self.assertEqual(float(res.json()['monto_total']), 240.0)
+        self.assertEqual(float(res.json()['total_horas_pagadas']), 2.0)
+
+    def test_sin_tarifa_no_se_paga(self):
+        self.empleado.tarifa_hora = 0
+        self.empleado.save()
+        self.assertEqual(self.pagar(self.autorizacion(LUNES)).status_code, 400)

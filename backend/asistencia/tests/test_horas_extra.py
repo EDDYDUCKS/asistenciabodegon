@@ -4,7 +4,8 @@ Horas extra, bolsa de horas (deuda) y redondeo oficial.
 import datetime
 
 from asistencia.models import AlertaAsistencia, AutorizacionHorasExtra, CompensacionHoras
-from asistencia.views import _calcular_horas_extra_redondeadas, _procesar_compensacion_y_horas_extra
+from asistencia.views import (_calcular_horas_extra_redondeadas, _procesar_compensacion_y_horas_extra,
+                              _recalcular_horas_pendientes_empleado)
 
 from .base import DOMINGO, LUNES, MIERCOLES, NominaTestCase
 
@@ -88,10 +89,27 @@ class DeudaJornadaCortaTests(NominaTestCase):
         self.marcar(MIERCOLES, 19, 49, tipo_evento='SALIDA_DEFINITIVA')  # 7h49m
         self.assertEqual(float(self.recargar().horas_pendientes), 0.2)
 
-    def test_domingo_no_genera_deuda(self):
+    def test_domingo_salida_temprana_genera_deuda(self):
+        # El domingo cuenta igual que cualquier día si no se queda al cierre
         self.marcar(DOMINGO, 12)
         self.marcar(DOMINGO, 18, 30, tipo_evento='SALIDA_DEFINITIVA')
+        self.assertEqual(float(self.recargar().horas_pendientes), 1.5)
+
+    def test_domingo_cierre_1030_cumple_con_siete_y_media(self):
+        self.marcar(DOMINGO, 15)
+        self.marcar(DOMINGO, 22, 30)
         self.assertEqual(float(self.recargar().horas_pendientes), 0.0)
+
+    def test_domingo_cierre_con_menos_de_siete_y_media_debe_la_diferencia(self):
+        self.marcar(DOMINGO, 15, 30)
+        self.marcar(DOMINGO, 22, 30)
+        self.assertEqual(float(self.recargar().horas_pendientes), 0.5)
+
+    def test_recalculo_respeta_regla_del_domingo(self):
+        self.registrar('ENTRADA', DOMINGO, 12)
+        self.registrar('SALIDA_DEFINITIVA', DOMINGO, 18, 30)
+        _recalcular_horas_pendientes_empleado(self.empleado, DOMINGO)
+        self.assertEqual(float(self.recargar().horas_pendientes), 1.5)
 
     def test_antes_del_corte_10_octubre_no_genera_deuda(self):
         dia = datetime.date(2026, 10, 7)
