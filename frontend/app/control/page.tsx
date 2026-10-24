@@ -1649,13 +1649,13 @@ export default function BodegonControlPage() {
               </thead>
               <tbody>
                 <tr>
-                  <td><strong>💵 Ventas en Efectivo</strong></td>
+                  <td><strong>Ventas en Efectivo</strong></td>
                   <td>Ingreso físico en gaveta de caja general</td>
                   <td class="text-right font-mono">C$ ${salesCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                   <td class="text-right font-mono">${cashPct}%</td>
                 </tr>
                 <tr>
-                  <td rowspan="4"><strong>💳 Tarjetas POS (Datafast)</strong></td>
+                  <td rowspan="4"><strong>Tarjetas POS (Datafast)</strong></td>
                   <td>POS BAC Credomatic</td>
                   <td class="text-right font-mono">C$ ${cardsBAC.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                   <td class="text-right font-mono">${bacPct}%</td>
@@ -1681,7 +1681,7 @@ export default function BodegonControlPage() {
                   <td class="text-right font-mono font-bold">${cardsPct}%</td>
                 </tr>
                 <tr>
-                  <td><strong>🛵 Delivery PedidosYa</strong></td>
+                  <td><strong>Delivery PedidosYa</strong></td>
                   <td>Despachos de pedidos por aplicación digital externa</td>
                   <td class="text-right font-mono">C$ ${salesPedidosYa.toLocaleString('es-NI', { minimumFractionDigits: 2 })}</td>
                   <td class="text-right font-mono">${pedidosYaPct}%</td>
@@ -1933,32 +1933,29 @@ export default function BodegonControlPage() {
       subtitle="Ventas, ganancias y caja chica del día."
       sessionKey="bodegon_control_pin_verified"
     >
-      <div className="min-h-screen bg-crema text-stone-900 font-sans flex flex-col selection:bg-amber-100">
+      <div className="min-h-screen bg-crema text-stone-900 font-sans flex flex-col selection:bg-dorado/30">
         {/* ── TOPBAR PRINCIPAL ── */}
         <header className="bg-white border-b border-stone-200/90 sticky top-0 z-30 shadow-2xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm border border-stone-200 bg-bodegon flex items-center justify-center text-white shrink-0">
+              <div className="w-10 h-10 rounded-full overflow-hidden border border-stone-200 bg-bodegon flex items-center justify-center text-white shrink-0">
                 <Image src="/logo.png" alt="El Bodegón" width={40} height={40} className="w-full h-full object-cover" priority />
               </div>
               <div className="min-w-0 hidden sm:block">
                 <div className="flex items-center gap-2">
-                  <h1 className="font-black text-base sm:text-lg text-stone-900 tracking-tight whitespace-nowrap">
+                  <span className="font-display font-extrabold text-2xl uppercase tracking-wide text-bodegon whitespace-nowrap">
                     Bodegón Control
-                  </h1>
-                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-950 border border-amber-300">
-                    Online
                   </span>
                   <span
                     className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border items-center gap-1 ${
                       realtimeStatus === 'conectado'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                        ? 'bg-bodegon/5 text-bodegon border-bodegon/20'
+                        : 'bg-dorado/10 text-dorado-tinta border-dorado/40'
                     }`}
                   >
                     <span
                       className={`w-1.5 h-1.5 rounded-full ${
-                        realtimeStatus === 'conectado' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                        realtimeStatus === 'conectado' ? 'bg-bodegon animate-pulse' : 'bg-dorado-tinta'
                       }`}
                     />
                     <span className="hidden sm:inline">{realtimeStatus === 'conectado' ? 'En Vivo' : 'Conectando'}</span>
@@ -1999,22 +1996,22 @@ export default function BodegonControlPage() {
               <button
                 type="button"
                 onClick={handleExportarReporteCSV}
-                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                className="bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 title="Exportar reporte contable a Excel / CSV"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-                <span className="hidden lg:inline">📥 Exportar Excel</span>
+                <FileSpreadsheet className="w-4 h-4 text-bodegon" />
+                <span className="hidden lg:inline">Exportar Excel</span>
               </button>
 
               {/* Botón de Impresión Oficial B/N */}
               <button
                 type="button"
                 onClick={() => setShowModalPrint(true)}
-                className="bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                className="bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 title="Imprimir Acta Oficial en Blanco y Negro (1 o 2 Hojas)"
               >
                 <Printer className="w-4 h-4 text-stone-700" />
-                <span className="hidden lg:inline">🖨️ Imprimir Acta (B/N)</span>
+                <span className="hidden lg:inline">Imprimir acta</span>
               </button>
 
               {/* Botón único de acción permitida */}
@@ -2036,37 +2033,45 @@ export default function BodegonControlPage() {
 
         {/* ── CUERPO PRINCIPAL ── */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-5 flex-1 w-full">
+          {/* ── COMMAND CENTER EJECUTIVO (EL SEMÁFORO FINANCIERO DEL JEFE) ── */}
+          <ExecutiveSummaryBanner
+            jornadaActiva={jornadaActiva}
+            jornadas={jornadas}
+            gastos={gastos}
+            selectedDate={selectedDate}
+          />
+
           {/* ── BANNER INFORMATIVO: ESTADO DUAL DE CAJAS EN RESTAURANTE (ESTRICTAMENTE SOLO LECTURA) ── */}
-          <div className="bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-stone-100 rounded-3xl p-4 sm:p-5 shadow-sm border border-stone-800">
+          <div className="bg-white text-tinta rounded-3xl p-4 sm:p-5 border border-stone-200">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
               {/* Tarjeta 1: Caja General */}
-              <div className="flex-1 bg-stone-950/60 border border-stone-800 rounded-2xl p-3.5 flex items-center gap-3">
+              <div className="flex-1 bg-stone-50 border border-stone-200 rounded-2xl p-3.5 flex items-center gap-3">
                 <div
                   className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg shrink-0 border ${
                     todaySummary.isCajaGeneralAbierta
-                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                      : 'bg-stone-800 text-stone-400 border-stone-700'
+                      ? 'bg-bodegon/10 text-bodegon border-bodegon/25'
+                      : 'bg-white text-stone-500 border-stone-200'
                   }`}
                 >
-                  🏛️
+                  <Landmark className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-xs sm:text-sm text-white tracking-tight">
+                    <h4 className="font-bold text-sm text-tinta">
                       Caja General (Restaurante & POS)
                     </h4>
                     {todaySummary.isCajaGeneralAbierta ? (
-                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        ABIERTA HOY
+                      <span className="bg-bodegon text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                        Abierta hoy
                       </span>
                     ) : (
-                      <span className="bg-stone-800 text-stone-400 border border-stone-700 text-[9px] font-bold px-2 py-0.5 rounded-full">
-                        CERRADA
+                      <span className="bg-stone-200 text-stone-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        Cerrada
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-stone-400 mt-0.5 truncate">
+                  <p className="text-xs text-stone-500 mt-0.5 truncate">
                     {todaySummary.isCajaGeneralAbierta
                       ? `Apertura: C$ ${(todaySummary.opening?.totalOpeningNIO || Number(todaySummary.jornadaHoy?.fondo_inicial) || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })} • Resp: ${todaySummary.jornadaHoy?.responsable || 'Cajero'}`
                       : 'Arqueo de billetes y POS gestionado desde el ejecutable en caja'}
@@ -2075,33 +2080,33 @@ export default function BodegonControlPage() {
               </div>
 
               {/* Tarjeta 2: Caja Chica */}
-              <div className="flex-1 bg-stone-950/60 border border-stone-800 rounded-2xl p-3.5 flex items-center gap-3">
+              <div className="flex-1 bg-stone-50 border border-stone-200 rounded-2xl p-3.5 flex items-center gap-3">
                 <div
                   className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg shrink-0 border ${
                     todaySummary.isCajaChicaAbierta
-                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                      : 'bg-stone-800 text-stone-400 border-stone-700'
+                      ? 'bg-dorado/20 text-dorado-tinta border-dorado/40'
+                      : 'bg-white text-stone-500 border-stone-200'
                   }`}
                 >
-                  🛒
+                  <ShoppingCart className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-black text-xs sm:text-sm text-white tracking-tight">
+                    <h4 className="font-bold text-sm text-tinta">
                       Caja Chica (Compras & Gastos)
                     </h4>
                     {todaySummary.isCajaChicaAbierta ? (
-                      <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        DISPONIBLE
+                      <span className="bg-dorado-tinta text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                        Disponible
                       </span>
                     ) : (
-                      <span className="bg-stone-800 text-stone-400 border border-stone-700 text-[9px] font-bold px-2 py-0.5 rounded-full">
-                        SIN FONDO ACTIVO
+                      <span className="bg-stone-200 text-stone-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        Sin fondo activo
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-stone-400 mt-0.5 truncate">
+                  <p className="text-xs text-stone-500 mt-0.5 truncate">
                     {todaySummary.isCajaChicaAbierta
                       ? `Fondo Inicial: C$ ${metricasGastosHoy.fondoCajaChica.toLocaleString('es-NI', { minimumFractionDigits: 2 })} • En Gaveta: C$ ${metricasGastosHoy.saldoEfectivoRestante.toLocaleString('es-NI', { minimumFractionDigits: 2 })}`
                       : 'Control de compras operativas y pagos de proveedores'}
@@ -2110,13 +2115,13 @@ export default function BodegonControlPage() {
               </div>
 
               {/* Sello de seguridad: Control exclusivo en PC de caja física */}
-              <div className="hidden xl:flex items-center gap-2.5 bg-stone-950/40 border border-stone-800/80 px-3 py-2 rounded-2xl text-[11px] text-stone-400 shrink-0">
-                <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+              <div className="hidden xl:flex items-center gap-2.5 px-3 py-2 text-[11px] text-stone-500 shrink-0">
+                <ShieldCheck className="w-4 h-4 text-dorado-tinta shrink-0" />
                 <div>
-                  <span className="font-bold text-stone-200 block text-[9px] uppercase tracking-wider">
+                  <span className="font-bold text-stone-700 block text-[10px] uppercase tracking-wider">
                     Control Exclusivo en PC
                   </span>
-                  <span className="text-[9px] text-stone-500">
+                  <span className="text-[10px] text-stone-500">
                     Apertura y Cierre solo en caja física.
                   </span>
                 </div>
@@ -2126,14 +2131,14 @@ export default function BodegonControlPage() {
 
           {/* Aviso si quedó un turno de un día anterior sin cerrar formalmente */}
           {jornadaAnteriorAbierta && (
-            <div className="bg-amber-950/40 border border-amber-500/40 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-200">
+            <div className="bg-dorado/10 border border-dorado/40 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-cafe">
               <div className="flex items-center gap-2.5 text-xs">
-                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                <AlertCircle className="w-5 h-5 text-dorado-tinta shrink-0" />
                 <div>
-                  <span className="font-bold text-amber-300 block">
+                  <span className="font-bold text-cafe block">
                     Turno anterior sin cerrar formalmente: {jornadaAnteriorAbierta.fecha}
                   </span>
-                  <span className="text-[11px] text-amber-200/80">
+                  <span className="text-[11px] text-cafe/80">
                     Responsable: {jornadaAnteriorAbierta.responsable || 'Cajero'}. El restaurante ya pasó a una nueva fecha contable.
                   </span>
                 </div>
@@ -2141,73 +2146,40 @@ export default function BodegonControlPage() {
               <button
                 type="button"
                 onClick={() => handleCerrarJornadaAnterior(jornadaAnteriorAbierta)}
-                className="bg-amber-500 hover:bg-amber-400 text-stone-950 px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs shrink-0"
+                className="bg-dorado-vivo hover:bg-dorado text-stone-950 px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs shrink-0"
               >
                 Cerrar Turno Anterior
               </button>
             </div>
           )}
 
-          {/* ── COMMAND CENTER EJECUTIVO (EL SEMÁFORO FINANCIERO DEL JEFE) ── */}
-          <ExecutiveSummaryBanner
-            jornadaActiva={jornadaActiva}
-            jornadas={jornadas}
-            gastos={gastos}
-            selectedDate={selectedDate}
-          />
-
           {/* ── NAVEGACIÓN POR PESTAÑAS ── */}
-          <div className="flex items-center justify-between gap-3 border-b border-stone-200/90 pb-2">
-            <div className="flex flex-wrap items-center gap-1.5 bg-stone-100 p-1 rounded-2xl border border-stone-200/80">
-              <button
-                onClick={() => setActiveTab('VENTAS')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                  activeTab === 'VENTAS'
-                    ? 'bg-white text-stone-900 shadow-xs'
-                    : 'text-stone-500 hover:text-stone-900'
-                }`}
-              >
-                <BarChart3 className="w-3.5 h-3.5 text-amber-600" />
-                <span>🏛️ Caja General & Ventas</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('ANALITICA')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                  activeTab === 'ANALITICA'
-                    ? 'bg-white text-stone-900 shadow-xs'
-                    : 'text-stone-500 hover:text-stone-900'
-                }`}
-              >
-                <TrendingUp className="w-3.5 h-3.5 text-purple-600" />
-                <span>📈 Analítica & Proveedores</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('GASTOS')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                  activeTab === 'GASTOS'
-                    ? 'bg-white text-stone-900 shadow-xs'
-                    : 'text-stone-500 hover:text-stone-900'
-                }`}
-              >
-                <Receipt className="w-3.5 h-3.5 text-emerald-600" />
-                <span>🛒 Caja Chica & Compras ({gastosFiltrados.length})</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('CONSOLIDADO')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                  activeTab === 'CONSOLIDADO'
-                    ? 'bg-white text-stone-900 shadow-xs'
-                    : 'text-stone-500 hover:text-stone-900'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                <span>📊 Tabla Consolidada</span>
-              </button>
-            </div>
-          </div>
+          <nav className="border-b border-stone-200 flex gap-1 overflow-x-auto no-scrollbar" aria-label="Secciones de control">
+            {([
+              ['VENTAS', 'Caja general y ventas', BarChart3],
+              ['ANALITICA', 'Analítica y proveedores', TrendingUp],
+              ['GASTOS', `Caja chica y compras (${gastosFiltrados.length})`, Receipt],
+              ['CONSOLIDADO', 'Tabla consolidada', Layers],
+            ] as const).map(([id, label, Icon]) => {
+              const activo = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setActiveTab(id)}
+                  aria-current={activo ? 'page' : undefined}
+                  className={`-mb-px px-4 py-3 border-b-[3px] text-sm whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                    activo
+                      ? 'border-dorado text-bodegon font-bold'
+                      : 'border-transparent text-stone-600 font-semibold hover:text-tinta hover:border-stone-300'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </nav>
 
           {/* ── BARRA MAESTRA DE CONTROL DE FECHA (PARA GASTOS Y CONSOLIDADO) ── */}
           {(activeTab === 'GASTOS' || activeTab === 'CONSOLIDADO') && (
@@ -2219,18 +2191,18 @@ export default function BodegonControlPage() {
                 title="Ir al día anterior"
               >
                 <ChevronLeft className="w-5 h-5 text-stone-700" />
-                <span>◀ DÍA ANTERIOR</span>
+                <span>Día anterior</span>
               </button>
 
               {/* Display Central Grande con Fecha Completa */}
-              <div className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-3.5 py-1.5 px-4 bg-amber-50/70 rounded-2xl border border-amber-200">
+              <div className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-3.5 py-1.5 px-4 bg-dorado/7 rounded-2xl border border-dorado/40">
                 <div className="text-center sm:text-left">
                   <div className="flex items-center justify-center sm:justify-start gap-2">
-                    <span className="text-[11px] font-black uppercase text-amber-900 tracking-wider">
+                    <span className="text-[11px] font-black uppercase text-cafe tracking-wider">
                       Viendo fecha:
                     </span>
                     {selectedDate === hoyStr ? (
-                      <span className="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                      <span className="bg-bodegon text-white text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
                         <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                         HOY (EN VIVO)
                       </span>
@@ -2251,8 +2223,8 @@ export default function BodegonControlPage() {
                 </div>
 
                 {/* Selector de calendario grande */}
-                <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-stone-300 shadow-2xs hover:border-amber-500 transition">
-                  <Calendar className="w-5 h-5 text-amber-700 shrink-0" />
+                <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-stone-300 shadow-2xs hover:border-dorado transition">
+                  <Calendar className="w-5 h-5 text-dorado-tinta shrink-0" />
                   <input
                     type="date"
                     value={selectedDate}
@@ -2270,7 +2242,7 @@ export default function BodegonControlPage() {
                   className="flex-1 md:flex-initial flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-stone-800 px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition cursor-pointer border border-stone-300 shadow-2xs"
                   title="Ir al día siguiente"
                 >
-                  <span>DÍA SIGUIENTE ▶</span>
+                  <span>Día siguiente</span>
                   <ChevronRight className="w-5 h-5 text-stone-700" />
                 </button>
 
@@ -2278,21 +2250,21 @@ export default function BodegonControlPage() {
                   onClick={() => setSelectedDate(hoyStr)}
                   className={`px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm flex items-center justify-center gap-1.5 ${
                     selectedDate === hoyStr
-                      ? 'bg-amber-500 text-stone-950 border border-amber-600 shadow-md ring-2 ring-amber-300'
+                      ? 'bg-dorado-vivo text-tinta'
                       : 'bg-bodegon hover:bg-bodegon-noche text-white'
                   }`}
                   title="Regresar a la fecha de hoy"
                 >
-                  <span>⚡ VER HOY</span>
+                  <span>Ver hoy</span>
                 </button>
 
                 <button
                   onClick={() => setShowModalPrint(true)}
-                  className="px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm flex items-center justify-center gap-2 bg-stone-900 hover:bg-black text-white border border-stone-800"
+                  className="px-4 sm:px-5 py-3 rounded-2xl text-xs sm:text-sm font-black transition cursor-pointer shadow-sm flex items-center justify-center gap-2 bg-white hover:bg-stone-50 text-stone-800 border border-stone-300"
                   title="Imprimir Acta Oficial en Blanco y Negro de este día"
                 >
-                  <Printer className="w-4.5 h-4.5 text-amber-400" />
-                  <span>🖨️ IMPRIMIR DÍA</span>
+                  <Printer className="w-4.5 h-4.5 text-bodegon" />
+                  <span>Imprimir día</span>
                 </button>
               </div>
             </div>
@@ -2351,49 +2323,49 @@ export default function BodegonControlPage() {
                 </div>
 
                 {/* Tarjeta 2: Egresos en Efectivo */}
-                <div className="bg-white border border-rose-200 rounded-2xl p-4 shadow-2xs bg-rose-50/20">
-                  <div className="flex items-center justify-between gap-2 text-rose-800 text-xs font-black uppercase tracking-wider">
-                    <span>2. Egresos en Efectivo (🔴 Gaveta)</span>
-                    <Banknote className="w-4 h-4 text-rose-600" />
+                <div className="bg-white border border-barro/25 rounded-2xl p-4 shadow-2xs bg-barro/2">
+                  <div className="flex items-center justify-between gap-2 text-barro text-xs font-black uppercase tracking-wider">
+                    <span>2. Egresos en efectivo (gaveta)</span>
+                    <Banknote className="w-4 h-4 text-barro" />
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black font-mono text-rose-700">
+                    <span className="text-2xl font-black font-mono text-barro">
                       -C$ {metricasGastosDia.efectivo.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
-                  <p className="text-[11px] text-rose-600 mt-1 font-bold">
+                  <p className="text-[11px] text-barro mt-1 font-bold">
                     Salidas físicas reales de la gaveta de compras
                   </p>
                 </div>
 
                 {/* Tarjeta 3: Pagos Banco & Tarjetas */}
-                <div className="bg-white border border-sky-200 rounded-2xl p-4 shadow-2xs bg-sky-50/20">
-                  <div className="flex items-center justify-between gap-2 text-sky-800 text-xs font-black uppercase tracking-wider">
-                    <span>3. Banco & Tarjetas (🏦 / 💳 Digital)</span>
-                    <Send className="w-4 h-4 text-sky-600" />
+                <div className="bg-white border border-stone-200 rounded-2xl p-4 shadow-2xs bg-stone-50/20">
+                  <div className="flex items-center justify-between gap-2 text-stone-800 text-xs font-black uppercase tracking-wider">
+                    <span>3. Banco y tarjetas (digital)</span>
+                    <Send className="w-4 h-4 text-stone-600" />
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black font-mono text-sky-700">
+                    <span className="text-2xl font-black font-mono text-stone-700">
                       C$ {metricasGastosDia.bancoYTarjeta.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
-                  <p className="text-[11px] text-sky-700 mt-1 font-bold">
+                  <p className="text-[11px] text-stone-700 mt-1 font-bold">
                     Transf: C$ {metricasGastosDia.transferencia.toLocaleString('es-NI')} • Tarj: C$ {metricasGastosDia.tarjeta.toLocaleString('es-NI')} • <span className="underline">NO resta de gaveta</span>
                   </p>
                 </div>
 
                 {/* Tarjeta 4: Efectivo Físico en Gaveta */}
-                <div className="bg-white border-2 border-emerald-400 rounded-2xl p-4 shadow-sm bg-emerald-50/40">
-                  <div className="flex items-center justify-between gap-2 text-emerald-900 text-xs font-black uppercase tracking-wider">
-                    <span>4. Efectivo Físico en Gaveta (✅ En Mano)</span>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <div className="bg-white border-2 border-bodegon/60 rounded-2xl p-4 shadow-sm bg-bodegon/2">
+                  <div className="flex items-center justify-between gap-2 text-bodegon-noche text-xs font-black uppercase tracking-wider">
+                    <span>4. Efectivo físico en gaveta</span>
+                    <CheckCircle2 className="w-4 h-4 text-bodegon" />
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black font-mono text-emerald-800">
+                    <span className="text-2xl font-black font-mono text-bodegon">
                       C$ {metricasGastosDia.saldoEfectivoRestante.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
-                  <p className="text-[11px] text-emerald-700 mt-1 font-bold">
+                  <p className="text-[11px] text-bodegon mt-1 font-bold">
                     Dinero real en billetes y monedas en mano
                   </p>
                 </div>
@@ -2402,7 +2374,6 @@ export default function BodegonControlPage() {
               {/* Barra Informativa de Compras Consolidadas */}
               <div className="bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2 text-stone-700 font-bold">
-                  <span>🛒</span>
                   <span>Compras Totales de la Empresa:</span>
                   <span className="font-mono font-black text-stone-900 text-sm">
                     C$ {metricasGastosDia.total.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
@@ -2412,8 +2383,8 @@ export default function BodegonControlPage() {
                   </span>
                 </div>
                 {metricasGastosDia.pendientesCount > 0 && (
-                  <div className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300">
-                    ⚠️ {metricasGastosDia.pendientesCount} transferencia(s) pendiente(s) por emitir (C$ {metricasGastosDia.pendientesMonto.toLocaleString('es-NI')})
+                  <div className="text-[11px] font-bold text-dorado-tinta bg-dorado/20 px-2 py-0.5 rounded-md border border-dorado/60">
+                    {metricasGastosDia.pendientesCount} transferencia(s) pendiente(s) por emitir (C$ {metricasGastosDia.pendientesMonto.toLocaleString('es-NI')})
                   </div>
                 )}
               </div>
@@ -2445,9 +2416,9 @@ export default function BodegonControlPage() {
                       className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900"
                     >
                       <option value="TODOS">Todos</option>
-                      <option value="EFECTIVO">💵 Solo Efectivo (Gaveta)</option>
-                      <option value="TRANSFERENCIA">🏦 Solo Transferencias (Banco)</option>
-                      <option value="TARJETA">💳 Solo Tarjetas (POS / Banco)</option>
+                      <option value="EFECTIVO">Solo Efectivo (Gaveta)</option>
+                      <option value="TRANSFERENCIA">Solo Transferencias (Banco)</option>
+                      <option value="TARJETA">Solo Tarjetas (POS / Banco)</option>
                     </select>
                   </div>
 
@@ -2459,8 +2430,8 @@ export default function BodegonControlPage() {
                       className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-stone-900"
                     >
                       <option value="TODOS">Todos</option>
-                      <option value="PAGADO">✓ Pagado</option>
-                      <option value="PENDIENTE_TRANSFERENCIA">⚠️ Falta Transferir</option>
+                      <option value="PAGADO">Pagado</option>
+                      <option value="PENDIENTE_TRANSFERENCIA">Falta Transferir</option>
                     </select>
                   </div>
                 </div>
@@ -2498,19 +2469,19 @@ export default function BodegonControlPage() {
               {/* ══════════════════════════════════════════════════════════════════ */}
               <div className="bg-white border-2 border-stone-300 rounded-2xl shadow-sm overflow-hidden font-sans">
                 {/* Cabecera superior del Libro Diario estilo Hoja de Cálculo */}
-                <div className="bg-stone-800 text-white px-5 py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b-2 border-stone-700">
+                <div className="bg-stone-50 text-tinta px-5 py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-stone-200">
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">📊</span>
+                    <Layers className="w-6 h-6 text-bodegon" />
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm md:text-base font-black uppercase tracking-wider text-amber-400">
+                        <h3 className="text-sm md:text-base font-black uppercase tracking-wider text-bodegon">
                           {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-NI', { weekday: 'long', day: '2-digit', month: '2-digit', year: '2-digit' }).toUpperCase()}
                         </h3>
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-stone-700 text-stone-200 border border-stone-600">
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-white text-stone-600 border border-stone-200">
                           LIBRO DIARIO DE CAJA CHICA
                         </span>
                       </div>
-                      <p className="text-[11px] text-stone-300 mt-0.5">
+                      <p className="text-[11px] text-stone-500 mt-0.5">
                         Arqueo y control continuo de gastos físicos en gaveta vs pagos bancarios
                       </p>
                     </div>
@@ -2521,10 +2492,10 @@ export default function BodegonControlPage() {
                     <button
                       type="button"
                       onClick={() => setSortChronological(!sortChronological)}
-                      className="px-3 py-1.5 rounded-xl bg-stone-700 hover:bg-stone-600 text-stone-200 text-xs font-bold flex items-center gap-1.5 transition border border-stone-600 cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl bg-white hover:bg-stone-100 text-stone-700 text-xs font-bold flex items-center gap-1.5 border border-stone-300 cursor-pointer"
                       title="Cambiar orden de las filas"
                     >
-                      <span>{sortChronological ? '⏱️ Mañana ➔ Noche (Excel)' : '🔻 Más reciente primero'}</span>
+                      <span>{sortChronological ? 'Mañana a noche (Excel)' : 'Más reciente primero'}</span>
                     </button>
 
                     <button
@@ -2537,10 +2508,10 @@ export default function BodegonControlPage() {
                         setProveedor('');
                         setShowModalGasto(true);
                       }}
-                      className="bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                      className="bg-dorado-vivo hover:bg-dorado text-stone-950 font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>+ Registrar Compra</span>
+                      <span>Registrar compra</span>
                     </button>
 
                     <button
@@ -2554,10 +2525,10 @@ export default function BodegonControlPage() {
                         setMetodoPago('EFECTIVO');
                         setShowModalGasto(true);
                       }}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                      className="bg-bodegon hover:bg-bodegon text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>+ Depósito Caja Chica</span>
+                      <span>Depósito a caja chica</span>
                     </button>
                   </div>
                 </div>
@@ -2570,10 +2541,10 @@ export default function BodegonControlPage() {
                         <th className="py-2.5 px-3 border-r border-stone-300 text-center w-14"># / Hora</th>
                         <th className="py-2.5 px-4 border-r border-stone-300 min-w-[240px]">Concepto</th>
                         <th className="py-2.5 px-3 border-r border-stone-300 text-center min-w-[130px]">TIPO DE PAGO</th>
-                        <th className="py-2.5 px-3 border-r border-stone-300 text-right min-w-[125px] bg-sky-50/60">MONTO TOTAL</th>
-                        <th className="py-2.5 px-3 border-r border-stone-300 text-right min-w-[130px] bg-emerald-50/60">Reemb. A Caja Chica</th>
-                        <th className="py-2.5 px-3 border-r border-stone-300 text-right min-w-[125px] bg-rose-50/60">Gastos Caja Ch.</th>
-                        <th className="py-2.5 px-4 border-r border-stone-300 text-right min-w-[135px] bg-amber-50/70 font-black text-stone-900">Saldo</th>
+                        <th className="py-2.5 px-3 border-r border-stone-300 text-right min-w-[125px] bg-stone-50/60">MONTO TOTAL</th>
+                        <th className="py-2.5 px-3 border-r border-stone-300 text-right min-w-[130px] bg-bodegon/3">Reemb. A Caja Chica</th>
+                        <th className="py-2.5 px-3 border-r border-stone-300 text-right min-w-[125px] bg-barro/3">Gastos Caja Ch.</th>
+                        <th className="py-2.5 px-4 border-r border-stone-300 text-right min-w-[135px] bg-dorado/7 font-black text-stone-900">Saldo</th>
                         <th className="py-2.5 px-3 text-center w-20">Acciones</th>
                       </tr>
                     </thead>
@@ -2581,7 +2552,7 @@ export default function BodegonControlPage() {
                       {ledgerItems.length === 0 ? (
                         <tr>
                           <td colSpan={8} className="py-12 text-center text-stone-400">
-                            <span className="text-4xl block mb-2">📋</span>
+                            <Receipt className="w-9 h-9 mx-auto mb-2 text-stone-300" />
                             <p className="font-black text-stone-700 text-sm">
                               No hay movimientos registrados para el {selectedDate}.
                             </p>
@@ -2597,17 +2568,17 @@ export default function BodegonControlPage() {
                               key={item.id}
                               className={`transition-colors border-b border-stone-200 ${
                                 isOpening
-                                  ? 'bg-amber-50/40 font-semibold'
+                                  ? 'bg-dorado/4 font-semibold'
                                   : isTransfer
-                                  ? 'bg-sky-50/20 hover:bg-sky-50/40'
+                                  ? 'bg-stone-50/20 hover:bg-stone-50/40'
                                   : item.tipoPago === 'TARJETA'
-                                  ? 'bg-purple-50/20 hover:bg-purple-50/40'
+                                  ? 'bg-stone-50/20 hover:bg-stone-50/40'
                                   : 'hover:bg-stone-50'
                               }`}
                             >
                               {/* # / Hora */}
                               <td className="py-2.5 px-3 border-r border-stone-200 font-mono text-center text-[11px] text-stone-500">
-                                {isOpening ? '🏁' : item.hora}
+                                {isOpening ? 'Inicio' : item.hora}
                               </td>
 
                               {/* Concepto */}
@@ -2629,18 +2600,15 @@ export default function BodegonControlPage() {
                               {/* TIPO DE PAGO */}
                               <td className="py-2.5 px-3 border-r border-stone-200 text-center font-bold text-[11px]">
                                 {isTransfer ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100 text-sky-900 border border-sky-300">
-                                    <span>🏦</span>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 text-stone-900 border border-stone-300">
                                     <span>Transferencia</span>
                                   </span>
                                 ) : item.tipoPago === 'TARJETA' ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-900 border border-purple-300 font-medium">
-                                    <span>💳</span>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 text-stone-900 border border-stone-300 font-medium">
                                     <span>Tarjeta</span>
                                   </span>
                                 ) : item.tipoPago === 'EFECTIVO' ? (
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 border border-stone-200 font-mono">
-                                    <span>💵</span>
                                     <span>Efectivo</span>
                                   </span>
                                 ) : (
@@ -2649,7 +2617,7 @@ export default function BodegonControlPage() {
                               </td>
 
                               {/* MONTO TOTAL (Banco) */}
-                              <td className="py-2.5 px-3 border-r border-stone-200 text-right font-mono font-bold text-[12px] bg-sky-50/20 text-sky-900">
+                              <td className="py-2.5 px-3 border-r border-stone-200 text-right font-mono font-bold text-[12px] bg-stone-50/20 text-stone-900">
                                 {item.montoTotalBanco !== null ? (
                                   `C$ ${item.montoTotalBanco.toLocaleString('es-NI', { minimumFractionDigits: 2 })}`
                                 ) : (
@@ -2658,7 +2626,7 @@ export default function BodegonControlPage() {
                               </td>
 
                               {/* Reemb. A Caja Chica (Entradas / Depósitos) */}
-                              <td className="py-2.5 px-3 border-r border-stone-200 text-right font-mono font-bold text-[12px] bg-emerald-50/20 text-emerald-800">
+                              <td className="py-2.5 px-3 border-r border-stone-200 text-right font-mono font-bold text-[12px] bg-bodegon/2 text-bodegon">
                                 {item.reembolsoCajaChica !== null ? (
                                   `C$ ${item.reembolsoCajaChica.toLocaleString('es-NI', { minimumFractionDigits: 2 })}`
                                 ) : (
@@ -2667,7 +2635,7 @@ export default function BodegonControlPage() {
                               </td>
 
                               {/* Gastos Caja Ch. (Salidas de Gaveta) */}
-                              <td className="py-2.5 px-3 border-r border-stone-200 text-right font-mono font-bold text-[12px] bg-rose-50/20 text-rose-800">
+                              <td className="py-2.5 px-3 border-r border-stone-200 text-right font-mono font-bold text-[12px] bg-barro/2 text-barro">
                                 {item.gastosCajaChica !== null ? (
                                   `C$ ${item.gastosCajaChica.toLocaleString('es-NI', { minimumFractionDigits: 2 })}`
                                 ) : (
@@ -2676,7 +2644,7 @@ export default function BodegonControlPage() {
                               </td>
 
                               {/* Saldo (Running Balance de Gaveta) */}
-                              <td className="py-2.5 px-4 border-r border-stone-200 text-right font-mono font-black text-sm bg-amber-50/30 text-stone-900">
+                              <td className="py-2.5 px-4 border-r border-stone-200 text-right font-mono font-black text-sm bg-dorado/3 text-stone-900">
                                 C$ {item.saldoGaveta.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                               </td>
 
@@ -2686,7 +2654,7 @@ export default function BodegonControlPage() {
                                   {item.fotoComprobante && (
                                     <button
                                       onClick={() => setFotoModalUrl(item.fotoComprobante!)}
-                                      className="p-1 rounded hover:bg-stone-200 text-amber-700 cursor-pointer"
+                                      className="p-1 rounded hover:bg-stone-200 text-dorado-tinta cursor-pointer"
                                       title="Ver Comprobante / Recibo"
                                     >
                                       <Camera className="w-3.5 h-3.5" />
@@ -2695,7 +2663,7 @@ export default function BodegonControlPage() {
                                   {item.rawGasto && (
                                     <button
                                       onClick={() => handleEliminarGasto(item.rawGasto!)}
-                                      className="p-1 rounded hover:bg-rose-100 text-stone-400 hover:text-rose-600 cursor-pointer"
+                                      className="p-1 rounded hover:bg-barro/10 text-stone-400 hover:text-barro cursor-pointer"
                                       title="Eliminar este gasto"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -2716,16 +2684,16 @@ export default function BodegonControlPage() {
                         <td colSpan={3} className="py-3 px-4 border-r border-stone-300 text-right uppercase tracking-wider">
                           TOTALES DEL DÍA:
                         </td>
-                        <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-sky-100/70 text-sky-950 font-black">
+                        <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-stone-100/70 text-stone-950 font-black">
                           C$ {metricasGastosDia.bancoYTarjeta.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-emerald-100/70 text-emerald-950 font-black">
+                        <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-bodegon/7 text-bodegon-noche font-black">
                           C$ {metricasGastosDia.totalEntradas.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-rose-100/70 text-rose-950 font-black">
+                        <td className="py-3 px-3 border-r border-stone-300 text-right font-mono text-[13px] bg-barro/7 text-barro font-black">
                           C$ {metricasGastosDia.efectivo.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="py-3 px-4 border-r border-stone-300 text-right font-mono text-base bg-emerald-200/90 text-emerald-950 font-black ring-2 ring-emerald-500/50">
+                        <td className="py-3 px-4 border-r border-stone-300 text-right font-mono text-base bg-bodegon/18 text-bodegon-noche font-black ring-2 ring-bodegon/50">
                           C$ {metricasGastosDia.saldoEfectivoRestante.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-3 text-center bg-stone-100 text-[10px] text-stone-500 font-bold">
@@ -2766,7 +2734,7 @@ export default function BodegonControlPage() {
                         <th className="py-3 px-4 text-right">Tarjetas POS (C$)</th>
                         <th className="py-3 px-4 text-right">Delivery (C$)</th>
                         <th className="py-3 px-4 text-right font-black">Ventas Brutas (C$)</th>
-                        <th className="py-3 px-4 text-right text-rose-700">Gastos (C$)</th>
+                        <th className="py-3 px-4 text-right text-barro">Gastos (C$)</th>
                         <th className="py-3 px-4 text-right font-black">Ganancia Neta (C$)</th>
                         <th className="py-3 px-4 text-center">Acción</th>
                       </tr>
@@ -2781,7 +2749,7 @@ export default function BodegonControlPage() {
                             key={day.date}
                             onClick={() => setSelectedDate(day.date)}
                             className={`hover:bg-stone-50/70 transition-colors cursor-pointer ${
-                              isSelected ? 'bg-amber-50/30 font-semibold' : ''
+                              isSelected ? 'bg-dorado/3 font-semibold' : ''
                             }`}
                           >
                             <td className="py-3 px-4 font-mono font-bold text-stone-900">
@@ -2791,31 +2759,31 @@ export default function BodegonControlPage() {
                               <span
                                 className={`inline-block px-2 py-0.5 rounded text-[10px] font-black border ${
                                   isAbierta
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                    ? 'bg-bodegon/5 text-bodegon border-bodegon/35'
                                     : 'bg-stone-100 text-stone-600 border-stone-200'
                                 }`}
                               >
                                 {isAbierta ? 'ABIERTA' : 'CERRADA'}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-right font-mono text-emerald-700">
+                            <td className="py-3 px-4 text-right font-mono text-bodegon">
                               C$ {day.sales.salesCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-3 px-4 text-right font-mono text-indigo-700">
+                            <td className="py-3 px-4 text-right font-mono text-stone-700">
                               C$ {day.sales.totalCards.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-3 px-4 text-right font-mono text-amber-700">
+                            <td className="py-3 px-4 text-right font-mono text-dorado-tinta">
                               C$ {day.sales.salesPedidosYa.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                             </td>
                             <td className="py-3 px-4 text-right font-mono font-black text-stone-900">
                               C$ {day.sales.totalGrossSales.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-3 px-4 text-right font-mono font-bold text-rose-700">
+                            <td className="py-3 px-4 text-right font-mono font-bold text-barro">
                               C$ {day.expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                             </td>
                             <td className="py-3 px-4 text-right font-mono font-black">
                               <span
-                                className={day.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}
+                                className={day.netProfit >= 0 ? 'text-bodegon' : 'text-barro'}
                               >
                                 C$ {day.netProfit.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                               </span>
@@ -2829,7 +2797,7 @@ export default function BodegonControlPage() {
                                 }}
                                 className="text-[10px] font-bold text-bodegon hover:underline"
                               >
-                                Ver Dashboard ➜
+                                Ver Dashboard
                               </button>
                             </td>
                           </tr>
@@ -2849,18 +2817,18 @@ export default function BodegonControlPage() {
         {showModalGasto && (
           <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95">
-              <div className={`${modalTipoMovimiento === 'FONDEO' ? 'bg-emerald-800' : 'bg-bodegon'} text-white p-4.5 flex items-center justify-between transition-colors`}>
+              <div className={`${modalTipoMovimiento === 'FONDEO' ? 'bg-bodegon-noche' : 'bg-bodegon'} text-white p-4.5 flex items-center justify-between transition-colors`}>
                 <h3 className="font-bold text-sm flex items-center gap-2">
                   <Plus className="w-4 h-4" />
                   <span>
                     {modalTipoMovimiento === 'FONDEO'
-                      ? '💵 Registrar Entrada / Depósito a Caja Chica'
-                      : '🛒 Registrar Compra / Gasto de Insumos'}
+                      ? 'Registrar Entrada / Depósito a Caja Chica'
+                      : 'Registrar Compra / Gasto de Insumos'}
                   </span>
                 </h3>
                 <button
                   onClick={() => setShowModalGasto(false)}
-                  className="text-emerald-100 hover:text-white cursor-pointer"
+                  className="text-[#CFE3DC] hover:text-white cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -2881,7 +2849,6 @@ export default function BodegonControlPage() {
                         : 'text-stone-500 hover:text-stone-900'
                     }`}
                   >
-                    <span>🛒</span>
                     <span>Gasto / Compra (- Salida)</span>
                   </button>
 
@@ -2896,11 +2863,10 @@ export default function BodegonControlPage() {
                     }}
                     className={`py-2 text-xs font-black rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 ${
                       modalTipoMovimiento === 'FONDEO'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-stone-500 hover:text-emerald-700'
+                        ? 'bg-bodegon text-white shadow-xs'
+                        : 'text-stone-500 hover:text-bodegon'
                     }`}
                   >
-                    <span>💵</span>
                     <span>Depósito / Fondeo (+ Entrada)</span>
                   </button>
                 </div>
@@ -2908,7 +2874,7 @@ export default function BodegonControlPage() {
 
               <form onSubmit={handleGuardarGasto} className="p-5 space-y-4 text-xs">
                 {errorMsg && (
-                  <div className="bg-rose-50 text-rose-700 border border-rose-200 p-2.5 rounded-xl flex items-center gap-2">
+                  <div className="bg-barro/5 text-barro border border-barro/25 p-2.5 rounded-xl flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
                     <span>{errorMsg}</span>
                   </div>
@@ -2934,8 +2900,7 @@ export default function BodegonControlPage() {
                   <div>
                     <label className="block text-stone-700 font-bold mb-1">Categoría</label>
                     {modalTipoMovimiento === 'FONDEO' ? (
-                      <div className="w-full bg-emerald-50 border border-emerald-300 rounded-xl px-3 py-2 text-emerald-900 font-black flex items-center gap-1.5">
-                        <span>💵</span>
+                      <div className="w-full bg-bodegon/5 border border-bodegon/35 rounded-xl px-3 py-2 text-bodegon-noche font-black flex items-center gap-1.5">
                         <span>FONDEO (Entrada Caja)</span>
                       </div>
                     ) : (
@@ -3008,9 +2973,9 @@ export default function BodegonControlPage() {
                       onChange={(e) => setMetodoPago(e.target.value as any)}
                       className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-stone-900 font-bold"
                     >
-                      <option value="EFECTIVO">💵 Efectivo (Gaveta Física)</option>
-                      <option value="TRANSFERENCIA">📲 Transferencia Bancaria</option>
-                      <option value="TARJETA">💳 Tarjeta (POS Débito/Crédito)</option>
+                      <option value="EFECTIVO">Efectivo (Gaveta Física)</option>
+                      <option value="TRANSFERENCIA">Transferencia Bancaria</option>
+                      <option value="TARJETA">Tarjeta (POS Débito/Crédito)</option>
                     </select>
                   </div>
 
@@ -3027,12 +2992,11 @@ export default function BodegonControlPage() {
 
                 <div className={`p-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 ${
                   modalTipoMovimiento === 'FONDEO'
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                    ? 'bg-bodegon/5 border-bodegon/35 text-bodegon-noche'
                     : metodoPago === 'EFECTIVO' 
-                      ? 'bg-rose-50 border-rose-200 text-rose-800' 
-                      : 'bg-sky-50 border-sky-200 text-sky-800'
+                      ? 'bg-barro/5 border-barro/25 text-barro' 
+                      : 'bg-stone-50 border-stone-200 text-stone-800'
                 }`}>
-                  <span>{modalTipoMovimiento === 'FONDEO' ? '🟢' : (metodoPago === 'EFECTIVO' ? '🔴' : '🔵')}</span>
                   <span>
                     {modalTipoMovimiento === 'FONDEO'
                       ? 'Impacto en Arqueo: ENTRADA / SUMA directamente al efectivo disponible en la gaveta de caja chica.'
@@ -3051,8 +3015,8 @@ export default function BodegonControlPage() {
                         onChange={(e) => setEstadoPago(e.target.value as any)}
                         className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1.5 text-stone-900 font-bold"
                       >
-                        <option value="PAGADO">✓ Ya Transferido</option>
-                        <option value="PENDIENTE_TRANSFERENCIA">⚠️ Pendiente de Transferir</option>
+                        <option value="PAGADO">Ya Transferido</option>
+                        <option value="PENDIENTE_TRANSFERENCIA">Pendiente de Transferir</option>
                       </select>
                     </div>
 
@@ -3091,7 +3055,7 @@ export default function BodegonControlPage() {
                     className="w-full text-stone-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-bodegon/10 file:text-bodegon hover:file:bg-bodegon/20 cursor-pointer"
                   />
                   {fotoBase64 && (
-                    <p className="text-[10px] text-emerald-600 font-bold mt-1">✓ Imagen adjunta lista para sincronizar</p>
+                    <p className="text-[10px] text-bodegon font-bold mt-1">Imagen adjunta lista para sincronizar</p>
                   )}
                 </div>
 
@@ -3106,7 +3070,7 @@ export default function BodegonControlPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className={`${modalTipoMovimiento === 'FONDEO' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-bodegon hover:bg-bodegon-noche'} text-white px-5 py-2 rounded-xl font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50`}
+                    className={`${modalTipoMovimiento === 'FONDEO' ? 'bg-bodegon hover:bg-bodegon' : 'bg-bodegon hover:bg-bodegon-noche'} text-white px-5 py-2 rounded-xl font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50`}
                   >
                     {submitting
                       ? 'Guardando en la Nube...'
@@ -3134,7 +3098,7 @@ export default function BodegonControlPage() {
             >
               <div className="bg-bodegon text-white p-4.5 flex items-center justify-between">
                 <h3 className="font-bold text-sm flex items-center gap-2">
-                  <Info className="w-4 h-4 text-amber-300" />
+                  <Info className="w-4 h-4 text-dorado-vivo" />
                   <span>
                     {activeDetailModal === 'CASH' && 'Detalle: Ventas en Efectivo'}
                     {activeDetailModal === 'CARDS' && 'Detalle: Tarjetas POS Datafast'}
@@ -3149,7 +3113,7 @@ export default function BodegonControlPage() {
                 </h3>
                 <button
                   onClick={() => setActiveDetailModal(null)}
-                  className="text-emerald-100 hover:text-white cursor-pointer"
+                  className="text-[#CFE3DC] hover:text-white cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -3169,7 +3133,7 @@ export default function BodegonControlPage() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center py-2 border-b border-stone-100">
                       <span className="text-stone-600">Total Efectivo Recaudado:</span>
-                      <span className="font-mono font-black text-emerald-700 text-base">
+                      <span className="font-mono font-black text-bodegon text-base">
                         C$ {selectedDayData.sales.salesCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -3186,38 +3150,38 @@ export default function BodegonControlPage() {
                   activeDetailModal === 'BANPRO' ||
                   activeDetailModal === 'LAFISE') && (
                   <div className="space-y-2.5">
-                    <div className="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 flex justify-between items-center">
-                      <span className="font-bold text-indigo-950">Total Tarjetas POS:</span>
-                      <span className="font-mono font-black text-indigo-900 text-lg">
+                    <div className="bg-stone-50 p-3 rounded-2xl border border-stone-100 flex justify-between items-center">
+                      <span className="font-bold text-stone-950">Total Tarjetas POS:</span>
+                      <span className="font-mono font-black text-stone-900 text-lg">
                         C$ {selectedDayData.sales.totalCards.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
 
                     <div className="space-y-1.5 pt-2">
-                      <div className="flex justify-between items-center p-2 rounded-xl bg-rose-50 border border-rose-100">
-                        <span className="font-bold text-rose-900">🔴 BAC Credomatic</span>
-                        <span className="font-mono font-black text-rose-950">
+                      <div className="flex justify-between items-center p-2 rounded-xl bg-barro/5 border border-barro/20">
+                        <span className="font-bold text-barro">BAC Credomatic</span>
+                        <span className="font-mono font-black text-barro">
                           C$ {selectedDayData.sales.cardsBAC.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
 
-                      <div className="flex justify-between items-center p-2 rounded-xl bg-sky-50 border border-sky-100">
-                        <span className="font-bold text-sky-900">🔵 Banco Ficohsa</span>
-                        <span className="font-mono font-black text-sky-950">
+                      <div className="flex justify-between items-center p-2 rounded-xl bg-stone-50 border border-stone-100">
+                        <span className="font-bold text-stone-900">Banco Ficohsa</span>
+                        <span className="font-mono font-black text-stone-950">
                           C$ {selectedDayData.sales.cardsFicohsa.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
 
-                      <div className="flex justify-between items-center p-2 rounded-xl bg-emerald-50 border border-emerald-100">
-                        <span className="font-bold text-emerald-900">🟢 Banpro Grupo Promerica</span>
-                        <span className="font-mono font-black text-emerald-950">
+                      <div className="flex justify-between items-center p-2 rounded-xl bg-bodegon/5 border border-bodegon/15">
+                        <span className="font-bold text-bodegon-noche">Banpro Grupo Promerica</span>
+                        <span className="font-mono font-black text-bodegon-noche">
                           C$ {selectedDayData.sales.cardsBanpro.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
 
-                      <div className="flex justify-between items-center p-2 rounded-xl bg-amber-50 border border-amber-100">
-                        <span className="font-bold text-amber-900">🟡 Banco LAFISE Bancentro</span>
-                        <span className="font-mono font-black text-amber-950">
+                      <div className="flex justify-between items-center p-2 rounded-xl bg-dorado/10 border border-dorado/30">
+                        <span className="font-bold text-cafe">Banco LAFISE Bancentro</span>
+                        <span className="font-mono font-black text-cafe">
                           C$ {selectedDayData.sales.cardsLafise.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
@@ -3229,7 +3193,7 @@ export default function BodegonControlPage() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center py-2 border-b border-stone-100">
                       <span className="text-stone-600">Total Delivery PedidosYa:</span>
-                      <span className="font-mono font-black text-amber-700 text-base">
+                      <span className="font-mono font-black text-dorado-tinta text-base">
                         C$ {selectedDayData.sales.salesPedidosYa.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -3272,20 +3236,20 @@ export default function BodegonControlPage() {
                   <div className="space-y-2.5">
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-100">
                       <span>(+) Ventas Brutas Totales:</span>
-                      <span className="font-mono font-bold text-emerald-700">
+                      <span className="font-mono font-bold text-bodegon">
                         C$ {selectedDayData.sales.totalGrossSales.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
                     <div className="flex justify-between items-center py-1.5 border-b border-stone-100">
                       <span>(-) Total Gastos Compras (Efectivo & Bancos):</span>
-                      <span className="font-mono font-bold text-rose-700">
+                      <span className="font-mono font-bold text-barro">
                         C$ {selectedDayData.expensesTotal.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
                     {Boolean(selectedDayData.sales.tips) && (
                       <div className="flex justify-between items-center py-1.5 border-b border-stone-100">
                         <span>(-) Propinas Entregadas de Caja:</span>
-                        <span className="font-mono font-bold text-amber-700">
+                        <span className="font-mono font-bold text-dorado-tinta">
                           C$ {(selectedDayData.sales.tips || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
@@ -3294,7 +3258,7 @@ export default function BodegonControlPage() {
                       <span>(=) Ganancia Neta Real:</span>
                       <span
                         className={`font-mono ${
-                          selectedDayData.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                          selectedDayData.netProfit >= 0 ? 'text-bodegon' : 'text-barro'
                         }`}
                       >
                         C$ {selectedDayData.netProfit.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
@@ -3312,7 +3276,7 @@ export default function BodegonControlPage() {
                 <div className="pt-2 text-right">
                   <button
                     onClick={() => setActiveDetailModal(null)}
-                    className="bg-stone-900 text-white px-4 py-2 rounded-xl font-bold cursor-pointer hover:bg-stone-800 transition"
+                    className="bg-bodegon text-white px-4 py-2 rounded-xl font-bold cursor-pointer hover:bg-bodegon-noche"
                   >
                     Cerrar Detalle
                   </button>
@@ -3336,8 +3300,8 @@ export default function BodegonControlPage() {
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-stone-900 text-white flex items-center justify-center text-xl shadow-md shrink-0">
-                    <Printer className="w-6 h-6 text-amber-400" />
+                  <div className="w-12 h-12 rounded-2xl bg-bodegon text-white flex items-center justify-center text-xl shrink-0">
+                    <Printer className="w-6 h-6 text-dorado-vivo" />
                   </div>
                   <div>
                     <h3 className="font-black text-lg text-stone-900 leading-tight">
@@ -3357,9 +3321,9 @@ export default function BodegonControlPage() {
               </div>
 
               {/* Indicador de Fecha */}
-              <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3.5 mb-5 flex items-center justify-between">
+              <div className="bg-dorado/8 border border-dorado/36 rounded-2xl p-3.5 mb-5 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider block">
+                  <span className="text-[10px] font-black uppercase text-dorado-tinta tracking-wider block">
                     Fecha del Acta a Imprimir:
                   </span>
                   <span className="text-sm font-black text-stone-900 capitalize">
@@ -3371,7 +3335,7 @@ export default function BodegonControlPage() {
                     })}
                   </span>
                 </div>
-                <span className="text-xs font-mono font-bold bg-white px-2.5 py-1 rounded-xl border border-amber-300 text-amber-950">
+                <span className="text-xs font-mono font-bold bg-white px-2.5 py-1 rounded-xl border border-dorado/60 text-cafe">
                   {selectedDate}
                 </span>
               </div>
@@ -3380,24 +3344,24 @@ export default function BodegonControlPage() {
                 {/* Opción 1: Acta Completa (2 Hojas) */}
                 <button
                   onClick={() => handleImprimirActaOficial('TODO')}
-                  className="w-full text-left p-4 rounded-2xl border-2 border-stone-900 bg-stone-900 hover:bg-stone-800 text-white transition cursor-pointer flex items-center justify-between group shadow-sm"
+                  className="w-full text-left p-4 rounded-2xl border-2 border-bodegon bg-bodegon hover:bg-bodegon-noche text-white transition cursor-pointer flex items-center justify-between group shadow-sm"
                 >
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-black text-sm text-white">
-                        📑 IMPRIMIR ACTA COMPLETA (2 HOJAS B/N)
+                        IMPRIMIR ACTA COMPLETA (2 HOJAS B/N)
                       </span>
-                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-400 text-stone-950">
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-dorado-vivo text-stone-950">
                         Recomendado
                       </span>
                     </div>
-                    <p className="text-[11px] text-stone-300 mt-1 leading-snug">
+                    <p className="text-[11px] text-[#CFE3DC] mt-1 leading-snug">
                       Hoja 1: Caja General & Ventas (Arqueo, Tarjetas POS, Margen)
                       <br />
                       Hoja 2: Caja Chica & Detalle Exhaustivo de Compras del Día
                     </p>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition shrink-0" />
+                  <ChevronRight className="w-5 h-5 text-dorado-vivo group-hover:translate-x-1 transition shrink-0" />
                 </button>
 
                 {/* Opción 2: Solo Hoja 1 */}
@@ -3407,7 +3371,7 @@ export default function BodegonControlPage() {
                 >
                   <div>
                     <span className="font-black text-sm text-stone-900">
-                      💵 SOLO HOJA 1: CAJA GENERAL & VENTAS (1 HOJA)
+                      SOLO HOJA 1: CAJA GENERAL & VENTAS (1 HOJA)
                     </span>
                     <p className="text-[11px] text-stone-500 mt-0.5">
                       Ingresos brutos, desglose BAC/Ficohsa/Banpro/Lafise, PedidosYa y utilidad líquida con firmas.
@@ -3423,7 +3387,7 @@ export default function BodegonControlPage() {
                 >
                   <div>
                     <span className="font-black text-sm text-stone-900">
-                      🛒 SOLO HOJA 2: CAJA CHICA & GASTOS DETALLADOS (1 HOJA)
+                      SOLO HOJA 2: CAJA CHICA & GASTOS DETALLADOS (1 HOJA)
                     </span>
                     <p className="text-[11px] text-stone-500 mt-0.5">
                       Balance del fondo en gaveta y la relación detallada de cada compra/gasto individual con firmas.
@@ -3454,8 +3418,8 @@ export default function BodegonControlPage() {
             <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150 my-8">
               <div className="flex items-center justify-between pb-4 border-b border-stone-100">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-2xl bg-amber-100 text-amber-900 border border-amber-200">
-                    <Edit3 className="w-5 h-5 text-amber-800" />
+                  <div className="p-2.5 rounded-2xl bg-dorado/20 text-cafe border border-dorado/40">
+                    <Edit3 className="w-5 h-5 text-dorado-tinta" />
                   </div>
                   <div>
                     <h3 className="font-black text-lg text-stone-900">
@@ -3485,8 +3449,8 @@ export default function BodegonControlPage() {
               <form onSubmit={handleGuardarVentas} className="mt-5 space-y-4">
                 {/* 1. Efectivo */}
                 <div>
-                  <label className="block text-xs font-black uppercase text-emerald-800 mb-1 flex items-center gap-1.5">
-                    <Banknote className="w-4 h-4 text-emerald-600" />
+                  <label className="block text-xs font-black uppercase text-bodegon mb-1 flex items-center gap-1.5">
+                    <Banknote className="w-4 h-4 text-bodegon" />
                     <span>1. Efectivo en Caja (C$)</span>
                   </label>
                   <input
@@ -3495,18 +3459,18 @@ export default function BodegonControlPage() {
                     placeholder="0.00"
                     value={salesForm.salesCash}
                     onChange={(e) => setSalesForm({ ...salesForm, salesCash: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 outline-none text-base font-mono font-bold text-stone-900 bg-emerald-50/20"
+                    className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-bodegon focus:ring-2 focus:ring-bodegon/15 outline-none text-base font-mono font-bold text-stone-900 bg-bodegon/2"
                   />
                 </div>
 
                 {/* 2. Tarjetas POS desglosadas por Banco */}
-                <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100 space-y-3">
+                <div className="bg-stone-50/40 p-4 rounded-2xl border border-stone-100 space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-black uppercase text-indigo-900 flex items-center gap-1.5">
-                      <CreditCard className="w-4 h-4 text-indigo-600" />
+                    <label className="text-xs font-black uppercase text-stone-900 flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-stone-600" />
                       <span>2. Tarjetas POS por Banco (C$)</span>
                     </label>
-                    <span className="text-[11px] font-mono font-bold text-indigo-700">
+                    <span className="text-[11px] font-mono font-bold text-stone-700">
                       Subtotal: C${' '}
                       {(
                         (parseFloat(salesForm.cardsBAC) || 0) +
@@ -3519,47 +3483,47 @@ export default function BodegonControlPage() {
 
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <span className="block text-[10px] font-extrabold text-rose-800 mb-0.5">BAC Credomatic</span>
+                      <span className="block text-[10px] font-extrabold text-barro mb-0.5">BAC Credomatic</span>
                       <input
                         type="number"
                         step="0.01"
                         placeholder="0.00"
                         value={salesForm.cardsBAC}
                         onChange={(e) => setSalesForm({ ...salesForm, cardsBAC: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-lg border border-rose-200 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-rose-400"
+                        className="w-full px-3 py-1.5 rounded-lg border border-barro/25 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-barro"
                       />
                     </div>
                     <div>
-                      <span className="block text-[10px] font-extrabold text-sky-800 mb-0.5">Banco Ficohsa</span>
+                      <span className="block text-[10px] font-extrabold text-stone-800 mb-0.5">Banco Ficohsa</span>
                       <input
                         type="number"
                         step="0.01"
                         placeholder="0.00"
                         value={salesForm.cardsFicohsa}
                         onChange={(e) => setSalesForm({ ...salesForm, cardsFicohsa: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-lg border border-sky-200 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-sky-400"
+                        className="w-full px-3 py-1.5 rounded-lg border border-stone-200 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-stone-400"
                       />
                     </div>
                     <div>
-                      <span className="block text-[10px] font-extrabold text-emerald-800 mb-0.5">Banpro Promerica</span>
+                      <span className="block text-[10px] font-extrabold text-bodegon mb-0.5">Banpro Promerica</span>
                       <input
                         type="number"
                         step="0.01"
                         placeholder="0.00"
                         value={salesForm.cardsBanpro}
                         onChange={(e) => setSalesForm({ ...salesForm, cardsBanpro: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-lg border border-emerald-200 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-emerald-400"
+                        className="w-full px-3 py-1.5 rounded-lg border border-bodegon/20 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-bodegon/60"
                       />
                     </div>
                     <div>
-                      <span className="block text-[10px] font-extrabold text-amber-800 mb-0.5">Banco LAFISE</span>
+                      <span className="block text-[10px] font-extrabold text-dorado-tinta mb-0.5">Banco LAFISE</span>
                       <input
                         type="number"
                         step="0.01"
                         placeholder="0.00"
                         value={salesForm.cardsLafise}
                         onChange={(e) => setSalesForm({ ...salesForm, cardsLafise: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-lg border border-amber-200 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-amber-400"
+                        className="w-full px-3 py-1.5 rounded-lg border border-dorado/40 bg-white font-mono text-sm font-bold text-stone-900 outline-none focus:border-dorado"
                       />
                     </div>
                   </div>
@@ -3567,8 +3531,8 @@ export default function BodegonControlPage() {
 
                 {/* 3. Delivery PedidosYa */}
                 <div>
-                  <label className="block text-xs font-black uppercase text-amber-900 mb-1 flex items-center gap-1.5">
-                    <Truck className="w-4 h-4 text-amber-600" />
+                  <label className="block text-xs font-black uppercase text-cafe mb-1 flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-dorado-tinta" />
                     <span>3. Delivery / PedidosYa (C$)</span>
                   </label>
                   <input
@@ -3577,7 +3541,7 @@ export default function BodegonControlPage() {
                     placeholder="0.00"
                     value={salesForm.salesPedidosYa}
                     onChange={(e) => setSalesForm({ ...salesForm, salesPedidosYa: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-amber-600 focus:ring-2 focus:ring-amber-100 outline-none text-base font-mono font-bold text-stone-900 bg-amber-50/20"
+                    className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-dorado focus:ring-2 focus:ring-dorado/30 outline-none text-base font-mono font-bold text-stone-900 bg-dorado/2"
                   />
                 </div>
 
@@ -3597,11 +3561,11 @@ export default function BodegonControlPage() {
                 </div>
 
                 {/* Resumen Total Bruto Calculado */}
-                <div className="bg-stone-900 text-white p-4 rounded-2xl flex items-center justify-between">
-                  <span className="text-xs font-extrabold uppercase text-stone-300">
+                <div className="bg-bodegon text-white p-4 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase text-[#CFE3DC]">
                     Total Ventas Brutas Calculadas:
                   </span>
-                  <span className="text-xl font-black font-mono text-emerald-400">
+                  <span className="text-xl font-black font-mono text-dorado-vivo">
                     C${' '}
                     {(
                       (parseFloat(salesForm.salesCash) || 0) +
@@ -3626,7 +3590,7 @@ export default function BodegonControlPage() {
                   <button
                     type="submit"
                     disabled={submittingSales}
-                    className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs shadow-md transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl bg-dorado-vivo hover:bg-dorado text-stone-950 font-black text-xs shadow-md transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                   >
                     <Save className="w-4 h-4" />
                     <span>{submittingSales ? 'Guardando...' : 'Guardar Ventas'}</span>
