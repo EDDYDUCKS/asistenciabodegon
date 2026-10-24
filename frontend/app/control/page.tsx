@@ -1936,14 +1936,16 @@ export default function BodegonControlPage() {
       <div className="min-h-screen bg-[#fcf9f5] text-stone-900 font-sans flex flex-col selection:bg-amber-100">
         {/* ── TOPBAR PRINCIPAL ── */}
         <header className="bg-white border-b border-stone-200/90 sticky top-0 z-30 shadow-2xs">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-sm border border-stone-200 bg-[#1c6856] flex items-center justify-center text-white shrink-0">
                 <Image src="/logo.png" alt="El Bodegón" width={40} height={40} className="w-full h-full object-cover" priority />
               </div>
-              <div>
+              <div className="min-w-0 hidden sm:block">
                 <div className="flex items-center gap-2">
-                  <h1 className="font-black text-base sm:text-lg text-stone-900 tracking-tight">Bodegón Control</h1>
+                  <h1 className="font-black text-base sm:text-lg text-stone-900 tracking-tight whitespace-nowrap">
+                    Bodegón Control
+                  </h1>
                   <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-950 border border-amber-300">
                     Online
                   </span>
@@ -1968,7 +1970,7 @@ export default function BodegonControlPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -1986,11 +1988,11 @@ export default function BodegonControlPage() {
 
               <Link
                 href="/"
+                title="Volver al Portal"
                 className="text-xs font-bold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">Volver al</span>
-                <span>Portal</span>
+                <span className="hidden md:inline">Volver al Portal</span>
               </Link>
 
               {/* Botón Exportar CSV / Excel */}
@@ -2001,8 +2003,7 @@ export default function BodegonControlPage() {
                 title="Exportar reporte contable a Excel / CSV"
               >
                 <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
-                <span className="hidden sm:inline">📥 Exportar Excel</span>
-                <span className="sm:hidden">Excel</span>
+                <span className="hidden lg:inline">📥 Exportar Excel</span>
               </button>
 
               {/* Botón de Impresión Oficial B/N */}
@@ -2013,8 +2014,7 @@ export default function BodegonControlPage() {
                 title="Imprimir Acta Oficial en Blanco y Negro (1 o 2 Hojas)"
               >
                 <Printer className="w-4 h-4 text-stone-700" />
-                <span className="hidden sm:inline">🖨️ Imprimir Acta (B/N)</span>
-                <span className="sm:hidden">Imprimir</span>
+                <span className="hidden lg:inline">🖨️ Imprimir Acta (B/N)</span>
               </button>
 
               {/* Botón único de acción permitida */}
@@ -2023,10 +2023,12 @@ export default function BodegonControlPage() {
                   setErrorMsg(null);
                   setShowModalGasto(true);
                 }}
-                className="bg-[#1c6856] hover:bg-[#154f42] text-white px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                className="bg-[#1c6856] hover:bg-[#154f42] text-white px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+                title="Registrar Gasto"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Registrar Gasto</span>
+                <span className="sm:hidden">Gasto</span>
+                <span className="hidden sm:inline">Registrar Gasto</span>
               </button>
             </div>
           </div>

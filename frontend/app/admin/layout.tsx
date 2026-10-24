@@ -38,6 +38,7 @@ import {
   Clock,
   ShoppingBag,
   FileText,
+  MoreHorizontal,
 } from 'lucide-react';
 import { playErrorBeep } from '@/lib/sound-feedback';
 import BoletaIncidenciaModal from '@/components/BoletaIncidenciaModal';
@@ -54,6 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Estados de Alertas
   const [alerts, setAlerts] = useState<AlertaAsistencia[]>([]);
   const [showAlertsDropdown, setShowAlertsDropdown] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [selectedBoletaAlerta, setSelectedBoletaAlerta] = useState<AlertaAsistencia | null>(null);
   const [resolvingAlertId, setResolvingAlertId] = useState<number | null>(null);
   const [downloadingBackup, setDownloadingBackup] = useState(false);
@@ -368,8 +370,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-[#fcf9f5] text-stone-850 flex flex-col font-sans">
       {/* Navbar Superior con Efecto Cristal (Glassmorphic) */}
-      <header className="print:hidden glass-dock sticky top-0 z-30 shadow-premium border-b border-stone-200/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <header className="print:hidden glass-dock sticky top-0 z-40 shadow-premium border-b border-stone-200/40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Link href="/" onClick={handleLogout} className="flex items-center gap-3 hover:opacity-90 transition-opacity">
               <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shadow-sm shrink-0 border border-emerald-800/20 bg-[#1c6856]">
@@ -393,7 +395,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           {/* Navegación Desktop */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden xl:flex items-center gap-1">
             {navItems.map((item) => {
               const active = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
               return (
@@ -413,7 +415,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             })}
           </nav>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Campana de Notificaciones en Tiempo Real */}
             <div className="relative">
               <button
@@ -703,48 +705,78 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
           </div>
 
-          <button
-            onClick={handleDownloadBackup}
-            disabled={downloadingBackup}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 hover:bg-stone-100 text-xs font-bold text-stone-700 transition-colors shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
-            title="Descargar copia de seguridad completa (JSON) de la base de datos de El Bodegón"
-          >
-            {downloadingBackup ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#1c6856]" />
-            ) : (
-              <Database className="w-3.5 h-3.5 text-stone-600" />
+          {/* Acciones secundarias agrupadas para que la barra quepa en cualquier pantalla */}
+          <div className="relative">
+            <button
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 hover:bg-stone-100 text-xs font-bold text-stone-700 transition-colors cursor-pointer"
+              title="Más opciones"
+              aria-haspopup="menu"
+              aria-expanded={showMoreMenu}
+            >
+              <MoreHorizontal className="w-4 h-4" />
+              <span className="hidden sm:inline">Más</span>
+            </button>
+
+            {showMoreMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
+                <div
+                  role="menu"
+                  className="absolute right-0 mt-2.5 w-60 bg-white border border-stone-200 rounded-2xl shadow-2xl p-1.5 z-50"
+                >
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleDownloadBackup();
+                    }}
+                    disabled={downloadingBackup}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-stone-50 text-xs font-bold text-stone-700 text-left cursor-pointer disabled:opacity-50"
+                    title="Descargar copia de seguridad completa (JSON) de la base de datos de El Bodegón"
+                  >
+                    {downloadingBackup ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-[#1c6856]" />
+                    ) : (
+                      <Database className="w-4 h-4 text-stone-500" />
+                    )}
+                    Respaldo BD
+                  </button>
+                  <a
+                    role="menuitem"
+                    href="/manual_el_bodegon_pass.pdf"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowMoreMenu(false)}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-stone-50 text-xs font-bold text-stone-700"
+                    title="Abrir o descargar el Manual Oficial de Usuario en PDF"
+                  >
+                    <FileText className="w-4 h-4 text-stone-500" />
+                    Manual PDF
+                  </a>
+                  <Link
+                    role="menuitem"
+                    href="/control"
+                    onClick={() => setShowMoreMenu(false)}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-stone-50 text-xs font-bold text-stone-700"
+                    title="Ir a Bodegón Control (Compras, Gastos & Caja)"
+                  >
+                    <ShoppingBag className="w-4 h-4 text-stone-500" />
+                    Bodegón Control
+                  </Link>
+                  <Link
+                    role="menuitem"
+                    href="/kiosco"
+                    onClick={handleLogout}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-stone-50 text-xs font-bold text-stone-700"
+                  >
+                    <QrCode className="w-4 h-4 text-stone-500" />
+                    Abrir Kiosco
+                  </Link>
+                </div>
+              </>
             )}
-            <span className="hidden lg:inline">Respaldo BD</span>
-          </button>
-
-          <a
-            href="/manual_el_bodegon_pass.pdf"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-xs font-bold text-[#1c6856] transition-colors shadow-2xs cursor-pointer"
-            title="Abrir o descargar el Manual Oficial de Usuario en PDF"
-          >
-            <FileText className="w-3.5 h-3.5 text-[#1c6856]" />
-            <span className="hidden md:inline">Manual PDF</span>
-          </a>
-
-          <Link
-            href="/control"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 text-xs font-bold text-amber-900 transition-colors shadow-2xs"
-            title="Ir a Bodegón Control (Compras, Gastos & Caja)"
-          >
-            <ShoppingBag className="w-4 h-4 text-amber-600" />
-            <span className="hidden md:inline">Bodegón Control</span>
-          </Link>
-
-          <Link
-            href="/kiosco"
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#1c6856]/5 border border-[#1c6856]/20 hover:bg-[#1c6856]/10 text-xs font-bold text-[#1c6856] transition-colors"
-          >
-            <QrCode className="w-4 h-4" />
-            <span className="hidden sm:inline">Abrir Kiosco</span>
-          </Link>
+          </div>
 
           <button
             onClick={handleLogout}
@@ -752,14 +784,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             title="Bloquear Panel Administrativo y Cerrar Sesión"
           >
             <Lock className="w-3.5 h-3.5" />
-            <span>Bloquear</span>
+            <span className="hidden sm:inline">Bloquear</span>
           </button>
         </div>
       </div>
     </header>
 
     {/* Navegación Mobile Superior Estilizada y Táctil (Pills con scroll suave sin barra) */}
-    <div className="print:hidden md:hidden bg-white/95 backdrop-blur-md border-b border-stone-200/80 px-2.5 py-2 flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar shadow-2xs sticky top-16 z-30">
+    <div className="print:hidden xl:hidden bg-white/95 backdrop-blur-md border-b border-stone-200/80 px-2.5 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar shadow-2xs sticky top-16 z-30">
       <div className="flex items-center gap-1.5 min-w-max">
         {navItems.map((item) => {
           const active = item.href === '/admin' ? pathname === '/admin' : pathname.startsWith(item.href);
@@ -779,14 +811,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           );
         })}
       </div>
-      <button
-        onClick={handleLogout}
-        className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 whitespace-nowrap transition-colors shrink-0 active:scale-95 cursor-pointer"
-        title="Bloquear Panel"
-      >
-        <Lock className="w-3.5 h-3.5" />
-        <span>Bloquear</span>
-      </button>
     </div>
 
       {/* Contenido Principal */}
