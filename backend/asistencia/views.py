@@ -1506,6 +1506,19 @@ class PagoHorasExtraViewSet(viewsets.ModelViewSet):
         if total_horas_pagadas <= Decimal('0.0'):
             return Response({'detail': 'El total de horas a liquidar debe ser mayor a 0.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Solo se pagan horas extra aprobadas y aún no pagadas (evita doble pago o pagar solicitudes pendientes)
+        if not isinstance(horas_extra_ids, list) or not horas_extra_ids:
+            return Response({'detail': 'Debe seleccionar al menos una solicitud de horas extra a liquidar.'}, status=status.HTTP_400_BAD_REQUEST)
+        pagables = set(str(i) for i in AutorizacionHorasExtra.objects.filter(
+            id__in=horas_extra_ids, empleado=empleado, estado='APROBADO'
+        ).exclude(estado_pago='PAGADO').values_list('id', flat=True))
+        no_pagables = [i for i in horas_extra_ids if str(i) not in pagables]
+        if no_pagables:
+            return Response({
+                'detail': 'Algunas horas extra seleccionadas ya fueron pagadas, no están aprobadas o no pertenecen al colaborador. Actualice la pantalla e intente de nuevo.',
+                'ids_invalidos': no_pagables,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         year_str = timezone.localdate().strftime('%Y')
         ultimo_pago = PagoHorasExtra.objects.filter(numero_recibo__startswith=f'RPHE-{year_str}-').order_by('-id').first()
         if ultimo_pago and ultimo_pago.numero_recibo:
@@ -2824,7 +2837,7 @@ def marcar_asistencia_kiosco(request):
         if regs_ayer_trasnoche and regs_ayer_trasnoche[-1].tipo_evento in ('ENTRADA', 'ENTRADA_QUEBRADA'):
             es_cierre_trasnoche = True
 
-    if not tipo_evento or tipo_evento == 'AUTODETECT':
+    if not tipo_evento or tipo_evento not in dict(RegistroAsistencia.TIPO_EVENTO_CHOICES):
         if es_cierre_trasnoche:
             tipo_evento = 'SALIDA_DEFINITIVA'
         else:
@@ -3350,8 +3363,17 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
     """
     import datetime
     tz_ni = timezone.get_current_timezone()
-    hoy = fecha_referencia or timezone.localdate()
-    primer_dia_mes = hoy.replace(day=1)
+    referencia = fecha_referencia or timezone.localdate()
+    primer_dia_mes = referencia.replace(day=1)
+
+    # La deuda es mensual: corregir un marcaje de un mes ya cerrado no toca el saldo vigente
+    empleado.refresh_from_db(fields=['horas_pendientes', 'periodo_horas_pendientes'])
+    if empleado.periodo_horas_pendientes and primer_dia_mes < empleado.periodo_horas_pendientes:
+        return empleado.horas_pendientes
+
+    # Recalcular el mes completo hasta hoy, no solo hasta el día editado
+    siguiente_mes = (primer_dia_mes + datetime.timedelta(days=32)).replace(day=1)
+    hoy = max(referencia, min(timezone.localdate(), siguiente_mes - datetime.timedelta(days=1)))
 
     start_mes = timezone.make_aware(datetime.datetime.combine(primer_dia_mes, datetime.time.min), tz_ni)
     # Extender 5 horas para capturar posibles salidas definitivas en la madrugada (trasnoche)
@@ -3387,11 +3409,14 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
             es_dia_libre = AutorizacionHorasExtra.objects.filter(
                 empleado=empleado, fecha=d, comentario__icontains='[Día Libre Laborado]'
             ).exists()
+            # Mismas reglas que el kiosco (_acumular_horas_pendientes): sin deuda en domingo,
+            # tolerancia de 7h50 y marcajes técnicos < 12 min ignorados.
             if not es_dia_libre and d.weekday() != 6:
                 horas_dia = _calcular_horas_netas_dia(regs_d)
-                if horas_dia < 8.0:
+                if 0.2 <= horas_dia < 7.83:
                     deficit = round(8.0 - horas_dia, 1)
-                    deuda_acumulada += deficit
+                    if deficit > 0.1:
+                        deuda_acumulada += deficit
     # Restar compensaciones formalmente aprobadas en el mes
     from django.db.models import Sum
     total_compensado = CompensacionHoras.objects.filter(
@@ -3404,6 +3429,24 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
     empleado.periodo_horas_pendientes = primer_dia_mes
     empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
     return empleado.horas_pendientes
+
+
+def _sincronizar_periodo_deuda(empleado, fecha):
+    """
+    La Bolsa de Horas se reinicia cada mes (acuerdo gerencial 24/10/2026).
+    Si `fecha` cae en un mes posterior al período guardado, la deuda vuelve a 0 y el
+    período avanza. Devuelve False si `fecha` pertenece a un mes ya cerrado.
+    """
+    primer_dia_mes = fecha.replace(day=1)
+    periodo = empleado.periodo_horas_pendientes
+    if periodo and primer_dia_mes < periodo:
+        return False
+    if periodo is None or primer_dia_mes > periodo:
+        if periodo is not None:
+            empleado.horas_pendientes = 0.0
+        empleado.periodo_horas_pendientes = primer_dia_mes
+        empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+    return True
 
 
 def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
@@ -3429,10 +3472,11 @@ def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia):
     if deficit <= 0.1:
         return  # No hay deuda que acumular este día
 
-    primer_dia_mes = fecha_hoy.replace(day=1)
-    empleado.periodo_horas_pendientes = primer_dia_mes
+    if not _sincronizar_periodo_deuda(empleado, fecha_hoy):
+        return  # Jornada de un mes ya cerrado: su deuda no pasa al mes vigente
+
     empleado.horas_pendientes = float(empleado.horas_pendientes or 0.0) + round(deficit, 1)
-    empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+    empleado.save(update_fields=['horas_pendientes'])
 
 
 def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amortizar, request=None, origen='SALIDA_KIOSCO'):
@@ -3449,8 +3493,7 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
     tz_ni = timezone.get_current_timezone()
     primer_dia_mes = fecha_referencia.replace(day=1)
 
-    empleado.periodo_horas_pendientes = primer_dia_mes
-    empleado.save(update_fields=['periodo_horas_pendientes'])
+    _sincronizar_periodo_deuda(empleado, fecha_referencia)
 
     deuda_actual = float(empleado.horas_pendientes or 0.0)
     if deuda_actual <= 0 or horas_a_amortizar <= 0:
@@ -3465,7 +3508,7 @@ def _aplicar_amortizacion_deuda_empleado(empleado, fecha_referencia, horas_a_amo
     horas_amortizadas = min(horas_a_amortizar, deuda_actual)
     nueva_deuda = max(0.0, round(deuda_actual - horas_amortizadas, 1))
     empleado.horas_pendientes = nueva_deuda
-    empleado.save(update_fields=['horas_pendientes', 'periodo_horas_pendientes'])
+    empleado.save(update_fields=['horas_pendientes'])
 
     remanente_extra = max(0.0, round(horas_a_amortizar - horas_amortizadas, 1))
 
@@ -3671,9 +3714,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
          se sustraen automáticamente las horas necesarias para indemnizar la deuda de inmediato.
        - A la tabla de solicitudes de Horas Extra solo se envía el remanente limpio por pagar en nómina.
     """
-    primer_dia_mes = fecha_hoy.replace(day=1)
-    empleado.periodo_horas_pendientes = primer_dia_mes
-    empleado.save(update_fields=['periodo_horas_pendientes'])
+    _sincronizar_periodo_deuda(empleado, fecha_hoy)
 
     # ── EVALUACIÓN AUTOMÁTICA DE FERIADO LABORADO Y VENTANA 24H ──
     try:
@@ -5310,6 +5351,10 @@ def exportar_reporte_vacaciones_excel(request):
         return Response({'detail': f'Error generando reporte mensual de vacaciones: {str(e)}'}, status=500)
 
 
+# Inicio de la sincronización offline reparada (00:00 del 24/10/2026, hora de Nicaragua)
+SYNC_OFFLINE_DESDE = datetime.datetime(2026, 10, 24, 6, 0, tzinfo=datetime.timezone.utc)
+
+
 @api_view(['POST'])
 @authentication_classes([])
 @permission_classes([permissions.AllowAny])
@@ -5391,6 +5436,27 @@ def sync_batch_asistencia(request):
         if fecha_hora and (ahora_servidor - fecha_hora).total_seconds() > (14 * 86400):
             es_offline_antiguo = True
 
+        if not fecha_hora:
+            respuestas.append({'status': 'error', 'mensaje': 'Fecha y hora inválida.', 'token': qr_code_token})
+            continue
+
+        # Las marcas que quedaron atrapadas en la cola mientras la sincronización estaba rota
+        # no se cargan (decisión gerencial 24/10/2026); el kiosco las borra de su cola igual.
+        if fecha_hora < SYNC_OFFLINE_DESDE:
+            respuestas.append({'status': 'descartado', 'mensaje': 'Marca offline anterior a la reparación de la sincronización.', 'token': qr_code_token})
+            continue
+
+        # Anti-rebote / reintento: si ya hay un marcaje del colaborador a menos de 5 minutos,
+        # este es un escaneo doble o un reenvío del mismo lote, no un evento nuevo.
+        duplicado = RegistroAsistencia.objects.filter(
+            empleado=empleado,
+            fecha_hora__gt=fecha_hora - datetime.timedelta(seconds=300),
+            fecha_hora__lt=fecha_hora + datetime.timedelta(seconds=300),
+        ).exists()
+        if duplicado:
+            respuestas.append({'status': 'duplicado', 'empleado': empleado.nombre, 'token': qr_code_token})
+            continue
+
         dt_local = fecha_hora.astimezone(timezone.get_current_timezone())
         dia = dt_local.date()
         start_dt = timezone.make_aware(datetime.datetime.combine(dia, datetime.time.min), timezone.get_current_timezone())
@@ -5410,13 +5476,16 @@ def sync_batch_asistencia(request):
             if regs_ayer_trasnoche and regs_ayer_trasnoche[-1].tipo_evento in ('ENTRADA', 'ENTRADA_QUEBRADA'):
                 es_cierre_trasnoche = True
 
+        # Solo los marcajes anteriores a este: una marca offline puede llegar después de otras más recientes
         registros_hoy = RegistroAsistencia.objects.filter(
             empleado=empleado,
-            fecha_hora__range=(start_dt, end_dt)
+            fecha_hora__range=(start_dt, end_dt),
+            fecha_hora__lt=fecha_hora,
         ).order_by('fecha_hora')
 
-        # Auto-detectar tipo_evento si no se proporciona
-        if not tipo_evento or tipo_evento == 'AUTODETECT':
+        # Auto-detectar tipo_evento si no se proporciona (o si llega un valor desconocido)
+        tipos_validos = dict(RegistroAsistencia.TIPO_EVENTO_CHOICES)
+        if not tipo_evento or tipo_evento not in tipos_validos:
             if es_cierre_trasnoche:
                 tipo_evento = 'SALIDA_DEFINITIVA'
             else:
