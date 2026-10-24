@@ -347,10 +347,13 @@ export default function KioscoPage() {
       })));
 
       if (res.status === 'ok') {
-        const { clearOfflineMarcajes } = await import('@/lib/indexed-db');
-        await clearOfflineMarcajes();
+        // Borrar solo los marcajes enviados: los que entraron durante el envío se quedan en cola
+        const { deleteOfflineMarcaje } = await import('@/lib/indexed-db');
+        for (const q of queue) {
+          if (q.id !== undefined) await deleteOfflineMarcaje(q.id);
+        }
         playAudioFeedback(true);
-        setOfflineCount(0);
+        await checkOfflineQueue();
         
         // Agregar los sincronizados al feed
         const nowFormatted = new Date().toLocaleTimeString('es-NI', {

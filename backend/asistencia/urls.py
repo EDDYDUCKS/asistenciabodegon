@@ -17,6 +17,10 @@ router.register(r'pagos-vacaciones', views.PagoVacacionesViewSet, basename='pago
 router.register(r'pagos-horas-extra', views.PagoHorasExtraViewSet, basename='pagos-horas-extra')
 
 urlpatterns = [
+    # Sincronización Offline Batch. Va antes del router: si no, la ruta de detalle
+    # asistencia/<pk>/ la atrapa y el kiosco recibe 401/405.
+    path('asistencia/sync-batch/', views.sync_batch_asistencia, name='asistencia_sync_batch'),
+
     # Router CRUD
     path('', include(router.urls)),
 
@@ -28,9 +32,6 @@ urlpatterns = [
     path('kiosco/empleados/', views.empleados_kiosco, name='kiosco_empleados'),
     path('kiosco/marcar/', views.marcar_asistencia_kiosco, name='kiosco_marcar'),
     path('kiosco/consultar/', views.consultar_horas_kiosco, name='kiosco_consultar'),
-
-    # Sincronización Offline Batch
-    path('asistencia/sync-batch/', views.sync_batch_asistencia, name='asistencia_sync_batch'),
 
     # Reportes Excel
     path('reportes/nomina-excel/', views.exportar_reporte_nomina_excel, name='nomina_excel'),

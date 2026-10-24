@@ -380,9 +380,15 @@ export default function ModalEmitirPagoHorasExtra({
                     onChange={(e) => setTarifaHora(e.target.value)}
                     className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#1c6856]"
                   />
-                  <span className="text-[10px] text-stone-500 mt-0.5 block">
-                    Calculada automáticamente al 100% de recargo legal
-                  </span>
+                  {currentEmp && !(parseFloat(String(currentEmp.tarifa_hora || 0)) > 0) ? (
+                    <span className="text-[10px] text-amber-700 font-bold mt-0.5 block">
+                      ⚠️ Este colaborador no tiene tarifa por hora registrada. Se propone C$ 50.00; revísala antes de emitir.
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-stone-500 mt-0.5 block">
+                      Calculada automáticamente al 100% de recargo legal
+                    </span>
+                  )}
                 </div>
 
                 <div>
