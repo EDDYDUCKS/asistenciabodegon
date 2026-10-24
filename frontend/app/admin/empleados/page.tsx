@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import BrandBand, { BandStat, bandButtonGhost, bandButtonPrimary } from '@/components/BrandBand';
 import { Empleado, CargoType } from '@/lib/types';
 import {
   fetchEmpleados,
@@ -12,7 +13,6 @@ import {
 } from '@/lib/api-client';
 import { QRCodeSVG } from 'qrcode.react';
 import {
-  Users,
   Plus,
   QrCode,
   Edit,
@@ -445,54 +445,43 @@ export default function EmpleadosAdminPage() {
         }
       `}} />
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5 print-hide">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight flex items-center gap-2">
-            <Users className="w-7 h-7 text-bodegon" />
-            Gestión de Empleados
-          </h1>
-          <p className="text-xs text-stone-500 font-medium mt-1">
-            Administre el personal e imprima credenciales físicas ID-1/CR80.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {selectedEmpIds.size > 0 ? (
-            <>
-              <Link
-                href={`/admin/empleados/imprimir?ids=${Array.from(selectedEmpIds).join(',')}`}
-                className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-sm animate-in fade-in"
-              >
+      <BrandBand
+        eyebrow="Equipo El Bodegón"
+        title="Colaboradores"
+        actions={
+          <>
+            <button type="button" onClick={openCreateModal} className={bandButtonPrimary}>
+              <Plus className="w-4 h-4" />
+              Nuevo colaborador
+            </button>
+            {selectedEmpIds.size > 0 ? (
+              <>
+                <Link
+                  href={`/admin/empleados/imprimir?ids=${Array.from(selectedEmpIds).join(',')}`}
+                  className={bandButtonGhost}
+                >
+                  <Printer className="w-4 h-4" />
+                  Imprimir seleccionados ({selectedEmpIds.size})
+                </Link>
+                <button type="button" onClick={() => setSelectedEmpIds(new Set())} className={bandButtonGhost}>
+                  Limpiar selección
+                </button>
+              </>
+            ) : (
+              <Link href="/admin/empleados/imprimir" className={bandButtonGhost}>
                 <Printer className="w-4 h-4" />
-                Imprimir Seleccionados ({selectedEmpIds.size})
+                Imprimir carnets QR
               </Link>
-              <button
-                onClick={() => setSelectedEmpIds(new Set())}
-                className="bg-stone-100 hover:bg-stone-200 text-stone-600 px-3 py-2.5 rounded-xl font-bold text-xs transition-colors"
-              >
-                Limpiar Selección
-              </button>
-            </>
-          ) : (
-            <Link
-              href="/admin/empleados/imprimir"
-              className="bg-bodegon/10 border border-bodegon/20 hover:bg-bodegon/20 text-bodegon px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5"
-            >
-              <Printer className="w-4 h-4" />
-              Imprimir Todo el Personal
-            </Link>
-          )}
-          
-          <button
-            onClick={openCreateModal}
-            className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Registrar Nuevo Empleado
-          </button>
+            )}
+          </>
+        }
+      >
+        <div className="grid grid-cols-3 gap-3 max-w-xl">
+          <BandStat label="Activos" value={empleados.filter((e) => e.activo).length} />
+          <BandStat label="Inactivos" value={empleados.filter((e) => !e.activo).length} />
+          <BandStat label="Registrados" value={empleados.length} />
         </div>
-      </div>
+      </BrandBand>
 
       {/* Vista Móvil (Tarjetas de Colaborador Táctiles - Cero scroll horizontal) */}
       <div className="block sm:hidden space-y-3 print-hide">

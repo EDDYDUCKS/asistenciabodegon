@@ -4,7 +4,6 @@ import React, { useEffect, useState, useMemo, useDeferredValue } from 'react';
 import { RegistroAsistencia } from '@/lib/types';
 import { fetchAsistencias, deleteAsistencia, authHeaders } from '@/lib/api-client';
 import {
-  CalendarCheck,
   RefreshCw,
   Search,
   Image as ImageIcon,
@@ -19,6 +18,7 @@ import {
   Layers,
   Camera,
 } from 'lucide-react';
+import BrandBand, { BandStat, bandButtonGhost, bandButtonPrimary } from '@/components/BrandBand';
 
 interface AnalisisPuntualidad {
   turno: string;
@@ -861,51 +861,52 @@ export default function AsistenciaLogPage() {
 
   return (
     <div className="space-y-6 select-none font-sans">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight flex items-center gap-2">
-            <CalendarCheck className="w-7 h-7 text-bodegon" />
-            Historial de Asistencia
-          </h1>
-          <p className="text-xs text-stone-500 font-medium mt-1">
-            Registro auditable de todas las entradas, salidas, fotografías y puntualidad calculada.
-          </p>
+      <BrandBand
+        eyebrow={
+          filterFecha
+            ? `Día ${filterFecha}`
+            : periodoFiltro === 'mes'
+            ? 'Este mes'
+            : periodoFiltro === 'todos'
+            ? 'Todo el historial'
+            : 'Últimos 15 días'
+        }
+        title="Asistencia"
+        actions={
+          <>
+            <button type="button" onClick={() => setShowManualModal(true)} className={bandButtonPrimary}>
+              <Plus className="w-4 h-4" />
+              Marcaje manual
+            </button>
+            <button type="button" onClick={() => loadData()} disabled={loading} className={bandButtonGhost}>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Actualizar
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (confirm('¿Desea ejecutar la Depuración Semestral (liberar fotos y bitácoras de más de 6 meses)?\n\nEsta acción conserva intactos a todos los empleados, carnets y sus horas.')) {
+                  const { ejecutarDepuracionSemestral } = await import('@/lib/api-client');
+                  const res = await ejecutarDepuracionSemestral(6);
+                  alert(res.mensaje);
+                  loadData();
+                }
+              }}
+              className={bandButtonGhost}
+              title="Liberar fotos y registros de más de 6 meses para optimizar almacenamiento"
+            >
+              <Trash2 className="w-4 h-4" />
+              Depuración semestral
+            </button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-3 gap-3 max-w-2xl">
+          <BandStat featured label="Marcas" value={filtered.length} />
+          <BandStat label="Días con marcas" value={gruposPorDia.length} />
+          <BandStat label="Colaboradores" value={new Set(filtered.map((a) => a.empleado)).size} />
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setShowManualModal(true)}
-            className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Registrar Marcaje Manual
-          </button>
-          <button
-            onClick={async () => {
-              if (confirm('¿Desea ejecutar la Depuración Semestral (liberar fotos y bitácoras de más de 6 meses)?\n\nEsta acción conserva intactos a todos los empleados, carnets y sus horas.')) {
-                const { ejecutarDepuracionSemestral } = await import('@/lib/api-client');
-                const res = await ejecutarDepuracionSemestral(6);
-                alert(res.mensaje);
-                loadData();
-              }
-            }}
-            className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-            title="Liberar fotos y registros de más de 6 meses para optimizar almacenamiento"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-stone-500" />
-            Depuración Semestral
-          </button>
-          <button
-            onClick={() => loadData()}
-            disabled={loading}
-            className="bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 shadow-sm"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''} text-bodegon`} />
-            Actualizar Historial
-          </button>
-        </div>
-      </div>
+      </BrandBand>
 
       {/* Selector Rápido de Período (Últimos 15 días, Mes, Todo) */}
       <div className="flex flex-wrap items-center gap-2 bg-stone-100/80 p-1.5 rounded-2xl border border-stone-200/80 w-fit">

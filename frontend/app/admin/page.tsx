@@ -1,14 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
 import { fetchEmpleados, fetchAsistencias } from '@/lib/api-client';
 import { Empleado, RegistroAsistencia } from '@/lib/types';
 import {
   Users,
-  CheckCircle2,
-  Sun,
-  XCircle,
   Clock,
   RefreshCw,
   QrCode,
@@ -22,6 +18,8 @@ import {
   Gavel,
 } from 'lucide-react';
 import Link from 'next/link';
+import BrandBand, { BandStat, bandButtonGhost, bandButtonPrimary } from '@/components/BrandBand';
+import LiveClock from '@/components/LiveClock';
 
 export default function AdminDashboardPage() {
   const [empleados, setEmpleados] = useState<Empleado[]>([]);
@@ -123,131 +121,43 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6 select-none font-sans">
-      {/* Encabezado Dashboard */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200/60 pb-5">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-black text-stone-900 tracking-tight flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full overflow-hidden shadow-xs shrink-0 border border-bodegon/30 bg-bodegon">
-              <Image src="/logo.png" alt="Logo" width={36} height={36} className="w-full h-full object-cover" />
-            </div>
-            Monitoreo en Vivo
-          </h1>
-          <p className="text-xs text-stone-500 font-medium mt-1">
-            Asistencia en tiempo real de El Bodegón para el día de hoy.
-          </p>
+      <BrandBand
+        eyebrow={<LiveClock />}
+        title="Monitoreo en vivo"
+        actions={
+          <>
+            <Link href="/admin/rendimiento-ayer" className={bandButtonPrimary}>
+              <TrendingUp className="w-4 h-4" />
+              Rendimiento de ayer
+              <span className="text-xs font-semibold opacity-70 capitalize">{ayerDisplay}</span>
+            </Link>
+            <Link href="/admin/notificaciones" className={bandButtonGhost} title="Ir a Alertas y Sanciones Disciplinarias">
+              <Gavel className="w-4 h-4" />
+              Sanciones y alertas
+            </Link>
+            <button type="button" onClick={loadData} disabled={loading} className={bandButtonGhost}>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Actualizar
+            </button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <BandStat
+            featured
+            className="col-span-2 lg:col-span-1"
+            label="Llegaron hoy"
+            value={llegaronHoy.length}
+            hint="Tocá para ver la lista y repartir propinas"
+            onClick={() => setShowModalPropinas(true)}
+            title="Toca para ver el desglose detallado de quiénes asistieron hoy"
+          />
+          <BandStat label="Trabajando ahora" value={presentes.length} hint="Presentes en turno" />
+          <BandStat label="En quebrada" value={enQuebrada.length} hint="Horario dividido o pausa" />
+          <BandStat label="Ausentes hoy" value={ausentes.length} hint="Sin marcar entrada" />
+          <BandStat label="Personal activo" value={totalActivos} hint={`De ${empleados.length} en total`} />
         </div>
-
-        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
-          <Link
-            href="/admin/rendimiento-ayer"
-            className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
-          >
-            <TrendingUp className="w-4 h-4 text-emerald-300" />
-            <span>Rendimiento de Ayer</span>
-            <span className="bg-white/20 text-white text-[10px] font-mono px-1.5 py-0.5 rounded-md capitalize">
-              {ayerDisplay}
-            </span>
-          </Link>
-
-          <Link
-            href="/admin/notificaciones"
-            className="bg-stone-50 hover:bg-rose-50 border border-stone-200 hover:border-rose-200 text-stone-700 hover:text-rose-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
-            title="Ir a Alertas y Sanciones Disciplinarias"
-          >
-            <Gavel className="w-3.5 h-3.5 text-rose-500" />
-            <span>Sanciones y Alertas</span>
-          </Link>
-
-          <button
-            onClick={loadData}
-            disabled={loading}
-            className="bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''} text-bodegon`} />
-            Actualizar Estado
-          </button>
-        </div>
-      </div>
-
-      {/* Tarjetas de Métricas de Hoy */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Tarjeta Propinas: Llegaron Hoy (Clickable) */}
-        <button
-          type="button"
-          onClick={() => setShowModalPropinas(true)}
-          title="Toca para ver el desglose detallado de quiénes asistieron hoy"
-          className="text-left glass-panel border border-amber-300/80 bg-gradient-to-br from-amber-50 via-white to-amber-50/30 rounded-3xl p-5 flex items-center justify-between gap-3 shadow-premium transition-all hover:shadow-lg hover:border-amber-400 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-amber-400/50"
-        >
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-amber-100/90 border border-amber-200 rounded-2xl text-amber-700 shadow-sm group-hover:bg-amber-200 group-hover:text-amber-800 transition-colors">
-              <Coins className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-amber-800/80 block mb-0.5">
-                Llegaron Hoy
-              </span>
-              <div className="text-2xl font-display font-black text-stone-900 leading-none">
-                {llegaronHoy.length}
-              </div>
-              <span className="text-[10px] text-amber-700 font-semibold flex items-center gap-1 mt-0.5 group-hover:underline">
-                Toca para ver lista &rarr;
-              </span>
-            </div>
-          </div>
-        </button>
-
-        <div className="glass-panel border border-white rounded-3xl p-5 flex items-center gap-4 shadow-premium">
-          <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-600">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400 block mb-0.5">
-              Trabajando Ahora
-            </span>
-            <div className="text-2xl font-display font-black text-stone-900 leading-none">{presentes.length}</div>
-            <span className="text-[10px] text-emerald-600 font-medium">Presentes en turno</span>
-          </div>
-        </div>
-
-        <div className="glass-panel border border-white rounded-3xl p-5 flex items-center gap-4 shadow-premium">
-          <div className="p-3 bg-amber-50 border border-amber-100 rounded-2xl text-amber-600">
-            <Sun className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400 block mb-0.5">
-              En Quebrada
-            </span>
-            <div className="text-2xl font-display font-black text-stone-900 leading-none">{enQuebrada.length}</div>
-            <span className="text-[10px] text-amber-600 font-medium">Horario dividido/pausa</span>
-          </div>
-        </div>
-
-        <div className="glass-panel border border-white rounded-3xl p-5 flex items-center gap-4 shadow-premium">
-          <div className="p-3 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600">
-            <XCircle className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400 block mb-0.5">
-              Ausentes Hoy
-            </span>
-            <div className="text-2xl font-display font-black text-stone-900 leading-none">{ausentes.length}</div>
-            <span className="text-[10px] text-rose-600 font-medium">Sin marcar entrada</span>
-          </div>
-        </div>
-
-        <div className="glass-panel border border-white rounded-3xl p-5 flex items-center gap-4 shadow-premium">
-          <div className="p-3 bg-bodegon/5 border border-bodegon/10 rounded-2xl text-bodegon">
-            <Users className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-wider text-stone-400 block mb-0.5">
-              Personal Activo
-            </span>
-            <div className="text-2xl font-display font-black text-stone-900 leading-none">{totalActivos}</div>
-            <span className="text-[10px] text-stone-500 font-medium">De {empleados.length} en total</span>
-          </div>
-        </div>
-      </div>
+      </BrandBand>
 
       {/* Dos Columnas: Feed de Actividad vs Lista de Personal */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
