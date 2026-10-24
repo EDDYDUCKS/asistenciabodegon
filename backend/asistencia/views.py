@@ -5328,6 +5328,10 @@ def exportar_reporte_vacaciones_excel(request):
         return Response({'detail': f'Error generando reporte mensual de vacaciones: {str(e)}'}, status=500)
 
 
+# Inicio de la sincronización offline reparada (00:00 del 24/10/2026, hora de Nicaragua)
+SYNC_OFFLINE_DESDE = datetime.datetime(2026, 10, 24, 6, 0, tzinfo=datetime.timezone.utc)
+
+
 @api_view(['POST'])
 @authentication_classes([])
 @permission_classes([permissions.AllowAny])
@@ -5411,6 +5415,12 @@ def sync_batch_asistencia(request):
 
         if not fecha_hora:
             respuestas.append({'status': 'error', 'mensaje': 'Fecha y hora inválida.', 'token': qr_code_token})
+            continue
+
+        # Las marcas que quedaron atrapadas en la cola mientras la sincronización estaba rota
+        # no se cargan (decisión gerencial 24/10/2026); el kiosco las borra de su cola igual.
+        if fecha_hora < SYNC_OFFLINE_DESDE:
+            respuestas.append({'status': 'descartado', 'mensaje': 'Marca offline anterior a la reparación de la sincronización.', 'token': qr_code_token})
             continue
 
         # Anti-rebote / reintento: si ya hay un marcaje del colaborador a menos de 5 minutos,

@@ -16,6 +16,7 @@ OCT_30 = datetime.date(2026, 10, 30)  # viernes
 NOV_2 = datetime.date(2026, 11, 2)    # lunes
 
 
+@mock.patch.object(views, 'SYNC_OFFLINE_DESDE', local_dt(LUNES, 0))
 class SincronizacionOfflineTests(NominaTestCase):
     def sync(self, *horas):
         items = [
@@ -43,6 +44,13 @@ class SincronizacionOfflineTests(NominaTestCase):
         self.sync((9, 0), (9, 1))
         self.assertEqual(self.tipos(), ['ENTRADA'])
         self.assertEqual(float(self.recargar().horas_pendientes), 0.0)
+
+    def test_marcas_anteriores_a_la_reparacion_se_descartan(self):
+        with mock.patch.object(views, 'SYNC_OFFLINE_DESDE', local_dt(LUNES, 12)):
+            res = self.sync((9, 0))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['sincronizados'][0]['status'], 'descartado')
+        self.assertEqual(self.tipos(), [])
 
     def test_marca_offline_vieja_no_mira_marcas_posteriores(self):
         self.registrar('ENTRADA', LUNES, 12, 0)
