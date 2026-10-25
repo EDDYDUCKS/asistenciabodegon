@@ -40,6 +40,7 @@ import BoletaPagoVacacionesModal from '@/components/BoletaPagoVacacionesModal';
 import ModalEmitirPagoVacaciones from '@/components/ModalEmitirPagoVacaciones';
 import BoletaHorasExtraModal from '@/components/BoletaHorasExtraModal';
 import ModalEmitirPagoHorasExtra from '@/components/ModalEmitirPagoHorasExtra';
+import ModalCanjearSalidaAnticipada from '@/components/ModalCanjearSalidaAnticipada';
 import BoletaPagoHorasExtraModal from '@/components/BoletaPagoHorasExtraModal';
 import ModalPinAutorizacionHorasExtra, { PendingExtraAction } from '@/components/ModalPinAutorizacionHorasExtra';
 import {
@@ -159,6 +160,9 @@ export default function NominaAdminPage() {
   const [pagosHorasExtra, setPagosHorasExtra] = useState<PagoHorasExtra[]>([]);
   const [selectedPagoHEParaBoleta, setSelectedPagoHEParaBoleta] = useState<PagoHorasExtra | null>(null);
   const [showModalEmitirPagoHE, setShowModalEmitirPagoHE] = useState(false);
+  const [showModalCanjearSalida, setShowModalCanjearSalida] = useState(false);
+  const [empleadoParaCanjearSalida, setEmpleadoParaCanjearSalida] = useState<Empleado | null>(null);
+  const [horasExtraParaCanjearSalida, setHorasExtraParaCanjearSalida] = useState<AutorizacionHorasExtra[]>([]);
   const [empleadoParaPagoHE, setEmpleadoParaPagoHE] = useState<Empleado | null>(null);
   const [horasExtraParaPagoHE, setHorasExtraParaPagoHE] = useState<AutorizacionHorasExtra[]>([]);
   const [searchPagoHE, setSearchPagoHE] = useState('');
@@ -3492,6 +3496,18 @@ export default function NominaAdminPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
+                      setEmpleadoParaCanjearSalida(null);
+                      setHorasExtraParaCanjearSalida([]);
+                      setShowModalCanjearSalida(true);
+                    }}
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                    title="Canjear horas extra acumuladas por salida temprana de un colaborador"
+                  >
+                    <Clock className="w-4 h-4" />
+                    <span>Salida Anticipada (Canje)</span>
+                  </button>
+                  <button
+                    onClick={() => {
                       setEmpleadoParaPagoHE(null);
                       setHorasExtraParaPagoHE([]);
                       setShowModalEmitirPagoHE(true);
@@ -3499,7 +3515,7 @@ export default function NominaAdminPage() {
                     className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all flex items-center gap-2 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Emitir Pago de Horas Extra</span>
+                    <span>Emitir Pago en Dinero</span>
                   </button>
                 </div>
               </div>
@@ -3592,6 +3608,21 @@ export default function NominaAdminPage() {
                               </div>
 
                               <button
+                                onClick={() => {
+                                  if (emp) {
+                                    setEmpleadoParaCanjearSalida(emp);
+                                    setHorasExtraParaCanjearSalida(items);
+                                    setShowModalCanjearSalida(true);
+                                  }
+                                }}
+                                className="bg-amber-500 hover:bg-amber-600 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                                title="Canjear por Salida Anticipada"
+                              >
+                                <Clock className="w-4 h-4" />
+                                <span>Salida Anticipada</span>
+                              </button>
+
+                              <button
                                 onClick={() => emp && handleAbrirPagoHE(emp, items)}
                                 className="bg-bodegon hover:bg-bodegon-noche text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center gap-2 cursor-pointer shrink-0"
                               >
@@ -3660,6 +3691,21 @@ export default function NominaAdminPage() {
                                           >
                                             <FileText className="w-3 h-3 text-bodegon" />
                                             <span>Boleta</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (emp) {
+                                                setEmpleadoParaCanjearSalida(emp);
+                                                setHorasExtraParaCanjearSalida([it]);
+                                                setShowModalCanjearSalida(true);
+                                              }
+                                            }}
+                                            className="bg-white hover:bg-amber-50 text-amber-700 border border-amber-300 px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                                            title="Canjear esta fecha por salida anticipada"
+                                          >
+                                            <Clock className="w-3 h-3 text-amber-600" />
+                                            <span>Salida</span>
                                           </button>
                                           <button
                                             onClick={() => emp && handleAbrirPagoHE(emp, [it])}
@@ -6091,6 +6137,24 @@ export default function NominaAdminPage() {
         horasExtraPreseleccionadas={horasExtraParaPagoHE}
         onPagoCompletado={(nuevoPago) => {
           setSelectedPagoHEParaBoleta(nuevoPago);
+          loadData();
+        }}
+      />
+
+      {/* ── MODAL 7B: CANJEAR HORAS EXTRA POR SALIDA ANTICIPADA (TIEMPO POR TIEMPO) ── */}
+      <ModalCanjearSalidaAnticipada
+        isOpen={showModalCanjearSalida}
+        onClose={() => {
+          setShowModalCanjearSalida(false);
+          setEmpleadoParaCanjearSalida(null);
+          setHorasExtraParaCanjearSalida([]);
+        }}
+        empleados={empleados}
+        horasExtraAprobadas={horasExtra}
+        empleadoPreseleccionado={empleadoParaCanjearSalida}
+        horasExtraPreseleccionadas={horasExtraParaCanjearSalida}
+        onCanjeCompletado={(nuevaCompensacion) => {
+          setSelectedCompensacion(nuevaCompensacion);
           loadData();
         }}
       />

@@ -1381,6 +1381,235 @@ class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
         if instance.estado == 'RECHAZADO':
             instance.delete()
 
+    @action(detail=False, methods=['post'], url_path='canjear-tiempo')
+    def canjear_tiempo(self, request):
+        """
+        Canjea horas extra previamente aprobadas por salida anticipada (tiempo compensado).
+        Genera el registro oficial de CompensacionHoras (con horas_trabajadas_hoy < 7.95)
+        para permitir la emisión inmediata del Acta Oficial de Compensación de Salida Anticipada.
+        No requiere tarifa por hora, no descuenta dinero ni afecta la caja.
+        """
+        data = request.data
+        pin = data.get('pin')
+        if not verificar_pin_nomina(request, pin):
+            try:
+                BitacoraAccion.objects.create(
+                    usuario=request.user if (request.user and request.user.is_authenticated) else None,
+                    accion='SANCION_DISCIPLINARIA',
+                    descripcion="ALERTA DE SEGURIDAD: Intento de canjear horas extra por salida anticipada sin PIN válido.",
+                    ip_address=_get_clean_ip(request)
+                )
+            except Exception:
+                pass
+            return Response(
+                {'detail': 'PIN de administración no proporcionado o inválido.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        empleado_id = data.get('empleado_id')
+        horas_extra_ids = data.get('horas_extra_ids', [])
+        fecha_salida = data.get('fecha_salida')
+        horas_salida = data.get('horas_salida')
+        motivo = data.get('motivo', '').strip()
+
+        if not empleado_id or not horas_extra_ids:
+            return Response({'detail': 'Debe especificar el empleado y al menos una fecha de hora extra.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            empleado = Empleado.objects.get(pk=empleado_id)
+        except Empleado.DoesNotExist:
+            return Response({'detail': 'Empleado no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        import datetime
+        tz = timezone.get_current_timezone()
+        hoy = timezone.now().astimezone(tz).date()
+
+        if not fecha_salida:
+            fecha_salida_date = hoy
+        else:
+            try:
+                fecha_salida_date = datetime.date.fromisoformat(str(fecha_salida))
+            except Exception:
+                fecha_salida_date = hoy
+
+        try:
+            horas_salida_dec = Decimal(str(horas_salida))
+            if horas_salida_dec <= Decimal('0'):
+                return Response({'detail': 'Las horas de salida anticipada a compensar deben ser mayores a 0.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({'detail': 'Horas de salida anticipada inválidas.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Consultar y validar registros de horas extra
+        registros_he = list(
+            AutorizacionHorasExtra.objects.filter(
+                id__in=horas_extra_ids,
+                empleado=empleado,
+                estado='APROBADO',
+            ).exclude(estado_pago='PAGADO').order_by('fecha')
+        )
+
+        if not registros_he:
+            return Response({'detail': 'No se encontraron horas extra aprobadas y pendientes de liquidación para este empleado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        total_he_disponibles = sum((Decimal(str(r.horas_extra_autorizadas)) for r in registros_he), Decimal('0'))
+        if horas_salida_dec > total_he_disponibles:
+            return Response(
+                {'detail': f'Las horas solicitadas ({horas_salida_dec:.1f} hrs) superan el total de horas extra seleccionadas ({total_he_disponibles:.1f} hrs).'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Construir desglose de deducción cronológica
+        horas_pendientes_por_cubrir = horas_salida_dec
+        desglose = []
+        registros_a_actualizar = []
+
+        dias_espanol = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom']
+        meses_espanol = ['', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+        for r in registros_he:
+            if horas_pendientes_por_cubrir <= Decimal('0'):
+                break
+
+            he_orig = Decimal(str(r.horas_extra_autorizadas))
+            aplicadas = min(he_orig, horas_pendientes_por_cubrir)
+            remanente = he_orig - aplicadas
+
+            d_sem = dias_espanol[r.fecha.weekday()]
+            m_nom = meses_espanol[r.fecha.month]
+            fecha_display = f"{d_sem}, {r.fecha.day:02d} {m_nom} {r.fecha.year}"
+
+            desglose.append({
+                'fecha': r.fecha.isoformat(),
+                'fecha_display': fecha_display,
+                'horas_trabajadas': float(Decimal('8.0') + he_orig),
+                'horas_extra_origen': float(he_orig),
+                'horas_aplicadas': float(aplicadas),
+                'saldo_dia': float(remanente),
+                'estado': 'Compensado en Salida Anticipada' if remanente == Decimal('0') else f'Parcial ({remanente:.1f}h remanente)'
+            })
+
+            horas_pendientes_por_cubrir -= aplicadas
+
+            coment_actual = r.comentario or ''
+            nota_canje = f"[Canjeado {aplicadas:.1f}h por salida anticipada el {fecha_salida_date.isoformat()}]"
+            nuevo_coment = f"{coment_actual} {nota_canje}".strip()
+
+            if remanente <= Decimal('0'):
+                r.estado_pago = 'PAGADO'
+                r.fecha_pago = fecha_salida_date
+                r.metodo_pago = 'TIEMPO_COMPENSADO'
+                r.numero_recibo_pago = f"CANJE-SA-{fecha_salida_date.strftime('%Y%m%d')}-{r.id}"
+                r.comentario = nuevo_coment
+            else:
+                r.horas_extra_autorizadas = remanente
+                r.comentario = f"{nuevo_coment} (Horas restantes: {remanente:.1f}h)"
+
+            registros_a_actualizar.append(r)
+
+        for r in registros_a_actualizar:
+            r.save()
+
+        # Crear el registro de CompensacionHoras que modela la salida anticipada (< 7.95h)
+        horas_trabajadas_simuladas = round(Decimal('8.0') - horas_salida_dec, 2)
+        compensacion = CompensacionHoras.objects.create(
+            empleado=empleado,
+            fecha_compensacion=fecha_salida_date,
+            horas_trabajadas_hoy=horas_trabajadas_simuladas,
+            horas_extra_generadas=Decimal('0.00'),
+            horas_deducidas=horas_salida_dec,
+            deuda_previa=horas_salida_dec,
+            saldo_restante=Decimal('0.00'),
+            remanente_extra=max(Decimal('0'), total_he_disponibles - horas_salida_dec),
+            desglose=desglose,
+        )
+
+        desc_bitacora = (
+            f"Salida Anticipada autorizada para {empleado.nombre} {empleado.apellido}: "
+            f"Canje de {horas_salida_dec:.1f} hrs extra acumuladas por salida el {fecha_salida_date.isoformat()}. "
+            f"Acta Compensación #{compensacion.id} generada. "
+        )
+        if motivo:
+            desc_bitacora += f"Motivo: {motivo}"
+
+        BitacoraAccion.objects.create(
+            usuario=request.user if (request.user and request.user.is_authenticated) else None,
+            accion='REGISTRO_MANUAL',
+            descripcion=desc_bitacora,
+            ip_address=_get_clean_ip(request),
+        )
+
+        serializer = CompensacionHorasSerializer(compensacion)
+        return Response({
+            'success': True,
+            'mensaje': f'Salida anticipada de {horas_salida_dec:.1f} hrs canjeada exitosamente.',
+            'compensacion': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='marcar-pagadas-nomina')
+    def marcar_pagadas_nomina(self, request):
+        """
+        Marca un lote de horas extra aprobadas como liquidadas en la Nómina Quincenal general.
+        Permite depurar la bandeja de horas pendientes de pago sin exigir registro de egreso en caja
+        ni fallar por falta de tarifa por hora.
+        """
+        data = request.data
+        pin = data.get('pin')
+        if not verificar_pin_nomina(request, pin):
+            try:
+                BitacoraAccion.objects.create(
+                    usuario=request.user if (request.user and request.user.is_authenticated) else None,
+                    accion='SANCION_DISCIPLINARIA',
+                    descripcion="ALERTA DE SEGURIDAD: Intento de marcar horas extra pagadas en nómina sin PIN válido.",
+                    ip_address=_get_clean_ip(request)
+                )
+            except Exception:
+                pass
+            return Response(
+                {'detail': 'PIN de administración no proporcionado o inválido.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        horas_extra_ids = data.get('horas_extra_ids', [])
+        nota = data.get('nota', 'Liquidado en Nómina Quincenal').strip()
+
+        if not horas_extra_ids:
+            return Response({'detail': 'Debe seleccionar al menos una hora extra.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        registros = list(AutorizacionHorasExtra.objects.filter(id__in=horas_extra_ids, estado='APROBADO').exclude(estado_pago='PAGADO'))
+        if not registros:
+            return Response({'detail': 'No se encontraron registros pendientes para actualizar.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        import datetime
+        tz = timezone.get_current_timezone()
+        hoy = timezone.now().astimezone(tz).date()
+
+        total_horas = Decimal('0')
+        empleados_afectados = set()
+
+        for r in registros:
+            r.estado_pago = 'PAGADO'
+            r.fecha_pago = hoy
+            r.metodo_pago = 'NOMINA_QUINCENAL'
+            r.numero_recibo_pago = f"NOMINA-{hoy.strftime('%Y%m')}-{r.id}"
+            coment_actual = r.comentario or ''
+            r.comentario = f"{coment_actual} [{nota}]".strip()
+            r.save(update_fields=['estado_pago', 'fecha_pago', 'metodo_pago', 'numero_recibo_pago', 'comentario', 'updated_at'])
+            total_horas += Decimal(str(r.horas_extra_autorizadas))
+            empleados_afectados.add(f"{r.empleado.nombre} {r.empleado.apellido}")
+
+        nombres_str = ", ".join(empleados_afectados)
+        BitacoraAccion.objects.create(
+            usuario=request.user if (request.user and request.user.is_authenticated) else None,
+            accion='REGISTRO_MANUAL',
+            descripcion=f"Horas extra marcadas como liquidadas en Nómina Quincenal: {len(registros)} registros ({total_horas:.1f} hrs) para {nombres_str}. Nota: {nota}",
+            ip_address=_get_clean_ip(request),
+        )
+
+        return Response({
+            'success': True,
+            'mensaje': f'Se marcaron {len(registros)} registros ({total_horas:.1f} hrs) como liquidados en nómina quincenal.'
+        }, status=status.HTTP_200_OK)
+
 
 class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
     queryset = AlertaAsistencia.objects.all().select_related('empleado')

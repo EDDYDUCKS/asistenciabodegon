@@ -467,6 +467,47 @@ export async function deleteHoraExtra(id: number): Promise<void> {
   });
 }
 
+export async function canjearHorasPorSalidaAnticipada(payload: {
+  empleado_id: number;
+  horas_extra_ids: number[];
+  fecha_salida: string;
+  horas_salida: number;
+  motivo?: string;
+  pin: string;
+}): Promise<{
+  success: boolean;
+  mensaje: string;
+  compensacion: CompensacionHoras;
+}> {
+  return apiRequest<{
+    success: boolean;
+    mensaje: string;
+    compensacion: CompensacionHoras;
+  }>('/horas-extra/canjear-tiempo/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function marcarHorasExtraPagadasNomina(payload: {
+  horas_extra_ids: number[];
+  pin: string;
+  nota?: string;
+}): Promise<{
+  success: boolean;
+  mensaje: string;
+}> {
+  return apiRequest<{
+    success: boolean;
+    mensaje: string;
+  }>('/horas-extra/marcar-pagadas-nomina/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 // ── ALERTAS DE ASISTENCIA ──────────────────────────────────────────────────
 export async function fetchAlertas(): Promise<AlertaAsistencia[]> {
   const data = await apiRequest<AlertaAsistencia[] | { results: AlertaAsistencia[] }>('/alertas/');
