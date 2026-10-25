@@ -1506,7 +1506,46 @@ class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
 
             registros_a_actualizar.append(r)
 
+        # Generar número de recibo oficial correlativo RPHE para el Historial de Pagos
+        year_str = fecha_salida_date.strftime('%Y')
+        ultimo_pago = PagoHorasExtra.objects.filter(numero_recibo__startswith=f'RPHE-{year_str}-').order_by('-id').first()
+        if ultimo_pago and ultimo_pago.numero_recibo:
+            try:
+                seq = int(ultimo_pago.numero_recibo.split('-')[-1]) + 1
+            except Exception:
+                seq = PagoHorasExtra.objects.count() + 1
+        else:
+            seq = PagoHorasExtra.objects.count() + 1
+        numero_recibo = f"RPHE-{year_str}-{str(seq).zfill(4)}"
+
+        # Detalles para el recibo de pago
+        detalles_fechas_pago = []
+        for d in desglose:
+            detalles_fechas_pago.append({
+                'id': 0,
+                'fecha': d['fecha'],
+                'horas_solicitadas': d['horas_extra_origen'],
+                'horas_autorizadas': d['horas_aplicadas'],
+                'comentario': f"Compensado en salida anticipada el {fecha_salida_date.isoformat()}"
+            })
+
+        # Registrar formalmente en PagoHorasExtra para que figure en 'Historial de Pagos'
+        pago_recibo = PagoHorasExtra.objects.create(
+            empleado=empleado,
+            fecha_pago=fecha_salida_date,
+            total_horas_pagadas=horas_salida_dec,
+            tarifa_hora_aplicada=Decimal('0.00'),
+            monto_total=Decimal('0.00'),
+            metodo_pago='TIEMPO_COMPENSADO',
+            numero_recibo=numero_recibo,
+            observaciones=f"Compensación de jornada por salida anticipada. Motivo: {motivo or 'Tiempo por tiempo'}",
+            detalles_fechas=detalles_fechas_pago,
+            registrado_por=request.user if (request.user and request.user.is_authenticated) else None,
+        )
+
         for r in registros_a_actualizar:
+            r.pago_horas_extra = pago_recibo
+            r.numero_recibo_pago = numero_recibo
             r.save()
 
         # Crear el registro de CompensacionHoras que modela la salida anticipada (< 7.95h)
@@ -1526,7 +1565,7 @@ class AutorizacionHorasExtraViewSet(viewsets.ModelViewSet):
         desc_bitacora = (
             f"Salida Anticipada autorizada para {empleado.nombre} {empleado.apellido}: "
             f"Canje de {horas_salida_dec:.1f} hrs extra acumuladas por salida el {fecha_salida_date.isoformat()}. "
-            f"Acta Compensación #{compensacion.id} generada. "
+            f"Recibo oficial {numero_recibo} y Acta Compensación #{compensacion.id} generados. "
         )
         if motivo:
             desc_bitacora += f"Motivo: {motivo}"

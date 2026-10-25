@@ -332,6 +332,7 @@ class PagoHorasExtra(models.Model):
         ('EFECTIVO', 'Efectivo'),
         ('TRANSFERENCIA', 'Transferencia Bancaria'),
         ('NOMINA_QUINCENAL', 'En Nómina Quincenal'),
+        ('TIEMPO_COMPENSADO', 'Tiempo Compensado (Salida Anticipada)'),
     ]
 
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='pagos_horas_extra')

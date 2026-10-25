@@ -215,7 +215,7 @@ export interface PagoHorasExtra {
   total_horas_pagadas: number;
   tarifa_hora_aplicada: number;
   monto_total: number;
-  metodo_pago: 'EFECTIVO' | 'TRANSFERENCIA' | 'NOMINA_QUINCENAL';
+  metodo_pago: 'EFECTIVO' | 'TRANSFERENCIA' | 'NOMINA_QUINCENAL' | 'TIEMPO_COMPENSADO';
   metodo_pago_display: string;
   numero_recibo: string;
   observaciones?: string;

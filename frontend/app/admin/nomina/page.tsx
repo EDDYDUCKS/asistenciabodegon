@@ -3916,6 +3916,8 @@ export default function NominaAdminPage() {
                                       ? 'bg-bodegon/5 text-bodegon border-bodegon/20'
                                       : pago.metodo_pago === 'TRANSFERENCIA'
                                       ? 'bg-stone-50 text-stone-700 border-stone-200'
+                                      : pago.metodo_pago === 'TIEMPO_COMPENSADO'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-300'
                                       : 'bg-dorado/10 text-dorado-tinta border-dorado/40'
                                   }`}>
                                     {pago.metodo_pago_display || pago.metodo_pago}
