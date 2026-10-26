@@ -2516,8 +2516,26 @@ def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro, empleado=None)
         # Segundo evento del día
         segundos = (fecha_hora_registro - primero.fecha_hora).total_seconds()
         horas_transcurridas = segundos / 3600.0
-        # Si ya completó jornada corrida (>= 6.8h) es salida definitiva (ej: 9am-5pm)
-        if horas_transcurridas >= 6.8:
+
+        # Si el colaborador tiene compensación (salida anticipada) o permiso autorizado para hoy:
+        horas_comp = 0.0
+        tiene_compensacion = False
+        if empleado:
+            try:
+                from .models import CompensacionHoras, PermisoAusencia
+                fecha_evento = dt_local.date()
+                comps = CompensacionHoras.objects.filter(empleado=empleado, fecha_compensacion=fecha_evento)
+                for c in comps:
+                    horas_comp += float(c.horas_deducidas)
+                if comps.exists():
+                    tiene_compensacion = True
+                elif PermisoAusencia.objects.filter(empleado=empleado, fecha_inicio__lte=fecha_evento, fecha_fin__gte=fecha_evento).exists():
+                    tiene_compensacion = True
+            except Exception:
+                pass
+
+        # Si completó jornada corrida (>= 6.8h) o tiene compensación/permiso autorizado con tiempo suficiente -> SALIDA_DEFINITIVA
+        if horas_transcurridas >= 6.8 or (horas_transcurridas + horas_comp) >= 6.5 or (tiene_compensacion and horas_transcurridas >= 3.5):
             return 'SALIDA_DEFINITIVA'
         # Si lleva menos tiempo y estamos entre 12:30 PM y 6:30 PM, es salida a pausa
         if 750 <= hora_mins <= 1140:
@@ -2705,8 +2723,19 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                     # Alertar si el déficit supera los 10 minutos de tolerancia.
                     fecha_jornada = primera_ent.fecha_hora.astimezone(timezone.get_current_timezone()).date() if primera_ent else hora_actual.date()
                     meta = _jornada_esperada(fecha_jornada, registros_actualizados)
-                    if horas_netas_hoy < meta - TOLERANCIA_SALIDA_HORAS:
-                        deficit_mins = int(round((meta - horas_netas_hoy) * 60))
+
+                    # Considerar compensación de horas autorizadas hoy (ej: salida anticipada)
+                    horas_comp = 0.0
+                    try:
+                        from .models import CompensacionHoras
+                        comps_hoy = CompensacionHoras.objects.filter(empleado=empleado, fecha_compensacion=fecha_jornada)
+                        horas_comp = sum(float(c.horas_deducidas) for c in comps_hoy)
+                    except Exception:
+                        horas_comp = 0.0
+
+                    horas_totales = horas_netas_hoy + horas_comp
+                    if horas_totales < meta - TOLERANCIA_SALIDA_HORAS:
+                        deficit_mins = int(round((meta - horas_totales) * 60))
                         if deficit_mins > 10:
                             alerta_creada = True
                             alerta_tipo = 'SALIDA_ANTICIPADA'
