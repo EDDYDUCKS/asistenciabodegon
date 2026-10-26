@@ -206,6 +206,389 @@ tbody tr:hover {
   background-color: rgba(19, 94, 74, 0.04) !important;
 }
 
+/* ── Kiosco: animaciones de los marcajes (components/kiosco/ResultadoMarcaje.tsx) ──
+   Solo transform, opacity y stroke-dashoffset: las tablets viejas lo mueven con la GPU.
+   Cada pieza espera su turno con --d. Curva de salida suave, sin rebotes de juguete. */
+.kz-velo {
+  background: rgba(252, 249, 245, 0.94);
+  animation: fadeInSimple 0.18s ease both;
+}
+
+.kz-tarjeta {
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  width: 100%;
+  max-width: 30rem;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.25rem 1.5rem 1rem;
+  background: #ffffff;
+  border: 1px solid #e7e1d6;
+  border-top: 4px solid var(--tono);
+  border-radius: 1.5rem;
+  box-shadow: 0 24px 48px -28px rgba(60, 40, 20, 0.45);
+  animation: kzSube 0.45s var(--ease) both;
+}
+
+@keyframes kzSube {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.kz-in {
+  animation: kzSube 0.5s var(--ease, ease-out) both;
+  animation-delay: var(--d, 0s);
+}
+
+.kz-pill {
+  display: inline-block;
+  padding: 0.2rem 0.75rem;
+  border-radius: 999px;
+  background: var(--tono-suave);
+  color: var(--tono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kz-nota {
+  width: 100%;
+  text-align: left;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.9rem;
+  background: var(--tono-suave);
+  color: #44403c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.kz-nota strong { color: var(--tono); }
+
+.kz-hora {
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--tono);
+}
+
+.kz-chip {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.7rem;
+  border: 1px solid #e7e1d6;
+  background: #fff;
+  color: #44403c;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.kz-chip-fuerte {
+  background: var(--tono);
+  border-color: var(--tono);
+  color: #fff;
+}
+
+/* Emblema: círculo de 76 px con el dibujo de cada marcaje */
+.kz-emblema {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  flex-shrink: 0;
+}
+
+.kz-emblema-grande {
+  width: 96px;
+  height: 96px;
+}
+
+.kz-svg {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: kzAparece 0.5s var(--ease, ease-out) both;
+}
+
+@keyframes kzAparece {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: none; }
+}
+
+.kz-fondo { fill: var(--tono-suave); }
+
+.kz-trazo {
+  fill: none;
+  stroke: var(--tono);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: kzDibuja 0.55s var(--ease, ease-out) forwards;
+  animation-delay: var(--d, 0s);
+}
+
+.kz-grueso { stroke-width: 5; }
+.kz-aro { stroke-width: 2.5; }
+
+@keyframes kzDibuja { to { stroke-dashoffset: 0; } }
+
+/* Onda que sale una sola vez del emblema de entrada */
+.kz-onda {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 2px solid var(--tono);
+  opacity: 0;
+  animation: kzOnda 0.9s ease-out both;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes kzOnda {
+  from { opacity: 0.45; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.55); }
+}
+
+/* Vapor de la taza: sube y se desvanece, tres veces y se queda quieto */
+.kz-vapor {
+  fill: none;
+  stroke: var(--tono);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0;
+  animation: kzVapor 1.8s ease-in-out 3;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes kzVapor {
+  0% { opacity: 0; transform: translateY(4px); }
+  35% { opacity: 0.75; }
+  100% { opacity: 0; transform: translateY(-7px); }
+}
+
+/* Flecha de retorno: una vuelta completa que frena al llegar */
+.kz-giro {
+  transform-origin: 44px 44px;
+  animation: kzGiro 1s var(--ease, ease-out) both;
+  animation-delay: 0.15s;
+}
+
+@keyframes kzGiro {
+  from { transform: rotate(-200deg); }
+  to { transform: rotate(0deg); }
+}
+
+/* Aro de horas del cierre */
+.kz-riel { fill: none; stroke: #e7e1d6; stroke-width: 5; }
+
+.kz-llenado {
+  stroke-width: 5;
+  stroke-dashoffset: calc(1 - var(--lleno, 1));
+  animation: kzDesdeVacio 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes kzDesdeVacio { from { stroke-dashoffset: 1; } }
+
+.kz-cifra {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  color: var(--tono);
+}
+
+.kz-cifra strong {
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 1.9rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.kz-cifra small {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #78716c;
+}
+
+/* Chispas doradas que salen una vez cuando el aro termina de llenarse */
+.kz-chispas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.kz-chispas i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 999px;
+  background: #d2a445;
+  opacity: 0;
+  animation: kzChispa 0.8s ease-out both;
+  animation-delay: 1.15s;
+}
+
+@keyframes kzChispa {
+  0% { opacity: 1; transform: rotate(var(--a)) translateY(-30px) scale(1); }
+  100% { opacity: 0; transform: rotate(var(--a)) translateY(-66px) scale(0.4); }
+}
+
+/* Sello dorado de "Jornada cumplida": cae y se asienta como un timbre */
+.kz-sello {
+  display: inline-block;
+  padding: 0.3rem 0.9rem;
+  border: 2px solid #d2a445;
+  border-radius: 0.6rem;
+  color: #8a6418;
+  background: #fdf8ec;
+  font-family: var(--font-big-shoulders), sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  animation: kzSello 0.45s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes kzSello {
+  from { opacity: 0; transform: scale(1.6) rotate(-10deg); }
+  to { opacity: 1; transform: rotate(-3deg); }
+}
+
+/* Agujas del reloj (tardanza y marcaje repetido) */
+.kz-aguja {
+  stroke: var(--tono);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transform-origin: 44px 44px;
+}
+
+.kz-aguja-corta { opacity: 0.6; }
+.kz-centro { fill: var(--tono); }
+
+.kz-aguja-golpe { animation: kzGolpe 0.7s var(--ease, ease-out) both; animation-delay: 0.25s; }
+.kz-aguja-vuelta { animation: kzVuelta 1.2s var(--ease, ease-out) both; animation-delay: 0.15s; }
+
+@keyframes kzGolpe {
+  0% { transform: rotate(0deg); }
+  70% { transform: rotate(118deg); }
+  100% { transform: rotate(110deg); }
+}
+
+@keyframes kzVuelta {
+  from { transform: rotate(-360deg); }
+  to { transform: rotate(0deg); }
+}
+
+.kz-pop { animation: kzAparece 0.3s ease-out both; animation-delay: var(--d, 0s); transform-origin: 44px 46px; stroke-dashoffset: 0; }
+
+/* Un "no" corto con la cabeza: tres vaivenes de 4 px */
+.kz-sacude { animation: kzSube 0.45s cubic-bezier(0.22, 1, 0.36, 1) both, kzNo 0.42s ease-in-out 0.5s; }
+
+@keyframes kzNo {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+/* Barra de la jornada y barras de cuenta regresiva */
+.kz-barra,
+.kz-cuenta {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: #efe9df;
+  overflow: hidden;
+}
+
+.kz-barra span,
+.kz-cuenta span {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--tono);
+  transform-origin: left center;
+}
+
+.kz-barra span {
+  transform: scaleX(var(--lleno, 0));
+  animation: kzBarra 0.9s var(--ease, ease-out) both;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes kzBarra { from { transform: scaleX(0); } }
+
+.kz-cuenta { flex: 1; height: 4px; }
+.kz-cuenta span { opacity: 0.35; animation: kzVacia linear both; }
+
+@keyframes kzVacia {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* Franja de "tomando foto": deja ver el rostro y avisa cuánto falta */
+.kz-franja {
+  --tono: #135e4a;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.75rem 1rem 0.95rem;
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #e7e1d6;
+  box-shadow: 0 16px 32px -20px rgba(60, 40, 20, 0.5);
+  animation: kzSube 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.kz-obturador {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 3px solid #135e4a;
+  background: radial-gradient(circle, #135e4a 0 38%, transparent 40%);
+  animation: kzLatido 1s ease-in-out infinite;
+}
+
+@keyframes kzLatido {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(0.9); }
+}
+
+.kz-cuenta-foto {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 0.4rem;
+  height: 3px;
+}
+
+.kz-cuenta-foto span { opacity: 1; }
+
+/* Con "reducir movimiento" todo aparece ya en su lugar, sin desplazamientos */
+@media (prefers-reduced-motion: reduce) {
+  .kz-vapor, .kz-onda, .kz-chispas { display: none; }
+  .kz-obturador, .kz-cuenta span { animation: none; }
+  [class*="kz-"], [class*="kz-"] * { animation-delay: 0s !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
