@@ -2193,7 +2193,7 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
         """
         Cierra automáticamente un marcaje huérfano (olvido de marcaje de salida)
         creando un registro de SALIDA_DEFINITIVA a la hora real que indica administración
-        (por defecto la hora de cierre: 11:00 PM, o 10:30 PM en domingo). No genera horas extra.
+        (por defecto la hora de cierre: 11:00 PM, o 10:00 PM en domingo). No genera horas extra.
         Calcula las horas trabajadas, marca la alerta como leída y registra en bitácora.
         """
         import re
@@ -2250,7 +2250,7 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             })
 
         # Hora real de salida que indica administración (HH:MM). Sin ella se usa la hora de cierre
-        # del restaurante: 11:00 PM, o 10:30 PM en domingo.
+        # del restaurante: 11:00 PM, o 10:00 PM en domingo.
         hora_str = str(request.data.get('hora') or '').strip()
         if hora_str:
             try:
@@ -2583,6 +2583,7 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                 600: '10:00 AM',
                 660: '11:00 AM',
                 720: '12:00 PM',
+                840: '2:00 PM',
                 900: '3:00 PM',
                 1020: '5:00 PM',
                 1080: '6:00 PM',
@@ -2592,17 +2593,19 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
             if turno_manual and turno_manual in LABELS_TO_MINS:
                 franja_base = LABELS_TO_MINS[turno_manual]
             else:
-                # 2. Si no hay turno manual asignado por el admin, usar las 7 Ventanas Oficiales de El Bodegón
+                # 2. Si no hay turno manual asignado por el admin, usar las Ventanas Oficiales de El Bodegón
                 if mins_marcados < 576:
                     franja_base = 540   # 9:00 AM (hasta 9:35 AM)
                 elif mins_marcados < 636:
                     franja_base = 600   # 10:00 AM (9:36 AM a 10:35 AM)
                 elif mins_marcados < 696:
                     franja_base = 660   # 11:00 AM (10:36 AM a 11:35 AM)
-                elif mins_marcados < 810:
-                    franja_base = 720   # 12:00 PM (11:36 AM a 1:30 PM)
+                elif mins_marcados < 780:
+                    franja_base = 720   # 12:00 PM (11:36 AM a 1:00 PM)
+                elif mins_marcados < 871:
+                    franja_base = 840   # 2:00 PM (1:01 PM a 2:30 PM)
                 elif mins_marcados < 961:
-                    franja_base = 900   # 3:00 PM (1:31 PM a 4:00 PM)
+                    franja_base = 900   # 3:00 PM (2:31 PM a 4:00 PM)
                 elif mins_marcados < 1056:
                     franja_base = 1020  # 5:00 PM (4:01 PM a 5:35 PM)
                 else:
@@ -2698,7 +2701,7 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
                                 f"(Déficit de {deficit_mins} min)."
                             )
                 else:
-                    # Jornada estándar de 8 horas (7.5 h el domingo para quien se queda al cierre de las 10:30 PM).
+                    # Jornada estándar de 8 horas (7.5 h el domingo para quien se queda al cierre de las 10:00 PM).
                     # Alertar si el déficit supera los 10 minutos de tolerancia.
                     fecha_jornada = primera_ent.fecha_hora.astimezone(timezone.get_current_timezone()).date() if primera_ent else hora_actual.date()
                     meta = _jornada_esperada(fecha_jornada, registros_actualizados)
@@ -3237,7 +3240,7 @@ def _calcular_horas_netas_dia(registros_dia):
             # Determinar franja base oficial (Manual por Admin o Ventana Automática)
             import re
             m_t = re.search(r'\[TURNO:([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM))\]', reg.observacion or '', re.IGNORECASE)
-            t_map = {'9:00 AM': 540, '10:00 AM': 600, '11:00 AM': 660, '12:00 PM': 720, '3:00 PM': 900, '5:00 PM': 1020, '6:00 PM': 1080}
+            t_map = {'9:00 AM': 540, '10:00 AM': 600, '11:00 AM': 660, '12:00 PM': 720, '2:00 PM': 840, '3:00 PM': 900, '5:00 PM': 1020, '6:00 PM': 1080}
             base_mins = None
             if m_t:
                 base_mins = t_map.get(m_t.group(1).upper().strip())
@@ -3249,10 +3252,12 @@ def _calcular_horas_netas_dia(registros_dia):
                     base_mins = 600   # 10:00 AM
                 elif mins_e < 696:
                     base_mins = 660   # 11:00 AM
-                elif mins_e < 810:
-                    base_mins = 720   # 12:00 PM
+                elif mins_e < 780:
+                    base_mins = 720   # 12:00 PM (11:36 AM a 1:00 PM)
+                elif mins_e < 871:
+                    base_mins = 840   # 2:00 PM (1:01 PM a 2:30 PM)
                 elif mins_e < 961:
-                    base_mins = 900   # 3:00 PM
+                    base_mins = 900   # 3:00 PM (2:31 PM a 4:00 PM)
                 elif mins_e < 1056:
                     base_mins = 1020  # 5:00 PM
                 else:
@@ -3296,8 +3301,8 @@ def _calcular_horas_netas_dia(registros_dia):
     return total_segundos / 3600.0
 
 
-# El domingo el restaurante cierra a las 10:30 PM en vez de las 11:00 PM: quien se queda
-# hasta el cierre (sale desde las 10:20 PM, o de madrugada) cumple con 7.5 h.
+# El domingo el restaurante cierra a las 10:00 PM: quien se queda
+# hasta el cierre (sale desde las 9:50 PM / 10:00 PM, o de madrugada) cumple con 7.5 h.
 JORNADA_ORDINARIA = 8.0
 JORNADA_CIERRE_DOMINGO = 7.5
 TOLERANCIA_SALIDA_HORAS = 10 / 60  # 10 min de cortesía
@@ -3312,7 +3317,8 @@ def _jornada_esperada(fecha, registros_dia):
         if r.tipo_evento != 'SALIDA_DEFINITIVA':
             continue
         local = r.fecha_hora.astimezone(tz_ni)
-        if local.date() > fecha or local.hour * 60 + local.minute >= 22 * 60 + 20:
+        # Cierre dominical a las 10:00 PM (salida a partir de las 9:50 PM / 1310 mins, o trasnoche < 5 AM)
+        if local.date() > fecha or local.hour < 5 or local.hour * 60 + local.minute >= 21 * 60 + 50:
             return JORNADA_CIERRE_DOMINGO
     return JORNADA_ORDINARIA
 
@@ -3842,7 +3848,7 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
             'es_septimo_dia': True,
         }
 
-    # Jornada esperada: 8 h, o 7.5 h el domingo para quien se queda al cierre de las 10:30 PM.
+    # Jornada esperada: 8 h, o 7.5 h el domingo para quien se queda al cierre de las 10:00 PM.
     # Tolerancia de cortesía de 10 min: dentro de ella la jornada se considera cumplida.
     meta = _jornada_esperada(fecha_hoy, _registros_jornada(empleado, fecha_hoy))
     if horas_trabajadas_dia < meta - TOLERANCIA_SALIDA_HORAS:

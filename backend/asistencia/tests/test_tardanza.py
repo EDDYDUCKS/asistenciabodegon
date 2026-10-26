@@ -88,9 +88,9 @@ class SalidaAnticipadaTests(NominaTestCase):
         self.marcar(DOMINGO, 18, 30, tipo_evento='SALIDA_DEFINITIVA')
         self.assertTrue(AlertaAsistencia.objects.filter(empleado=self.empleado, tipo='SALIDA_ANTICIPADA').exists())
 
-    def test_domingo_cierre_1030_no_alerta(self):
-        self.marcar(DOMINGO, 15)
-        res = self.marcar(DOMINGO, 22, 30)
+    def test_domingo_cierre_1000_no_alerta(self):
+        self.marcar(DOMINGO, 14, 30)
+        res = self.marcar(DOMINGO, 22, 0)
         self.assertTrue(res['cumplio_meta_8h'])
         self.assertFalse(AlertaAsistencia.objects.filter(empleado=self.empleado, tipo='SALIDA_ANTICIPADA').exists())
 

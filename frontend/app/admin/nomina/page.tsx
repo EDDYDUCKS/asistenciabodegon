@@ -100,7 +100,7 @@ const getEmpleadoArea = (cargoStr?: string): 'COCINA' | 'SALON' | 'BARRA_CAJA' |
   return 'OPERACIONES';
 };
 
-// El domingo el restaurante cierra a las 10:30 PM: quien se queda al cierre (sale desde las 10:20 PM
+// El domingo el restaurante cierra a las 10:00 PM: quien se queda al cierre (sale desde las 9:50 PM / 10:00 PM
 // o de madrugada) cumple con 7.5 h. Cualquier otra jornada exige 8 h. Igual que _jornada_esperada en el backend.
 const jornadaEsperada = (dia: Date, regs: { tipo_evento: string; fecha_hora: string }[]): number => {
   if (dia.getDay() !== 0) return 8.0;
@@ -110,7 +110,7 @@ const jornadaEsperada = (dia: Date, regs: { tipo_evento: string; fecha_hora: str
       .toLocaleTimeString('en-GB', { timeZone: 'America/Managua', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
       .split(':')
       .map(Number);
-    return h < 5 || h * 60 + m >= 22 * 60 + 20;
+    return h < 5 || h * 60 + m >= 21 * 60 + 50;
   });
   return alCierre ? 7.5 : 8.0;
 };

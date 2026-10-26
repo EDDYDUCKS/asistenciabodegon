@@ -95,15 +95,15 @@ class DeudaJornadaCortaTests(NominaTestCase):
         self.marcar(DOMINGO, 18, 30, tipo_evento='SALIDA_DEFINITIVA')
         self.assertEqual(float(self.recargar().horas_pendientes), 1.5)
 
-    def test_domingo_cierre_1030_cumple_con_siete_y_media(self):
-        self.marcar(DOMINGO, 15)
-        self.marcar(DOMINGO, 22, 30)
+    def test_domingo_cierre_1000_cumple_con_siete_y_media(self):
+        self.marcar(DOMINGO, 14, 30)
+        self.marcar(DOMINGO, 22, 0)
         self.assertEqual(float(self.recargar().horas_pendientes), 0.0)
 
     def test_domingo_cierre_con_menos_de_siete_y_media_debe_la_diferencia(self):
         self.marcar(DOMINGO, 15, 30)
-        self.marcar(DOMINGO, 22, 30)
-        self.assertEqual(float(self.recargar().horas_pendientes), 0.5)
+        self.marcar(DOMINGO, 22, 0)
+        self.assertEqual(float(self.recargar().horas_pendientes), 1.0)
 
     def test_recalculo_respeta_regla_del_domingo(self):
         self.registrar('ENTRADA', DOMINGO, 12)

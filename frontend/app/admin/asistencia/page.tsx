@@ -28,12 +28,13 @@ interface AnalisisPuntualidad {
   desviacionMinutos: number;
 }
 
-// 7 Turnos Oficiales de El Bodegón
+// Turnos Oficiales de El Bodegón
 const TURNOS_OFICIALES_CONFIG: Record<string, number> = {
   '9:00 AM': 540,
   '10:00 AM': 600,
   '11:00 AM': 660,
   '12:00 PM': 720,
+  '2:00 PM': 840,
   '3:00 PM': 900,
   '5:00 PM': 1020,
   '6:00 PM': 1080,
@@ -101,7 +102,7 @@ function calcularPuntualidadRecord(
       turnoOficialNombre = turnoManual;
       esManual = true;
     } else {
-      // 2. Matriz de Ventanas de Llegada Oficiales de El Bodegón (7 turnos)
+      // 2. Matriz de Ventanas de Llegada Oficiales de El Bodegón
       if (minsMarcados < 576) {
         franjaBaseEsta = 540;   // 9:00 AM (< 9:36 AM)
         turnoOficialNombre = '9:00 AM';
@@ -111,11 +112,14 @@ function calcularPuntualidadRecord(
       } else if (minsMarcados < 696) {
         franjaBaseEsta = 660;   // 11:00 AM (10:36 AM a 11:35 AM)
         turnoOficialNombre = '11:00 AM';
-      } else if (minsMarcados < 810) {
-        franjaBaseEsta = 720;   // 12:00 PM (11:36 AM a 1:30 PM)
+      } else if (minsMarcados < 780) {
+        franjaBaseEsta = 720;   // 12:00 PM (11:36 AM a 1:00 PM)
         turnoOficialNombre = '12:00 PM';
+      } else if (minsMarcados < 871) {
+        franjaBaseEsta = 840;   // 2:00 PM (1:01 PM a 2:30 PM)
+        turnoOficialNombre = '2:00 PM';
       } else if (minsMarcados < 961) {
-        franjaBaseEsta = 900;   // 3:00 PM (1:31 PM a 4:00 PM)
+        franjaBaseEsta = 900;   // 3:00 PM (2:31 PM a 4:00 PM)
         turnoOficialNombre = '3:00 PM';
       } else if (minsMarcados < 1056) {
         franjaBaseEsta = 1020;  // 5:00 PM (4:01 PM a 5:35 PM)
@@ -189,8 +193,10 @@ function calcularPuntualidadRecord(
           baseMins = 600;
         } else if (minsM < 696) {
           baseMins = 660;
-        } else if (minsM < 810) {
+        } else if (minsM < 780) {
           baseMins = 720;
+        } else if (minsM < 871) {
+          baseMins = 840;
         } else if (minsM < 961) {
           baseMins = 900;
         } else if (minsM < 1056) {

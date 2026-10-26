@@ -815,7 +815,7 @@ export async function sincronizarDescansosTrabajados(): Promise<{ status: string
 
 // ── MARCAJES HUÉRFANOS (CIERRE CON LA HORA REAL DE SALIDA) ──────────────
 // `hora` en formato HH:MM (24 h). Si se omite, el servidor usa la hora de cierre del
-// restaurante (11:00 PM, o 10:30 PM en domingo). El cierre no genera horas extra.
+// restaurante (11:00 PM, o 10:00 PM en domingo). El cierre no genera horas extra.
 export async function cerrarSalida11pm(alertaId: number, hora?: string): Promise<{
   status: string;
   mensaje: string;
@@ -833,7 +833,7 @@ export async function cerrarSalida11pm(alertaId: number, hora?: string): Promise
 /** Pide al administrador la hora real de salida. Devuelve null si cancela. */
 export function pedirHoraSalidaReal(): string | null {
   const resp = window.prompt(
-    'Hora REAL en que salió el colaborador (formato 24 h, ej. 17:00).\nDéjelo vacío para usar la hora de cierre (11:00 PM, o 10:30 PM en domingo).\nEste cierre no genera horas extra.',
+    'Hora REAL en que salió el colaborador (formato 24 h, ej. 17:00).\nDéjelo vacío para usar la hora de cierre (11:00 PM, o 10:00 PM en domingo).\nEste cierre no genera horas extra.',
     ''
   );
   if (resp === null) return null;
