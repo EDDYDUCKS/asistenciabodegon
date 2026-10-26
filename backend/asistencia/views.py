@@ -2457,6 +2457,41 @@ def _procesar_foto_a_base64(foto):
         return None
 
 
+def _calcular_deficit_redondeado(deficit_bruto: float) -> float:
+    """
+    Política oficial de El Bodegón para Déficit de Jornada (Bolsa de Horas):
+    El déficit solo se empieza a contar a partir de 30 minutos (0.5 hrs), igual que las horas extra.
+    1. Déficit menor a 30 minutos (< 30 min):
+       - 0.0 hrs de deuda (tolerancia oficial de cierre de turno / plática).
+    2. Déficit de 30 a 59 minutos:
+       - 0.5 hrs de deuda.
+    3. Déficit de 1 hora o más (>= 60 minutos):
+       - Escalones limpios de media hora y hora completa:
+         * 0 a 19 min: se queda en la hora base (ej. 1h 10m -> 1.0h)
+         * 20 a 47 min: escalón de media hora (ej. 1h 25m -> 1.5h)
+         * 48 a 59 min: sube a la siguiente hora completa (ej. 1h 50m -> 2.0h)
+    """
+    if not deficit_bruto or float(deficit_bruto) <= 0:
+        return 0.0
+
+    minutos_totales = int(round(float(deficit_bruto) * 60))
+
+    if minutos_totales < 30:
+        return 0.0
+    elif minutos_totales < 60:
+        return 0.5
+
+    horas_enteras = minutos_totales // 60
+    minutos_remanentes = minutos_totales % 60
+
+    if minutos_remanentes < 20:
+        return float(horas_enteras)
+    elif minutos_remanentes < 48:
+        return float(horas_enteras + 0.5)
+    else:
+        return float(horas_enteras + 1.0)
+
+
 def _autodetectar_tipo_evento(registros_hoy, fecha_hora_registro, empleado=None):
     """
     Auto-detección inteligente de eventos para El Bodegón:
@@ -2735,14 +2770,16 @@ def _evaluar_alertas_asistencia(registro, empleado, registros_actualizados, hora
 
                     horas_totales = horas_netas_hoy + horas_comp
                     if horas_totales < meta - TOLERANCIA_SALIDA_HORAS:
-                        deficit_mins = int(round((meta - horas_totales) * 60))
-                        if deficit_mins > 10:
+                        deficit_bruto = meta - horas_totales
+                        deficit_redondeado = _calcular_deficit_redondeado(deficit_bruto)
+                        # Regla oficial El Bodegón: solo alertar si el déficit alcanza los 30 min (>= 0.5 hrs)
+                        if deficit_redondeado >= 0.5:
                             alerta_creada = True
                             alerta_tipo = 'SALIDA_ANTICIPADA'
                             alerta_titulo = f"Jornada incompleta{tag_offline}: {empleado.nombre} {empleado.apellido}"
                             alerta_mensaje = (
                                 f"Se retiró antes de cumplir sus {meta:g} horas. Acumuló {round(horas_netas_hoy, 1)} hrs "
-                                f"(Déficit de {deficit_mins} min)."
+                                f"(Déficit: {deficit_redondeado:g} hrs)."
                             )
 
         if alerta_creada:
@@ -3495,9 +3532,12 @@ def _recalcular_horas_pendientes_empleado(empleado, fecha_referencia=None):
             if not es_dia_libre:
                 horas_dia = _calcular_horas_netas_dia(regs_d)
                 meta = _jornada_esperada(d, regs_d)
-                if 0.2 <= horas_dia < meta - TOLERANCIA_SALIDA_HORAS:
-                    deficit = round(meta - horas_dia, 1)
-                    if deficit > 0.1:
+                comps_d = CompensacionHoras.objects.filter(empleado=empleado, fecha_compensacion=d)
+                horas_comp = sum(float(c.horas_deducidas) for c in comps_d)
+                horas_totales = horas_dia + horas_comp
+                if 0.2 <= horas_totales < meta - TOLERANCIA_SALIDA_HORAS:
+                    deficit = _calcular_deficit_redondeado(meta - horas_totales)
+                    if deficit >= 0.5:
                         deuda_acumulada += deficit
     # Faltas del mes cobradas en la bolsa de horas (8 h cada una): no salen de los marcajes,
     # así que se suman aparte para que un recálculo no las borre.
@@ -3547,25 +3587,38 @@ def _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia, meta=J
     Si el empleado trabajó menos de su jornada (`meta`: 8 h, o 7.5 h el domingo al cierre),
     acumula el déficit en horas_pendientes.
     El cómputo de déficit inicia oficialmente a partir del 10 de octubre de 2026.
+    Regla oficial El Bodegón: el déficit solo se computa a partir de 30 minutos (0.5 hrs).
     """
     if fecha_hoy < datetime.date(2026, 10, 10):
         return  # Todo déficit previo al 10 de octubre de 2026 queda condonado / borrón y cuenta nueva
 
+    # Considerar compensación de horas o permiso autorizado para hoy (ej: salida anticipada)
+    horas_comp = 0.0
+    try:
+        from .models import CompensacionHoras
+        comps = CompensacionHoras.objects.filter(empleado=empleado, fecha_compensacion=fecha_hoy)
+        horas_comp = sum(float(c.horas_deducidas) for c in comps)
+    except Exception:
+        pass
+
+    horas_totales = horas_trabajadas_dia + horas_comp
+
     # Tolerancia oficial de salida: hasta 10 min antes de la meta se considera jornada cumplida.
     # Si las horas trabajadas son insignificantes (< 0.2h = menos de 12 min), es marcaje duplicado o erróneo.
-    if horas_trabajadas_dia >= meta - TOLERANCIA_SALIDA_HORAS or horas_trabajadas_dia < 0.2:
-        return  # No hay deuda (jornada cumplida dentro de tolerancia de 10 min o marcaje técnico insignificante)
+    if horas_totales >= meta - TOLERANCIA_SALIDA_HORAS or horas_trabajadas_dia < 0.2:
+        return
 
-    horas_ordinarias = min(horas_trabajadas_dia, meta)
-    deficit = max(0.0, meta - horas_ordinarias)
+    horas_ordinarias = min(horas_totales, meta)
+    deficit_bruto = max(0.0, meta - horas_ordinarias)
+    deficit = _calcular_deficit_redondeado(deficit_bruto)
 
-    if deficit <= 0.1:
-        return  # No hay deuda que acumular este día
+    if deficit < 0.5:
+        return  # Regla oficial El Bodegón: menos de 30 minutos no genera deuda
 
     if not _sincronizar_periodo_deuda(empleado, fecha_hoy):
         return  # Jornada de un mes ya cerrado: su deuda no pasa al mes vigente
 
-    empleado.horas_pendientes = float(empleado.horas_pendientes or 0.0) + round(deficit, 1)
+    empleado.horas_pendientes = float(empleado.horas_pendientes or 0.0) + deficit
     empleado.save(update_fields=['horas_pendientes'])
 
 
@@ -3880,7 +3933,19 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
     # Jornada esperada: 8 h, o 7.5 h el domingo para quien se queda al cierre de las 10:00 PM.
     # Tolerancia de cortesía de 10 min: dentro de ella la jornada se considera cumplida.
     meta = _jornada_esperada(fecha_hoy, _registros_jornada(empleado, fecha_hoy))
-    if horas_trabajadas_dia < meta - TOLERANCIA_SALIDA_HORAS:
+
+    # Considerar compensación aprobada hoy (ej: salida anticipada)
+    horas_comp = 0.0
+    try:
+        from .models import CompensacionHoras
+        comps = CompensacionHoras.objects.filter(empleado=empleado, fecha_compensacion=fecha_hoy)
+        horas_comp = sum(float(c.horas_deducidas) for c in comps)
+    except Exception:
+        pass
+
+    horas_totales = horas_trabajadas_dia + horas_comp
+
+    if horas_totales < meta - TOLERANCIA_SALIDA_HORAS:
         # Si las horas trabajadas son insignificantes (< 0.2h = menos de 12 min), se trata de un marcaje
         # de salida duplicado o error técnico, no de una jornada corta real. Evitar generar alerta absurda de 0.0 hrs.
         if horas_trabajadas_dia < 0.2:
@@ -3894,37 +3959,35 @@ def _procesar_compensacion_y_horas_extra(empleado, fecha_hoy, horas_trabajadas_d
                 'deficit_dia': 0.0,
             }
 
-        deficit_dia = round(meta - horas_trabajadas_dia, 1)
+        deficit_dia = _calcular_deficit_redondeado(meta - horas_totales)
 
-        # OPCIÓN B (Control Gerencial):
-        # El Kiosco NO borra ni recorta a ciegas las solicitudes de Horas Extra pendientes del colaborador.
-        # En su lugar, acumula el déficit en la Bolsa de Horas (horas_pendientes) de forma limpia y transparente,
-        # emitiendo una notificación para que la administración decida: Exonerar con justificación, Cargar a Deuda o Cruzar con Horas Extra.
-        _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia, meta)
+        # Regla oficial El Bodegón: solo acumular deuda y alertar si el déficit alcanza 30 min (>= 0.5 hrs)
+        if deficit_dia >= 0.5:
+            _acumular_horas_pendientes(empleado, fecha_hoy, horas_trabajadas_dia, meta)
 
-        # Evitar crear alerta duplicada si ya existe una alerta de déficit o salida anticipada para este día
-        tz = timezone.get_current_timezone()
-        start_dia = timezone.make_aware(datetime.datetime.combine(fecha_hoy, datetime.time.min), tz)
-        end_dia = timezone.make_aware(datetime.datetime.combine(fecha_hoy, datetime.time.max), tz) + datetime.timedelta(hours=5)
-        ya_existe_alerta = AlertaAsistencia.objects.filter(
-            empleado=empleado,
-            tipo__in=['DEFICIT_JORNADA', 'SALIDA_ANTICIPADA'],
-            created_at__range=(start_dia, end_dia)
-        ).exists()
-
-        if not ya_existe_alerta and deficit_dia > 0.1:
-            AlertaAsistencia.objects.create(
-                tipo='DEFICIT_JORNADA',
+            # Evitar crear alerta duplicada si ya existe una alerta de déficit o salida anticipada para este día
+            tz = timezone.get_current_timezone()
+            start_dia = timezone.make_aware(datetime.datetime.combine(fecha_hoy, datetime.time.min), tz)
+            end_dia = timezone.make_aware(datetime.datetime.combine(fecha_hoy, datetime.time.max), tz) + datetime.timedelta(hours=5)
+            ya_existe_alerta = AlertaAsistencia.objects.filter(
                 empleado=empleado,
-                titulo=f"Jornada Corta / Posible Día Libre: {empleado.nombre} {empleado.apellido}",
-                mensaje=(
-                    f"El {fecha_hoy.strftime('%d/%m/%Y')} el colaborador completó una jornada corta de {round(horas_trabajadas_dia, 1)} hrs "
-                    f"(déficit calculado de {round(deficit_dia, 1)} hrs). "
-                    f"Si este día fue su descanso o apoyo especial, puede resolverla como 'Día Libre Laborado' para anular la deuda "
-                    f"y enviar sus {round(horas_trabajadas_dia, 1)} hrs trabajadas como Horas Extra a aprobación."
-                ),
-                leida=False
-            )
+                tipo__in=['DEFICIT_JORNADA', 'SALIDA_ANTICIPADA'],
+                created_at__range=(start_dia, end_dia)
+            ).exists()
+
+            if not ya_existe_alerta:
+                AlertaAsistencia.objects.create(
+                    tipo='DEFICIT_JORNADA',
+                    empleado=empleado,
+                    titulo=f"Jornada Corta: {empleado.nombre} {empleado.apellido}",
+                    mensaje=(
+                        f"El {fecha_hoy.strftime('%d/%m/%Y')} el colaborador completó una jornada corta de {round(horas_trabajadas_dia, 1)} hrs "
+                        f"(déficit calculado: {deficit_dia:g} hrs). "
+                        f"Si este día fue su descanso o apoyo especial, puede resolverla como 'Día Libre Laborado' para anular la deuda "
+                        f"y enviar sus {round(horas_trabajadas_dia, 1)} hrs trabajadas como Horas Extra a aprobación."
+                    ),
+                    leida=False
+                )
 
         return {
             'horas_netas': round(horas_trabajadas_dia, 1),
