@@ -19,7 +19,6 @@ import {
   Camera,
   CheckCircle2,
   AlertCircle,
-  AlertTriangle,
   QrCode,
   Utensils,
   ArrowLeft,
@@ -913,176 +912,6 @@ export default function KioscoPage() {
 
           {/* Estado del Marcaje / Feedback */}
           <div className="min-h-[110px] flex items-center justify-center relative bg-stone-50 border border-stone-200/60 rounded-2xl p-4">
-            {processing && !feedback && !errorMsg && (
-              <div className="flex flex-col items-center gap-2 text-center animate-in zoom-in-95 duration-200 w-full py-1">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800 mx-auto shadow-sm">
-                  <Camera className="w-5 h-5 animate-pulse" />
-                </div>
-                {empleadoDetectado ? (
-                  <div>
-                    <h3 className="font-display font-black text-base text-stone-900 leading-tight">
-                      ¡Hola {empleadoDetectado.nombre} {empleadoDetectado.apellido}!
-                    </h3>
-                    <p className="text-xs font-bold text-emerald-700 mt-1 flex items-center justify-center gap-1.5 animate-pulse">
-                      <span>📸</span> Mire a la pantalla para su foto de asistencia...
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <h3 className="font-display font-black text-sm text-stone-900 leading-tight">
-                      ¡Carnet Reconocido!
-                    </h3>
-                    <p className="text-xs font-bold text-emerald-700 mt-1 flex items-center justify-center gap-1.5 animate-pulse">
-                      <span>📸</span> Mire a la pantalla para su foto de asistencia...
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {feedback && (
-              <div className="text-center space-y-2.5 animate-in zoom-in-95 duration-200 w-full">
-                {feedback.status === 'cooldown' ? (
-                  <>
-                    <div className="w-11 h-11 rounded-2xl bg-amber-500 flex items-center justify-center text-white mx-auto shadow-md shadow-amber-500/20">
-                      <Clock className="w-6 h-6" />
-                    </div>
-                    <div>
-                      {feedback.registro?.empleado_detalle && (
-                        <h3 className="font-display font-black text-base text-stone-900 mb-0.5">
-                          {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
-                        </h3>
-                      )}
-                      <h4 className="font-bold text-xs text-amber-800 uppercase tracking-wide">Marcaje Previo Guardado</h4>
-                      <p className="text-xs font-medium text-stone-600 mt-1 max-w-md mx-auto">
-                        {feedback.mensaje}
-                      </p>
-                      {feedback.horas_trabajadas_hoy !== undefined && (
-                        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-                          <span className="inline-block bg-amber-100 text-amber-900 text-[11px] font-bold px-3 py-1 rounded-lg font-mono">
-                            ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(1)} hrs
-                          </span>
-                          {feedback.cumplio_meta_8h ? (
-                            <span className="inline-block bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg">
-                              🎉 Meta de 8h Cumplida
-                            </span>
-                          ) : feedback.horas_restantes_hoy !== undefined && feedback.horas_restantes_hoy > 0 ? (
-                            <span className="inline-block bg-stone-100 text-stone-700 text-[11px] font-bold px-3 py-1 rounded-lg">
-                              Faltan: {feedback.horas_restantes_hoy.toFixed(1)} hrs
-                            </span>
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : feedback.advertencia_quiebre ? (
-                  <>
-                    <div className="w-11 h-11 rounded-2xl bg-amber-500 flex items-center justify-center text-white mx-auto shadow-md shadow-amber-500/20">
-                      <AlertTriangle className="w-6 h-6" />
-                    </div>
-                    <div>
-                      {feedback.registro?.empleado_detalle && (
-                        <h3 className="font-display font-black text-base text-stone-900 mb-0.5">
-                          {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
-                        </h3>
-                      )}
-                      <h4 className="font-bold text-xs text-amber-800 uppercase tracking-wide">⚠️ Falta Entrada de Retorno</h4>
-                      <p className="text-xs font-medium text-amber-900 mt-1 max-w-md mx-auto">
-                        {feedback.mensaje}
-                      </p>
-                      <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-                        <span className="inline-block bg-amber-100 text-amber-900 text-[11px] font-bold px-3 py-1 rounded-lg font-mono">
-                          Primer bloque: {feedback.horas_trabajadas_hoy !== undefined ? feedback.horas_trabajadas_hoy.toFixed(1) : '0.0'} hrs
-                        </span>
-                        <span className="inline-block bg-amber-200 text-amber-950 text-[11px] font-bold px-3 py-1 rounded-lg">
-                          Aviso enviado a Administración
-                        </span>
-                      </div>
-                    </div>
-                  </>
-                ) : feedback.es_tardanza ? (
-                  <>
-                    <div className="w-11 h-11 rounded-2xl bg-rose-600 flex items-center justify-center text-white mx-auto shadow-md shadow-rose-600/30 animate-pulse">
-                      <AlertTriangle className="w-6 h-6" />
-                    </div>
-                    <div>
-                      {feedback.registro?.empleado_detalle && (
-                        <h3 className="font-display font-black text-base text-stone-900 mb-0.5">
-                          {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
-                        </h3>
-                      )}
-                      <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 font-black text-[11px] uppercase tracking-wide my-1">
-                        <span>🚨 TARDANZA REGISTRADA (+{feedback.minutos_tardanza} MIN)</span>
-                      </div>
-                      <p className="text-xs font-semibold text-rose-950 mt-1 max-w-md mx-auto bg-rose-50/80 p-2 rounded-xl border border-rose-100">
-                        {feedback.mensaje}
-                      </p>
-                      <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-                        {feedback.turno_esperado && (
-                          <span className="inline-block bg-stone-100 text-stone-800 text-[11px] font-bold px-3 py-1 rounded-lg">
-                            ⏰ Turno: {feedback.turno_esperado}
-                          </span>
-                        )}
-                        <span className="inline-block bg-rose-200/80 text-rose-900 text-[11px] font-bold px-3 py-1 rounded-lg border border-rose-300">
-                          ⚠️ Tolerancia superada (11 min)
-                        </span>
-                        <span className="inline-block bg-stone-900 text-white text-[11px] font-bold px-3 py-1 rounded-lg">
-                          Aviso a Administración
-                        </span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-11 h-11 rounded-2xl bg-emerald-500 flex items-center justify-center text-white mx-auto shadow-md shadow-emerald-500/20">
-                      <CheckCircle2 className="w-6 h-6" />
-                    </div>
-                    <div>
-                      {feedback.registro?.empleado_detalle && (
-                        <h3 className="font-display font-black text-base text-stone-900 mb-0.5">
-                          {feedback.registro.empleado_detalle.nombre} {feedback.registro.empleado_detalle.apellido}
-                        </h3>
-                      )}
-                      <h4 className="font-bold text-xs text-emerald-800 uppercase tracking-wide">¡Registro Exitoso!</h4>
-                      <p className="text-xs font-medium text-stone-600 mt-1">
-                        {feedback.mensaje}
-                      </p>
-                      {feedback.horas_trabajadas_hoy !== undefined && (
-                        <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
-                          <span className="inline-block bg-emerald-100 text-emerald-800 text-[11px] font-bold px-3 py-1 rounded-lg font-mono">
-                            ⏱️ Horas Hoy: {feedback.horas_trabajadas_hoy.toFixed(1)} hrs
-                          </span>
-                          {feedback.cumplio_meta_8h ? (
-                            <span className="inline-block bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg">
-                              🎉 Meta de 8h Cumplida
-                            </span>
-                          ) : feedback.horas_restantes_hoy !== undefined && feedback.horas_restantes_hoy > 0 ? (
-                            <span className="inline-block bg-amber-100 text-amber-900 text-[11px] font-bold px-3 py-1 rounded-lg">
-                              Faltan: {feedback.horas_restantes_hoy.toFixed(1)} hrs
-                            </span>
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {errorMsg && (
-              <div className="text-center space-y-2.5 animate-in shake duration-200 w-full">
-                <div className="w-10 h-10 rounded-full bg-rose-500 flex items-center justify-center text-white mx-auto shadow-sm shadow-rose-500/10">
-                  <AlertCircle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-display font-black text-sm text-rose-950">Error al Registrar</h4>
-                  <p className="text-[11px] font-semibold text-rose-800 mt-0.5 animate-pulse">
-                    {errorMsg}
-                  </p>
-                </div>
-              </div>
-            )}
-
             {/* Estado y Banner en Modo Consulta */}
             {showConsultaModal && !consultaData && (
               <div className="p-3 bg-gradient-to-r from-teal-700 to-emerald-700 text-white rounded-2xl flex items-center justify-between shadow-md animate-in fade-in duration-150">
@@ -1114,7 +943,8 @@ export default function KioscoPage() {
               </div>
             )}
 
-            {!processing && !feedback && !errorMsg && !showConsultaModal && (
+            {/* El resultado del marcaje se ve en la tarjeta sobre la cámara; aquí queda solo la indicación */}
+            {!showConsultaModal && (
               <div className="text-center space-y-1.5 py-2">
                 <QrCode className="w-7 h-7 text-bodegon/40 mx-auto" />
                 <div>
