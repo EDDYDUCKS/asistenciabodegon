@@ -58,6 +58,8 @@ import {
 import PinSecurityGate from '@/components/PinSecurityGate';
 import DailyEarningsSection from '@/components/control/DailyEarningsSection';
 import ExpenseAnalyticsSection from '@/components/control/ExpenseAnalyticsSection';
+import { useCifrasOficiales } from '@/lib/control-oficial';
+import { esFueraDeOperacion } from '@/lib/control-service';
 import ExecutiveSummaryBanner from '@/components/control/ExecutiveSummaryBanner';
 
 export interface ParsedSalesData {
@@ -68,6 +70,8 @@ export interface ParsedSalesData {
   cardsLafise: number;
   totalCards: number;
   salesPedidosYa: number;
+  salesBankTransfers?: number;
+  otherIncome?: number;
   totalGrossSales: number;
   tips?: number;
   source: 'JSON' | 'REGEX' | 'DEFAULT';
@@ -307,7 +311,9 @@ export default function BodegonControlPage() {
         const cardsLafise = Number(parsed.cardsLafise) || 0;
         const totalCards = Number(parsed.totalCards) || (cardsBAC + cardsFicohsa + cardsBanpro + cardsLafise);
         const salesPedidosYa = Number(parsed.salesPedidosYa) || 0;
-        const totalGrossSales = Number(parsed.totalGrossSales) || (salesCash + totalCards + salesPedidosYa);
+        const salesBankTransfers = Number(parsed.salesBankTransfers) || 0;
+        const otherIncome = Number(parsed.otherIncome) || 0;
+        const totalGrossSales = Number(parsed.totalGrossSales) || (salesCash + totalCards + salesPedidosYa + salesBankTransfers + otherIncome);
         const tips = Number(parsed.tips) || 0;
 
         return {
@@ -318,6 +324,8 @@ export default function BodegonControlPage() {
           cardsLafise,
           totalCards,
           salesPedidosYa,
+          salesBankTransfers,
+          otherIncome,
           totalGrossSales,
           tips,
           source: 'JSON',
@@ -455,6 +463,13 @@ export default function BodegonControlPage() {
     [jornadaIdToFechaMap]
   );
 
+  // Cifras oficiales del servidor (misma fórmula que Bodegón Control .exe). Se releen cuando cambian los datos.
+  const versionDatos = useMemo(
+    () => `${jornadas.length}|${gastos.length}|${jornadas.map((j) => (j.observaciones || '').length).join(',')}|${gastos.reduce((a, g) => a + (Number(g.monto) || 0), 0)}`,
+    [jornadas, gastos]
+  );
+  const oficial = useCifrasOficiales(versionDatos);
+
   // 4. Map de días consolidado para la gráfica y tabla histórica
   const dailyHistoryMap = useMemo(() => {
     const map = new Map<string, {
@@ -518,6 +533,7 @@ export default function BodegonControlPage() {
     // Agregar y sumar gastos por fecha (usando la fecha de su jornada activa si fue digitado al día siguiente)
     gastos.forEach((g) => {
       if (isFondeoTransaction(g)) return;
+      if (esFueraDeOperacion(g.categoria)) return;
       const f = getGastoFecha(g);
       const montoNum = Number(g.monto) || 0;
       let item = map.get(f);
@@ -562,7 +578,20 @@ export default function BodegonControlPage() {
 
     // Calcular ganancia neta y margen de cada día (Fórmula oficial Excel: Ingresos - Gastos Efectivo - Gastos Transf - Propina - Reserva)
     map.forEach((item) => {
-      if (item.closingAudit && item.closingAudit.dailyNetProfit !== undefined && item.closingAudit.dailyNetProfit !== null) {
+      const of = oficial.cifras.get(item.date);
+      if (of) {
+        // Cierre calculado en el servidor: mismas cifras que Control (.exe)
+        item.sales = {
+          ...item.sales,
+          salesCash: of.efectivo,
+          salesBankTransfers: of.transferencias,
+          otherIncome: of.otrosIngresos,
+          totalGrossSales: of.ventas,
+          tips: of.propina,
+        };
+        item.expensesTotal = of.gastos;
+        item.netProfit = of.ganancia;
+      } else if (item.closingAudit && item.closingAudit.dailyNetProfit !== undefined && item.closingAudit.dailyNetProfit !== null) {
         item.netProfit = Number(item.closingAudit.dailyNetProfit);
       } else {
         const tips = item.sales.tips || 0;
@@ -575,7 +604,7 @@ export default function BodegonControlPage() {
     });
 
     return map;
-  }, [jornadas, gastos, parseVentasFromObservaciones, parseOpeningFromObservaciones, parseClosingAuditFromObservaciones, parsePettyClosingFromObservaciones]);
+  }, [jornadas, gastos, oficial, parseVentasFromObservaciones, parseOpeningFromObservaciones, parseClosingAuditFromObservaciones, parsePettyClosingFromObservaciones]);
 
   // 5. Datos del día seleccionado
   const selectedDayData = useMemo(() => {
@@ -2049,6 +2078,7 @@ export default function BodegonControlPage() {
             jornadas={jornadas}
             gastos={gastos}
             selectedDate={selectedDate}
+            oficial={oficial}
           />
 
           {/* ── BANNER INFORMATIVO: ESTADO DUAL DE CAJAS EN RESTAURANTE (ESTRICTAMENTE SOLO LECTURA) ── */}
@@ -2291,6 +2321,7 @@ export default function BodegonControlPage() {
                 selectedDate={selectedDate}
                 setSelectedDate={setSelectedDate}
                 onOpenEditSales={handleOpenEditSales}
+                oficial={oficial}
               />
             </div>
           )}
@@ -3233,6 +3264,12 @@ export default function BodegonControlPage() {
                       <span>Delivery PedidosYa:</span>
                       <span className="font-mono font-bold text-stone-900">
                         C$ {selectedDayData.sales.salesPedidosYa.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-stone-100">
+                      <span>Transferencias y otros ingresos:</span>
+                      <span className="font-mono font-bold text-stone-900">
+                        C$ {((selectedDayData.sales.salesBankTransfers || 0) + (selectedDayData.sales.otherIncome || 0)).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
                     <div className="flex justify-between items-center pt-2 font-black text-sm text-bodegon">

@@ -32,7 +32,10 @@ import {
   parseClosingFromObservaciones,
   parsePettyClosingFromObservaciones,
   isFondeoTransaction,
+  esFueraDeOperacion,
+  fechaManagua,
 } from '@/lib/control-service';
+import { DatosOficiales } from '@/lib/control-oficial';
 
 interface Props {
   jornadas: JornadaDiaria[];
@@ -40,6 +43,8 @@ interface Props {
   selectedDate: string;
   setSelectedDate: (d: string) => void;
   onOpenEditSales?: () => void;
+  /** Cifras del servidor con la fórmula de Bodegón Control; mandan sobre las sumas locales. */
+  oficial?: DatosOficiales;
 }
 
 type DetailModalType =
@@ -61,6 +66,7 @@ export default function DailyEarningsSection({
   selectedDate,
   setSelectedDate,
   onOpenEditSales,
+  oficial,
 }: Props) {
   const [timeFilter, setTimeFilter] = useState<'7days' | '14days' | '30days'>('7days');
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
@@ -137,7 +143,9 @@ export default function DailyEarningsSection({
     // Agregar gastos de compras_gastos por fecha
     gastos.forEach((g) => {
       if (isFondeoTransaction(g)) return;
-      const txDate = (g.fecha_hora || '').slice(0, 10);
+      // Retiro de socios y préstamos salen de caja chica pero no son gasto del negocio (igual que Control)
+      if (esFueraDeOperacion(g.categoria)) return;
+      const txDate = fechaManagua(g.fecha_hora);
       if (!txDate) return;
 
       if (!map.has(txDate)) {
@@ -187,10 +195,21 @@ export default function DailyEarningsSection({
       } else {
         item.netEarnings = item.totalGrossSales - item.totalExpenses - item.tipsCollected;
       }
+      // Cierre ya calculado en el servidor: mismas cifras que Control (.exe)
+      const of = oficial?.cifras.get(item.date);
+      if (of) {
+        item.cashSales = of.efectivo;
+        item.salesBankTransfers = of.transferencias;
+        item.otherIncome = of.otrosIngresos;
+        item.totalGrossSales = of.ventas;
+        item.totalExpenses = of.gastos;
+        item.tipsCollected = of.propina;
+        item.netEarnings = of.ganancia;
+      }
     });
 
     return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
-  }, [jornadas, gastos]);
+  }, [jornadas, gastos, oficial]);
 
   // Resumen del día actualmente seleccionado
   const activeDaySummary: DailySummaryItem = useMemo(() => {
@@ -405,7 +424,7 @@ export default function DailyEarningsSection({
               <>
                 <span>•</span>
                 <span>
-                  Propinas Recaudadas:{' '}
+                  Propina entregada:{' '}
                   <strong className="text-dorado-tinta font-mono font-bold">
                     C$ {activeDaySummary.tipsCollected.toFixed(2)}
                   </strong>
@@ -1042,7 +1061,7 @@ export default function DailyEarningsSection({
                     </div>
                     {activeDaySummary.tipsCollected > 0 && (
                       <div className="flex justify-between text-amber-600">
-                        <span>(-) Propinas Recaudadas:</span>
+                        <span>(-) Propina entregada:</span>
                         <span className="font-mono font-bold">- C$ {activeDaySummary.tipsCollected.toFixed(2)}</span>
                       </div>
                     )}

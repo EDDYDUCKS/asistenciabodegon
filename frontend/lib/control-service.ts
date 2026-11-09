@@ -445,3 +445,17 @@ export async function reassignExpenseCategory(
     return false;
   }
 }
+
+/** Categorías que salen de caja chica pero no son gasto del negocio (igual que Bodegón Control). */
+export const CATEGORIAS_FUERA_OPERACION = ['RETIRO_SOCIOS', 'PRESTAMOS'];
+export function esFueraDeOperacion(categoria?: string | null): boolean {
+  return CATEGORIAS_FUERA_OPERACION.includes(String(categoria || ''));
+}
+
+/** Fecha (YYYY-MM-DD) en hora de Managua de un timestamp de la base. */
+export function fechaManagua(fechaHora?: string | null): string {
+  if (!fechaHora) return '';
+  const d = new Date(fechaHora);
+  if (isNaN(d.getTime())) return fechaHora.slice(0, 10);
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Managua' });
+}

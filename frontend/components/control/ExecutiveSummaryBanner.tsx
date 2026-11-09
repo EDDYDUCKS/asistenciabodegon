@@ -18,13 +18,18 @@ import {
   parseOpeningFromObservaciones,
   parseClosingFromObservaciones,
   isFondeoTransaction,
+  esFueraDeOperacion,
+  fechaManagua,
 } from '@/lib/control-service';
+import { DatosOficiales } from '@/lib/control-oficial';
 
 interface Props {
   jornadaActiva: JornadaDiaria | null;
   jornadas: JornadaDiaria[];
   gastos: CompraGasto[];
   selectedDate: string;
+  /** Cifras del servidor con la fórmula de Bodegón Control; mandan sobre las sumas locales. */
+  oficial?: DatosOficiales;
 }
 
 export default function ExecutiveSummaryBanner({
@@ -32,6 +37,7 @@ export default function ExecutiveSummaryBanner({
   jornadas,
   gastos,
   selectedDate,
+  oficial,
 }: Props) {
   // Buscar la jornada del día seleccionado
   const jornadaDia = useMemo(() => {
@@ -56,7 +62,7 @@ export default function ExecutiveSummaryBanner({
   // Gastos de compras_gastos del día seleccionado
   const gastosDia = useMemo(() => {
     return gastos.filter(
-      (g) => !isFondeoTransaction(g) && (g.fecha_hora || '').slice(0, 10) === selectedDate
+      (g) => !isFondeoTransaction(g) && !esFueraDeOperacion(g.categoria) && fechaManagua(g.fecha_hora) === selectedDate
     );
   }, [gastos, selectedDate]);
 
@@ -72,7 +78,13 @@ export default function ExecutiveSummaryBanner({
       .reduce((acc, g) => acc + (Number(g.monto) || 0), 0);
   }, [gastosDia]);
 
-  const gastosTotal = gastosEfectivo + gastosBanco;
+  const of = oficial?.cifras.get(selectedDate);
+  const diaOficial = oficial?.dias.get(selectedDate);
+  const enVivo = oficial?.enVivo && oficial.hoy === selectedDate ? oficial.enVivo : null;
+  const gastosTotal = of ? of.gastos : gastosEfectivo + gastosBanco;
+  const ventasTotales = of ? of.ventas : sales.totalGrossSales;
+  const ventasEfectivo = of ? of.efectivo : sales.salesCash;
+  const propina = of ? of.propina : sales.tips;
 
   // Dinero Físico en Custodia (en gaveta ahora mismo)
   // Fórmula: Fondo Inicial Apertura NIO + Ventas Efectivo - Gastos Efectivo
@@ -82,13 +94,13 @@ export default function ExecutiveSummaryBanner({
   );
 
   // Ganancia Neta
-  const gananciaNeta =
-    closing?.dailyNetProfit !== undefined
+  const gananciaNeta = of
+    ? of.ganancia
+    : closing?.dailyNetProfit !== undefined
       ? closing.dailyNetProfit
       : sales.totalGrossSales - gastosTotal - sales.tips;
 
-  const margenPercent =
-    sales.totalGrossSales > 0 ? (gananciaNeta / sales.totalGrossSales) * 100 : 0;
+  const margenPercent = ventasTotales > 0 ? (gananciaNeta / ventasTotales) * 100 : 0;
 
   const isClosed = jornadaDia?.estado === 'CERRADA';
   const isOpen = jornadaDia?.estado === 'ABIERTA';
@@ -135,10 +147,10 @@ export default function ExecutiveSummaryBanner({
   return (
     <BrandBand eyebrow={fechaLarga} title="Caja del día" actions={estado}>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Pilar featured icon={<ArrowUpRight className="w-4 h-4" />} label="Ingresos" value={`C$ ${money(sales.totalGrossSales)}`}>
-          <Linea label="Efectivo" value={`C$ ${money(sales.salesCash)}`} />
+        <Pilar featured icon={<ArrowUpRight className="w-4 h-4" />} label="Ingresos" value={`C$ ${money(ventasTotales)}`}>
+          <Linea label="Efectivo" value={`C$ ${money(ventasEfectivo)}`} />
           <Linea label="Tarjetas POS" value={`C$ ${money(sales.totalCards)}`} />
-          <Linea label="PedidosYa y transferencias" value={`C$ ${money(sales.salesPedidosYa + sales.salesBankTransfers)}`} />
+          <Linea label="PedidosYa, transf. y otros" value={`C$ ${money(sales.salesPedidosYa + sales.salesBankTransfers + sales.otherIncome)}`} />
         </Pilar>
 
         <Pilar icon={<ArrowDownRight className="w-4 h-4" />} label="Egresos" value={`- C$ ${money(gastosTotal)}`}>
@@ -147,15 +159,29 @@ export default function ExecutiveSummaryBanner({
           <Linea label="Compras" value={`${gastosDia.length} facturas`} />
         </Pilar>
 
-        <Pilar icon={<Wallet className="w-4 h-4" />} label="Efectivo en gaveta" value={`C$ ${money(efectivoEnCustodia)}`}>
-          <Linea label="Fondo de apertura" value={`C$ ${money(opening.totalOpeningNIO)}`} />
-          {opening.totalOpeningUSD > 0 && <Linea label="Dólares de apertura" value={`$${opening.totalOpeningUSD} USD`} />}
-          <Linea label="Saldo teórico" value={`C$ ${money(efectivoEnCustodia)}`} />
-        </Pilar>
+        {diaOficial?.cierre ? (
+          <Pilar icon={<Wallet className="w-4 h-4" />} label="Efectivo en gaveta" value={`C$ ${money(diaOficial.cierre.queda_cs)}`}>
+            <Linea label="Quedó tras la propina" value={`C$ ${money(diaOficial.cierre.queda_cs)}`} />
+            {diaOficial.cierre.queda_usd > 0 && <Linea label="Dólares" value={`US$ ${diaOficial.cierre.queda_usd}`} />}
+            <Linea label="Propina entregada" value={`C$ ${money(diaOficial.cierre.propina_entregada)}`} />
+          </Pilar>
+        ) : enVivo ? (
+          <Pilar icon={<Wallet className="w-4 h-4" />} label="Efectivo en gaveta" value={`C$ ${money(enVivo.esperado_cs)}`}>
+            {enVivo.esperado_usd > 0 && <Linea label="Dólares (TEGA en vivo)" value={`US$ ${enVivo.esperado_usd}`} />}
+            <Linea label="Propina por entregar" value={`C$ ${money(enVivo.propinas)}`} />
+            <Linea label="Quedaría tras la propina" value={`C$ ${money(enVivo.queda_si_entrega_propina_cs || 0)}`} />
+          </Pilar>
+        ) : (
+          <Pilar icon={<Wallet className="w-4 h-4" />} label="Efectivo en gaveta" value={`C$ ${money(efectivoEnCustodia)}`}>
+            <Linea label="Fondo de apertura" value={`C$ ${money(opening.totalOpeningNIO)}`} />
+            {opening.totalOpeningUSD > 0 && <Linea label="Dólares de apertura" value={`$${opening.totalOpeningUSD} USD`} />}
+            <Linea label="Saldo teórico" value={`C$ ${money(efectivoEnCustodia)}`} />
+          </Pilar>
+        )}
 
         <Pilar icon={<TrendingUp className="w-4 h-4" />} label="Utilidad neta" value={`C$ ${money(gananciaNeta)}`}>
           <Linea label="Margen operativo" value={`${margenPercent.toFixed(1)}%`} />
-          {sales.tips > 0 && <Linea label="Propinas deducidas" value={`- C$ ${money(sales.tips)}`} />}
+          {propina > 0 && <Linea label="Propina entregada" value={`- C$ ${money(propina)}`} />}
           <Linea label="Responsable" value={jornadaDia?.responsable || 'Bodegón'} />
         </Pilar>
       </div>
