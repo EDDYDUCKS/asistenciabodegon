@@ -30,6 +30,18 @@ function nombreDia(fecha: string, largo = true) {
   return txt.charAt(0).toUpperCase() + txt.slice(1);
 }
 
+const PERIODOS = [
+  { dias: 14, label: '14 días' },
+  { dias: 30, label: '30 días' },
+  { dias: 61, label: '2 meses' },
+];
+
+function nombreMes(mes: string) {
+  const [y, m] = mes.split('-').map(Number);
+  const txt = new Date(y, m - 1, 15).toLocaleDateString('es-NI', { month: 'long', year: 'numeric' });
+  return txt.charAt(0).toUpperCase() + txt.slice(1);
+}
+
 function hora(ms?: number | string | null) {
   if (!ms) return '';
   const d = typeof ms === 'number' ? new Date(ms) : new Date(ms);
@@ -89,11 +101,12 @@ function VistaEfectivo() {
   const [cargando, setCargando] = useState(true);
   const [fechaSel, setFechaSel] = useState<string | null>(null);
   const [actualizado, setActualizado] = useState<Date | null>(null);
+  const [periodo, setPeriodo] = useState<number>(14);
 
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      const r = await fetchEfectivoJefe(14);
+      const r = await fetchEfectivoJefe(periodo);
       setDatos(r);
       setError(null);
       setActualizado(new Date());
@@ -102,7 +115,7 @@ function VistaEfectivo() {
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [periodo]);
 
   useEffect(() => {
     const primera = setTimeout(cargar, 0);
@@ -114,6 +127,20 @@ function VistaEfectivo() {
   }, [cargar]);
 
   const cierres = useMemo(() => (datos?.dias || []).filter((d) => d.cierre), [datos]);
+  const porMes = useMemo(() => {
+    const grupos: { mes: string; dias: EfectivoDia[]; propina: number }[] = [];
+    for (const d of cierres) {
+      const mes = d.fecha.slice(0, 7);
+      let g = grupos[grupos.length - 1];
+      if (!g || g.mes !== mes) {
+        g = { mes, dias: [], propina: 0 };
+        grupos.push(g);
+      }
+      g.dias.push(d);
+      g.propina += d.cierre?.propina_entregada || 0;
+    }
+    return grupos;
+  }, [cierres]);
   const dia: EfectivoDia | undefined = useMemo(
     () => cierres.find((d) => d.fecha === fechaSel) || cierres[0],
     [cierres, fechaSel]
@@ -287,36 +314,66 @@ function VistaEfectivo() {
           </Tarjeta>
         )}
 
-        {/* ── Días anteriores */}
-        {cierres.length > 0 && (
-          <Tarjeta titulo="Últimos cierres">
-            <ul className="divide-y divide-stone-100 -mx-1">
-              {cierres.map((d) => {
-                const alerta = d.destino && abs(d.destino.diferencia_cs) >= 1;
-                const activo = d.fecha === dia?.fecha;
-                return (
-                  <li key={d.fecha}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFechaSel(d.fecha);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className={`w-full text-left px-2 py-2.5 rounded-xl flex items-center justify-between gap-3 cursor-pointer ${activo ? 'bg-bodegon/5' : 'hover:bg-stone-50'}`}
-                    >
-                      <div className="min-w-0">
-                        <div className={`text-sm ${activo ? 'font-bold text-bodegon-noche' : 'font-medium text-tinta'}`}>{nombreDia(d.fecha, false)}</div>
-                        <div className="text-[11px] text-stone-500">Propina {cs(d.cierre?.propina_entregada)}{alerta ? ' · ' : ''}{alerta && <span className="text-barro font-semibold">sin anotar {cs(abs(d.destino!.diferencia_cs))}</span>}</div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-mono font-bold tabular-nums text-sm">{cs(d.cierre?.queda_cs)}</div>
-                        {(d.cierre?.queda_usd || 0) > 0 && <div className="font-mono text-[11px] text-stone-600">+ {usd(d.cierre?.queda_usd)}</div>}
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+        {/* ── Historial de cierres */}
+        {datos && (
+          <Tarjeta titulo="Historial de cierres">
+            <div className="grid grid-cols-3 gap-1 bg-stone-100 rounded-xl p-1 mb-3" role="tablist" aria-label="Periodo">
+              {PERIODOS.map((p) => (
+                <button
+                  key={p.dias}
+                  type="button"
+                  role="tab"
+                  aria-selected={periodo === p.dias}
+                  onClick={() => {
+                    setFechaSel(null);
+                    setPeriodo(p.dias);
+                  }}
+                  className={`text-[12.5px] font-semibold py-1.5 rounded-lg cursor-pointer ${periodo === p.dias ? 'bg-white text-bodegon-noche shadow-2xs' : 'text-stone-600 hover:text-tinta'}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {cierres.length === 0 && <p className="text-[13px] text-stone-500 py-2">No hay cierres en este periodo.</p>}
+            {porMes.map((g) => (
+              <div key={g.mes} className="mb-2 last:mb-0">
+                <div className="flex items-baseline justify-between px-2 pt-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-stone-500">
+                  <span>{nombreMes(g.mes)} · {g.dias.length} {g.dias.length === 1 ? 'cierre' : 'cierres'}</span>
+                  <span className="normal-case font-semibold tracking-normal">Propina {cs(g.propina)}</span>
+                </div>
+                <ul className="divide-y divide-stone-100 -mx-1">
+                  {g.dias.map((d) => {
+                    const alerta = d.destino && abs(d.destino.diferencia_cs) >= 1;
+                    const activo = d.fecha === dia?.fecha;
+                    return (
+                      <li key={d.fecha}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFechaSel(d.fecha);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className={`w-full text-left px-2 py-2.5 rounded-xl flex items-center justify-between gap-3 cursor-pointer ${activo ? 'bg-bodegon/5' : 'hover:bg-stone-50'}`}
+                        >
+                          <div className="min-w-0">
+                            <div className={`text-sm ${activo ? 'font-bold text-bodegon-noche' : 'font-medium text-tinta'}`}>{nombreDia(d.fecha, false)}</div>
+                            <div className="text-[11px] text-stone-500">
+                              Propina {cs(d.cierre?.propina_entregada)}
+                              {alerta ? ' · ' : ''}
+                              {alerta && <span className="text-barro font-semibold">sin anotar {cs(abs(d.destino!.diferencia_cs))}</span>}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="font-mono font-bold tabular-nums text-sm">{cs(d.cierre?.queda_cs)}</div>
+                            {(d.cierre?.queda_usd || 0) > 0 && <div className="font-mono text-[11px] text-stone-600">+ {usd(d.cierre?.queda_usd)}</div>}
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
           </Tarjeta>
         )}
 

@@ -5889,7 +5889,7 @@ def efectivo_jefe(request):
     from . import efectivo
 
     try:
-        dias = max(3, min(45, int(request.query_params.get('dias', 14))))
+        dias = max(3, min(62, int(request.query_params.get('dias', 14))))
     except (TypeError, ValueError):
         dias = 14
     if connection.vendor != 'postgresql':
