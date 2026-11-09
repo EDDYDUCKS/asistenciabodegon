@@ -159,6 +159,18 @@ def _testigo_tega(t):
     }
 
 
+_RE_MOTIVO_APERTURA = re.compile(r'\[Diferencia con el cierre de ayer:[^·\]]*·\s*([^\]]+)\]')
+
+
+def _motivo_apertura(apertura):
+    """Motivo que se escribió en Control (v1.0.69+) cuando la apertura no cuadró con el cierre anterior."""
+    motivo = (apertura.get('openingDiffReason') or '').strip()
+    if motivo:
+        return motivo
+    m = _RE_MOTIVO_APERTURA.search(apertura.get('openingNotes') or '')
+    return m.group(1).strip() if m else ''
+
+
 def calcular_efectivo(jornadas, gastos, tega=None, hoy=None, dias=14):
     """
     jornadas: filas de jornadas_diarias (dicts con fecha, estado, turno, fondo_inicial, observaciones).
@@ -210,6 +222,7 @@ def calcular_efectivo(jornadas, gastos, tega=None, hoy=None, dias=14):
                 'a_caja_chica': _r2(apertura.get('openingTransferToPettyCash') if apertura.get('openingTransferToPettyCash') is not None else fondos.get('generalCashTransfer')),
                 'fondo_gaveta_cs': _r2(apertura.get('totalOpeningNIO')),
                 'usd_a_snyder': _r2(m.group(1).replace(',', '')) if m else 0.0,
+                'motivo_diferencia': _motivo_apertura(apertura),
             }
         else:
             dia['apertura'] = None
@@ -237,6 +250,8 @@ def calcular_efectivo(jornadas, gastos, tega=None, hoy=None, dias=14):
                 'queda_cs': _r2(queda_cs),
                 'queda_usd': _r2(contado_usd),
                 'queda_total': _r2(queda_total),
+                'motivo_propina': (audit.get('tipNotPaidReason') or '').strip(),
+                'notas': (audit.get('closingNotes') or '').strip(),
             }
 
             # Ventas y ganancia con la fórmula de Control (calculateShiftProfit)
@@ -295,6 +310,7 @@ def calcular_efectivo(jornadas, gastos, tega=None, hoy=None, dias=14):
             'fondo_gaveta_cs': ap['fondo_gaveta_cs'],
             'usd_a_snyder': ap['usd_a_snyder'],
             'diferencia_cs': _r2(ap['contado_cs'] - cierre['queda_cs']),
+            'motivo': ap.get('motivo_diferencia') or '',
         }
 
     # ── En vivo: turno de TEGA abierto ahora

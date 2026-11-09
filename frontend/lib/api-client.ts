@@ -896,7 +896,7 @@ export interface EfectivoDia {
   estado: 'CERRADO' | 'ABIERTO' | 'SIN_ABRIR';
   abrio: string;
   tasa: number;
-  apertura: { contado_cs: number; a_caja_chica: number; fondo_gaveta_cs: number; usd_a_snyder: number } | null;
+  apertura: { contado_cs: number; a_caja_chica: number; fondo_gaveta_cs: number; usd_a_snyder: number; motivo_diferencia?: string } | null;
   cierre: {
     cerro: string;
     hora: string;
@@ -909,6 +909,8 @@ export interface EfectivoDia {
     queda_cs: number;
     queda_usd: number;
     queda_total: number;
+    motivo_propina?: string;
+    notas?: string;
   } | null;
   resultado: {
     efectivo_real: number;
@@ -931,6 +933,7 @@ export interface EfectivoDia {
     fondo_gaveta_cs: number;
     usd_a_snyder: number;
     diferencia_cs: number;
+    motivo?: string;
   } | null;
 }
 

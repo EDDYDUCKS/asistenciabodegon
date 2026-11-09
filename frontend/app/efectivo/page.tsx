@@ -246,6 +246,17 @@ function VistaEfectivo() {
               <Fila label="Córdobas que quedan" valor={cs(dia.cierre.queda_cs, 2)} tono="total" />
             </div>
 
+            {dia.cierre.motivo_propina && (
+              <Aviso tono="alerta">
+                Propina no entregada esa noche. Motivo: <b>{dia.cierre.motivo_propina}</b>
+              </Aviso>
+            )}
+            {dia.cierre.notas && (
+              <div className="mt-2 text-[12.5px] text-stone-600">
+                <span className="font-semibold text-stone-700">Notas del cierre:</span> {dia.cierre.notas}
+              </div>
+            )}
+
             {dia.tega && dia.tega.contado_cs !== null && (
               <div className="mt-2 rounded-xl bg-stone-50 border border-stone-200 px-3 py-2.5 text-[12.5px] text-stone-600">
                 <span className="font-semibold text-stone-700">TEGA</span> esperaba {cs(dia.tega.esperado_cs, 2)}
@@ -271,7 +282,14 @@ function VistaEfectivo() {
                   {abs(dia.destino.diferencia_cs) >= 1 ? (
                     <Aviso tono="alerta">
                       Al abrir se contaron {cs(dia.destino.contado_al_abrir_cs, 2)}: {dia.destino.diferencia_cs < 0 ? 'faltan' : 'sobran'}{' '}
-                      <b>{cs(abs(dia.destino.diferencia_cs), 2)}</b> contra lo que quedó al cierre, sin anotar.
+                      <b>{cs(abs(dia.destino.diferencia_cs), 2)}</b> contra lo que quedó al cierre
+                      {dia.destino.motivo ? (
+                        <>
+                          . Motivo: <b>{dia.destino.motivo}</b>
+                        </>
+                      ) : (
+                        ', sin anotar.'
+                      )}
                     </Aviso>
                   ) : (
                     <Aviso tono="ok">Lo contado al abrir coincide con lo que quedó al cierre.</Aviso>
@@ -360,7 +378,11 @@ function VistaEfectivo() {
                             <div className="text-[11px] text-stone-500">
                               Propina {cs(d.cierre?.propina_entregada)}
                               {alerta ? ' · ' : ''}
-                              {alerta && <span className="text-barro font-semibold">sin anotar {cs(abs(d.destino!.diferencia_cs))}</span>}
+                              {alerta && (
+                                <span className="text-barro font-semibold">
+                                  {d.destino!.motivo ? 'diferencia' : 'sin anotar'} {cs(abs(d.destino!.diferencia_cs))}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="text-right shrink-0">

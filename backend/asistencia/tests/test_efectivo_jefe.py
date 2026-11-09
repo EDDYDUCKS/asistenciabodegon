@@ -77,6 +77,27 @@ class CalculoEfectivoTests(SimpleTestCase):
         self.assertEqual(d['diferencia_cs'], -7580)
         self.assertIsNone(self.dias['2026-11-08']['destino'])  # aún no abre el 9
 
+    def test_motivos_de_control_v1069(self):
+        """Los motivos que pide Control (v1.0.69) llegan a la vista del jefe."""
+        obs7 = OBS_7NOV.replace('"tipPaid":false,', '"tipPaid":false,"tipNotPaidReason":"Se entrega mañana en la mañana","closingNotes":"Todo en orden",')
+        obs8 = OBS_8NOV.replace(
+            '"openingNotes":"[Dólares apartados en sobre para Snyder: $40.00 USD]"',
+            '"openingNotes":"[Dólares apartados en sobre para Snyder: $40.00 USD] • [Diferencia con el cierre de ayer: -C$ 7,580.00 · la propina se entregó en la mañana]"',
+        )
+        jornadas = [dict(JORNADAS[0], observaciones=obs7), dict(JORNADAS[1], observaciones=obs8)]
+        dias = {d['fecha']: d for d in calcular_efectivo(jornadas, GASTOS, None, hoy='2026-11-09')['dias']}
+        self.assertEqual(dias['2026-11-07']['cierre']['motivo_propina'], 'Se entrega mañana en la mañana')
+        self.assertEqual(dias['2026-11-07']['cierre']['notas'], 'Todo en orden')
+        self.assertEqual(dias['2026-11-07']['destino']['motivo'], 'la propina se entregó en la mañana')
+        # El campo propio tiene prioridad sobre la nota
+        obs8b = obs8.replace('"openedBy":"Xiomara","totalOpeningEquivNIO"', '"openedBy":"Xiomara","openingDiffReason":"Propina de anoche","totalOpeningEquivNIO"')
+        jornadas[1] = dict(JORNADAS[1], observaciones=obs8b)
+        dias = {d['fecha']: d for d in calcular_efectivo(jornadas, GASTOS, None, hoy='2026-11-09')['dias']}
+        self.assertEqual(dias['2026-11-07']['destino']['motivo'], 'Propina de anoche')
+        # Sin motivos: vacío
+        self.assertEqual(self.dias['2026-11-07']['destino']['motivo'], '')
+        self.assertEqual(self.dias['2026-11-08']['cierre']['motivo_propina'], '')
+
     def test_caja_chica_igual_que_control(self):
         cc7 = self.dias['2026-11-07']['caja_chica']
         self.assertEqual(cc7['esperado'], 30.23)  # el mismo saldo esperado que guardó Control
