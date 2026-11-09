@@ -860,3 +860,88 @@ export async function downloadDatabaseBackup(): Promise<void> {
 }
 
 
+
+// ── EFECTIVO PARA EL JEFE (solo lectura) ─────────────────────────────────
+export interface EfectivoTega {
+  estado: 'abierto' | 'cerrado';
+  abierto?: number;
+  cerrado?: number | null;
+  fondo: number;
+  esperado_cs: number;
+  esperado_usd: number;
+  contado_cs: number | null;
+  contado_usd: number | null;
+  descuadre_cs: number | null;
+  descuadre_usd: number | null;
+  propinas: number;
+  ventas: number;
+  salidas_cs: number;
+  salidas_usd: number;
+  queda_si_entrega_propina_cs?: number;
+}
+
+export interface EfectivoCajaChica {
+  inicial: number;
+  depositos: number;
+  gastos_efectivo: number;
+  propinas_pagadas: number;
+  esperado: number;
+  contado: number | null;
+  diferencia: number | null;
+  cerrada: boolean;
+}
+
+export interface EfectivoDia {
+  fecha: string;
+  estado: 'CERRADO' | 'ABIERTO' | 'SIN_ABRIR';
+  abrio: string;
+  tasa: number;
+  apertura: { contado_cs: number; a_caja_chica: number; fondo_gaveta_cs: number; usd_a_snyder: number } | null;
+  cierre: {
+    cerro: string;
+    hora: string;
+    contado_cs: number;
+    contado_usd: number;
+    contado_total: number;
+    propina_recaudada: number;
+    propina_entregada: number;
+    propina_pagada: boolean;
+    queda_cs: number;
+    queda_usd: number;
+    queda_total: number;
+  } | null;
+  resultado: {
+    efectivo_real: number;
+    tarjetas: number;
+    transferencias: number;
+    pedidos_ya: number;
+    otros_ingresos: number;
+    ventas: number;
+    gastos: number;
+    propina: number;
+    ganancia: number;
+    formula: number;
+  } | null;
+  caja_chica: EfectivoCajaChica;
+  tega: EfectivoTega | null;
+  destino: {
+    fecha: string;
+    contado_al_abrir_cs: number;
+    a_caja_chica: number;
+    fondo_gaveta_cs: number;
+    usd_a_snyder: number;
+    diferencia_cs: number;
+  } | null;
+}
+
+export interface EfectivoJefe {
+  hoy: string;
+  tega_conectado: boolean;
+  en_vivo: EfectivoTega | null;
+  caja_chica_actual: (EfectivoCajaChica & { fecha: string }) | null;
+  dias: EfectivoDia[];
+}
+
+export async function fetchEfectivoJefe(dias = 14): Promise<EfectivoJefe> {
+  return apiRequest<EfectivoJefe>(`/control/efectivo/?dias=${dias}`);
+}

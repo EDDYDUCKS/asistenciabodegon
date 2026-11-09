@@ -1985,6 +1985,15 @@ export default function BodegonControlPage() {
               </button>
 
               <Link
+                href="/efectivo"
+                title="Efectivo después de la propina (vista del jefe)"
+                className="text-xs font-bold text-white bg-bodegon hover:bg-bodegon-noche px-3 py-2 rounded-xl transition-all flex items-center gap-1.5"
+              >
+                <Banknote className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Efectivo</span>
+              </Link>
+
+              <Link
                 href="/"
                 title="Volver al Portal"
                 className="text-xs font-bold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 px-3 py-2 rounded-xl transition-all flex items-center gap-1.5"
