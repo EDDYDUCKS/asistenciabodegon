@@ -891,6 +891,17 @@ export interface EfectivoCajaChica {
   cerrada: boolean;
 }
 
+export interface EfectivoGasto {
+  hora: string;
+  concepto: string;
+  proveedor: string;
+  categoria: string;
+  metodo: string;
+  monto: number;
+  /** gasto = del negocio · deposito = entra a caja chica · traslado = traspaso al abrir · fuera = retiro de socios o préstamo */
+  tipo: 'gasto' | 'deposito' | 'traslado' | 'fuera';
+}
+
 export interface EfectivoDia {
   fecha: string;
   estado: 'CERRADO' | 'ABIERTO' | 'SIN_ABRIR';
@@ -925,6 +936,8 @@ export interface EfectivoDia {
     formula: number;
   } | null;
   caja_chica: EfectivoCajaChica;
+  gastos: EfectivoGasto[];
+  gastos_por_categoria: { categoria: string; monto: number }[];
   tega: EfectivoTega | null;
   destino: {
     fecha: string;

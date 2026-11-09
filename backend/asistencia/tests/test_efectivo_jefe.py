@@ -147,3 +147,27 @@ class EfectivoEndpointTests(TestCase):
         c.force_login(user)
         r = c.get('/api/control/efectivo/')
         self.assertEqual(r.status_code, 503)
+
+
+class GastosDelDiaTests(SimpleTestCase):
+    def test_tabla_y_categorias(self):
+        r = calcular_efectivo(JORNADAS, GASTOS, None, hoy='2026-11-09')
+        d8 = {d['fecha']: d for d in r['dias']}['2026-11-08']
+        tipos = sorted(x['tipo'] for x in d8['gastos'])
+        self.assertEqual(tipos, ['deposito', 'fuera', 'gasto', 'gasto', 'gasto'])
+        self.assertEqual(d8['gastos'][0]['hora'], '16:52')  # más reciente primero, hora de Managua
+        cats = {c['categoria']: c['monto'] for c in d8['gastos_por_categoria']}
+        self.assertEqual(cats, {'SUPERMERCADO': 8701.24, 'MERCADO': 6886.25, 'PROPINAS': 880})
+        self.assertEqual(d8['gastos_por_categoria'][0]['categoria'], 'SUPERMERCADO')
+
+    def test_hoy_sin_caja_abierta_igual_muestra_gastos(self):
+        gastos = GASTOS + [gasto('2026-11-09T16:00:00+00:00', 300, 'HIELO')]
+        r = calcular_efectivo(JORNADAS, gastos, None, hoy='2026-11-09')
+        hoy = r['dias'][0]
+        self.assertEqual(hoy['fecha'], '2026-11-09')
+        self.assertEqual(hoy['estado'], 'SIN_ABRIR')
+        self.assertEqual(len(hoy['gastos']), 1)
+        # Caja chica sigue con lo que se contó al cerrar el 8 (no hay conteo: lo esperado)
+        esperado_8 = {d['fecha']: d for d in r['dias']}['2026-11-08']['caja_chica']['esperado']
+        self.assertEqual(hoy['caja_chica']['inicial'], esperado_8)
+        self.assertEqual(r['caja_chica_actual']['fecha'], '2026-11-09')

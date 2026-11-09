@@ -2015,11 +2015,11 @@ export default function BodegonControlPage() {
 
               <Link
                 href="/efectivo"
-                title="Efectivo después de la propina (vista del jefe)"
+                title="Caja del Bodegón: vista simple para el jefe"
                 className="text-xs font-bold text-white bg-bodegon hover:bg-bodegon-noche px-3 py-2 rounded-xl transition-all flex items-center gap-1.5"
               >
                 <Banknote className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">Efectivo</span>
+                <span className="hidden md:inline">Vista del jefe</span>
               </Link>
 
               <Link
@@ -2443,7 +2443,7 @@ export default function BodegonControlPage() {
                       <option value="TODAS">Todas</option>
                       {CATEGORIAS_GASTO.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.emoji} {c.label}
+                          {c.label}
                         </option>
                       ))}
                     </select>
@@ -2625,7 +2625,6 @@ export default function BodegonControlPage() {
                               {/* Concepto */}
                               <td className="py-2.5 px-4 border-r border-stone-200 font-bold text-stone-900">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  {item.categoriaEmoji && <span>{item.categoriaEmoji}</span>}
                                   <span>{item.concepto}</span>
                                 </div>
                                 {item.proveedor && (
@@ -2954,7 +2953,7 @@ export default function BodegonControlPage() {
                       >
                         {CATEGORIAS_GASTO.filter(c => c.id !== 'FONDEO').map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.emoji} {c.label}
+                            {c.label}
                           </option>
                         ))}
                       </select>

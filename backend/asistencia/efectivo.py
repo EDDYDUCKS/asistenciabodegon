@@ -123,6 +123,57 @@ def _gastos_por_dia(gastos):
     return dias
 
 
+def _hora_local(valor):
+    """Hora HH:MM en Managua de un timestamp de la base."""
+    if isinstance(valor, datetime):
+        dt = valor if valor.tzinfo else valor.replace(tzinfo=dt_timezone.utc)
+    else:
+        try:
+            dt = datetime.fromisoformat(str(valor).replace('Z', '+00:00'))
+        except ValueError:
+            return ''
+        if dt.tzinfo is None:
+            return dt.strftime('%H:%M')
+    return dt.astimezone(MANAGUA).strftime('%H:%M')
+
+
+def _lista_gastos_por_dia(gastos):
+    """Cada movimiento de caja chica / compras del día, para la tabla del jefe (más reciente primero)."""
+    dias = {}
+    for g in gastos or []:
+        d = fecha_local(g.get('fecha_hora'))
+        if not d:
+            continue
+        categoria = g.get('categoria') or 'OTROS'
+        if es_fondeo(g):
+            tipo = 'traslado' if es_traslado_apertura(g) else 'deposito'
+        elif categoria in CATEGORIAS_FUERA_OPERACION:
+            tipo = 'fuera'
+        else:
+            tipo = 'gasto'
+        dias.setdefault(d, []).append({
+            'hora': _hora_local(g.get('fecha_hora')),
+            'concepto': (g.get('concepto') or '').strip(),
+            'proveedor': (g.get('proveedor') or '').strip(),
+            'categoria': categoria,
+            'metodo': (g.get('metodo_pago') or 'EFECTIVO').upper(),
+            'monto': _r2(g.get('monto')),
+            'tipo': tipo,
+        })
+    for lista in dias.values():
+        lista.sort(key=lambda x: x['hora'], reverse=True)
+    return dias
+
+
+def _por_categoria(lista):
+    """Gastos del negocio agrupados por categoría (sin depósitos ni retiros de socios/préstamos)."""
+    tot = {}
+    for x in lista:
+        if x['tipo'] == 'gasto':
+            tot[x['categoria']] = tot.get(x['categoria'], 0.0) + x['monto']
+    return [{'categoria': c, 'monto': _r2(m)} for c, m in sorted(tot.items(), key=lambda kv: -kv[1])]
+
+
 def _turnos_tega_por_dia(tega):
     """Turno de TEGA de cada día (por la hora en que se abrió). Si hay dos, gana el último."""
     por_dia = {}
@@ -193,12 +244,15 @@ def calcular_efectivo(jornadas, gastos, tega=None, hoy=None, dias=14):
         fondo_por_fecha[f] = max(fondo_por_fecha.get(f, 0.0), _n(j.get('fondo_inicial')))
 
     gastos_dia = _gastos_por_dia(gastos)
+    lista_dia = _lista_gastos_por_dia(gastos)
     tega_dia = _turnos_tega_por_dia(tega)
-    fechas = sorted(obs_por_fecha.keys())
+    # Días con caja abierta o cerrada en Control, y también hoy si ya hay gastos anotados
+    fechas = sorted(set(obs_por_fecha.keys()) | ({hoy} if hoy in lista_dia else set()))
 
     resultado = []
+    saldo_anterior_chica = 0.0
     for i, f in enumerate(fechas):
-        obs = obs_por_fecha[f]
+        obs = obs_por_fecha.get(f, '')
         apertura = _etiqueta(obs, 'OPENING_DATA') or {}
         fondos = _etiqueta(obs, 'FONDOS_COMPOSITION') or {}
         ventas = _etiqueta(obs, 'VENTAS_DATA') or {}
@@ -279,7 +333,12 @@ def calcular_efectivo(jornadas, gastos, tega=None, hoy=None, dias=14):
             dia['resultado'] = None
 
         # ── Caja chica del día
-        inicial = _n(fondos.get('initialBalance')) if fondos else fondo_por_fecha.get(f, 0.0)
+        if fondos:
+            inicial = _n(fondos.get('initialBalance'))
+        elif f in fondo_por_fecha:
+            inicial = fondo_por_fecha[f]
+        else:  # día sin caja abierta en Control: sigue con lo que quedó el día anterior
+            inicial = saldo_anterior_chica
         esperado = inicial + _n(g.get('depositos')) - _n(g.get('gastos_efectivo'))
         dia['caja_chica'] = {
             'inicial': _r2(inicial),
@@ -292,6 +351,9 @@ def calcular_efectivo(jornadas, gastos, tega=None, hoy=None, dias=14):
             'cerrada': bool(chica),
         }
 
+        saldo_anterior_chica = dia['caja_chica']['contado'] if dia['caja_chica']['contado'] is not None else dia['caja_chica']['esperado']
+        dia['gastos'] = lista_dia.get(f, [])
+        dia['gastos_por_categoria'] = _por_categoria(dia['gastos'])
         dia['tega'] = _testigo_tega(tega_dia.get(f))
         resultado.append(dia)
 
@@ -322,7 +384,7 @@ def calcular_efectivo(jornadas, gastos, tega=None, hoy=None, dias=14):
             en_vivo = testigo
     ultimo_chica = None
     for dia in reversed(resultado):
-        if dia['apertura'] or dia['caja_chica']['cerrada']:
+        if dia['apertura'] or dia['caja_chica']['cerrada'] or (dia['fecha'] == hoy and dia['gastos']):
             ultimo_chica = {'fecha': dia['fecha'], **dia['caja_chica']}
             break
 
