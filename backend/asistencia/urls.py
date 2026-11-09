@@ -38,6 +38,9 @@ urlpatterns = [
     path('reportes/vacaciones-excel/', views.exportar_reporte_vacaciones_excel, name='vacaciones_excel'),
     path('reportes/inasistencias-excel/', views.exportar_reporte_inasistencias_excel, name='inasistencias_excel'),
 
+    # Efectivo para el jefe (solo lectura)
+    path('control/efectivo/', views.efectivo_jefe, name='efectivo_jefe'),
+
     # Respaldo de Base de Datos
     path('admin/respaldo-datos/', views.exportar_respaldo_base_datos, name='admin_respaldo_datos'),
 ]

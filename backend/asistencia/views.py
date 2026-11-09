@@ -5879,3 +5879,22 @@ def exportar_reporte_inasistencias_excel(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
+
+
+@api_view(['GET'])
+@permission_classes([IsPanelAdmin])
+def efectivo_jefe(request):
+    """Efectivo del Bodegón para el jefe: cierres, propina, caja chica y TEGA en vivo (solo lectura)."""
+    from django.db import connection
+    from . import efectivo
+
+    try:
+        dias = max(3, min(62, int(request.query_params.get('dias', 14))))
+    except (TypeError, ValueError):
+        dias = 14
+    if connection.vendor != 'postgresql':
+        return Response({'detail': 'Solo disponible con la base de Supabase.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    hoy = datetime.datetime.now(efectivo.MANAGUA).date()
+    desde = (hoy - datetime.timedelta(days=dias + 2)).isoformat()
+    jornadas, gastos, tega = efectivo.leer_datos(desde)
+    return Response(efectivo.calcular_efectivo(jornadas, gastos, tega, hoy=hoy.isoformat(), dias=dias))
