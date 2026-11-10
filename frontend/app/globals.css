@@ -4,6 +4,7 @@
    Colores y letras definidos una sola vez. Ver el documento de identidad.
    Siempre fondo claro: no hay modo oscuro. */
 :root {
+  color-scheme: only light;
   --background: #fcf9f5;
   --foreground: #1c1917;
 }

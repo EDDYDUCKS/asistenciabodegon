@@ -19,11 +19,14 @@ export default function RootLayout({
   return (
     <html
       lang="es"
+      style={{ colorScheme: 'only light' }}
       className={`${bigShoulders.variable} ${inter.variable} h-full antialiased`}
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#135E4A" />
+        {/* Siempre tema claro, aunque el celular o el navegador estén en modo oscuro */}
+        <meta name="color-scheme" content="only light" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="icon" href="/icon.png" type="image/png" />
