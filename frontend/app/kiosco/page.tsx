@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import TegaFirma from '@/components/TegaFirma';
 import ResultadoMarcaje, { CapturandoFoto, ErrorMarcaje } from '@/components/kiosco/ResultadoMarcaje';
+import { ResumenConsumos, DetalleConsumos } from '@/components/kiosco/MisConsumos';
 import { MarcajeKioscoResponse, TipoEventoType } from '@/lib/types';
 import {
   marcarAsistenciaKiosco,
@@ -76,6 +77,8 @@ export default function KioscoPage() {
   // Estados de Consulta de Horas para Colaboradores
   const [showConsultaModal, setShowConsultaModal] = useState(false);
   const [consultaData, setConsultaData] = useState<any | null>(null);
+  // Ficha del colaborador: false = sus horas, true = sus consumos (TEGA, solo lectura)
+  const [verConsumos, setVerConsumos] = useState(false);
   const [consultaTimer, setConsultaTimer] = useState(10);
   const [consultando, setConsultando] = useState(false);
   const [consultaError, setConsultaError] = useState<string | null>(null);
@@ -462,6 +465,7 @@ export default function KioscoPage() {
   const handleCerrarConsulta = useCallback(() => {
     setShowConsultaModal(false);
     setConsultaData(null);
+    setVerConsumos(false);
     setConsultaTimer(10);
     setConsultaError(null);
     setConsultando(false);
@@ -1149,8 +1153,16 @@ export default function KioscoPage() {
       {/* ── MODAL FICHA DEL COLABORADOR (CONSULTA DE HORAS) ── */}
       {showConsultaModal && consultaData && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-stone-200 w-full max-w-lg rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 select-none">
-            
+          <div className="bg-white border border-stone-200 w-full max-w-lg max-h-[94vh] overflow-y-auto rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200 select-none">
+            {verConsumos && consultaData.consumos ? (
+              <DetalleConsumos
+                consumos={consultaData.consumos}
+                nombre={`${consultaData.empleado.nombre} ${consultaData.empleado.apellido}`}
+                onVolver={() => { setVerConsumos(false); setConsultaTimer(20); }}
+                onActividad={() => setConsultaTimer(110)}
+              />
+            ) : (<>
+
             {/* Header del Colaborador */}
             <div className="flex items-center justify-between border-b border-stone-100 pb-4">
               <div className="flex items-center gap-3">
@@ -1308,6 +1320,11 @@ export default function KioscoPage() {
               </div>
             </div>
 
+            {/* Mis consumos del personal (TEGA): solo los suyos, solo lectura */}
+            {consultaData.consumos && (
+              <ResumenConsumos consumos={consultaData.consumos} onVer={() => { setVerConsumos(true); setConsultaTimer(110); }} />
+            )}
+
             {/* Marcajes de Hoy */}
             <div className="space-y-2">
               <h4 className="font-bold text-xs text-stone-700 flex items-center justify-between">
@@ -1343,12 +1360,14 @@ export default function KioscoPage() {
               )}
             </div>
 
+            </>)}
+
             {/* Barra de Auto-Cierre de 10 Segundos y Botón Listo */}
             <div className="pt-2 border-t border-stone-100 flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-stone-500 text-xs font-semibold">
                 <Clock className="w-4 h-4 text-emerald-600 animate-spin" style={{ animationDuration: '3s' }} />
                 <span>
-                  Cerrando en <span className="font-mono font-bold text-emerald-700 text-sm">{consultaTimer}s</span>...
+                  Cerrando en <span className="font-mono font-bold text-emerald-700 text-sm">{consultaTimer >= 60 ? `${Math.floor(consultaTimer / 60)}:${String(consultaTimer % 60).padStart(2, '0')}` : `${consultaTimer}s`}</span>...
                 </span>
               </div>
 
