@@ -231,6 +231,31 @@ export async function marcarAsistenciaKiosco(payload: {
   return json;
 }
 
+/** Cuentas de consumo del colaborador en TEGA (solo las suyas, solo lectura). */
+export interface TicketConsumo {
+  id: string;
+  numero: number | null;
+  fecha: string;
+  hora: string;
+  t: number;
+  tipo: string;
+  lineas: Array<{ cant: number; nombre: string; precio: number; importe: number }>;
+  subtotal: number;
+  descuento: number;
+  total: number;
+  a_cuenta: number;
+  pagado: number;
+  cobrado_por: string;
+  anulado: boolean;
+  motivo_anulacion: string;
+}
+export interface TotalQuincena { nombre: string; cuentas: number; a_cuenta: number; pagado: number }
+export interface ConsumosColaborador {
+  quincena: TotalQuincena;
+  quincena_pasada: TotalQuincena;
+  tickets: TicketConsumo[];
+}
+
 export async function consultarHorasKiosco(qrToken: string): Promise<{
   status: string;
   empleado: {
@@ -247,6 +272,7 @@ export async function consultarHorasKiosco(qrToken: string): Promise<{
   horas_trabajadas_hoy: number;
   horas_mes: number;
   horas_pendientes: number;
+  consumos?: ConsumosColaborador | null;
 }> {
   const url = `${API_BASE_URL}/kiosco/consultar/`;
   const response = await fetch(url, {

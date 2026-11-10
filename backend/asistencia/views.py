@@ -28,6 +28,7 @@ from .serializers import (
     PagoVacacionesSerializer, PagoHorasExtraSerializer
 )
 from .auth import verificar_pin_nomina, foto_firma_valida
+from .consumos_tega import consumos_de_empleado
 from .authentication import IsPanelAdmin
 
 
@@ -3269,6 +3270,8 @@ def consultar_horas_kiosco(request):
         'horas_extra_aprobadas': round(float(horas_extra_aprobadas), 1),
         'horas_extra_pendientes': round(float(horas_extra_pendientes), 1),
         'dias_trabajados_mes': dias_trabajados_mes,
+        # Sus cuentas de consumo en TEGA (solo las suyas, solo lectura). None si TEGA no está.
+        'consumos': consumos_de_empleado(empleado.id),
     })
 
 
