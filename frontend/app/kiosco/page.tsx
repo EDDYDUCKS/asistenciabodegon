@@ -1159,7 +1159,7 @@ export default function KioscoPage() {
                 consumos={consultaData.consumos}
                 nombre={`${consultaData.empleado.nombre} ${consultaData.empleado.apellido}`}
                 onVolver={() => { setVerConsumos(false); setConsultaTimer(20); }}
-                onActividad={() => setConsultaTimer(60)}
+                onActividad={() => setConsultaTimer(110)}
               />
             ) : (<>
 
@@ -1322,7 +1322,7 @@ export default function KioscoPage() {
 
             {/* Mis consumos del personal (TEGA): solo los suyos, solo lectura */}
             {consultaData.consumos && (
-              <ResumenConsumos consumos={consultaData.consumos} onVer={() => { setVerConsumos(true); setConsultaTimer(60); }} />
+              <ResumenConsumos consumos={consultaData.consumos} onVer={() => { setVerConsumos(true); setConsultaTimer(110); }} />
             )}
 
             {/* Marcajes de Hoy */}
@@ -1367,7 +1367,7 @@ export default function KioscoPage() {
               <div className="flex items-center gap-2 text-stone-500 text-xs font-semibold">
                 <Clock className="w-4 h-4 text-emerald-600 animate-spin" style={{ animationDuration: '3s' }} />
                 <span>
-                  Cerrando en <span className="font-mono font-bold text-emerald-700 text-sm">{consultaTimer}s</span>...
+                  Cerrando en <span className="font-mono font-bold text-emerald-700 text-sm">{consultaTimer >= 60 ? `${Math.floor(consultaTimer / 60)}:${String(consultaTimer % 60).padStart(2, '0')}` : `${consultaTimer}s`}</span>...
                 </span>
               </div>
 
