@@ -8,6 +8,7 @@ import PinSecurityGate from '@/components/PinSecurityGate';
 import { TegaPie } from '@/components/TegaFirma';
 import { fetchEfectivoJefe, EfectivoDia, EfectivoGasto, EfectivoJefe } from '@/lib/api-client';
 import { CATEGORIAS_GASTO } from '@/lib/compras-types';
+import { supabase } from '@/lib/supabaseClient';
 
 /**
  * Bodegón Control online (solo lectura; una sola pantalla para el jefe y para administración).
@@ -254,12 +255,45 @@ function VistaControl() {
     }
   }, [periodo]);
 
+  // Sin consultas cada X tiempo: se carga al abrir, al volver a la pestaña, al volver el internet, con el botón
+  // Actualizar y cuando la base avisa (Realtime) que entró o cambió un gasto o una jornada. Si llegan muchos avisos
+  // seguidos se juntan: como mucho una carga cada 30 s.
   useEffect(() => {
-    const primera = setTimeout(cargar, 0);
-    const t = setInterval(cargar, 60_000);
+    let ultima = 0;
+    let pendiente: ReturnType<typeof setTimeout> | null = null;
+    const pedir = (ya = false) => {
+      if (pendiente) {
+        if (!ya) return;
+        clearTimeout(pendiente);
+        pendiente = null;
+      }
+      const falta = ya ? 0 : ultima + 30_000 - Date.now();
+      const correr = () => {
+        pendiente = null;
+        ultima = Date.now();
+        cargar();
+      };
+      if (falta <= 0) correr();
+      else pendiente = setTimeout(correr, falta);
+    };
+    const primera = setTimeout(() => pedir(true), 0);
+    const alVolver = () => {
+      if (document.visibilityState === 'visible') pedir(true);
+    };
+    const alConectar = () => pedir(true);
+    document.addEventListener('visibilitychange', alVolver);
+    window.addEventListener('online', alConectar);
+    const canal = supabase
+      .channel('pass-control-jefe')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'compras_gastos' }, () => pedir())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jornadas_diarias' }, () => pedir())
+      .subscribe();
     return () => {
       clearTimeout(primera);
-      clearInterval(t);
+      if (pendiente) clearTimeout(pendiente);
+      document.removeEventListener('visibilitychange', alVolver);
+      window.removeEventListener('online', alConectar);
+      supabase.removeChannel(canal);
     };
   }, [cargar]);
 

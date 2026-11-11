@@ -154,19 +154,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
   }, [authorized, handleLogout]);
 
-  // Encuestas periódicas para alertas si está autorizado
+  // Al cambiar de sección del panel se vuelven a pedir las alertas (una vez, no por reloj).
   useEffect(() => {
     if (!authorized) return;
-    // Cada 60s y solo con la pestaña visible: cada consulta de alertas ocupa el único worker del backend
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') loadAlerts();
-    }, 60000);
+    const t = setTimeout(loadAlerts, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  // Alertas sin consultas cada X tiempo: se cargan al entrar, al volver a la pestaña, al cambiar de sección del
+  // panel y después de cada acción sobre una alerta.
+  useEffect(() => {
+    if (!authorized) return;
     const onVisible = () => {
       if (document.visibilityState === 'visible') loadAlerts();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
-      clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [authorized]);
