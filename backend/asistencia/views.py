@@ -1668,8 +1668,8 @@ class AlertaAsistenciaViewSet(viewsets.ModelViewSet):
             )
 
     def list(self, request, *args, **kwargs):
-        # El panel consulta alertas cada minuto; el mantenimiento (~90 consultas) basta
-        # correrlo una vez cada MANTENIMIENTO_ALERTAS_SEGUNDOS. cache.add es atómico entre hilos.
+        # El panel pide alertas al abrir, al volver a la pestaña y al cambiar de sección; el mantenimiento (~90 consultas)
+        # basta correrlo como mucho una vez cada MANTENIMIENTO_ALERTAS_SEGUNDOS. cache.add es atómico entre hilos.
         if cache.add('mantenimiento_alertas_en_curso', True, timeout=self.MANTENIMIENTO_ALERTAS_SEGUNDOS):
             self._ejecutar_mantenimiento_alertas()
         return super().list(request, *args, **kwargs)
